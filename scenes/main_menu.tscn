@@ -93,11 +93,11 @@ layout_mode = 2
 size_flags_horizontal = 4
 text = "Planet"
 
-[node name="FlatTerrainButton" type="Button" parent="UI/Margin/VBox/Buttons"]
+[node name="BoxedInTerrainButton" type="Button" parent="UI/Margin/VBox/Buttons"]
 custom_minimum_size = Vector2(320, 48)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Flat Terrain"
+text = "Boxed-In Terrain"
 
 [node name="BottomSpacer" type="Control" parent="UI/Margin/VBox"]
 layout_mode = 2

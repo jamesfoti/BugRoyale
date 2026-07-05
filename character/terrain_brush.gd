@@ -142,10 +142,10 @@ func _cache_terrain() -> void:
 		if planet is ChunkedTerrainWorld:
 			_terrain = planet as ChunkedTerrainWorld
 			return
-	if parent is FlatTerrainPlayer:
-		var flat_terrain: Node3D = (parent as FlatTerrainPlayer).terrain
-		if flat_terrain is ChunkedTerrainWorld:
-			_terrain = flat_terrain as ChunkedTerrainWorld
+	if parent is BoxedInTerrainPlayer:
+		var boxed_in_terrain: Node3D = (parent as BoxedInTerrainPlayer).terrain
+		if boxed_in_terrain is ChunkedTerrainWorld:
+			_terrain = boxed_in_terrain as ChunkedTerrainWorld
 			return
 	_terrain = get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
 
@@ -185,6 +185,6 @@ func _is_camera_orbiting(player: Node) -> bool:
 func _is_terrain_focus_active(player: Node) -> bool:
 	if player is PlanetPlayer:
 		return (player as PlanetPlayer).is_terrain_focus_active()
-	if player is FlatTerrainPlayer:
-		return (player as FlatTerrainPlayer).is_terrain_focus_active()
+	if player is BoxedInTerrainPlayer:
+		return (player as BoxedInTerrainPlayer).is_terrain_focus_active()
 	return false

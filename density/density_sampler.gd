@@ -28,8 +28,8 @@ class WorldDensity:
 	var cave_reference_scale: float = 1500.0 / 1600.0
 	var cave_height_noise_scale: float = 1.5
 	var cave_smoothness: float = 5.0
-	var flat_terrain_enabled: bool = false
-	var flat_boxed_edges_enabled: bool = true
+	var boxed_in_terrain_enabled: bool = false
+	var boxed_in_edges_enabled: bool = true
 	var _macro_noise: FastNoiseLite
 	var _noise: FastNoiseLite
 	var _ravine_noise: FastNoiseLite
@@ -97,7 +97,7 @@ class WorldDensity:
 			_cave_noise.fractal_lacunarity = 2.5
 			_cave_noise.fractal_gain = 0.5
 
-	func _init_flat_terrain_noise(
+	func _init_boxed_in_terrain_noise(
 		terrain_seed: int,
 		surface_frequency: float,
 		octaves: int,
@@ -113,19 +113,19 @@ class WorldDensity:
 		_macro_noise.fractal_lacunarity = lacunarity
 		_macro_noise.fractal_gain = gain
 
-	func _sample_flat_terrain_noise(world_position: Vector3) -> float:
+	func _sample_boxed_in_terrain_noise(world_position: Vector3) -> float:
 		if not noise_enabled or _macro_noise == null:
 			return 1.0
 		return _macro_noise.get_noise_3d(
 			world_position.x, world_position.y, world_position.z
 		)
 
-	func _evaluate_flat_terrain(world_pos: Vector3) -> float:
-		var value: float = _sample_flat_terrain_noise(world_pos)
-		if flat_boxed_edges_enabled:
+	func _evaluate_boxed_in_terrain(world_pos: Vector3) -> float:
+		var value: float = _sample_boxed_in_terrain_noise(world_pos)
+		if boxed_in_edges_enabled:
 			value = maxf(
 				value,
-				DensitySampler.flat_box_sdf(
+				DensitySampler.boxed_in_terrain_box_sdf(
 					world_pos, bounds_center, bounds_half, bounds_clip_inset
 				)
 			)
@@ -134,8 +134,8 @@ class WorldDensity:
 		return value
 
 	func evaluate(world_pos: Vector3) -> float:
-		if flat_terrain_enabled:
-			return _evaluate_flat_terrain(world_pos)
+		if boxed_in_terrain_enabled:
+			return _evaluate_boxed_in_terrain(world_pos)
 		var value := 1.0
 		var surface_noise := 0.0
 		if sphere_enabled:
@@ -209,7 +209,7 @@ class WorldDensity:
 		return Vector3(dx, dy, dz)
 
 
-static func create_flat_terrain_world_density(
+static func create_boxed_in_terrain_world_density(
 	noise_seed: int,
 	noise_frequency: float,
 	noise_octaves: int,
@@ -221,8 +221,8 @@ static func create_flat_terrain_world_density(
 	boxed_edges_enabled: bool = true
 ) -> WorldDensity:
 	var density: WorldDensity = WorldDensity.new()
-	density.flat_terrain_enabled = true
-	density.flat_boxed_edges_enabled = boxed_edges_enabled
+	density.boxed_in_terrain_enabled = true
+	density.boxed_in_edges_enabled = boxed_edges_enabled
 	density.sphere_enabled = false
 	density.noise_enabled = true
 	density.noise_octaves = noise_octaves
@@ -231,7 +231,7 @@ static func create_flat_terrain_world_density(
 	density.bounds_center = bounds_center
 	density.bounds_half = bounds_half
 	density.bounds_clip_inset = bounds_clip_inset
-	density._init_flat_terrain_noise(
+	density._init_boxed_in_terrain_noise(
 		noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
 	)
 	return density
@@ -445,7 +445,7 @@ static func apply_noise(
 				field.set_sample(x, y, z, current - n * amplitude)
 
 
-static func flat_box_sdf(
+static func boxed_in_terrain_box_sdf(
 	world_pos: Vector3,
 	bounds_center: Vector3,
 	bounds_half: Vector3,

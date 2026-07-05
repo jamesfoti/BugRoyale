@@ -41,8 +41,8 @@ class SettingsSnapshot:
 	var planet_caves_enabled: bool = true
 	var planet_ravine_depth: float = 12.0
 	var planet_ravine_width: float = 0.08
-	var flat_terrain_enabled: bool = false
-	var flat_boxed_edges_enabled: bool = true
+	var boxed_in_terrain_enabled: bool = false
+	var boxed_in_edges_enabled: bool = true
 	var planet_edits: PlanetEdits = null
 	var rebuild_collision: bool = true
 

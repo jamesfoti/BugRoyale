@@ -57,8 +57,8 @@ static func build_chunk(
 	)
 	var sphere_world: Vector3 = settings.bounds_center + settings.sphere_center
 	var density: DensitySampler.WorldDensity
-	if settings.flat_terrain_enabled:
-		density = DensitySampler.create_flat_terrain_world_density(
+	if settings.boxed_in_terrain_enabled:
+		density = DensitySampler.create_boxed_in_terrain_world_density(
 			settings.noise_seed,
 			settings.noise_frequency,
 			settings.noise_octaves,
@@ -67,7 +67,7 @@ static func build_chunk(
 			settings.bounds_center,
 			settings.bounds_half,
 			settings.bounds_clip_inset,
-			settings.flat_boxed_edges_enabled
+			settings.boxed_in_edges_enabled
 		)
 	elif settings.planet_features_enabled and settings.sphere_enabled:
 		density = DensitySampler.create_planet_world_density(

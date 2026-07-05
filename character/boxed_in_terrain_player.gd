@@ -1,6 +1,6 @@
 extends CharacterBody3D
-class_name FlatTerrainPlayer
-## Walks on flat terrain with standard gravity and camera-relative movement.
+class_name BoxedInTerrainPlayer
+## Walks on boxed-in terrain with standard gravity and camera-relative movement.
 
 const GODOT_PLUSH_SKIN_SCRIPT = preload("res://character/godot_plush/godot_plush_skin.gd")
 const _MIN_DIR_LEN_SQ: float = 0.0001
@@ -21,7 +21,7 @@ const _MAX_MOUSE_DELTA: float = 80.0
 @onready var _orbit_camera: OrbitCamera = $OrbitCamera
 @onready var _camera: Camera3D = $OrbitCamera/Camera3D
 
-var _flat_terrain: FlatTerrain
+var _boxed_in_terrain: BoxedInTerrain
 var _anim_state: String = ""
 var _want_jump: bool = false
 var _spawned: bool = false
@@ -206,9 +206,9 @@ func _align_to_flat_forward(delta: float, facing_direction: Vector3) -> void:
 
 func _cache_terrain_refs() -> void:
 	if terrain == null:
-		terrain = get_tree().get_first_node_in_group("flat_terrain") as Node3D
-	if terrain is FlatTerrain:
-		_flat_terrain = terrain as FlatTerrain
+		terrain = get_tree().get_first_node_in_group("boxed_in_terrain") as Node3D
+	if terrain is BoxedInTerrain:
+		_boxed_in_terrain = terrain as BoxedInTerrain
 
 
 func respawn_random() -> void:
@@ -219,7 +219,7 @@ func respawn_random() -> void:
 func _spawn_on_terrain() -> void:
 	_cache_terrain_refs()
 	if terrain == null:
-		push_warning("[FlatTerrainPlayer] No terrain assigned.")
+		push_warning("[BoxedInTerrainPlayer] No terrain assigned.")
 		return
 
 	var spawn_data: Dictionary = _find_random_surface_spawn()
@@ -249,11 +249,11 @@ func _find_random_surface_spawn() -> Dictionary:
 		"position": Vector3.ZERO,
 		"from_raycast_hit": false,
 	}
-	if _flat_terrain == null:
+	if _boxed_in_terrain == null:
 		spawn_data.position = Vector3(0.0, spawn_clearance, 0.0)
 		return spawn_data
 
-	var world_extents: Vector3 = _flat_terrain.get_world_extents()
+	var world_extents: Vector3 = _boxed_in_terrain.get_world_extents()
 	var half_extent_x: float = world_extents.x * 0.4
 	var half_extent_z: float = world_extents.z * 0.4
 	var random_offset: Vector3 = Vector3(
@@ -261,7 +261,7 @@ func _find_random_surface_spawn() -> Dictionary:
 		0.0,
 		randf_range(-half_extent_z, half_extent_z)
 	)
-	var world_center: Vector3 = _flat_terrain.global_position
+	var world_center: Vector3 = _boxed_in_terrain.global_position
 	var ray_origin: Vector3 = world_center + random_offset + Vector3.UP * _SPAWN_RAY_HEIGHT
 	var ray_end: Vector3 = world_center + random_offset - Vector3.UP * _SPAWN_RAY_HEIGHT
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
@@ -271,7 +271,7 @@ func _find_random_surface_spawn() -> Dictionary:
 	ray_query.collide_with_areas = false
 	var raycast_hit: Dictionary = space.intersect_ray(ray_query)
 	if raycast_hit.is_empty() or not _is_terrain_collider(raycast_hit.get("collider")):
-		var fallback_height: float = _flat_terrain.get_surface_height_at(world_center + random_offset)
+		var fallback_height: float = _boxed_in_terrain.get_surface_height_at(world_center + random_offset)
 		spawn_data.position = Vector3(
 			world_center.x + random_offset.x,
 			fallback_height + spawn_clearance,

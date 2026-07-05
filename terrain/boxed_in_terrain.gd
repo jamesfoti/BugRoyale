@@ -1,10 +1,10 @@
 @tool
-class_name FlatTerrain
+class_name BoxedInTerrain
 extends ChunkedTerrainWorld
 ## 3D noise terrain clipped to a boxed world volume.
 
 
-@export_group("Flat Terrain Grid")
+@export_group("Boxed-In Terrain Grid")
 @export_range(1, 64, 1) var chunks_x: int = 5:
 	set(value):
 		chunks_x = maxi(value, 1)
@@ -27,7 +27,7 @@ extends ChunkedTerrainWorld
 
 
 func _register_playable_groups() -> void:
-	add_to_group("flat_terrain")
+	add_to_group("boxed_in_terrain")
 
 
 func _get_grid_dimensions() -> Vector3i:
@@ -35,7 +35,7 @@ func _get_grid_dimensions() -> Vector3i:
 
 
 func _get_world_log_name() -> String:
-	return "FlatTerrain"
+	return "BoxedInTerrain"
 
 
 func get_surface_height_at(world_position: Vector3) -> float:
@@ -44,12 +44,12 @@ func get_surface_height_at(world_position: Vector3) -> float:
 
 func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapshot) -> void:
 	settings.sphere_enabled = false
-	settings.flat_terrain_enabled = true
-	settings.flat_boxed_edges_enabled = boxed_edges_enabled
+	settings.boxed_in_terrain_enabled = true
+	settings.boxed_in_edges_enabled = boxed_edges_enabled
 
 
 func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> DensitySampler.WorldDensity:
-	return DensitySampler.create_flat_terrain_world_density(
+	return DensitySampler.create_boxed_in_terrain_world_density(
 		settings.noise_seed,
 		settings.noise_frequency,
 		settings.noise_octaves,
@@ -58,5 +58,5 @@ func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> Den
 		settings.bounds_center,
 		settings.bounds_half,
 		settings.bounds_clip_inset,
-		settings.flat_boxed_edges_enabled
+		settings.boxed_in_edges_enabled
 	)

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://caddrbdw2qnx5"]
 
-[ext_resource type="Script" path="res://character/flat_terrain_player.gd" id="1"]
+[ext_resource type="Script" path="res://character/boxed_in_terrain_player.gd" id="1"]
 [ext_resource type="PackedScene" uid="uid://dmyrflud401tg" path="res://character/godot_plush/godot_plush_skin.tscn" id="2"]
 [ext_resource type="Script" path="res://character/orbit_camera.gd" id="3"]
 [ext_resource type="Script" path="res://character/terrain_brush.gd" id="4"]
