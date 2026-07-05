@@ -28,6 +28,7 @@ const _CONTROLS_LINES: Array[String] = [
 	"F3 — Debug overlay",
 	"Ctrl — Toggle terrain focus while editing (stay put, aim with mouse)",
 	"Hold left click — Paint terrain (threaded mesh rebuild)",
+	"R — Toggle ragdoll mode (active ragdoll character)",
 ]
 
 var _paused: bool = false

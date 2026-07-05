@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://c5s00al4paols"]
+
+[ext_resource type="PackedScene" uid="uid://cberryragdoll01" path="res://character/ragdoll/berry/scenes/ragdoll_character.tscn" id="1"]
+[ext_resource type="Script" path="res://character/ragdoll/berry/scripts/berry_planet_player.gd" id="2"]
+
+[node name="Player" instance=ExtResource("1")]
+script = ExtResource("2")

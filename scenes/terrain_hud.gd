@@ -33,6 +33,7 @@ func _ready() -> void:
 	_panel.visibility_changed.connect(_queue_layout)
 	_queue_layout()
 	call_deferred("_apply_edit_mode_to_brush")
+	call_deferred("sync_mouse_mode")
 
 
 func _input(event: InputEvent) -> void:

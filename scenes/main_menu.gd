@@ -1,5 +1,5 @@
 extends Control
-## Entry menu: choose planet, boxed-in terrain, or open terrain play mode.
+## Entry menu: choose a world and whether to use the active ragdoll character.
 
 
 const PLANET_SCENE_PATH: String = "res://scenes/planet_test.tscn"
@@ -11,13 +11,20 @@ const LOADING_SCREEN_SCENE_PATH: String = "res://scenes/loading_screen.tscn"
 @onready var _planet_button: Button = $UI/Margin/VBox/Buttons/PlanetButton
 @onready var _boxed_in_terrain_button: Button = $UI/Margin/VBox/Buttons/BoxedInTerrainButton
 @onready var _open_terrain_button: Button = $UI/Margin/VBox/Buttons/OpenTerrainButton
+@onready var _ragdoll_checkbox: CheckButton = $UI/Margin/VBox/Buttons/RagdollCheck
 
 
 func _ready() -> void:
 	_title.text = str(ProjectSettings.get_setting("application/config/name", "PhysicsRoyale"))
+	_ragdoll_checkbox.button_pressed = LoadingScreen.use_ragdoll_character
+	_ragdoll_checkbox.toggled.connect(_on_ragdoll_toggled)
 	_planet_button.pressed.connect(_on_planet_pressed)
 	_boxed_in_terrain_button.pressed.connect(_on_boxed_in_terrain_pressed)
 	_open_terrain_button.pressed.connect(_on_open_terrain_pressed)
+
+
+func _on_ragdoll_toggled(enabled: bool) -> void:
+	LoadingScreen.use_ragdoll_character = enabled
 
 
 func _on_planet_pressed() -> void:

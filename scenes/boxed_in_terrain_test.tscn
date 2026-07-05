@@ -4,9 +4,10 @@
 [ext_resource type="Material" uid="uid://ct8q5pbs54ajt" path="res://materials/terrain_procedural.tres" id="2"]
 [ext_resource type="Script" path="res://scenes/terrain_hud.gd" id="3"]
 [ext_resource type="Environment" uid="uid://c8gcug836onl0" path="res://materials/terrain_env.tres" id="4"]
-[ext_resource type="PackedScene" uid="uid://caddrbdw2qnx5" path="res://character/boxed_in_terrain_player.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="6"]
 [ext_resource type="PackedScene" uid="uid://dnitu1aqqnorc" path="res://gui/player_item_menu.tscn" id="7"]
+
+[ext_resource type="Script" path="res://scenes/player_spawner.gd" id="8"]
 
 [node name="BoxedInTerrainTest" type="Node3D"]
 
@@ -33,8 +34,10 @@ boxed_edges_enabled = true
 bounds_falloff_enabled = false
 rebuild_on_ready = true
 
-[node name="Player" parent="." instance=ExtResource("5")]
-terrain = NodePath("../TerrainWorld")
+[node name="PlayerSpawner" type="Node" parent="."]
+script = ExtResource("8")
+world_kind = 2
+terrain_path = NodePath("../TerrainWorld")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("3")

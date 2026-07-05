@@ -13,7 +13,6 @@ const _MAX_MOUSE_DELTA: float = 80.0
 @export var speed: float = 5.0
 @export var run_speed: float = 8.0
 @export var jump_velocity: float = 4.5
-@export var gravity_strength: float = 9.8
 @export var mouse_sensitivity: float = 0.0025
 @export var spawn_clearance: float = 1.2
 
@@ -21,6 +20,7 @@ const _MAX_MOUSE_DELTA: float = 80.0
 @onready var _orbit_camera: OrbitCamera = $OrbitCamera
 @onready var _camera: Camera3D = $OrbitCamera/Camera3D
 
+var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _open_terrain: OpenTerrain
 var _anim_state: String = ""
 var _want_jump: bool = false
@@ -121,11 +121,11 @@ func _apply_movement(delta: float, movement_direction: Vector3) -> void:
 	elif is_on_floor():
 		velocity.x = 0.0
 		velocity.z = 0.0
+		if velocity.y < 0.0:
+			velocity.y = 0.0
 
 	if not is_on_floor():
-		velocity.y -= gravity_strength * delta
-	elif velocity.y < 0.0:
-		velocity.y = 0.0
+		velocity.y -= _gravity * delta
 
 	if _want_jump and is_on_floor() and not _get_skin().is_waving():
 		velocity.y = jump_velocity
@@ -139,7 +139,7 @@ func _apply_focus_physics(delta: float) -> void:
 		if velocity.y < 0.0:
 			velocity.y = 0.0
 	else:
-		velocity.y -= gravity_strength * delta
+		velocity.y -= _gravity * delta
 
 
 func _apply_mouse_yaw(mouse_delta_x: float) -> void:

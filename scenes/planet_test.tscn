@@ -4,13 +4,28 @@
 [ext_resource type="Material" uid="uid://ct8q5pbs54ajt" path="res://materials/terrain_procedural.tres" id="2"]
 [ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="4"]
 [ext_resource type="Environment" uid="uid://c8gcug836onl0" path="res://materials/terrain_env.tres" id="5"]
-[ext_resource type="PackedScene" path="res://character/player.tscn" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="7"]
 [ext_resource type="PackedScene" uid="uid://bnpr1un6n0hoq" path="res://scenes/sun.tscn" id="8"]
 [ext_resource type="PackedScene" path="res://gui/player_item_menu.tscn" id="10"]
 [ext_resource type="Script" path="res://asteroids/asteroid_spawner.gd" id="11"]
 
+[ext_resource type="Script" path="res://scenes/player_spawner.gd" id="12"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_zero_gravity"]
+radius = 8192.0
+
 [node name="PlanetTest" type="Node3D" unique_id=234830412]
+
+[node name="ZeroGravity" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+gravity_space_override = 3
+gravity = 0.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ZeroGravity"]
+shape = SubResource("SphereShape3D_zero_gravity")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=600744623]
 environment = ExtResource("5")
@@ -31,8 +46,10 @@ planet_ravine_depth = null
 rebuild_on_ready = true
 auto_rebuild_in_editor = true
 
-[node name="Player" parent="." instance=ExtResource("6")]
-planet = NodePath("../TerrainWorld")
+[node name="PlayerSpawner" type="Node" parent="."]
+script = ExtResource("12")
+world_kind = 0
+planet_path = NodePath("../TerrainWorld")
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1801855157]
 script = ExtResource("4")

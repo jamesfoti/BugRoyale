@@ -1,12 +1,13 @@
 [gd_scene format=3 uid="uid://bbv6osp1px8fx"]
 
-[ext_resource type="Script" uid="uid://nqnac833ce6c" path="res://terrain/open_terrain.gd" id="1"]
+[ext_resource type="Script" uid="uid://b7kfopenterrain01" path="res://terrain/open_terrain.gd" id="1"]
 [ext_resource type="Material" uid="uid://ct8q5pbs54ajt" path="res://materials/terrain_procedural.tres" id="2"]
 [ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="3"]
 [ext_resource type="Environment" uid="uid://c8gcug836onl0" path="res://materials/terrain_env.tres" id="4"]
-[ext_resource type="PackedScene" uid="uid://y3xiicesos7" path="res://character/open_terrain_player.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="6"]
 [ext_resource type="PackedScene" uid="uid://dnitu1aqqnorc" path="res://gui/player_item_menu.tscn" id="7"]
+
+[ext_resource type="Script" path="res://scenes/player_spawner.gd" id="8"]
 
 [node name="OpenTerrainTest" type="Node3D" unique_id=2068645336]
 
@@ -28,8 +29,10 @@ terrain_material = ExtResource("2")
 bounds_falloff_enabled = false
 auto_rebuild_in_editor = true
 
-[node name="Player" parent="." unique_id=34541054 instance=ExtResource("5")]
-terrain = NodePath("../TerrainWorld")
+[node name="PlayerSpawner" type="Node" parent="."]
+script = ExtResource("8")
+world_kind = 1
+terrain_path = NodePath("../TerrainWorld")
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1921798108]
 script = ExtResource("3")
