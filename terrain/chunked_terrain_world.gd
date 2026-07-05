@@ -43,6 +43,9 @@ class SettingsSnapshot:
 	var planet_ravine_width: float = 0.08
 	var boxed_in_terrain_enabled: bool = false
 	var boxed_in_edges_enabled: bool = true
+	var open_terrain_enabled: bool = false
+	var open_terrain_edges_enabled: bool = true
+	var open_terrain_heightmap_image: Image = null
 	var planet_edits: PlanetEdits = null
 	var rebuild_collision: bool = true
 

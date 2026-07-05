@@ -57,7 +57,21 @@ static func build_chunk(
 	)
 	var sphere_world: Vector3 = settings.bounds_center + settings.sphere_center
 	var density: DensitySampler.WorldDensity
-	if settings.boxed_in_terrain_enabled:
+	if settings.open_terrain_enabled:
+		density = DensitySampler.create_open_terrain_world_density(
+			settings.noise_seed,
+			settings.noise_frequency,
+			settings.noise_amplitude,
+			settings.noise_octaves,
+			settings.noise_lacunarity,
+			settings.noise_gain,
+			settings.bounds_center,
+			settings.bounds_half,
+			settings.bounds_clip_inset,
+			settings.open_terrain_edges_enabled,
+			settings.open_terrain_heightmap_image
+		)
+	elif settings.boxed_in_terrain_enabled:
 		density = DensitySampler.create_boxed_in_terrain_world_density(
 			settings.noise_seed,
 			settings.noise_frequency,

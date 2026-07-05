@@ -30,7 +30,11 @@ class WorldDensity:
 	var cave_smoothness: float = 5.0
 	var boxed_in_terrain_enabled: bool = false
 	var boxed_in_edges_enabled: bool = true
+	var open_terrain_enabled: bool = false
+	var open_terrain_edges_enabled: bool = true
 	var _macro_noise: FastNoiseLite
+	var _height_noise: FastNoiseLite
+	var _heightmap_image: Image
 	var _noise: FastNoiseLite
 	var _ravine_noise: FastNoiseLite
 	var _ravine_blend_noise: FastNoiseLite
@@ -133,7 +137,57 @@ class WorldDensity:
 			value = planet_edits.apply_to_density(value, world_pos)
 		return value
 
+	func _init_open_terrain_height_noise(
+		terrain_seed: int,
+		surface_frequency: float,
+		octaves: int,
+		lacunarity: float,
+		gain: float
+	) -> void:
+		_height_noise = FastNoiseLite.new()
+		_height_noise.seed = terrain_seed
+		_height_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_height_noise.frequency = maxf(surface_frequency, 0.001)
+		_height_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+		_height_noise.fractal_octaves = octaves
+		_height_noise.fractal_lacunarity = lacunarity
+		_height_noise.fractal_gain = gain
+
+	func _sample_open_terrain_height(world_x: float, world_z: float) -> float:
+		if _heightmap_image != null and not _heightmap_image.is_empty():
+			return DensitySampler.sample_heightmap_image(
+				_heightmap_image,
+				world_x,
+				world_z,
+				bounds_center,
+				bounds_half,
+				noise_amplitude
+			)
+		if not noise_enabled or _height_noise == null:
+			return bounds_center.y
+		var noise_value: float = _height_noise.get_noise_2d(world_x, world_z)
+		return bounds_center.y + noise_value * noise_amplitude
+
+	func sample_open_terrain_height(world_x: float, world_z: float) -> float:
+		return _sample_open_terrain_height(world_x, world_z)
+
+	func _evaluate_open_terrain(world_pos: Vector3) -> float:
+		var surface_height: float = _sample_open_terrain_height(world_pos.x, world_pos.z)
+		var value: float = world_pos.y - surface_height
+		if open_terrain_edges_enabled:
+			value = maxf(
+				value,
+				DensitySampler.open_terrain_box_sdf(
+					world_pos, bounds_center, bounds_half, bounds_clip_inset
+				)
+			)
+		if planet_edits != null:
+			value = planet_edits.apply_to_density(value, world_pos)
+		return value
+
 	func evaluate(world_pos: Vector3) -> float:
+		if open_terrain_enabled:
+			return _evaluate_open_terrain(world_pos)
 		if boxed_in_terrain_enabled:
 			return _evaluate_boxed_in_terrain(world_pos)
 		var value := 1.0
@@ -207,6 +261,40 @@ class WorldDensity:
 			- evaluate(world_pos - Vector3(0.0, 0.0, epsilon))
 		) / (2.0 * epsilon)
 		return Vector3(dx, dy, dz)
+
+
+static func create_open_terrain_world_density(
+	noise_seed: int,
+	noise_frequency: float,
+	noise_amplitude: float,
+	noise_octaves: int,
+	noise_lacunarity: float,
+	noise_gain: float,
+	bounds_center: Vector3,
+	bounds_half: Vector3,
+	bounds_clip_inset: float = 0.5,
+	open_edges_enabled: bool = true,
+	heightmap_image: Image = null
+) -> WorldDensity:
+	var density: WorldDensity = WorldDensity.new()
+	density.open_terrain_enabled = true
+	density.open_terrain_edges_enabled = open_edges_enabled
+	density.sphere_enabled = false
+	density.noise_enabled = true
+	density.noise_amplitude = noise_amplitude
+	density.noise_octaves = noise_octaves
+	density.noise_lacunarity = noise_lacunarity
+	density.noise_gain = noise_gain
+	density.bounds_center = bounds_center
+	density.bounds_half = bounds_half
+	density.bounds_clip_inset = bounds_clip_inset
+	if heightmap_image != null and not heightmap_image.is_empty():
+		density._heightmap_image = heightmap_image.duplicate()
+	else:
+		density._init_open_terrain_height_noise(
+			noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
+		)
+	return density
 
 
 static func create_boxed_in_terrain_world_density(
@@ -460,6 +548,53 @@ static func boxed_in_terrain_box_sdf(
 	var outside_y: float = absf(relative.y) - half_extent_y
 	var outside_z: float = absf(relative.z) - half_extent_z
 	return maxf(outside_x, maxf(outside_y, outside_z))
+
+
+static func open_terrain_box_sdf(
+	world_pos: Vector3,
+	bounds_center: Vector3,
+	bounds_half: Vector3,
+	clip_inset: float
+) -> float:
+	## Positive outside the playable volume; clips X, Z, and bottom Y only (open top).
+	var relative: Vector3 = world_pos - bounds_center
+	var half_extent_x: float = maxf(bounds_half.x - clip_inset, 0.0)
+	var half_extent_y: float = maxf(bounds_half.y - clip_inset, 0.0)
+	var half_extent_z: float = maxf(bounds_half.z - clip_inset, 0.0)
+	var outside_x: float = absf(relative.x) - half_extent_x
+	var outside_z: float = absf(relative.z) - half_extent_z
+	var outside_bottom: float = (-half_extent_y - relative.y)
+	return maxf(outside_x, maxf(outside_z, outside_bottom))
+
+
+static func sample_heightmap_image(
+	heightmap_image: Image,
+	world_x: float,
+	world_z: float,
+	bounds_center: Vector3,
+	bounds_half: Vector3,
+	height_scale: float
+) -> float:
+	if bounds_half.x <= 0.0 or bounds_half.z <= 0.0:
+		return bounds_center.y
+	var normalized_x: float = (world_x - bounds_center.x) / bounds_half.x
+	var normalized_z: float = (world_z - bounds_center.z) / bounds_half.z
+	if absf(normalized_x) > 1.0 or absf(normalized_z) > 1.0:
+		return bounds_center.y
+	var image_size: Vector2i = heightmap_image.get_size()
+	var sample_x: int = clampi(
+		int(floor((normalized_x * 0.5 + 0.5) * float(image_size.x - 1))),
+		0,
+		image_size.x - 1
+	)
+	var sample_z: int = clampi(
+		int(floor((normalized_z * 0.5 + 0.5) * float(image_size.y - 1))),
+		0,
+		image_size.y - 1
+	)
+	var pixel: Color = heightmap_image.get_pixel(sample_x, sample_z)
+	var height_sample: float = (pixel.r + pixel.g + pixel.b) / 3.0
+	return bounds_center.y + (height_sample - 0.5) * height_scale * 2.0
 
 
 static func bounds_edge_push(

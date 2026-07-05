@@ -114,6 +114,7 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.planet_ravine_depth = _planet_ravine_depth
 	settings.planet_ravine_width = _planet_ravine_width
 	settings.boxed_in_terrain_enabled = false
+	settings.open_terrain_enabled = false
 
 
 func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> DensitySampler.WorldDensity:

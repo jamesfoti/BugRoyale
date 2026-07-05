@@ -99,6 +99,12 @@ layout_mode = 2
 size_flags_horizontal = 4
 text = "Boxed-In Terrain"
 
+[node name="OpenTerrainButton" type="Button" parent="UI/Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(320, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Open Terrain"
+
 [node name="BottomSpacer" type="Control" parent="UI/Margin/VBox"]
 layout_mode = 2
 size_flags_vertical = 3

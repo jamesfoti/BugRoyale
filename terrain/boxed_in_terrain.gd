@@ -45,6 +45,7 @@ func get_surface_height_at(world_position: Vector3) -> float:
 func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapshot) -> void:
 	settings.sphere_enabled = false
 	settings.boxed_in_terrain_enabled = true
+	settings.open_terrain_enabled = false
 	settings.boxed_in_edges_enabled = boxed_edges_enabled
 
 

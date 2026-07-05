@@ -3,13 +3,18 @@ extends EditorInspectorPlugin
 
 const _PLANET_SCRIPT = preload("res://terrain/planet.gd")
 const _BOXED_IN_TERRAIN_SCRIPT = preload("res://terrain/boxed_in_terrain.gd")
+const _OPEN_TERRAIN_SCRIPT = preload("res://terrain/open_terrain.gd")
 
 
 func _can_handle(object: Object) -> bool:
 	if not (object is Node3D):
 		return false
 	var object_script: Script = (object as Node3D).get_script()
-	return object_script == _PLANET_SCRIPT or object_script == _BOXED_IN_TERRAIN_SCRIPT
+	return (
+		object_script == _PLANET_SCRIPT
+		or object_script == _BOXED_IN_TERRAIN_SCRIPT
+		or object_script == _OPEN_TERRAIN_SCRIPT
+	)
 
 
 func _parse_begin(object: Object) -> void:

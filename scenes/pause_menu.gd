@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Pause overlay: Resume, Controls, Restart, or Quit.
+## Pause overlay: Resume, Controls, Restart, Main Menu, or Quit.
 
 @onready var _panel: PanelContainer = $Panel
 @onready var _main_menu: VBoxContainer = $Panel/Margin/MainMenu
@@ -8,8 +8,11 @@ extends CanvasLayer
 @onready var _resume_button: Button = $Panel/Margin/MainMenu/ResumeButton
 @onready var _controls_button: Button = $Panel/Margin/MainMenu/ControlsButton
 @onready var _reset_button: Button = $Panel/Margin/MainMenu/ResetButton
+@onready var _main_menu_button: Button = $Panel/Margin/MainMenu/MainMenuButton
 @onready var _quit_button: Button = $Panel/Margin/MainMenu/QuitButton
 @onready var _back_button: Button = $Panel/Margin/ControlsMenu/BackButton
+
+const MAIN_MENU_SCENE_PATH: String = "res://scenes/main_menu.tscn"
 
 const _CONTROLS_LINES: Array[String] = [
 	"W / S — Move forward / backward",
@@ -38,6 +41,7 @@ func _ready() -> void:
 	_resume_button.pressed.connect(_on_resume_pressed)
 	_controls_button.pressed.connect(_on_controls_pressed)
 	_reset_button.pressed.connect(_on_reset_pressed)
+	_main_menu_button.pressed.connect(_on_main_menu_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
 
@@ -82,6 +86,11 @@ func _on_reset_pressed() -> void:
 	if player != null and player.has_method("respawn_random"):
 		player.call("respawn_random")
 	_resume()
+
+
+func _on_main_menu_pressed() -> void:
+	get_tree().paused = false
+	get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
 
 
 func _on_quit_pressed() -> void:
