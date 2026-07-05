@@ -1,9 +1,9 @@
 @tool
-class_name TerrainWorldV2
+class_name Planet
 extends Node3D
 ## Pure-GDScript chunked terrain for browser-friendly testing.
 
-const _CHUNK_SCRIPT = preload("res://terrain/terrain_chunk.gd")
+const _CHUNK_SCRIPT = preload("res://terrain/planet_chunk.gd")
 const RECOMMENDED_RAVINE_DEPTH := 12.0
 const RECOMMENDED_RAVINE_WIDTH := 0.08
 
@@ -42,7 +42,7 @@ class SettingsSnapshot:
 	var planet_caves_enabled: bool = true
 	var planet_ravine_depth: float = RECOMMENDED_RAVINE_DEPTH
 	var planet_ravine_width: float = RECOMMENDED_RAVINE_WIDTH
-	var terrain_edits: TerrainEdits = null
+	var planet_edits: PlanetEdits = null
 	var rebuild_collision: bool = true
 
 
@@ -172,20 +172,20 @@ class SettingsSnapshot:
 @export_range(1, 8, 1) var max_concurrent_rebuild_tasks: int = 4
 
 var _chunks: Dictionary = {}
-var _rebuild_queued := false
+var _rebuild_queued: bool = false
 var _planet_ravine_depth: float = RECOMMENDED_RAVINE_DEPTH
 var _planet_ravine_width: float = RECOMMENDED_RAVINE_WIDTH
-var _edits: TerrainEdits = TerrainEdits.new()
+var _edits: PlanetEdits = PlanetEdits.new()
 var _dirty_chunks: Dictionary = {}
 var _chunk_flush_pending: bool = false
 var _continuous_edit_depth: int = 0
 var _bake_density: DensitySampler.WorldDensity
-var _pending_rebuild_coords: Dictionary = {}
+var _pending_rebuild_chunk_coordinates: Dictionary = {}
 var _pending_rebuild_collision: bool = false
 var _async_rebuild_requested: bool = false
 var _async_jobs: Dictionary = {}
 var _running_async_tasks: int = 0
-var _inflight_coords: Dictionary = {}
+var _inflight_chunk_coordinates: Dictionary = {}
 var _runtime_shader_material: ShaderMaterial
 
 
@@ -223,38 +223,40 @@ func _ensure_export_defaults() -> void:
 func destroy_all() -> void:
 	_clear_chunks()
 	if Engine.is_editor_hint():
-		print("[TerrainWorldV2] Destroyed terrain (editor)")
+		print("[Planet] Destroyed terrain (editor)")
 
 
 func rebuild_all() -> void:
 	_invalidate_bake_density()
 	_ensure_export_defaults()
 	_clear_chunks()
-	var settings := _make_settings_snapshot()
-	var grid_chunks := _grid_chunks_per_axis()
+	var settings: SettingsSnapshot = _make_settings_snapshot()
+	var grid_chunks: int = _grid_chunks_per_axis()
 	_rebuild_all_sync(settings, grid_chunks)
 
 
 func _rebuild_all_sync(settings: SettingsSnapshot, grid_chunks: int) -> void:
 	var edge_world_cache: Dictionary = {}
-	var t0: int = Time.get_ticks_msec()
-	for cz: int in grid_chunks:
-		for cy: int in grid_chunks:
-			for cx: int in grid_chunks:
-				var coord := Vector3i(cx, cy, cz)
-				_build_chunk_at(coord, settings, edge_world_cache)
-	var elapsed: int = Time.get_ticks_msec() - t0
-	_log_rebuild_complete(_chunks.size(), settings, grid_chunks, elapsed)
+	var rebuild_start_milliseconds: int = Time.get_ticks_msec()
+	for chunk_z: int in grid_chunks:
+		for chunk_y: int in grid_chunks:
+			for chunk_x: int in grid_chunks:
+				var chunk_coordinate: Vector3i = Vector3i(chunk_x, chunk_y, chunk_z)
+				_build_chunk_at(chunk_coordinate, settings, edge_world_cache)
+	var elapsed_milliseconds: int = Time.get_ticks_msec() - rebuild_start_milliseconds
+	_log_rebuild_complete(_chunks.size(), settings, grid_chunks, elapsed_milliseconds)
 
 
 func _build_chunk_at(
-	coord: Vector3i,
+	chunk_coordinate: Vector3i,
 	settings: SettingsSnapshot,
 	edge_world_cache: Dictionary
 ) -> void:
-	var chunk: TerrainChunkV2 = _CHUNK_SCRIPT.new()
-	chunk.name = "Chunk_%d_%d_%d" % [coord.x, coord.y, coord.z]
-	chunk.chunk_coord = coord
+	var chunk: PlanetChunk = _CHUNK_SCRIPT.new()
+	chunk.name = "Chunk_%d_%d_%d" % [
+		chunk_coordinate.x, chunk_coordinate.y, chunk_coordinate.z
+	]
+	chunk.chunk_coordinate = chunk_coordinate
 	if not is_playable_planet:
 		chunk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(chunk)
@@ -262,7 +264,7 @@ func _build_chunk_at(
 	if settings.material != null:
 		chunk.material_override = settings.material
 	_register_editor_scene_node(chunk)
-	_chunks[coord] = chunk
+	_chunks[chunk_coordinate] = chunk
 
 
 func _log_rebuild_complete(
@@ -272,7 +274,7 @@ func _log_rebuild_complete(
 	elapsed_ms: int
 ) -> void:
 	print(
-		"[TerrainWorldV2] Rebuilt ",
+		"[Planet] Rebuilt ",
 		chunk_count,
 		" chunks (",
 		settings.cells_per_axis,
@@ -290,8 +292,8 @@ func get_chunk_count() -> int:
 
 func get_total_vertex_count() -> int:
 	var total: int = 0
-	for coord_variant: Variant in _chunks.keys():
-		var chunk: TerrainChunkV2 = _chunks[coord_variant] as TerrainChunkV2
+	for chunk_coordinate_variant: Variant in _chunks.keys():
+		var chunk: PlanetChunk = _chunks[chunk_coordinate_variant] as PlanetChunk
 		if chunk == null or chunk.mesh == null:
 			continue
 		var array_mesh: ArrayMesh = chunk.mesh as ArrayMesh
@@ -304,8 +306,8 @@ func get_total_vertex_count() -> int:
 
 func get_total_triangle_count() -> int:
 	var total_indices: int = 0
-	for coord_variant: Variant in _chunks.keys():
-		var chunk: TerrainChunkV2 = _chunks[coord_variant] as TerrainChunkV2
+	for chunk_coordinate_variant: Variant in _chunks.keys():
+		var chunk: PlanetChunk = _chunks[chunk_coordinate_variant] as PlanetChunk
 		if chunk == null or chunk.mesh == null:
 			continue
 		var array_mesh: ArrayMesh = chunk.mesh as ArrayMesh
@@ -333,8 +335,8 @@ func get_cells_per_axis() -> int:
 
 
 func get_voxels_per_chunk() -> int:
-	var cells := get_cells_per_axis()
-	return cells * cells * cells
+	var cells_per_axis: int = get_cells_per_axis()
+	return cells_per_axis * cells_per_axis * cells_per_axis
 
 
 func get_chunk_world_extent() -> float:
@@ -365,7 +367,7 @@ func get_settings_snapshot() -> SettingsSnapshot:
 	return _make_settings_snapshot()
 
 
-func get_terrain_edits() -> TerrainEdits:
+func get_planet_edits() -> PlanetEdits:
 	return _edits
 
 
@@ -378,17 +380,19 @@ func end_continuous_edit() -> void:
 	if _continuous_edit_depth > 0:
 		return
 	_chunk_flush_pending = false
-	if not _pending_rebuild_coords.is_empty():
+	if not _pending_rebuild_chunk_coordinates.is_empty():
 		_dispatch_pending_rebuilds()
 
 
 func apply_brush(world_position: Vector3, radius: float, add_solid: bool) -> void:
 	_edits.set_voxel_size(get_voxel_size())
-	var procedural := Callable(_get_bake_density(), "evaluate")
-	_edits.add_brush(world_position, radius, add_solid, procedural)
-	var coords: Array[Vector3i] = _get_chunk_coords_intersecting_sphere(world_position, radius)
-	for coord: Vector3i in coords:
-		_pending_rebuild_coords[coord] = true
+	var procedural_density: Callable = Callable(_get_bake_density(), "evaluate")
+	_edits.add_brush(world_position, radius, add_solid, procedural_density)
+	var chunk_coordinates: Array[Vector3i] = _get_chunk_coordinates_intersecting_sphere(
+		world_position, radius
+	)
+	for chunk_coordinate: Vector3i in chunk_coordinates:
+		_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
 	_pending_rebuild_collision = true
 	_dispatch_pending_rebuilds()
 
@@ -403,10 +407,10 @@ func _grid_chunks_per_axis() -> int:
 
 
 func _make_settings_snapshot() -> SettingsSnapshot:
-	var settings := SettingsSnapshot.new()
-	var grid_chunks := _grid_chunks_per_axis()
-	var world_step := get_world_step()
-	var radius := get_sphere_radius()
+	var settings: SettingsSnapshot = SettingsSnapshot.new()
+	var grid_chunks: int = _grid_chunks_per_axis()
+	var world_step: float = get_world_step()
+	var sphere_radius: float = get_sphere_radius()
 	settings.chunks_x = grid_chunks
 	settings.chunks_y = grid_chunks
 	settings.chunks_z = grid_chunks
@@ -420,7 +424,7 @@ func _make_settings_snapshot() -> SettingsSnapshot:
 	settings.world_origin = global_position
 	settings.sphere_enabled = sphere_enabled
 	settings.sphere_center = sphere_center
-	settings.sphere_radius = radius
+	settings.sphere_radius = sphere_radius
 	settings.noise_enabled = noise_enabled
 	settings.noise_seed = noise_seed
 	settings.noise_frequency = noise_frequency
@@ -440,7 +444,7 @@ func _make_settings_snapshot() -> SettingsSnapshot:
 	settings.planet_caves_enabled = planet_caves_enabled
 	settings.planet_ravine_depth = _planet_ravine_depth
 	settings.planet_ravine_width = _planet_ravine_width
-	settings.terrain_edits = _edits
+	settings.planet_edits = _edits
 	settings.rebuild_collision = settings.generate_collision
 	return settings
 
@@ -482,57 +486,63 @@ func _use_threaded_rebuild() -> bool:
 
 
 func _dispatch_pending_rebuilds() -> void:
-	if _pending_rebuild_coords.is_empty():
+	if _pending_rebuild_chunk_coordinates.is_empty():
 		return
 	var rebuild_collision: bool = _pending_rebuild_collision
 	if rebuild_collision:
 		_pending_rebuild_collision = false
-	var deferred: Array[Vector3i] = []
-	for coord_variant: Variant in _pending_rebuild_coords.keys():
-		var coord: Vector3i = coord_variant as Vector3i
-		if _inflight_coords.has(coord):
-			deferred.append(coord)
+	var deferred_chunk_coordinates: Array[Vector3i] = []
+	for chunk_coordinate_variant: Variant in _pending_rebuild_chunk_coordinates.keys():
+		var chunk_coordinate: Vector3i = chunk_coordinate_variant as Vector3i
+		if _inflight_chunk_coordinates.has(chunk_coordinate):
+			deferred_chunk_coordinates.append(chunk_coordinate)
 			continue
 		if _running_async_tasks >= max_concurrent_rebuild_tasks:
-			deferred.append(coord)
+			deferred_chunk_coordinates.append(chunk_coordinate)
 			continue
-		_pending_rebuild_coords.erase(coord)
-		_start_single_chunk_async_rebuild(coord, rebuild_collision)
-	for coord: Vector3i in deferred:
-		_pending_rebuild_coords[coord] = true
-	if rebuild_collision and not deferred.is_empty():
+		_pending_rebuild_chunk_coordinates.erase(chunk_coordinate)
+		_start_single_chunk_async_rebuild(chunk_coordinate, rebuild_collision)
+	for chunk_coordinate: Vector3i in deferred_chunk_coordinates:
+		_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
+	if rebuild_collision and not deferred_chunk_coordinates.is_empty():
 		_pending_rebuild_collision = true
 
 
-func _rebuild_coords(coords: Array[Vector3i], rebuild_collision: bool) -> void:
-	if coords.is_empty():
+func _schedule_chunk_coordinate_rebuilds(
+	chunk_coordinates: Array[Vector3i], rebuild_collision: bool
+) -> void:
+	if chunk_coordinates.is_empty():
 		return
 	if _use_threaded_rebuild():
-		for coord: Vector3i in coords:
-			_pending_rebuild_coords[coord] = true
+		for chunk_coordinate: Vector3i in chunk_coordinates:
+			_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
 		if rebuild_collision:
 			_pending_rebuild_collision = true
 		_dispatch_pending_rebuilds()
 	else:
-		var settings := _make_settings_snapshot()
+		var settings: SettingsSnapshot = _make_settings_snapshot()
 		settings.rebuild_collision = settings.generate_collision and rebuild_collision
-		_rebuild_chunk_coords(coords, settings)
+		_rebuild_chunk_coordinates(chunk_coordinates, settings)
 
 
-func _start_single_chunk_async_rebuild(coord: Vector3i, rebuild_collision: bool) -> void:
-	_inflight_coords[coord] = true
-	var job := ChunkMeshBuilder.AsyncRebuildJob.new()
-	job.coords = [coord]
-	job.rebuild_collision = rebuild_collision
-	job.settings = _make_thread_settings_snapshot()
-	job.task_id = WorkerThreadPool.add_task(ChunkMeshBuilder.run_async_job.bind(job))
-	_async_jobs[job.task_id] = job
+func _start_single_chunk_async_rebuild(
+	chunk_coordinate: Vector3i, rebuild_collision: bool
+) -> void:
+	_inflight_chunk_coordinates[chunk_coordinate] = true
+	var async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob = ChunkMeshBuilder.AsyncRebuildJob.new()
+	async_rebuild_job.chunk_coordinates = [chunk_coordinate]
+	async_rebuild_job.rebuild_collision = rebuild_collision
+	async_rebuild_job.settings = _make_thread_settings_snapshot()
+	async_rebuild_job.task_id = WorkerThreadPool.add_task(
+		ChunkMeshBuilder.run_async_job.bind(async_rebuild_job)
+	)
+	_async_jobs[async_rebuild_job.task_id] = async_rebuild_job
 	_running_async_tasks += 1
 
 
-func _start_async_rebuild(coords: Array[Vector3i], rebuild_collision: bool) -> void:
-	for coord: Vector3i in coords:
-		_pending_rebuild_coords[coord] = true
+func _start_async_rebuild(chunk_coordinates: Array[Vector3i], rebuild_collision: bool) -> void:
+	for chunk_coordinate: Vector3i in chunk_coordinates:
+		_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
 	if rebuild_collision:
 		_pending_rebuild_collision = true
 	_dispatch_pending_rebuilds()
@@ -540,44 +550,47 @@ func _start_async_rebuild(coords: Array[Vector3i], rebuild_collision: bool) -> v
 
 func _poll_async_rebuilds() -> void:
 	if not _async_jobs.is_empty():
-		var completed: Array[int] = []
+		var completed_task_ids: Array[int] = []
 		for task_id_variant: Variant in _async_jobs.keys():
 			var task_id: int = task_id_variant as int
 			if WorkerThreadPool.is_task_completed(task_id):
-				completed.append(task_id)
-		for task_id: int in completed:
-			var job: ChunkMeshBuilder.AsyncRebuildJob = _async_jobs[task_id] as ChunkMeshBuilder.AsyncRebuildJob
-			_async_jobs.erase(task_id)
-			WorkerThreadPool.wait_for_task_completion(task_id)
+				completed_task_ids.append(task_id)
+		for completed_task_id: int in completed_task_ids:
+			var async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob = (
+				_async_jobs[completed_task_id] as ChunkMeshBuilder.AsyncRebuildJob
+			)
+			_async_jobs.erase(completed_task_id)
+			WorkerThreadPool.wait_for_task_completion(completed_task_id)
 			_running_async_tasks = maxi(_running_async_tasks - 1, 0)
-			_apply_async_job(job)
+			_apply_async_job(async_rebuild_job)
 	if (
 		_running_async_tasks < max_concurrent_rebuild_tasks
-		and not _pending_rebuild_coords.is_empty()
+		and not _pending_rebuild_chunk_coordinates.is_empty()
 	):
 		_dispatch_pending_rebuilds()
 
 
-func _apply_async_job(job: ChunkMeshBuilder.AsyncRebuildJob) -> void:
-	for coord: Vector3i in job.coords:
-		_inflight_coords.erase(coord)
-		var chunk: TerrainChunkV2 = _chunks.get(coord) as TerrainChunkV2
+func _apply_async_job(async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob) -> void:
+	for chunk_coordinate: Vector3i in async_rebuild_job.chunk_coordinates:
+		_inflight_chunk_coordinates.erase(chunk_coordinate)
+		var chunk: PlanetChunk = _chunks.get(chunk_coordinate) as PlanetChunk
 		if chunk == null:
 			continue
-		var build: ChunkMeshBuilder.ChunkBuildResult = (
-			job.batch_result.chunks.get(coord) as ChunkMeshBuilder.ChunkBuildResult
+		var chunk_build_result: ChunkMeshBuilder.ChunkBuildResult = (
+			async_rebuild_job.batch_result.chunks.get(chunk_coordinate)
+			as ChunkMeshBuilder.ChunkBuildResult
 		)
-		if build == null:
+		if chunk_build_result == null:
 			continue
-		chunk.apply_build_result(build, generate_collision)
+		chunk.apply_build_result(chunk_build_result, generate_collision)
 		if _effective_material() != null:
 			chunk.material_override = _effective_material()
 
 
 func _make_thread_settings_snapshot() -> SettingsSnapshot:
-	var settings := _make_settings_snapshot()
-	if settings.terrain_edits != null:
-		settings.terrain_edits = settings.terrain_edits.duplicate_for_thread()
+	var settings: SettingsSnapshot = _make_settings_snapshot()
+	if settings.planet_edits != null:
+		settings.planet_edits = settings.planet_edits.duplicate_for_thread()
 	return settings
 
 
@@ -594,11 +607,11 @@ func _flush_dirty_chunks(force_collision: bool) -> void:
 	_chunk_flush_pending = false
 	if _dirty_chunks.is_empty():
 		return
-	var coords: Array[Vector3i] = []
-	for coord_variant: Variant in _dirty_chunks.keys():
-		coords.append(coord_variant as Vector3i)
+	var chunk_coordinates: Array[Vector3i] = []
+	for chunk_coordinate_variant: Variant in _dirty_chunks.keys():
+		chunk_coordinates.append(chunk_coordinate_variant as Vector3i)
 	_dirty_chunks.clear()
-	_rebuild_coords(coords, force_collision)
+	_schedule_chunk_coordinate_rebuilds(chunk_coordinates, force_collision)
 
 
 func _build_world_density(settings: SettingsSnapshot) -> DensitySampler.WorldDensity:
@@ -651,17 +664,17 @@ func _get_bake_density() -> DensitySampler.WorldDensity:
 	return _bake_density
 
 
-func _rebuild_chunk_coords(
-	coords: Array[Vector3i],
+func _rebuild_chunk_coordinates(
+	chunk_coordinates: Array[Vector3i],
 	settings: SettingsSnapshot = null
 ) -> void:
-	if coords.is_empty():
+	if chunk_coordinates.is_empty():
 		return
 	if settings == null:
 		settings = _make_settings_snapshot()
 	var edge_world_cache: Dictionary = {}
-	for coord: Vector3i in coords:
-		var chunk: TerrainChunkV2 = _chunks.get(coord) as TerrainChunkV2
+	for chunk_coordinate: Vector3i in chunk_coordinates:
+		var chunk: PlanetChunk = _chunks.get(chunk_coordinate) as PlanetChunk
 		if chunk == null:
 			continue
 		chunk.rebuild(settings, edge_world_cache)
@@ -669,36 +682,36 @@ func _rebuild_chunk_coords(
 			chunk.material_override = settings.material
 
 
-func _get_chunk_coords_intersecting_sphere(center: Vector3, radius: float) -> Array[Vector3i]:
-	var result: Array[Vector3i] = []
-	var settings := _make_settings_snapshot()
+func _get_chunk_coordinates_intersecting_sphere(center: Vector3, radius: float) -> Array[Vector3i]:
+	var chunk_coordinates: Array[Vector3i] = []
+	var settings: SettingsSnapshot = _make_settings_snapshot()
 	var padding: float = get_voxel_size() * 2.0
-	var search_aabb := AABB(
+	var search_aabb: AABB = AABB(
 		center - Vector3.ONE * (radius + padding),
 		Vector3.ONE * (radius + padding) * 2.0
 	)
-	for coord_variant: Variant in _chunks.keys():
-		var coord: Vector3i = coord_variant as Vector3i
-		if _get_chunk_world_aabb(coord, settings).intersects(search_aabb):
-			result.append(coord)
-	return result
+	for chunk_coordinate_variant: Variant in _chunks.keys():
+		var chunk_coordinate: Vector3i = chunk_coordinate_variant as Vector3i
+		if _get_chunk_world_aabb(chunk_coordinate, settings).intersects(search_aabb):
+			chunk_coordinates.append(chunk_coordinate)
+	return chunk_coordinates
 
 
-func _get_chunk_world_aabb(coord: Vector3i, settings: SettingsSnapshot) -> AABB:
+func _get_chunk_world_aabb(chunk_coordinate: Vector3i, settings: SettingsSnapshot) -> AABB:
 	var extent: float = settings.chunk_world_size
-	var corner_local: Vector3 = _chunk_corner_local(coord, settings)
+	var corner_local: Vector3 = _chunk_corner_local(chunk_coordinate, settings)
 	var world_corner: Vector3 = global_position + corner_local
 	return AABB(world_corner, Vector3.ONE * extent)
 
 
-func _chunk_corner_local(coord: Vector3i, settings: SettingsSnapshot) -> Vector3:
+func _chunk_corner_local(chunk_coordinate: Vector3i, settings: SettingsSnapshot) -> Vector3:
 	var extent: float = settings.chunk_world_size
 	var grid_origin: Vector3 = (
 		-Vector3(settings.chunks_x, settings.chunks_y, settings.chunks_z)
 		* extent
 		* 0.5
 	)
-	return grid_origin + Vector3(coord) * extent
+	return grid_origin + Vector3(chunk_coordinate) * extent
 
 
 func _effective_material() -> Material:
@@ -719,23 +732,23 @@ func _refresh_shader_material_uniforms() -> Material:
 	return _runtime_shader_material
 
 
-func _sync_terrain_shader_uniforms(mat: Material) -> void:
-	var sm: ShaderMaterial = mat as ShaderMaterial
-	if sm == null or sm.shader == null:
+func _sync_terrain_shader_uniforms(material: Material) -> void:
+	var shader_material: ShaderMaterial = material as ShaderMaterial
+	if shader_material == null or shader_material.shader == null:
 		return
-	if sm.shader.resource_path != "res://shaders/terrain_spherical.gdshader":
+	if shader_material.shader.resource_path != "res://shaders/terrain_spherical.gdshader":
 		return
-	sm.set_shader_parameter("planet_center", get_planet_center_world())
-	sm.set_shader_parameter("planet_radius", get_sphere_radius())
+	shader_material.set_shader_parameter("planet_center", get_planet_center_world())
+	shader_material.set_shader_parameter("planet_radius", get_sphere_radius())
 
 
 func _register_editor_scene_node(node: Node) -> void:
 	if not Engine.is_editor_hint():
 		return
-	var scene_root := get_tree().edited_scene_root
-	if scene_root == null:
+	var edited_scene_root: Node = get_tree().edited_scene_root
+	if edited_scene_root == null:
 		return
-	_assign_scene_owner(node, scene_root)
+	_assign_scene_owner(node, edited_scene_root)
 
 
 func _assign_scene_owner(node: Node, scene_root: Node) -> void:

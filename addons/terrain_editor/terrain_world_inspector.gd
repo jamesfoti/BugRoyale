@@ -1,7 +1,7 @@
 @tool
 extends EditorInspectorPlugin
 
-const _TERRAIN_WORLD_SCRIPT = preload("res://terrain/terrain_world.gd")
+const _TERRAIN_WORLD_SCRIPT = preload("res://terrain/planet.gd")
 
 
 func _can_handle(object: Object) -> bool:
@@ -49,11 +49,11 @@ func _get_terrain_node(terrain_path: NodePath) -> Node3D:
 func _on_build_pressed(terrain_path: NodePath) -> void:
 	var terrain := _get_terrain_node(terrain_path)
 	if terrain == null:
-		push_error("[TerrainWorldV2] Could not find terrain node.")
+		push_error("[Planet] Could not find terrain node.")
 		return
 	if not terrain.has_method("rebuild_all"):
 		push_error(
-			"[TerrainWorldV2] Script not loaded — check the Output panel for errors in terrain_world.gd."
+			"[Planet] Script not loaded — check the Output panel for errors in planet.gd."
 		)
 		return
 	terrain.rebuild_all()
@@ -63,11 +63,11 @@ func _on_build_pressed(terrain_path: NodePath) -> void:
 func _on_destroy_pressed(terrain_path: NodePath) -> void:
 	var terrain := _get_terrain_node(terrain_path)
 	if terrain == null:
-		push_error("[TerrainWorldV2] Could not find terrain node.")
+		push_error("[Planet] Could not find terrain node.")
 		return
 	if not terrain.has_method("destroy_all"):
 		push_error(
-			"[TerrainWorldV2] Script not loaded — check the Output panel for errors in terrain_world.gd."
+			"[Planet] Script not loaded — check the Output panel for errors in planet.gd."
 		)
 		return
 	terrain.destroy_all()

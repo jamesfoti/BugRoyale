@@ -32,7 +32,7 @@ class WorldDensity:
 	var _ravine_noise: FastNoiseLite
 	var _ravine_blend_noise: FastNoiseLite
 	var _cave_noise: FastNoiseLite
-	var terrain_edits: TerrainEdits = null
+	var planet_edits: PlanetEdits = null
 
 	static func create(
 		sphere_enabled: bool,
@@ -148,8 +148,8 @@ class WorldDensity:
 					bounds_falloff_distance,
 					bounds_falloff_strength
 				)
-		if terrain_edits != null:
-			value = terrain_edits.apply_to_density(value, world_pos)
+		if planet_edits != null:
+			value = planet_edits.apply_to_density(value, world_pos)
 		return value
 
 	func gradient(world_pos: Vector3, epsilon: float) -> Vector3:

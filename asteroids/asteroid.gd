@@ -3,7 +3,7 @@ class_name Asteroid
 ## Procedural rocky body that falls toward a planet and carves terrain on impact.
 
 
-signal impacted(planet: TerrainWorldV2, position: Vector3, crater_radius: float)
+signal impacted(planet: Planet, position: Vector3, crater_radius: float)
 
 const _MIN_DIR_LEN_SQ: float = 0.0001
 
@@ -17,7 +17,7 @@ const _MIN_DIR_LEN_SQ: float = 0.0001
 @onready var _mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var _collision_shape: CollisionShape3D = $CollisionShape3D
 
-var _target_planet: TerrainWorldV2
+var _target_planet: Planet
 var _asteroid_radius: float = 1.0
 var _impacted: bool = false
 var _lifetime: float = 0.0
@@ -30,7 +30,7 @@ func _ready() -> void:
 
 
 func setup(
-	planet: TerrainWorldV2,
+	planet: Planet,
 	mesh_seed: int,
 	radius: float,
 	initial_velocity: Vector3,
@@ -88,13 +88,13 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 func _on_body_entered(body: Node) -> void:
 	if _impacted:
 		return
-	var terrain: TerrainWorldV2 = _terrain_from_node(body)
+	var terrain: Planet = _terrain_from_node(body)
 	if terrain == null:
 		return
 	_apply_impact(terrain)
 
 
-func _apply_impact(terrain: TerrainWorldV2) -> void:
+func _apply_impact(terrain: Planet) -> void:
 	if _impacted:
 		return
 	_impacted = true
@@ -116,7 +116,7 @@ func _apply_impact(terrain: TerrainWorldV2) -> void:
 	queue_free()
 
 
-func _estimate_impact_point(terrain: TerrainWorldV2) -> Vector3:
+func _estimate_impact_point(terrain: Planet) -> Vector3:
 	var center: Vector3 = terrain.global_position + terrain.sphere_center
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
@@ -134,11 +134,11 @@ func _estimate_impact_point(terrain: TerrainWorldV2) -> Vector3:
 	return center + direction * terrain.get_sphere_radius()
 
 
-func _terrain_from_node(node: Node) -> TerrainWorldV2:
+func _terrain_from_node(node: Node) -> Planet:
 	var current: Node = node
 	while current != null:
-		if current is TerrainWorldV2:
-			var terrain: TerrainWorldV2 = current as TerrainWorldV2
+		if current is Planet:
+			var terrain: Planet = current as Planet
 			if terrain.generate_collision:
 				return terrain
 			return null

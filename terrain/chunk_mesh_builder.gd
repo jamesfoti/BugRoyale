@@ -13,45 +13,47 @@ class BatchBuildResult:
 
 
 class AsyncRebuildJob:
-	var coords: Array[Vector3i] = []
+	var chunk_coordinates: Array[Vector3i] = []
 	var rebuild_collision: bool = false
-	var settings: TerrainWorldV2.SettingsSnapshot
+	var settings: Planet.SettingsSnapshot
 	var batch_result: BatchBuildResult = BatchBuildResult.new()
 	var task_id: int = -1
 
 
 static func run_async_job(job: AsyncRebuildJob) -> void:
-	job.batch_result = build_batch(job.coords, job.settings)
+	job.batch_result = build_batch(job.chunk_coordinates, job.settings)
 
 
 static func build_batch(
-	coords: Array[Vector3i],
-	settings: TerrainWorldV2.SettingsSnapshot
+	chunk_coordinates: Array[Vector3i],
+	settings: Planet.SettingsSnapshot
 ) -> BatchBuildResult:
-	var batch := BatchBuildResult.new()
+	var build_batch_result: BatchBuildResult = BatchBuildResult.new()
 	var edge_world_cache: Dictionary = {}
-	for coord: Vector3i in coords:
-		batch.chunks[coord] = build_chunk(coord, settings, edge_world_cache)
-	return batch
+	for chunk_coordinate: Vector3i in chunk_coordinates:
+		build_batch_result.chunks[chunk_coordinate] = build_chunk(
+			chunk_coordinate, settings, edge_world_cache
+		)
+	return build_batch_result
 
 
 static func build_chunk(
-	chunk_coord: Vector3i,
-	settings: TerrainWorldV2.SettingsSnapshot,
+	chunk_coordinate: Vector3i,
+	settings: Planet.SettingsSnapshot,
 	edge_world_cache: Dictionary
 ) -> ChunkBuildResult:
-	var result := ChunkBuildResult.new()
-	var cells: int = settings.cells_per_axis
+	var chunk_build_result: ChunkBuildResult = ChunkBuildResult.new()
+	var cells_per_axis: int = settings.cells_per_axis
 	var extent: float = settings.chunk_world_size
-	var sample_size := Vector3i.ONE * (cells + 1)
-	var corner_local: Vector3 = _chunk_corner_local(chunk_coord, settings)
+	var sample_size: Vector3i = Vector3i.ONE * (cells_per_axis + 1)
+	var corner_local: Vector3 = _chunk_corner_local(chunk_coordinate, settings)
 	var half_extent: Vector3 = Vector3.ONE * extent * 0.5
 	var world_corner: Vector3 = settings.world_origin + corner_local
 	var world_center: Vector3 = world_corner + half_extent
-	var grid_offset := Vector3i(
-		chunk_coord.x * cells,
-		chunk_coord.y * cells,
-		chunk_coord.z * cells
+	var grid_offset: Vector3i = Vector3i(
+		chunk_coordinate.x * cells_per_axis,
+		chunk_coordinate.y * cells_per_axis,
+		chunk_coordinate.z * cells_per_axis
 	)
 	var sphere_world: Vector3 = settings.bounds_center + settings.sphere_center
 	var density: DensitySampler.WorldDensity
@@ -92,15 +94,15 @@ static func build_chunk(
 			settings.bounds_falloff_strength,
 			settings.bounds_clip_inset
 		)
-	if settings.terrain_edits != null:
-		density.terrain_edits = settings.terrain_edits
+	if settings.planet_edits != null:
+		density.planet_edits = settings.planet_edits
 	var field: SignedDensityField = DensitySampler.build_chunk_field(
 		density,
 		sample_size,
 		world_corner,
 		extent
 	)
-	result.mesh_result = FlyingEdgesMesher.build_mesh(
+	chunk_build_result.mesh_result = FlyingEdgesMesher.build_mesh(
 		field,
 		extent,
 		settings.iso_level,
@@ -110,13 +112,13 @@ static func build_chunk(
 		world_center,
 		density
 	)
-	result.local_position = corner_local + half_extent
-	return result
+	chunk_build_result.local_position = corner_local + half_extent
+	return chunk_build_result
 
 
 static func _chunk_corner_local(
-	chunk_coord: Vector3i,
-	settings: TerrainWorldV2.SettingsSnapshot
+	chunk_coordinate: Vector3i,
+	settings: Planet.SettingsSnapshot
 ) -> Vector3:
 	var extent: float = settings.chunk_world_size
 	var grid_origin: Vector3 = (
@@ -124,4 +126,4 @@ static func _chunk_corner_local(
 		* extent
 		* 0.5
 	)
-	return grid_origin + Vector3(chunk_coord) * extent
+	return grid_origin + Vector3(chunk_coordinate) * extent

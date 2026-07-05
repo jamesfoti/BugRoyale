@@ -1,6 +1,6 @@
 [gd_scene load_steps=10 format=3 uid="uid://cepuebvnerpyu"]
 
-[ext_resource type="Script" uid="uid://oo8yvl75l0h5" path="res://terrain/terrain_world.gd" id="1"]
+[ext_resource type="Script" uid="uid://oo8yvl75l0h5" path="res://terrain/planet.gd" id="1"]
 [ext_resource type="Material" uid="uid://ct8q5pbs54ajt" path="res://materials/terrain_procedural.tres" id="2"]
 [ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="4"]
 [ext_resource type="Environment" uid="uid://c8gcug836onl0" path="res://materials/terrain_env.tres" id="5"]

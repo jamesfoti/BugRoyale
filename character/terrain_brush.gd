@@ -16,7 +16,7 @@ enum EditMode {
 
 @onready var _cursor: TerrainEditCursor = $TerrainEditCursor
 
-var _terrain: TerrainWorldV2
+var _terrain: Planet
 var _mode: EditMode = EditMode.OFF
 var _hover_hit: Dictionary = {}
 var _is_painting: bool = false
@@ -139,10 +139,10 @@ func _cache_terrain() -> void:
 	var parent: Node = get_parent()
 	if parent is PlanetPlayer:
 		var planet: Node3D = (parent as PlanetPlayer).planet
-		if planet is TerrainWorldV2:
-			_terrain = planet as TerrainWorldV2
+		if planet is Planet:
+			_terrain = planet as Planet
 			return
-	_terrain = get_tree().get_first_node_in_group("planet") as TerrainWorldV2
+	_terrain = get_tree().get_first_node_in_group("planet") as Planet
 
 
 func _raycast_terrain_from_view(player: Node) -> Dictionary:
@@ -155,19 +155,19 @@ func _raycast_terrain_from_view(player: Node) -> Dictionary:
 		screen_pos = get_viewport().get_mouse_position()
 	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
 	var ray_direction: Vector3 = camera.project_ray_normal(screen_pos)
-	var ray_query := PhysicsRayQueryParameters3D.new()
+	var ray_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.new()
 	ray_query.from = ray_origin
 	ray_query.to = ray_origin + ray_direction * maxf(edit_distance * 2.0, 50.0)
 	if player is CollisionObject3D:
 		ray_query.exclude = [(player as CollisionObject3D).get_rid()]
 
 	var space: PhysicsDirectSpaceState3D = (get_parent() as Node3D).get_world_3d().direct_space_state
-	var hit: Dictionary = space.intersect_ray(ray_query)
-	if hit.is_empty():
+	var raycast_hit: Dictionary = space.intersect_ray(ray_query)
+	if raycast_hit.is_empty():
 		return {}
-	if player is Node3D and (player as Node3D).global_position.distance_to(hit.position) > edit_distance:
+	if player is Node3D and (player as Node3D).global_position.distance_to(raycast_hit.position) > edit_distance:
 		return {}
-	return hit
+	return raycast_hit
 
 
 func _is_camera_orbiting(player: Node) -> bool:

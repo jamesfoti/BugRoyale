@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bnpr1un6n0hoq"]
 
 [ext_resource type="Script" path="res://scenes/sun.gd" id="1"]
-[ext_resource type="Script" uid="uid://oo8yvl75l0h5" path="res://terrain/terrain_world.gd" id="2"]
+[ext_resource type="Script" uid="uid://oo8yvl75l0h5" path="res://terrain/planet.gd" id="2"]
 [ext_resource type="Material" path="res://materials/sun_surface.tres" id="3"]
 [ext_resource type="Script" path="res://scenes/sun_corona.gd" id="4"]
 [ext_resource type="Material" path="res://materials/sun_corona.tres" id="5"]

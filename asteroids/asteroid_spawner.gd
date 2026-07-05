@@ -45,7 +45,7 @@ func _try_spawn() -> void:
 	if planets.is_empty():
 		return
 
-	var planet: TerrainWorldV2 = planets[randi() % planets.size()] as TerrainWorldV2
+	var planet: Planet = planets[randi() % planets.size()] as Planet
 	if planet == null:
 		return
 

@@ -7,7 +7,7 @@ class_name SunBody
 @export var light_energy: float = 1.25
 @export var light_color: Color = Color(1.0, 0.94, 0.82, 1.0)
 
-@onready var _terrain: TerrainWorldV2 = $TerrainWorld
+@onready var _terrain: Planet = $TerrainWorld
 @onready var _light: DirectionalLight3D = $DirectionalLight3D
 @onready var _corona: SunCorona = $Corona
 @onready var _corona_rays: SunCorona = $CoronaRays
