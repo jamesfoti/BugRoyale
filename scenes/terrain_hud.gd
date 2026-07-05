@@ -66,9 +66,10 @@ func get_edit_mode() -> TerrainBrush.EditMode:
 
 func set_edit_mode(mode: TerrainBrush.EditMode) -> void:
 	if mode == TerrainBrush.EditMode.OFF:
-		var player: PlanetPlayer = get_tree().get_first_node_in_group("player") as PlanetPlayer
-		if player != null and player.is_terrain_focus_active():
-			player.exit_terrain_focus()
+		var player: Node = get_tree().get_first_node_in_group("player")
+		if player != null and player.has_method("is_terrain_focus_active"):
+			if player.call("is_terrain_focus_active"):
+				player.call("exit_terrain_focus")
 	_edit_mode = mode
 	_update_edit_mode_ui()
 	terrain_edit_mode_changed.emit(_edit_mode)
@@ -79,10 +80,11 @@ func set_edit_mode(mode: TerrainBrush.EditMode) -> void:
 func sync_mouse_mode() -> void:
 	if get_tree().paused or _item_menu.is_open():
 		return
-	var player: PlanetPlayer = get_tree().get_first_node_in_group("player") as PlanetPlayer
-	if player != null and player.is_terrain_focus_active():
-		Input.set_mouse_mode(Input.MOUSE_MODE_CONFINED_HIDDEN)
-		return
+	var player: Node = get_tree().get_first_node_in_group("player")
+	if player != null and player.has_method("is_terrain_focus_active"):
+		if player.call("is_terrain_focus_active"):
+			Input.set_mouse_mode(Input.MOUSE_MODE_CONFINED_HIDDEN)
+			return
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
@@ -105,30 +107,38 @@ func _process(_delta: float) -> void:
 
 
 func _update_planet_debug_labels() -> void:
-	var planet: Planet = get_tree().get_first_node_in_group("terrain_world") as Planet
-	if planet == null:
+	var terrain_world: ChunkedTerrainWorld = (
+		get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
+	)
+	if terrain_world == null:
 		_chunks.text = "Chunks: n/a"
 		_chunk_size.text = "Chunk size: n/a"
-		_planet_size.text = "Planet size: n/a"
+		_planet_size.text = "World size: n/a"
 		_vertex_count.text = "Mesh: n/a"
 		return
 
-	var grid_axis: int = planet.get_grid_chunks_per_axis()
-	var chunk_count: int = planet.get_chunk_count()
-	var chunk_extent: float = planet.get_chunk_world_extent()
-	var planet_radius: float = planet.get_sphere_radius()
-	var planet_diameter: float = planet_radius * 2.0
-	var vertex_count: int = planet.get_total_vertex_count()
-	var triangle_count: int = planet.get_total_triangle_count()
-	var edited_voxels: int = planet.get_edited_voxel_count()
+	var grid_dimensions: Vector3i = terrain_world.get_grid_dimensions()
+	var chunk_count: int = terrain_world.get_chunk_count()
+	var chunk_extent: float = terrain_world.get_chunk_world_extent()
+	var world_extents: Vector3 = terrain_world.get_world_extents()
+	var vertex_count: int = terrain_world.get_total_vertex_count()
+	var triangle_count: int = terrain_world.get_total_triangle_count()
+	var edited_voxels: int = terrain_world.get_edited_voxel_count()
 
 	_chunks.text = "Chunks: %d (%d×%d×%d grid)" % [
-		chunk_count, grid_axis, grid_axis, grid_axis
+		chunk_count, grid_dimensions.x, grid_dimensions.y, grid_dimensions.z
 	]
 	_chunk_size.text = "Chunk size: %.1f" % chunk_extent
-	_planet_size.text = "Planet size: %.1f radius (%.1f diameter)" % [
-		planet_radius, planet_diameter
-	]
+	if terrain_world is Planet:
+		var planet: Planet = terrain_world as Planet
+		var planet_radius: float = planet.get_sphere_radius()
+		_planet_size.text = "Planet size: %.1f radius (%.1f diameter)" % [
+			planet_radius, planet_radius * 2.0
+		]
+	else:
+		_planet_size.text = "World size: %.0f × %.0f × %.0f" % [
+			world_extents.x, world_extents.y, world_extents.z
+		]
 	_vertex_count.text = (
 		"Mesh: %s verts / %s tris (edited voxels: %s)"
 		% [_format_count(vertex_count), _format_count(triangle_count), _format_count(edited_voxels)]
@@ -150,9 +160,10 @@ func _update_edit_mode_ui() -> void:
 
 func _edit_mode_display_text() -> String:
 	var display_text: String = "Terrain edit: %s" % _edit_mode_text()
-	var player: PlanetPlayer = get_tree().get_first_node_in_group("player") as PlanetPlayer
-	if player != null and player.is_terrain_focus_active():
-		display_text += " (Ctrl focus)"
+	var player: Node = get_tree().get_first_node_in_group("player")
+	if player != null and player.has_method("is_terrain_focus_active"):
+		if player.call("is_terrain_focus_active"):
+			display_text += " (Ctrl focus)"
 	return display_text
 
 

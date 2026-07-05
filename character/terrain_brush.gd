@@ -16,7 +16,7 @@ enum EditMode {
 
 @onready var _cursor: TerrainEditCursor = $TerrainEditCursor
 
-var _terrain: Planet
+var _terrain: ChunkedTerrainWorld
 var _mode: EditMode = EditMode.OFF
 var _hover_hit: Dictionary = {}
 var _is_painting: bool = false
@@ -139,10 +139,15 @@ func _cache_terrain() -> void:
 	var parent: Node = get_parent()
 	if parent is PlanetPlayer:
 		var planet: Node3D = (parent as PlanetPlayer).planet
-		if planet is Planet:
-			_terrain = planet as Planet
+		if planet is ChunkedTerrainWorld:
+			_terrain = planet as ChunkedTerrainWorld
 			return
-	_terrain = get_tree().get_first_node_in_group("planet") as Planet
+	if parent is FlatTerrainPlayer:
+		var flat_terrain: Node3D = (parent as FlatTerrainPlayer).terrain
+		if flat_terrain is ChunkedTerrainWorld:
+			_terrain = flat_terrain as ChunkedTerrainWorld
+			return
+	_terrain = get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
 
 
 func _raycast_terrain_from_view(player: Node) -> Dictionary:
@@ -180,4 +185,6 @@ func _is_camera_orbiting(player: Node) -> bool:
 func _is_terrain_focus_active(player: Node) -> bool:
 	if player is PlanetPlayer:
 		return (player as PlanetPlayer).is_terrain_focus_active()
+	if player is FlatTerrainPlayer:
+		return (player as FlatTerrainPlayer).is_terrain_focus_active()
 	return false

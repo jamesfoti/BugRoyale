@@ -15,7 +15,7 @@ class BatchBuildResult:
 class AsyncRebuildJob:
 	var chunk_coordinates: Array[Vector3i] = []
 	var rebuild_collision: bool = false
-	var settings: Planet.SettingsSnapshot
+	var settings: ChunkedTerrainWorld.SettingsSnapshot
 	var batch_result: BatchBuildResult = BatchBuildResult.new()
 	var task_id: int = -1
 
@@ -26,7 +26,7 @@ static func run_async_job(job: AsyncRebuildJob) -> void:
 
 static func build_batch(
 	chunk_coordinates: Array[Vector3i],
-	settings: Planet.SettingsSnapshot
+	settings: ChunkedTerrainWorld.SettingsSnapshot
 ) -> BatchBuildResult:
 	var build_batch_result: BatchBuildResult = BatchBuildResult.new()
 	var edge_world_cache: Dictionary = {}
@@ -39,7 +39,7 @@ static func build_batch(
 
 static func build_chunk(
 	chunk_coordinate: Vector3i,
-	settings: Planet.SettingsSnapshot,
+	settings: ChunkedTerrainWorld.SettingsSnapshot,
 	edge_world_cache: Dictionary
 ) -> ChunkBuildResult:
 	var chunk_build_result: ChunkBuildResult = ChunkBuildResult.new()
@@ -57,7 +57,19 @@ static func build_chunk(
 	)
 	var sphere_world: Vector3 = settings.bounds_center + settings.sphere_center
 	var density: DensitySampler.WorldDensity
-	if settings.planet_features_enabled and settings.sphere_enabled:
+	if settings.flat_terrain_enabled:
+		density = DensitySampler.create_flat_terrain_world_density(
+			settings.noise_seed,
+			settings.noise_frequency,
+			settings.noise_octaves,
+			settings.noise_lacunarity,
+			settings.noise_gain,
+			settings.bounds_center,
+			settings.bounds_half,
+			settings.bounds_clip_inset,
+			settings.flat_boxed_edges_enabled
+		)
+	elif settings.planet_features_enabled and settings.sphere_enabled:
 		density = DensitySampler.create_planet_world_density(
 			sphere_world,
 			settings.sphere_radius,
@@ -118,7 +130,7 @@ static func build_chunk(
 
 static func _chunk_corner_local(
 	chunk_coordinate: Vector3i,
-	settings: Planet.SettingsSnapshot
+	settings: ChunkedTerrainWorld.SettingsSnapshot
 ) -> Vector3:
 	var extent: float = settings.chunk_world_size
 	var grid_origin: Vector3 = (

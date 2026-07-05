@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://cepuebvnerpyu"]
+[gd_scene format=3 uid="uid://cepuebvnerpyu"]
 
 [ext_resource type="Script" uid="uid://oo8yvl75l0h5" path="res://terrain/planet.gd" id="1"]
 [ext_resource type="Material" uid="uid://ct8q5pbs54ajt" path="res://materials/terrain_procedural.tres" id="2"]
@@ -10,7 +10,7 @@
 [ext_resource type="PackedScene" path="res://gui/player_item_menu.tscn" id="10"]
 [ext_resource type="Script" path="res://asteroids/asteroid_spawner.gd" id="11"]
 
-[node name="TerrainTest" type="Node3D" unique_id=234830412]
+[node name="PlanetTest" type="Node3D" unique_id=234830412]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=600744623]
 environment = ExtResource("5")

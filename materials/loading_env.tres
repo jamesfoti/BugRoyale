@@ -1,4 +1,4 @@
-[gd_resource type="Environment" format=3]
+[gd_resource type="Environment" format=3 uid="uid://c6u5lo05d5hq2"]
 
 [ext_resource type="Material" path="res://materials/space_sky.tres" id="1"]
 

@@ -38,7 +38,7 @@ Running locally
 ---------------
 
 1. Open the project in Godot 4.6.
-2. Run the main scene: `scenes/terrain_test.tscn`.
+2. Run the main scene: `scenes/planet_test.tscn` (or start from `scenes/main_menu.tscn`).
 
 Performance
 -------------

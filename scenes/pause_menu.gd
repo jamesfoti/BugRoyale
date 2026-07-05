@@ -78,9 +78,9 @@ func _on_back_pressed() -> void:
 
 
 func _on_reset_pressed() -> void:
-	var player: PlanetPlayer = get_tree().get_first_node_in_group("player") as PlanetPlayer
-	if player != null:
-		player.respawn_random()
+	var player: Node = get_tree().get_first_node_in_group("player")
+	if player != null and player.has_method("respawn_random"):
+		player.call("respawn_random")
 	_resume()
 
 

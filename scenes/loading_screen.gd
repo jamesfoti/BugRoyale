@@ -1,8 +1,10 @@
 extends Control
+class_name LoadingScreen
 ## Shows the game sky while the main scene loads in the background.
 
 
-const GAME_SCENE_PATH: String = "res://scenes/terrain_test.tscn"
+const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/planet_test.tscn"
+static var pending_scene_path: String = ""
 
 @onready var _title: Label = $UI/Margin/VBox/Title
 @onready var _status: Label = $UI/Margin/VBox/Status
@@ -17,8 +19,9 @@ func _ready() -> void:
 
 func _begin_load() -> void:
 	await get_tree().process_frame
+	var game_scene_path: String = _resolve_scene_path()
 
-	var err: Error = ResourceLoader.load_threaded_request(GAME_SCENE_PATH)
+	var err: Error = ResourceLoader.load_threaded_request(game_scene_path)
 	if err != OK:
 		push_warning("[LoadingScreen] Threaded load unavailable, loading synchronously.")
 		_load_sync()
@@ -27,7 +30,7 @@ func _begin_load() -> void:
 	while true:
 		var progress_status: Array = []
 		var status: ResourceLoader.ThreadLoadStatus = ResourceLoader.load_threaded_get_status(
-			GAME_SCENE_PATH,
+			game_scene_path,
 			progress_status
 		)
 
@@ -43,7 +46,7 @@ func _begin_load() -> void:
 				await get_tree().process_frame
 			ResourceLoader.THREAD_LOAD_LOADED:
 				var game_scene: PackedScene = (
-					ResourceLoader.load_threaded_get(GAME_SCENE_PATH) as PackedScene
+					ResourceLoader.load_threaded_get(game_scene_path) as PackedScene
 				)
 				if game_scene == null:
 					_load_sync()
@@ -55,7 +58,8 @@ func _begin_load() -> void:
 func _load_sync() -> void:
 	_set_progress(0, "Loading game scene")
 	await get_tree().process_frame
-	var game_scene: PackedScene = load(GAME_SCENE_PATH) as PackedScene
+	var game_scene_path: String = _resolve_scene_path()
+	var game_scene: PackedScene = load(game_scene_path) as PackedScene
 	if game_scene == null:
 		_status.text = "Failed to load game"
 		return
@@ -84,3 +88,11 @@ func _start_game(game_scene: PackedScene) -> void:
 	get_tree().root.add_child(game_root)
 	get_tree().current_scene = game_root
 	queue_free()
+
+
+func _resolve_scene_path() -> String:
+	if pending_scene_path.is_empty():
+		return DEFAULT_GAME_SCENE_PATH
+	var scene_path: String = pending_scene_path
+	pending_scene_path = ""
+	return scene_path
