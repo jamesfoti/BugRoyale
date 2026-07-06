@@ -4,7 +4,10 @@ extends CanvasLayer
 
 signal terrain_edit_mode_changed(mode: TerrainBrush.EditMode)
 
+const PlayerHealthHudScene: PackedScene = preload("res://gui/player_health_hud.tscn")
+
 @onready var _bar: HBoxContainer = $Bar
+@onready var _item_anchor: VBoxContainer = $Bar/ItemAnchor
 @onready var _item_menu: PlayerItemMenu = $Bar/ItemAnchor/PlayerItemMenu
 @onready var _anchor: VBoxContainer = $Bar/Anchor
 @onready var _toggle_button: Button = $Bar/Anchor/ToggleButton
@@ -25,6 +28,7 @@ const _MARGIN: float = 8.0
 
 func _ready() -> void:
 	add_to_group("terrain_hud")
+	_setup_health_hud()
 	_toggle_button.focus_mode = Control.FOCUS_NONE
 	_toggle_button.pressed.connect(_on_toggle_pressed)
 	_set_expanded(false)
@@ -183,6 +187,14 @@ func _apply_edit_mode_to_brush() -> void:
 	)
 	if terrain_brush != null:
 		terrain_brush.set_edit_mode(_edit_mode)
+
+
+func _setup_health_hud() -> void:
+	var health_hud: PlayerHealthHud = PlayerHealthHudScene.instantiate() as PlayerHealthHud
+	if health_hud == null:
+		return
+	_item_anchor.add_child(health_hud)
+	_item_anchor.move_child(health_hud, 0)
 
 
 func _on_toggle_pressed() -> void:

@@ -9,6 +9,7 @@
 [ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="6"]
 [ext_resource type="PackedScene" uid="uid://dnitu1aqqnorc" path="res://gui/player_item_menu.tscn" id="7"]
 [ext_resource type="Script" uid="uid://c6nhltrtsmske" path="res://scenes/player_spawner.gd" id="8"]
+[ext_resource type="PackedScene" path="res://ai/boids/bird_flock.tscn" id="9_birds"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_t70o5"]
 render_priority = 0
@@ -2648,6 +2649,8 @@ script = ExtResource("5_gxd00")
 
 [node name="@CollisionShape3D@44728" type="CollisionShape3D" parent="TerrainWorld/Chunk_9_0_9/@StaticBody3D@44729" unique_id=1973746752]
 shape = SubResource("ConcavePolygonShape3D_fiv8j")
+
+[node name="BirdFlock" parent="." instance=ExtResource("9_birds")]
 
 [node name="PlayerSpawner" type="Node" parent="." unique_id=357917417]
 script = ExtResource("8")

@@ -34,7 +34,9 @@ func _spawn_player() -> void:
 		return
 	var player: Node = player_scene.instantiate()
 	player.name = "Player"
+	player.add_to_group("player")
 	_bind_world_references(player)
+	_attach_damageable(player)
 	get_parent().add_child(player)
 
 
@@ -77,3 +79,11 @@ func _wait_for_world_ready() -> void:
 		var terrarium_room: TerrariumRoom = terrain_node as TerrariumRoom
 		if terrarium_room.rebuild_on_ready:
 			await terrarium_room.content_rebuilt
+
+
+func _attach_damageable(player: Node) -> void:
+	if player.get_node_or_null("Damageable") != null:
+		return
+	var damageable := Damageable.new()
+	damageable.name = "Damageable"
+	player.add_child(damageable)
