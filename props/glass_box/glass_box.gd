@@ -7,6 +7,7 @@ class_name GlassBox
 const GLB_PATH: String = "res://props/glass_box/glass_box.glb"
 const REFERENCE_SIZE: Vector3 = Vector3.ONE
 const WALL_THICKNESS: float = 0.025
+const WALL_COLLISION_LAYER: int = 1
 
 
 func _ready() -> void:
@@ -61,7 +62,7 @@ func _build_procedural_panels() -> void:
 	var sz: float = REFERENCE_SIZE.z
 	var thickness: float = WALL_THICKNESS
 
-	_add_panel("Bottom", Vector3(sx, thickness, sz), Vector3(0.0, thickness * 0.5, 0.0), glass_material)
+	_add_panel("Bottom", Vector3(sx, thickness, sz), Vector3(0.0, thickness * 0.5, 0.0), glass_material, false)
 	_add_panel("Top", Vector3(sx, thickness, sz), Vector3(0.0, sy - thickness * 0.5, 0.0), glass_material)
 	_add_panel(
 		"Front",
@@ -93,7 +94,8 @@ func _add_panel(
 	panel_name: String,
 	size: Vector3,
 	position: Vector3,
-	material: StandardMaterial3D
+	material: StandardMaterial3D,
+	include_collision: bool = true
 ) -> void:
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = panel_name
@@ -104,8 +106,29 @@ func _add_panel(
 	mesh_instance.position = position
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mesh_instance)
+	if include_collision:
+		_add_panel_collider(panel_name, size, position)
 	if Engine.is_editor_hint() and is_inside_tree():
 		mesh_instance.owner = get_tree().edited_scene_root
+
+
+func _add_panel_collider(panel_name: String, size: Vector3, position: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.name = "%sCollider" % panel_name
+	body.collision_layer = WALL_COLLISION_LAYER
+	body.collision_mask = 0
+	body.position = position
+
+	var shape_node := CollisionShape3D.new()
+	var box_shape := BoxShape3D.new()
+	box_shape.size = size
+	shape_node.shape = box_shape
+	body.add_child(shape_node)
+	add_child(body)
+
+	if Engine.is_editor_hint() and is_inside_tree():
+		body.owner = get_tree().edited_scene_root
+		shape_node.owner = get_tree().edited_scene_root
 
 
 static func _create_glass_material() -> StandardMaterial3D:
