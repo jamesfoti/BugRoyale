@@ -187,6 +187,10 @@ func destroy_all() -> void:
 		print("[%s] Destroyed terrain (editor)" % _get_world_log_name())
 
 
+func rebuild_all_editor() -> void:
+	rebuild_all()
+
+
 func rebuild_all() -> void:
 	_invalidate_bake_density()
 	_ensure_world_defaults()

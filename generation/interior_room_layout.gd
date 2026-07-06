@@ -26,15 +26,19 @@ static func generate(
 	room_type: RoomType,
 	room_size: Vector3,
 	wall_thickness: float,
-	story_height: float
+	story_height: float,
+	room_scale: float = 1.0
 ) -> Layout:
 	var layout := Layout.new()
+	var scale: float = maxf(room_scale, 0.1)
+	var scaled_room_size: Vector3 = room_size * scale
+	var scaled_wall_thickness: float = wall_thickness * scale
 	var safe_size := Vector3(
-		maxf(room_size.x, 3.0),
-		maxf(story_height, 2.5),
-		maxf(room_size.z, 3.0)
+		maxf(scaled_room_size.x, 3.0),
+		maxf(story_height * scale, 2.5),
+		maxf(scaled_room_size.z, 3.0)
 	)
-	var thickness: float = maxf(wall_thickness, 0.2)
+	var thickness: float = maxf(scaled_wall_thickness, 0.2)
 	var inner_size := Vector3(
 		safe_size.x - thickness * 2.0,
 		safe_size.y,

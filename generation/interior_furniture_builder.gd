@@ -3,13 +3,14 @@ extends RefCounted
 ## Builds recognizable furniture from simple box primitives.
 
 
-static func build(placement: InteriorRoomFurniture.Placement) -> StaticBody3D:
+static func build(placement: InteriorRoomFurniture.Placement, furniture_scale: float = 1.0) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	body.collision_mask = 1
 	body.position = placement.position
 	body.rotation.y = placement.rotation_y
 	body.name = InteriorRoomFurniture.FurnitureType.keys()[placement.furniture_type]
+	var mesh_scale: float = maxf(furniture_scale, 0.1)
 
 	match placement.furniture_type:
 		InteriorRoomFurniture.FurnitureType.COUCH:
@@ -46,6 +47,8 @@ static func build(placement: InteriorRoomFurniture.Placement) -> StaticBody3D:
 			_build_floor_lamp(body)
 		InteriorRoomFurniture.FurnitureType.RUG:
 			_build_rug(body)
+	if mesh_scale != 1.0:
+		body.scale = Vector3.ONE * mesh_scale
 	return body
 
 

@@ -1,7 +1,10 @@
 @tool
 class_name InteriorRoom
 extends Node3D
-## Procedurally generates a single furnished interior room (no terrain).
+## Procedurally generates a furnished interior room with an optional terrarium.
+
+
+const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrain_procedural.tres"
 
 
 @export_group("Room")
@@ -20,6 +23,14 @@ extends Node3D
 @export_range(0.2, 1.0, 0.05) var wall_thickness: float = 0.4:
 	set(value):
 		wall_thickness = maxf(value, 0.2)
+		_request_rebuild()
+@export_range(0.5, 8.0, 0.1, "or_greater") var room_scale: float = 4.0:
+	set(value):
+		room_scale = maxf(value, 0.5)
+		_request_rebuild()
+@export_range(0.5, 6.0, 0.1, "or_greater") var furniture_scale: float = 3.0:
+	set(value):
+		furniture_scale = maxf(value, 0.5)
 		_request_rebuild()
 
 @export_group("Content")
@@ -52,9 +63,47 @@ extends Node3D
 		ceiling_light_energy = maxf(value, 0.1)
 		_request_rebuild()
 
+@export_group("Terrarium")
+@export var spawn_terrarium: bool = true:
+	set(value):
+		spawn_terrarium = value
+		_request_rebuild()
+@export_range(1, 16, 1) var terrarium_chunks_x: int = 1:
+	set(value):
+		terrarium_chunks_x = maxi(value, 1)
+		_request_rebuild()
+@export_range(1, 16, 1) var terrarium_chunks_y: int = 1:
+	set(value):
+		terrarium_chunks_y = maxi(value, 1)
+		_request_rebuild()
+@export_range(1, 16, 1) var terrarium_chunks_z: int = 1:
+	set(value):
+		terrarium_chunks_z = maxi(value, 1)
+		_request_rebuild()
+@export_range(1.0, 64.0, 0.5, "suffix:m") var terrarium_chunk_size: float = 5.0:
+	set(value):
+		terrarium_chunk_size = clampf(value, TerrariumBudget.MIN_CHUNK_SIZE, TerrariumBudget.MAX_CHUNK_SIZE)
+		_request_rebuild()
+@export var terrarium_material: Material
+@export var terrarium_noise_amplitude: float = 0.45:
+	set(value):
+		terrarium_noise_amplitude = value
+		_request_rebuild()
+@export var terrarium_noise_frequency: float = 0.18:
+	set(value):
+		terrarium_noise_frequency = maxf(value, 0.001)
+		_request_rebuild()
+@export_range(1, 4, 1) var terrarium_noise_octaves: int = 3:
+	set(value):
+		terrarium_noise_octaves = maxi(value, 1)
+		_request_rebuild()
+
 @export_group("Runtime")
 @export var rebuild_on_ready: bool = true
 @export var auto_rebuild_in_editor: bool = false
+
+
+signal content_rebuilt
 
 
 var _layout: InteriorRoomLayout.Layout
@@ -62,36 +111,85 @@ var _shell_root: Node3D
 var _furniture_root: Node3D
 var _light_root: Node3D
 var _glass_box_root: Node3D
+var _terrarium_terrain: TerrariumTerrain
 var _dirty: bool = true
+var _is_rebuilding: bool = false
+var _force_sync_rebuild: bool = false
 
 
 func _ready() -> void:
 	_ensure_export_defaults()
 	add_to_group("interior_room")
 	add_to_group("boxed_in_terrain")
-	if Engine.is_editor_hint():
-		if auto_rebuild_in_editor:
-			call_deferred("rebuild_all")
-	elif rebuild_on_ready:
+	if rebuild_on_ready:
 		call_deferred("rebuild_all")
 
 
+func is_rebuilding() -> bool:
+	return _is_rebuilding
+
+
+func get_playable_terrain() -> TerrariumTerrain:
+	if _terrarium_terrain != null and is_instance_valid(_terrarium_terrain):
+		return _terrarium_terrain
+	return null
+
+
 func get_surface_height_at(_world_position: Vector3) -> float:
+	var playable: TerrariumTerrain = get_playable_terrain()
+	if playable != null:
+		return playable.get_surface_height_at(_world_position)
 	if _layout != null:
 		return global_position.y + _layout.floor_y
 	return global_position.y
 
 
 func get_world_extents() -> Vector3:
+	var playable: TerrariumTerrain = get_playable_terrain()
+	if playable != null:
+		return playable.get_world_extents()
 	if _layout != null:
 		return _layout.world_aabb.size
-	return room_size
+	return room_size * room_scale
 
 
-func get_spawn_position() -> Vector3:
-	if _layout != null:
-		return global_position + _layout.spawn_position
-	return global_position + Vector3(0.0, 1.4, 0.0)
+func get_spawn_position(spawn_clearance: float = 1.2) -> Vector3:
+	var playable: TerrariumTerrain = get_playable_terrain()
+	if playable == null:
+		if _layout != null:
+			return global_position + _layout.spawn_position
+		return global_position + Vector3(0.0, spawn_clearance, 0.0)
+	return _probe_terrarium_spawn(playable, spawn_clearance)
+
+
+func _probe_terrarium_spawn(playable: TerrariumTerrain, spawn_clearance: float) -> Vector3:
+	var half_extents: Vector3 = playable.get_world_extents() * 0.5
+	var random_offset: Vector3 = Vector3(
+		randf_range(-half_extents.x * 0.35, half_extents.x * 0.35),
+		0.0,
+		randf_range(-half_extents.z * 0.35, half_extents.z * 0.35)
+	)
+	var probe_xz: Vector3 = playable.global_position + random_offset
+	var ray_top: Vector3 = probe_xz + Vector3.UP * half_extents.y * 0.95
+	var ray_bottom: Vector3 = probe_xz - Vector3.UP * half_extents.y * 1.05
+	if is_inside_tree():
+		var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+		var ray_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+			ray_top, ray_bottom
+		)
+		ray_query.collide_with_areas = false
+		var hit: Dictionary = space.intersect_ray(ray_query)
+		if not hit.is_empty() and _is_terrarium_collider(playable, hit.get("collider")):
+			return hit.position + Vector3.UP * spawn_clearance
+	var surface_y: float = playable.get_surface_height_at(probe_xz)
+	return Vector3(probe_xz.x, surface_y + spawn_clearance, probe_xz.z)
+
+
+func _is_terrarium_collider(playable: TerrariumTerrain, collider: Variant) -> bool:
+	if collider is Node:
+		var node: Node = collider as Node
+		return playable == node or playable.is_ancestor_of(node)
+	return false
 
 
 func get_room_type_name() -> String:
@@ -100,13 +198,41 @@ func get_room_type_name() -> String:
 	return InteriorRoomLayout.RoomType.keys()[_layout.room_type]
 
 
+func get_terrarium_chunks() -> Vector3i:
+	return Vector3i(terrarium_chunks_x, terrarium_chunks_y, terrarium_chunks_z)
+
+
+func get_terrarium_grid_config() -> TerrariumBudget.GridConfig:
+	return TerrariumBudget.derive_grid_from_chunks(
+		get_terrarium_chunks(),
+		terrarium_chunk_size
+	)
+
+
+func get_terrarium_world_size() -> Vector3:
+	return get_terrarium_grid_config().world_size
+
+
+func get_effective_glass_box_size() -> Vector3:
+	if spawn_terrarium:
+		return TerrariumBudget.derive_glass_box_size(get_terrarium_world_size())
+	return glass_box_size
+
+
 func rebuild_all() -> void:
 	_ensure_export_defaults()
 	_dirty = true
-	if Engine.is_editor_hint():
+	_is_rebuilding = true
+	if Engine.is_editor_hint() and _force_sync_rebuild:
 		_rebuild_content()
+		_force_sync_rebuild = false
 	else:
 		call_deferred("_rebuild_content")
+
+
+func rebuild_all_editor() -> void:
+	_force_sync_rebuild = true
+	rebuild_all()
 
 
 func destroy_all() -> void:
@@ -128,6 +254,7 @@ func _request_rebuild() -> void:
 
 func _rebuild_content() -> void:
 	if not _dirty:
+		_finish_rebuild()
 		return
 	_dirty = false
 	_clear_content()
@@ -136,10 +263,11 @@ func _rebuild_content() -> void:
 		room_type,
 		room_size,
 		wall_thickness,
-		room_size.y
+		room_size.y,
+		room_scale
 	)
 	if spawn_shell:
-		_shell_root = InteriorRoomShellBuilder.build(_layout, wall_thickness)
+		_shell_root = InteriorRoomShellBuilder.build(_layout, wall_thickness * room_scale)
 		add_child(_shell_root)
 		_register_generated_node(_shell_root)
 	if spawn_light:
@@ -155,24 +283,86 @@ func _rebuild_content() -> void:
 		add_child(_furniture_root)
 		_register_generated_node(_furniture_root)
 		for placement: InteriorRoomFurniture.Placement in placements:
-			var furniture_body: StaticBody3D = InteriorFurnitureBuilder.build(placement)
+			var furniture_body: StaticBody3D = InteriorFurnitureBuilder.build(
+				placement,
+				furniture_scale
+			)
 			_furniture_root.add_child(furniture_body)
 			_register_generated_node(furniture_body)
 
 	if spawn_glass_box:
-		_glass_box_root = InteriorGlassBoxSpawner.build_if_clear(_layout, placements, glass_box_size)
-		if _glass_box_root != null:
-			add_child(_glass_box_root)
-			_refresh_glass_box_visuals(_glass_box_root)
-			_register_generated_node(_glass_box_root)
-	if Engine.is_editor_hint():
+		_spawn_glass_or_terrarium(placements)
+
+	if _terrarium_terrain == null:
+		_finish_rebuild()
+	elif Engine.is_editor_hint():
+		_log_editor_build()
+
+
+func _finish_rebuild() -> void:
+	_is_rebuilding = false
+	content_rebuilt.emit()
+
+
+func _log_editor_build() -> void:
+		var terrarium_note: String = ""
+		if _terrarium_terrain != null:
+			var grid: TerrariumBudget.GridConfig = get_terrarium_grid_config()
+			terrarium_note = " terrarium=%dx%dx%d chunks @ %.1f m (%.1fx%.1fx%.1f m)" % [
+				grid.chunks.x,
+				grid.chunks.y,
+				grid.chunks.z,
+				grid.chunk_size,
+				grid.world_size.x,
+				grid.world_size.y,
+				grid.world_size.z,
+			]
 		print(
-			"[InteriorRoom] Built %s (editor, seed %d)"
-			% [get_room_type_name(), room_seed]
+			"[InteriorRoom] Built %s (editor, seed %d)%s"
+			% [get_room_type_name(), room_seed, terrarium_note]
 		)
 
 
+func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement]) -> void:
+	if spawn_terrarium:
+		var terrain_material: Material = terrarium_material
+		if terrain_material == null and ResourceLoader.exists(DEFAULT_TERRAIN_MATERIAL_PATH):
+			terrain_material = load(DEFAULT_TERRAIN_MATERIAL_PATH) as Material
+		var spawn_result: Variant = InteriorTerrariumSpawner.build_if_clear(
+			_layout,
+			placements,
+			get_terrarium_grid_config(),
+			room_seed + 4409,
+			terrain_material,
+			terrarium_noise_amplitude,
+			terrarium_noise_frequency,
+			terrarium_noise_octaves,
+			furniture_scale
+		)
+		if spawn_result == null:
+			return
+		var result: InteriorTerrariumSpawner.SpawnResult = spawn_result as InteriorTerrariumSpawner.SpawnResult
+		_glass_box_root = result.root
+		_terrarium_terrain = result.terrain as TerrariumTerrain
+		add_child(_glass_box_root)
+		_refresh_glass_box_visuals(_glass_box_root)
+		_register_generated_node(_glass_box_root)
+		call_deferred("_rebuild_terrarium_terrain")
+		return
+
+	_glass_box_root = InteriorGlassBoxSpawner.build_if_clear(
+		_layout,
+		placements,
+		glass_box_size
+	)
+	if _glass_box_root != null:
+		add_child(_glass_box_root)
+		_refresh_glass_box_visuals(_glass_box_root)
+		_register_generated_node(_glass_box_root)
+
+
 func _clear_content() -> void:
+	_terrarium_terrain = null
 	_free_generated_root(_shell_root)
 	_shell_root = null
 	_free_generated_root(_furniture_root)
@@ -185,6 +375,7 @@ func _clear_content() -> void:
 	_remove_children_named(&"Furniture")
 	_remove_children_named(&"RoomLight")
 	_remove_children_named(&"GlassBoxProp")
+	_remove_children_named(&"TerrariumTerrain")
 
 
 func _free_generated_root(node: Node) -> void:
@@ -225,9 +416,43 @@ func _refresh_glass_box_visuals(glass_box_root: Node3D) -> void:
 		glass_box.call("rebuild")
 
 
+func _rebuild_terrarium_terrain() -> void:
+	if _terrarium_terrain == null or not is_instance_valid(_terrarium_terrain):
+		_finish_rebuild()
+		return
+	_terrarium_terrain.rebuild_all()
+	_log_editor_build()
+	_finish_rebuild()
+
+
 func _ensure_export_defaults() -> void:
-	# Scenes saved before glass box exports were added can deserialize them as null.
 	if get("spawn_glass_box") == null:
 		spawn_glass_box = true
+	if get("spawn_terrarium") == null:
+		spawn_terrarium = true
 	if get("glass_box_size") == null:
 		glass_box_size = Vector3(1.5, 1.5, 1.5)
+	if get("room_scale") == null:
+		room_scale = 4.0
+	if get("furniture_scale") == null:
+		furniture_scale = 3.0
+	_migrate_legacy_terrarium_settings()
+
+
+func _migrate_legacy_terrarium_settings() -> void:
+	var legacy_size: Variant = get("terrarium_world_size")
+	if legacy_size is Vector3:
+		_apply_legacy_world_size(legacy_size as Vector3)
+		return
+	var legacy_width: Variant = get("terrarium_width")
+	if legacy_width is float:
+		var legacy_height: float = float(get("terrarium_height")) if get("terrarium_height") is float else 3.5
+		var legacy_depth: float = float(get("terrarium_depth")) if get("terrarium_depth") is float else 5.0
+		_apply_legacy_world_size(Vector3(legacy_width, legacy_height, legacy_depth))
+
+
+func _apply_legacy_world_size(world_size: Vector3) -> void:
+	var chunk_size: float = maxf(terrarium_chunk_size, TerrariumBudget.MIN_CHUNK_SIZE)
+	terrarium_chunks_x = maxi(1, int(round(world_size.x / chunk_size)))
+	terrarium_chunks_y = maxi(1, int(round(world_size.y / chunk_size)))
+	terrarium_chunks_z = maxi(1, int(round(world_size.z / chunk_size)))

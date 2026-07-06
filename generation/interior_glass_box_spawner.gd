@@ -25,24 +25,26 @@ static func can_place_at_center(
 	placements: Array[InteriorRoomFurniture.Placement],
 	box_size: Vector3
 ) -> bool:
-	return _find_clear_position(layout, placements, box_size) != Vector3.INF
+	return find_clear_floor_position(layout, placements, box_size) != Vector3.INF
 
 
 static func build_if_clear(
 	layout: InteriorRoomLayout.Layout,
 	placements: Array[InteriorRoomFurniture.Placement],
-	box_size: Vector3 = DEFAULT_BOX_SIZE
+	box_size: Vector3 = DEFAULT_BOX_SIZE,
+	furniture_scale: float = 1.0
 ) -> Node3D:
-	var position: Vector3 = _find_clear_position(layout, placements, box_size)
+	var position: Vector3 = find_clear_floor_position(layout, placements, box_size, furniture_scale)
 	if position == Vector3.INF:
 		return null
 	return _build_at(layout, box_size, position)
 
 
-static func _find_clear_position(
+static func find_clear_floor_position(
 	layout: InteriorRoomLayout.Layout,
 	placements: Array[InteriorRoomFurniture.Placement],
-	box_size: Vector3
+	box_size: Vector3,
+	furniture_scale: float = 1.0
 ) -> Vector3:
 	var room_center: Vector3 = layout.world_aabb.get_center()
 	var candidates: Array[Vector3] = _build_floor_candidates(layout, box_size)
@@ -52,7 +54,7 @@ static func _find_clear_position(
 		return a_dist < b_dist
 	)
 	for candidate: Vector3 in candidates:
-		if _is_position_clear(layout, placements, box_size, candidate):
+		if _is_position_clear(layout, placements, box_size, candidate, furniture_scale):
 			return candidate
 	return Vector3.INF
 
@@ -93,11 +95,12 @@ static func _is_position_clear(
 	layout: InteriorRoomLayout.Layout,
 	placements: Array[InteriorRoomFurniture.Placement],
 	box_size: Vector3,
-	center: Vector3
+	center: Vector3,
+	furniture_scale: float = 1.0
 ) -> bool:
 	var box_aabb := _get_box_aabb_at(layout, box_size, center)
 	for placement: InteriorRoomFurniture.Placement in placements:
-		if _furniture_intersects_box(placement, box_aabb):
+		if _furniture_intersects_box(placement, box_aabb, furniture_scale):
 			return false
 	return true
 
@@ -120,15 +123,12 @@ static func _get_box_aabb_at(
 
 static func _furniture_intersects_box(
 	placement: InteriorRoomFurniture.Placement,
-	box_aabb: AABB
+	box_aabb: AABB,
+	furniture_scale: float = 1.0
 ) -> bool:
 	if placement.furniture_type == InteriorRoomFurniture.FurnitureType.RUG:
 		return false
-	var footprint: Vector3 = InteriorRoomFurniture.get_footprint(placement.furniture_type)
-	if placement.furniture_type == InteriorRoomFurniture.FurnitureType.FLOOR_LAMP:
-		footprint = Vector3(0.35, 0.1, 0.35)
-	elif absf(cos(placement.rotation_y)) < absf(sin(placement.rotation_y)):
-		footprint = Vector3(footprint.z, footprint.y, footprint.x)
+	var footprint: Vector3 = InteriorRoomFurniture.get_scaled_footprint(placement, furniture_scale)
 	var probe := AABB(placement.position - footprint * 0.5, footprint)
 	probe.position.y = box_aabb.position.y
 	probe.size.y = maxf(box_aabb.size.y, footprint.y)
@@ -142,6 +142,7 @@ static func _build_at(
 ) -> Node3D:
 	var root := Node3D.new()
 	root.name = "GlassBoxProp"
+	root.position = Vector3(center.x, layout.floor_y, center.z)
 
 	var scene: PackedScene = load(GLASS_BOX_SCENE_PATH) as PackedScene
 	if scene == null:
@@ -158,7 +159,6 @@ static func _build_at(
 		maxf(box_size.y, 0.25),
 		maxf(box_size.z, 0.25)
 	)
-	glass_box.position = Vector3(center.x, layout.floor_y, center.z)
 	glass_box.scale = safe_size
 	glass_box.name = "GlassBox"
 	root.add_child(glass_box)

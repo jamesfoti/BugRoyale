@@ -27,6 +27,7 @@ func _ready() -> void:
 
 
 func _spawn_player() -> void:
+	await _wait_for_world_ready()
 	var player_scene: PackedScene = _pick_player_scene()
 	if player_scene == null:
 		push_error("[PlayerSpawner] No player scene configured.")
@@ -68,3 +69,11 @@ func _bind_world_references(player: Node) -> void:
 				(player as BoxedInTerrainPlayer).terrain = terrain_node
 			elif player is BerryFlatTerrainPlayer:
 				(player as BerryFlatTerrainPlayer).terrain = terrain_node
+
+
+func _wait_for_world_ready() -> void:
+	var terrain_node: Node3D = get_node_or_null(terrain_path) as Node3D
+	if terrain_node is InteriorRoom:
+		var interior_room: InteriorRoom = terrain_node as InteriorRoom
+		if interior_room.rebuild_on_ready:
+			await interior_room.content_rebuilt

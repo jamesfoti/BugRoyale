@@ -80,6 +80,82 @@ static func get_footprint(furniture_type: FurnitureType) -> Vector3:
 			return Vector3(0.8, 1.0, 0.8)
 
 
+class SurfaceInfo:
+	var top_surface_y: float = 0.0
+	var footprint: Vector2 = Vector2.ONE
+
+
+static func get_surface_info(furniture_type: FurnitureType) -> SurfaceInfo:
+	var info := SurfaceInfo.new()
+	match furniture_type:
+		FurnitureType.COFFEE_TABLE:
+			info.top_surface_y = 0.39
+			info.footprint = Vector2(1.1, 0.7)
+		FurnitureType.DINING_TABLE:
+			info.top_surface_y = 0.79
+			info.footprint = Vector2(1.6, 0.9)
+		FurnitureType.DESK:
+			info.top_surface_y = 0.79
+			info.footprint = Vector2(1.3, 0.65)
+		FurnitureType.ISLAND:
+			info.top_surface_y = 0.9
+			info.footprint = Vector2(1.2, 0.8)
+		FurnitureType.COUNTER:
+			info.top_surface_y = 0.9
+			info.footprint = Vector2(2.0, 0.6)
+		FurnitureType.TV_STAND:
+			info.top_surface_y = 0.48
+			info.footprint = Vector2(1.4, 0.4)
+		_:
+			info.top_surface_y = -1.0
+	return info
+
+
+static func is_terrarium_surface(furniture_type: FurnitureType) -> bool:
+	return get_surface_info(furniture_type).top_surface_y >= 0.0
+
+
+static func get_preferred_terrarium_surfaces(room_type: InteriorRoomLayout.RoomType) -> Array[FurnitureType]:
+	match room_type:
+		InteriorRoomLayout.RoomType.LIVING_ROOM:
+			return [FurnitureType.COFFEE_TABLE, FurnitureType.TV_STAND]
+		InteriorRoomLayout.RoomType.DINING_ROOM:
+			return [FurnitureType.DINING_TABLE]
+		InteriorRoomLayout.RoomType.OFFICE:
+			return [FurnitureType.DESK]
+		InteriorRoomLayout.RoomType.KITCHEN:
+			return [FurnitureType.ISLAND, FurnitureType.COUNTER]
+		InteriorRoomLayout.RoomType.BEDROOM:
+			return [FurnitureType.DESK]
+		_:
+			return []
+
+
+static func get_scaled_footprint(
+	placement: Placement,
+	furniture_scale: float = 1.0
+) -> Vector3:
+	var footprint: Vector3 = get_footprint(placement.furniture_type)
+	if placement.furniture_type == InteriorRoomFurniture.FurnitureType.FLOOR_LAMP:
+		footprint = Vector3(0.35, 0.1, 0.35)
+	elif absf(cos(placement.rotation_y)) < absf(sin(placement.rotation_y)):
+		footprint = Vector3(footprint.z, footprint.y, footprint.x)
+	return footprint * maxf(furniture_scale, 0.1)
+
+
+static func get_scaled_surface_footprint(
+	placement: Placement,
+	furniture_scale: float = 1.0
+) -> Vector2:
+	var info: SurfaceInfo = get_surface_info(placement.furniture_type)
+	if info.top_surface_y < 0.0:
+		return Vector2.ZERO
+	var footprint: Vector2 = info.footprint
+	if absf(cos(placement.rotation_y)) < absf(sin(placement.rotation_y)):
+		footprint = Vector2(footprint.y, footprint.x)
+	return footprint * maxf(furniture_scale, 0.1)
+
+
 static func _room_center(layout: InteriorRoomLayout.Layout) -> Vector3:
 	return layout.world_aabb.get_center()
 

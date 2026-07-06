@@ -46,7 +46,7 @@ func _parse_begin(object: Object) -> void:
 	if is_interior_room:
 		var hint: Label = Label.new()
 		hint.text = (
-			"Generates a room shell, furniture, ceiling light, and floor glass box. "
+			"Generates a giant furnished room with a glass terrarium and small voxel terrain. "
 			+ "Use Destroy Room before saving the scene."
 		)
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -85,7 +85,7 @@ func _on_build_pressed(node_path: NodePath) -> void:
 	if not node.has_method("rebuild_all"):
 		push_error("[Terrain] Script failed to load — check the Output panel.")
 		return
-	node.rebuild_all()
+	node.rebuild_all_editor()
 	_mark_scene_unsaved()
 
 

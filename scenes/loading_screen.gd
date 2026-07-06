@@ -25,8 +25,12 @@ func _begin_load() -> void:
 	var err: Error = ResourceLoader.load_threaded_request(game_scene_path)
 	if err != OK:
 		push_warning("[LoadingScreen] Threaded load unavailable, loading synchronously.")
-		_load_sync()
+		await _load_sync()
 		return
+
+	var stalled_frames: int = 0
+	var last_progress: float = -1.0
+	const STALL_FRAME_LIMIT: int = 180
 
 	while true:
 		var progress_status: Array = []
@@ -37,12 +41,24 @@ func _begin_load() -> void:
 
 		match status:
 			ResourceLoader.THREAD_LOAD_INVALID_RESOURCE, ResourceLoader.THREAD_LOAD_FAILED:
-				_load_sync()
+				await _load_sync()
 				return
 			ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 				var progress: float = 0.0
 				if progress_status.size() > 0:
 					progress = progress_status[0] as float
+				if is_equal_approx(progress, last_progress):
+					stalled_frames += 1
+				else:
+					stalled_frames = 0
+					last_progress = progress
+				if stalled_frames >= STALL_FRAME_LIMIT:
+					push_warning(
+						"[LoadingScreen] Threaded load stalled at %d%%, loading synchronously."
+						% int(round(progress * 100.0))
+					)
+					await _load_sync()
+					return
 				_set_progress(int(round(progress * 100.0)), _asset_load_message(progress))
 				await get_tree().process_frame
 			ResourceLoader.THREAD_LOAD_LOADED:
