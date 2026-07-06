@@ -5,6 +5,7 @@ extends Control
 const PLANET_SCENE_PATH: String = "res://scenes/planet_test.tscn"
 const BOXED_IN_TERRAIN_SCENE_PATH: String = "res://scenes/boxed_in_terrain_test.tscn"
 const OPEN_TERRAIN_SCENE_PATH: String = "res://scenes/open_terrain_test.tscn"
+const BATTLEFIELD_TERRAIN_SCENE_PATH: String = "res://scenes/battlefield_terrain_test.tscn"
 const TERRARIUM_SCENE_PATH: String = "res://scenes/terrarium_test.tscn"
 const LOADING_SCREEN_SCENE_PATH: String = "res://scenes/loading_screen.tscn"
 
@@ -12,6 +13,7 @@ const LOADING_SCREEN_SCENE_PATH: String = "res://scenes/loading_screen.tscn"
 @onready var _planet_button: Button = $UI/Margin/VBox/Buttons/PlanetButton
 @onready var _boxed_in_terrain_button: Button = $UI/Margin/VBox/Buttons/BoxedInTerrainButton
 @onready var _open_terrain_button: Button = $UI/Margin/VBox/Buttons/OpenTerrainButton
+@onready var _battlefield_button: Button = $UI/Margin/VBox/Buttons/BattlefieldButton
 @onready var _terrarium_button: Button = $UI/Margin/VBox/Buttons/TerrariumButton
 @onready var _ragdoll_checkbox: CheckButton = $UI/Margin/VBox/Buttons/RagdollCheck
 
@@ -23,6 +25,7 @@ func _ready() -> void:
 	_planet_button.pressed.connect(_on_planet_pressed)
 	_boxed_in_terrain_button.pressed.connect(_on_boxed_in_terrain_pressed)
 	_open_terrain_button.pressed.connect(_on_open_terrain_pressed)
+	_battlefield_button.pressed.connect(_on_battlefield_pressed)
 	_terrarium_button.pressed.connect(_on_terrarium_pressed)
 
 
@@ -40,6 +43,10 @@ func _on_boxed_in_terrain_pressed() -> void:
 
 func _on_open_terrain_pressed() -> void:
 	_open_scene(OPEN_TERRAIN_SCENE_PATH)
+
+
+func _on_battlefield_pressed() -> void:
+	_open_scene(BATTLEFIELD_TERRAIN_SCENE_PATH)
 
 
 func _on_terrarium_pressed() -> void:

@@ -32,6 +32,7 @@ class WorldDensity:
 	var boxed_in_edges_enabled: bool = true
 	var open_terrain_enabled: bool = false
 	var open_terrain_edges_enabled: bool = true
+	var open_terrain_solid_fill: bool = false
 	var surface_height_offset: float = 0.0
 	var _macro_noise: FastNoiseLite
 	var _height_noise: FastNoiseLite
@@ -177,11 +178,15 @@ class WorldDensity:
 
 	func _evaluate_open_terrain(world_pos: Vector3) -> float:
 		var surface_height: float = _sample_open_terrain_height(world_pos.x, world_pos.z)
-		# Same 3D noise field as boxed-in terrain; heightmap clips the open top.
-		var value: float = _sample_boxed_in_terrain_noise(world_pos)
 		var above_surface: float = world_pos.y - surface_height
-		if above_surface > 0.0:
-			value = maxf(value, above_surface)
+		var value: float
+		if open_terrain_solid_fill:
+			value = above_surface
+		else:
+			# Same 3D noise field as boxed-in terrain; heightmap clips the open top.
+			value = _sample_boxed_in_terrain_noise(world_pos)
+			if above_surface > 0.0:
+				value = maxf(value, above_surface)
 		if open_terrain_edges_enabled:
 			value = maxf(
 				value,
@@ -283,11 +288,13 @@ static func create_open_terrain_world_density(
 	bounds_clip_inset: float = 0.5,
 	open_edges_enabled: bool = true,
 	heightmap_image: Image = null,
-	surface_height_offset: float = 0.0
+	surface_height_offset: float = 0.0,
+	solid_fill: bool = false
 ) -> WorldDensity:
 	var density: WorldDensity = WorldDensity.new()
 	density.open_terrain_enabled = true
 	density.open_terrain_edges_enabled = open_edges_enabled
+	density.open_terrain_solid_fill = solid_fill
 	density.surface_height_offset = surface_height_offset
 	density.sphere_enabled = false
 	density.noise_enabled = true
@@ -303,9 +310,10 @@ static func create_open_terrain_world_density(
 	density._init_open_terrain_height_noise(
 		noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
 	)
-	density._init_boxed_in_terrain_noise(
-		noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
-	)
+	if not solid_fill:
+		density._init_boxed_in_terrain_noise(
+			noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
+		)
 	return density
 
 

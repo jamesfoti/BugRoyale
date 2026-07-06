@@ -36,6 +36,11 @@ extends ChunkedTerrainWorld
 	set(value):
 		boxed_edges_enabled = value
 		_request_rebuild()
+## Fills solid ground below the heightmap surface instead of 3D cave noise.
+@export var solid_underside: bool = false:
+	set(value):
+		solid_underside = value
+		_request_rebuild()
 
 
 func _register_playable_groups() -> void:
@@ -62,6 +67,7 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.boxed_in_terrain_enabled = false
 	settings.open_terrain_enabled = true
 	settings.open_terrain_edges_enabled = boxed_edges_enabled
+	settings.open_terrain_solid_fill = solid_underside
 	settings.open_terrain_heightmap_image = _duplicate_heightmap_image()
 	settings.open_terrain_surface_offset = surface_height_offset
 
@@ -79,7 +85,8 @@ func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> Den
 		settings.bounds_clip_inset,
 		settings.open_terrain_edges_enabled,
 		settings.open_terrain_heightmap_image,
-		settings.open_terrain_surface_offset
+		settings.open_terrain_surface_offset,
+		settings.open_terrain_solid_fill
 	)
 
 
