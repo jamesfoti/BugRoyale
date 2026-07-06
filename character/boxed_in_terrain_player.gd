@@ -21,7 +21,7 @@ const _MAX_MOUSE_DELTA: float = 80.0
 @onready var _camera: Camera3D = $OrbitCamera/Camera3D
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
-var _boxed_in_terrain: BoxedInTerrain
+var _walk_surface: Node3D
 var _anim_state: String = ""
 var _want_jump: bool = false
 var _spawned: bool = false
@@ -208,7 +208,11 @@ func _cache_terrain_refs() -> void:
 	if terrain == null:
 		terrain = get_tree().get_first_node_in_group("boxed_in_terrain") as Node3D
 	if terrain is BoxedInTerrain:
-		_boxed_in_terrain = terrain as BoxedInTerrain
+		_walk_surface = terrain as BoxedInTerrain
+	elif terrain is InteriorRoom:
+		_walk_surface = terrain as InteriorRoom
+	elif terrain != null and terrain.has_method("get_surface_height_at"):
+		_walk_surface = terrain
 
 
 func respawn_random() -> void:
@@ -249,11 +253,15 @@ func _find_random_surface_spawn() -> Dictionary:
 		"position": Vector3.ZERO,
 		"from_raycast_hit": false,
 	}
-	if _boxed_in_terrain == null:
+	if terrain is InteriorRoom:
+		spawn_data.position = (terrain as InteriorRoom).get_spawn_position()
+		spawn_data.from_raycast_hit = true
+		return spawn_data
+	if _walk_surface == null:
 		spawn_data.position = Vector3(0.0, spawn_clearance, 0.0)
 		return spawn_data
 
-	var world_extents: Vector3 = _boxed_in_terrain.get_world_extents()
+	var world_extents: Vector3 = _walk_surface.get_world_extents()
 	var half_extent_x: float = world_extents.x * 0.4
 	var half_extent_z: float = world_extents.z * 0.4
 	var random_offset: Vector3 = Vector3(
@@ -261,7 +269,7 @@ func _find_random_surface_spawn() -> Dictionary:
 		0.0,
 		randf_range(-half_extent_z, half_extent_z)
 	)
-	var world_center: Vector3 = _boxed_in_terrain.global_position
+	var world_center: Vector3 = _walk_surface.global_position
 	var ray_origin: Vector3 = world_center + random_offset + Vector3.UP * _SPAWN_RAY_HEIGHT
 	var ray_end: Vector3 = world_center + random_offset - Vector3.UP * _SPAWN_RAY_HEIGHT
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
@@ -271,7 +279,7 @@ func _find_random_surface_spawn() -> Dictionary:
 	ray_query.collide_with_areas = false
 	var raycast_hit: Dictionary = space.intersect_ray(ray_query)
 	if raycast_hit.is_empty() or not _is_terrain_collider(raycast_hit.get("collider")):
-		var fallback_height: float = _boxed_in_terrain.get_surface_height_at(world_center + random_offset)
+		var fallback_height: float = _walk_surface.get_surface_height_at(world_center + random_offset)
 		spawn_data.position = Vector3(
 			world_center.x + random_offset.x,
 			fallback_height + spawn_clearance,
