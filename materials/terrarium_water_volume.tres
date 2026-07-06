@@ -1,7 +1,11 @@
-[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+[gd_resource type="ShaderMaterial" format=3 uid="uid://ub7vmhhfsdvy"]
 
-[ext_resource type="Shader" path="res://shaders/terrarium_water_volume.gdshader" id="1"]
+[ext_resource type="Shader" uid="uid://t2mpns7nmulq" path="res://shaders/terrarium_water_volume.gdshader" id="1"]
 
 [resource]
+render_priority = 0
 shader = ExtResource("1")
-shader_parameter/volume_color = Color(0.08, 0.35, 0.52, 0.22)
+shader_parameter/base_color = Color(0.04, 0.32, 0.58, 1)
+shader_parameter/deep_color = Color(0.02, 0.16, 0.36, 1)
+shader_parameter/volume_height = 8.0
+shader_parameter/surface_alpha = 0.32

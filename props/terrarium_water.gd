@@ -26,7 +26,10 @@ var _last_splash_time: Dictionary = {}
 var _last_body_y: Dictionary = {}
 
 
-static func create(world_size: Vector3, water_level_ratio: float = DEFAULT_WATER_LEVEL_RATIO) -> TerrariumWater:
+static func create(
+	world_size: Vector3,
+	water_level_ratio: float = DEFAULT_WATER_LEVEL_RATIO
+) -> TerrariumWater:
 	var water := TerrariumWater.new()
 	water.name = "TerrariumWater"
 	water._configure(world_size, water_level_ratio)
@@ -95,7 +98,11 @@ func _build_visuals() -> void:
 		volume.mesh = volume_mesh
 		volume.position = Vector3(0.0, _water_level_y * 0.5, 0.0)
 		volume.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		volume.material_override = _load_material(WATER_VOLUME_MATERIAL_PATH)
+		var volume_material: Material = _load_material(WATER_VOLUME_MATERIAL_PATH)
+		if volume_material is ShaderMaterial:
+			volume_material = (volume_material as ShaderMaterial).duplicate()
+			(volume_material as ShaderMaterial).set_shader_parameter("volume_height", _water_level_y)
+		volume.material_override = volume_material
 		add_child(volume)
 
 	var surface := MeshInstance3D.new()
@@ -105,7 +112,11 @@ func _build_visuals() -> void:
 	surface.mesh = plane
 	surface.position = Vector3(0.0, _water_level_y, 0.0)
 	surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	surface.material_override = _load_material(WATER_SURFACE_MATERIAL_PATH)
+	var surface_material: Material = _load_material(WATER_SURFACE_MATERIAL_PATH)
+	if surface_material is ShaderMaterial:
+		# Per-instance copy; shader params come from terrarium_water.tres.
+		surface_material = (surface_material as ShaderMaterial).duplicate()
+	surface.material_override = surface_material
 	add_child(surface)
 
 
