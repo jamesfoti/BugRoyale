@@ -61,9 +61,14 @@ static func create_configured(
 	grid_config: TerrariumBudget.GridConfig,
 	noise_seed: int,
 	terrain_material: Material,
-	noise_amplitude: float = 0.45,
-	noise_frequency: float = 0.18,
-	noise_octaves: int = 3
+	noise_amplitude: float = OpenTerrainPreset.NOISE_AMPLITUDE,
+	noise_frequency: float = OpenTerrainPreset.NOISE_FREQUENCY,
+	noise_octaves: int = OpenTerrainPreset.NOISE_OCTAVES,
+	noise_lacunarity: float = OpenTerrainPreset.NOISE_LACUNARITY,
+	noise_gain: float = OpenTerrainPreset.NOISE_GAIN,
+	surface_height_offset: float = OpenTerrainPreset.SURFACE_HEIGHT_OFFSET,
+	heightmap: Texture2D = null,
+	boxed_edges_enabled: bool = OpenTerrainPreset.BOXED_EDGES_ENABLED
 ) -> TerrariumTerrain:
 	var terrain := TerrariumTerrain.new()
 	terrain.name = "TerrariumTerrain"
@@ -76,13 +81,15 @@ static func create_configured(
 	terrain.chunk_size = grid_config.chunk_size
 	terrain.chunk_resolution = 1
 	terrain.bounds_falloff_enabled = false
-	terrain.boxed_edges_enabled = true
+	terrain.boxed_edges_enabled = boxed_edges_enabled
+	terrain.heightmap = heightmap
+	terrain.surface_height_offset = surface_height_offset
 	terrain.noise_seed = noise_seed
 	terrain.noise_amplitude = noise_amplitude
 	terrain.noise_frequency = noise_frequency
 	terrain.noise_octaves = noise_octaves
-	terrain.noise_lacunarity = 2.0
-	terrain.noise_gain = 0.5
+	terrain.noise_lacunarity = noise_lacunarity
+	terrain.noise_gain = noise_gain
 	terrain.use_threaded_rebuild = false
 	if terrain_material != null:
 		terrain.terrain_material = terrain_material

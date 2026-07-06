@@ -49,6 +49,8 @@ func _process(delta: float) -> void:
 		_stroke_cooldown = 0.0
 		return
 
+	_ensure_terrain_cached()
+
 	var player: Node = get_parent()
 	if player == null:
 		return
@@ -136,23 +138,46 @@ func _apply_brush() -> void:
 
 
 func _cache_terrain() -> void:
+	_terrain = null
 	var parent: Node = get_parent()
 	if parent is PlanetPlayer:
-		var planet: Node3D = (parent as PlanetPlayer).planet
-		if planet is ChunkedTerrainWorld:
-			_terrain = planet as ChunkedTerrainWorld
+		_terrain = _resolve_chunked_terrain((parent as PlanetPlayer).planet)
+		if _terrain != null:
 			return
 	if parent is BoxedInTerrainPlayer:
-		var boxed_in_terrain: Node3D = (parent as BoxedInTerrainPlayer).terrain
-		if boxed_in_terrain is ChunkedTerrainWorld:
-			_terrain = boxed_in_terrain as ChunkedTerrainWorld
+		_terrain = _resolve_chunked_terrain((parent as BoxedInTerrainPlayer).terrain)
+		if _terrain != null:
 			return
 	if parent is OpenTerrainPlayer:
-		var open_terrain: Node3D = (parent as OpenTerrainPlayer).terrain
-		if open_terrain is ChunkedTerrainWorld:
-			_terrain = open_terrain as ChunkedTerrainWorld
+		_terrain = _resolve_chunked_terrain((parent as OpenTerrainPlayer).terrain)
+		if _terrain != null:
 			return
 	_terrain = get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
+	if _terrain == null:
+		_terrain = get_tree().get_first_node_in_group("open_terrain") as ChunkedTerrainWorld
+
+
+func _ensure_terrain_cached() -> void:
+	if _terrain != null and is_instance_valid(_terrain):
+		return
+	_cache_terrain()
+
+
+func _resolve_chunked_terrain(world_node: Node3D) -> ChunkedTerrainWorld:
+	if world_node == null:
+		return null
+	if world_node is ChunkedTerrainWorld:
+		return world_node as ChunkedTerrainWorld
+	if world_node is InteriorRoom:
+		var interior_room: InteriorRoom = world_node as InteriorRoom
+		if not interior_room.content_rebuilt.is_connected(_on_terrain_world_rebuilt):
+			interior_room.content_rebuilt.connect(_on_terrain_world_rebuilt)
+		return interior_room.get_playable_terrain()
+	return null
+
+
+func _on_terrain_world_rebuilt() -> void:
+	_cache_terrain()
 
 
 func _raycast_terrain_from_view(player: Node) -> Dictionary:

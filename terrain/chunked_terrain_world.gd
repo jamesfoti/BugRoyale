@@ -46,6 +46,7 @@ class SettingsSnapshot:
 	var open_terrain_enabled: bool = false
 	var open_terrain_edges_enabled: bool = true
 	var open_terrain_heightmap_image: Image = null
+	var open_terrain_surface_offset: float = 0.0
 	var planet_edits: PlanetEdits = null
 	var rebuild_collision: bool = true
 

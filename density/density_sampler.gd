@@ -32,6 +32,7 @@ class WorldDensity:
 	var boxed_in_edges_enabled: bool = true
 	var open_terrain_enabled: bool = false
 	var open_terrain_edges_enabled: bool = true
+	var surface_height_offset: float = 0.0
 	var _macro_noise: FastNoiseLite
 	var _height_noise: FastNoiseLite
 	var _heightmap_image: Image
@@ -92,14 +93,17 @@ class WorldDensity:
 			_ravine_blend_noise.noise_type = FastNoiseLite.TYPE_PERLIN
 			_ravine_blend_noise.frequency = 1.0
 		if caves_enabled:
-			_cave_noise = FastNoiseLite.new()
-			_cave_noise.seed = planet_seed + 202
-			_cave_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-			_cave_noise.frequency = 1.0
-			_cave_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-			_cave_noise.fractal_octaves = 6
-			_cave_noise.fractal_lacunarity = 2.5
-			_cave_noise.fractal_gain = 0.5
+			_init_cave_noise(planet_seed + 202, 1.0)
+
+	func _init_cave_noise(terrain_seed: int, frequency: float) -> void:
+		_cave_noise = FastNoiseLite.new()
+		_cave_noise.seed = terrain_seed
+		_cave_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+		_cave_noise.frequency = maxf(frequency, 0.001)
+		_cave_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+		_cave_noise.fractal_octaves = 6
+		_cave_noise.fractal_lacunarity = 2.5
+		_cave_noise.fractal_gain = 0.5
 
 	func _init_boxed_in_terrain_noise(
 		terrain_seed: int,
@@ -162,18 +166,22 @@ class WorldDensity:
 				bounds_center,
 				bounds_half,
 				noise_amplitude
-			)
+			) + surface_height_offset
 		if not noise_enabled or _height_noise == null:
-			return bounds_center.y
+			return bounds_center.y + surface_height_offset
 		var noise_value: float = _height_noise.get_noise_2d(world_x, world_z)
-		return bounds_center.y + noise_value * noise_amplitude
+		return bounds_center.y + noise_value * noise_amplitude + surface_height_offset
 
 	func sample_open_terrain_height(world_x: float, world_z: float) -> float:
 		return _sample_open_terrain_height(world_x, world_z)
 
 	func _evaluate_open_terrain(world_pos: Vector3) -> float:
 		var surface_height: float = _sample_open_terrain_height(world_pos.x, world_pos.z)
-		var value: float = world_pos.y - surface_height
+		# Same 3D noise field as boxed-in terrain; heightmap clips the open top.
+		var value: float = _sample_boxed_in_terrain_noise(world_pos)
+		var above_surface: float = world_pos.y - surface_height
+		if above_surface > 0.0:
+			value = maxf(value, above_surface)
 		if open_terrain_edges_enabled:
 			value = maxf(
 				value,
@@ -274,11 +282,13 @@ static func create_open_terrain_world_density(
 	bounds_half: Vector3,
 	bounds_clip_inset: float = 0.5,
 	open_edges_enabled: bool = true,
-	heightmap_image: Image = null
+	heightmap_image: Image = null,
+	surface_height_offset: float = 0.0
 ) -> WorldDensity:
 	var density: WorldDensity = WorldDensity.new()
 	density.open_terrain_enabled = true
 	density.open_terrain_edges_enabled = open_edges_enabled
+	density.surface_height_offset = surface_height_offset
 	density.sphere_enabled = false
 	density.noise_enabled = true
 	density.noise_amplitude = noise_amplitude
@@ -290,10 +300,12 @@ static func create_open_terrain_world_density(
 	density.bounds_clip_inset = bounds_clip_inset
 	if heightmap_image != null and not heightmap_image.is_empty():
 		density._heightmap_image = heightmap_image.duplicate()
-	else:
-		density._init_open_terrain_height_noise(
-			noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
-		)
+	density._init_open_terrain_height_noise(
+		noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
+	)
+	density._init_boxed_in_terrain_noise(
+		noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
+	)
 	return density
 
 

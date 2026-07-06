@@ -1,7 +1,7 @@
 @tool
 class_name OpenTerrain
 extends ChunkedTerrainWorld
-## Heightmap terrain clipped to side and bottom walls with an open top.
+## Boxed-in style 3D noise clipped by a heightmap surface (open top, side/bottom walls).
 
 
 @export_group("Open Terrain Grid")
@@ -23,6 +23,11 @@ extends ChunkedTerrainWorld
 @export var heightmap: Texture2D:
 	set(value):
 		heightmap = value
+		_request_rebuild()
+## Raises or lowers the ground surface in meters (relative to this node's Y).
+@export var surface_height_offset: float = 0.0:
+	set(value):
+		surface_height_offset = value
 		_request_rebuild()
 
 @export_group("Edges")
@@ -58,6 +63,7 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_enabled = true
 	settings.open_terrain_edges_enabled = boxed_edges_enabled
 	settings.open_terrain_heightmap_image = _duplicate_heightmap_image()
+	settings.open_terrain_surface_offset = surface_height_offset
 
 
 func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> DensitySampler.WorldDensity:
@@ -72,7 +78,8 @@ func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> Den
 		settings.bounds_half,
 		settings.bounds_clip_inset,
 		settings.open_terrain_edges_enabled,
-		settings.open_terrain_heightmap_image
+		settings.open_terrain_heightmap_image,
+		settings.open_terrain_surface_offset
 	)
 
 

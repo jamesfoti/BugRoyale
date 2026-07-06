@@ -22,9 +22,15 @@ static func build_if_clear(
 	grid_config: TerrariumBudget.GridConfig,
 	noise_seed: int,
 	terrain_material: Material = null,
-	noise_amplitude: float = 0.45,
-	noise_frequency: float = 0.18,
-	noise_octaves: int = 3,
+	spawn_terrain: bool = true,
+	noise_amplitude: float = OpenTerrainPreset.NOISE_AMPLITUDE,
+	noise_frequency: float = OpenTerrainPreset.NOISE_FREQUENCY,
+	noise_octaves: int = OpenTerrainPreset.NOISE_OCTAVES,
+	noise_lacunarity: float = OpenTerrainPreset.NOISE_LACUNARITY,
+	noise_gain: float = OpenTerrainPreset.NOISE_GAIN,
+	surface_height_offset: float = OpenTerrainPreset.SURFACE_HEIGHT_OFFSET,
+	heightmap: Texture2D = null,
+	boxed_edges_enabled: bool = OpenTerrainPreset.BOXED_EDGES_ENABLED,
 	furniture_scale: float = 1.0
 ) -> Variant:
 	var glass_box_size: Vector3 = TerrariumBudget.derive_glass_box_size(grid_config.world_size)
@@ -41,9 +47,15 @@ static func build_if_clear(
 		grid_config,
 		noise_seed,
 		terrain_material,
+		spawn_terrain,
 		noise_amplitude,
 		noise_frequency,
-		noise_octaves
+		noise_octaves,
+		noise_lacunarity,
+		noise_gain,
+		surface_height_offset,
+		heightmap,
+		boxed_edges_enabled
 	)
 
 
@@ -101,9 +113,15 @@ static func _build_at(
 	grid_config: TerrariumBudget.GridConfig,
 	noise_seed: int,
 	terrain_material: Material,
+	spawn_terrain: bool,
 	noise_amplitude: float,
 	noise_frequency: float,
-	noise_octaves: int
+	noise_octaves: int,
+	noise_lacunarity: float,
+	noise_gain: float,
+	surface_height_offset: float,
+	heightmap: Texture2D,
+	boxed_edges_enabled: bool
 ) -> SpawnResult:
 	var result := SpawnResult.new()
 	result.terrarium_world_size = grid_config.world_size
@@ -123,17 +141,23 @@ static func _build_at(
 	if material == null and ResourceLoader.exists(DEFAULT_TERRAIN_MATERIAL_PATH):
 		material = load(DEFAULT_TERRAIN_MATERIAL_PATH) as Material
 
-	var terrain: TerrariumTerrain = TerrariumTerrain.create_configured(
-		grid_config,
-		noise_seed,
-		material,
-		noise_amplitude,
-		noise_frequency,
-		noise_octaves
-	)
-	terrain.position = Vector3(0.0, TerrariumBudget.get_terrain_floor_offset(grid_config.world_size), 0.0)
-	root.add_child(terrain)
-	result.terrain = terrain
+	if spawn_terrain:
+		var terrain: TerrariumTerrain = TerrariumTerrain.create_configured(
+			grid_config,
+			noise_seed,
+			material,
+			noise_amplitude,
+			noise_frequency,
+			noise_octaves,
+			noise_lacunarity,
+			noise_gain,
+			surface_height_offset,
+			heightmap,
+			boxed_edges_enabled
+		)
+		terrain.position = Vector3(0.0, TerrariumBudget.get_terrain_floor_offset(grid_config.world_size), 0.0)
+		root.add_child(terrain)
+		result.terrain = terrain
 	result.root = root
 	return result
 

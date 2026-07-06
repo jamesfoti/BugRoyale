@@ -64,10 +64,18 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrain_procedura
 		_request_rebuild()
 
 @export_group("Terrarium")
+## Spawns a glass terrarium prop (and optional voxel terrain) on a table or the floor.
 @export var spawn_terrarium: bool = true:
 	set(value):
 		spawn_terrarium = value
 		_request_rebuild()
+## Builds open heightmap voxel terrain inside the glass box.
+@export var spawn_terrarium_terrain: bool = true:
+	set(value):
+		spawn_terrarium_terrain = value
+		_request_rebuild()
+
+@export_subgroup("Grid")
 @export_range(1, 16, 1) var terrarium_chunks_x: int = 1:
 	set(value):
 		terrarium_chunks_x = maxi(value, 1)
@@ -84,18 +92,45 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrain_procedura
 	set(value):
 		terrarium_chunk_size = clampf(value, TerrariumBudget.MIN_CHUNK_SIZE, TerrariumBudget.MAX_CHUNK_SIZE)
 		_request_rebuild()
+
+@export_subgroup("Terrain")
 @export var terrarium_material: Material
-@export var terrarium_noise_amplitude: float = 0.45:
+@export var terrarium_noise_seed: int = OpenTerrainPreset.NOISE_SEED:
+	set(value):
+		terrarium_noise_seed = value
+		_request_rebuild()
+@export var terrarium_heightmap: Texture2D:
+	set(value):
+		terrarium_heightmap = value
+		_request_rebuild()
+## Raises or lowers the terrarium ground surface in meters.
+@export var terrarium_surface_height_offset: float = OpenTerrainPreset.SURFACE_HEIGHT_OFFSET:
+	set(value):
+		terrarium_surface_height_offset = value
+		_request_rebuild()
+@export var terrarium_boxed_edges_enabled: bool = OpenTerrainPreset.BOXED_EDGES_ENABLED:
+	set(value):
+		terrarium_boxed_edges_enabled = value
+		_request_rebuild()
+@export var terrarium_noise_amplitude: float = OpenTerrainPreset.NOISE_AMPLITUDE:
 	set(value):
 		terrarium_noise_amplitude = value
 		_request_rebuild()
-@export var terrarium_noise_frequency: float = 0.18:
+@export var terrarium_noise_frequency: float = OpenTerrainPreset.NOISE_FREQUENCY:
 	set(value):
 		terrarium_noise_frequency = maxf(value, 0.001)
 		_request_rebuild()
-@export_range(1, 4, 1) var terrarium_noise_octaves: int = 3:
+@export_range(1, 8, 1) var terrarium_noise_octaves: int = OpenTerrainPreset.NOISE_OCTAVES:
 	set(value):
 		terrarium_noise_octaves = maxi(value, 1)
+		_request_rebuild()
+@export var terrarium_noise_lacunarity: float = OpenTerrainPreset.NOISE_LACUNARITY:
+	set(value):
+		terrarium_noise_lacunarity = maxf(value, 1.0)
+		_request_rebuild()
+@export var terrarium_noise_gain: float = OpenTerrainPreset.NOISE_GAIN:
+	set(value):
+		terrarium_noise_gain = clampf(value, 0.01, 1.0)
 		_request_rebuild()
 
 @export_group("Runtime")
@@ -332,11 +367,17 @@ func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement
 			_layout,
 			placements,
 			get_terrarium_grid_config(),
-			room_seed + 4409,
+			terrarium_noise_seed,
 			terrain_material,
+			spawn_terrarium_terrain,
 			terrarium_noise_amplitude,
 			terrarium_noise_frequency,
 			terrarium_noise_octaves,
+			terrarium_noise_lacunarity,
+			terrarium_noise_gain,
+			terrarium_surface_height_offset,
+			terrarium_heightmap,
+			terrarium_boxed_edges_enabled,
 			furniture_scale
 		)
 		if spawn_result == null:
@@ -345,9 +386,14 @@ func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement
 		_glass_box_root = result.root
 		_terrarium_terrain = result.terrain as TerrariumTerrain
 		add_child(_glass_box_root)
+		if _terrarium_terrain != null:
+			_apply_terrarium_terrain_settings(_terrarium_terrain)
 		_refresh_glass_box_visuals(_glass_box_root)
 		_register_generated_node(_glass_box_root)
-		call_deferred("_rebuild_terrarium_terrain")
+		if _terrarium_terrain != null:
+			call_deferred("_rebuild_terrarium_terrain")
+		else:
+			_finish_rebuild()
 		return
 
 	_glass_box_root = InteriorGlassBoxSpawner.build_if_clear(
@@ -420,9 +466,37 @@ func _rebuild_terrarium_terrain() -> void:
 	if _terrarium_terrain == null or not is_instance_valid(_terrarium_terrain):
 		_finish_rebuild()
 		return
+	_apply_terrarium_terrain_settings(_terrarium_terrain)
 	_terrarium_terrain.rebuild_all()
 	_log_editor_build()
 	_finish_rebuild()
+
+
+func _apply_terrarium_terrain_settings(terrain: TerrariumTerrain) -> void:
+	var grid_config: TerrariumBudget.GridConfig = get_terrarium_grid_config()
+	terrain.chunks_x = grid_config.chunks.x
+	terrain.chunks_y = grid_config.chunks.y
+	terrain.chunks_z = grid_config.chunks.z
+	terrain.chunk_size = grid_config.chunk_size
+	terrain.chunk_resolution = 1
+	terrain.bounds_falloff_enabled = false
+	terrain.use_threaded_rebuild = false
+	terrain.is_playable_world = false
+	terrain.noise_enabled = true
+	terrain.noise_seed = terrarium_noise_seed
+	terrain.noise_frequency = terrarium_noise_frequency
+	terrain.noise_amplitude = terrarium_noise_amplitude
+	terrain.noise_octaves = terrarium_noise_octaves
+	terrain.noise_lacunarity = terrarium_noise_lacunarity
+	terrain.noise_gain = terrarium_noise_gain
+	terrain.surface_height_offset = terrarium_surface_height_offset
+	terrain.heightmap = terrarium_heightmap
+	terrain.boxed_edges_enabled = terrarium_boxed_edges_enabled
+	var material: Material = terrarium_material
+	if material == null and ResourceLoader.exists(DEFAULT_TERRAIN_MATERIAL_PATH):
+		material = load(DEFAULT_TERRAIN_MATERIAL_PATH) as Material
+	if material != null:
+		terrain.terrain_material = material
 
 
 func _ensure_export_defaults() -> void:
@@ -430,6 +504,18 @@ func _ensure_export_defaults() -> void:
 		spawn_glass_box = true
 	if get("spawn_terrarium") == null:
 		spawn_terrarium = true
+	if get("spawn_terrarium_terrain") == null:
+		spawn_terrarium_terrain = true
+	if get("terrarium_boxed_edges_enabled") == null:
+		terrarium_boxed_edges_enabled = true
+	if get("terrarium_surface_height_offset") == null:
+		terrarium_surface_height_offset = OpenTerrainPreset.SURFACE_HEIGHT_OFFSET
+	if get("terrarium_noise_lacunarity") == null:
+		terrarium_noise_lacunarity = OpenTerrainPreset.NOISE_LACUNARITY
+	if get("terrarium_noise_gain") == null:
+		terrarium_noise_gain = OpenTerrainPreset.NOISE_GAIN
+	if get("terrarium_noise_seed") == null:
+		terrarium_noise_seed = OpenTerrainPreset.NOISE_SEED
 	if get("glass_box_size") == null:
 		glass_box_size = Vector3(1.5, 1.5, 1.5)
 	if get("room_scale") == null:
