@@ -168,11 +168,11 @@ func _resolve_chunked_terrain(world_node: Node3D) -> ChunkedTerrainWorld:
 		return null
 	if world_node is ChunkedTerrainWorld:
 		return world_node as ChunkedTerrainWorld
-	if world_node is InteriorRoom:
-		var interior_room: InteriorRoom = world_node as InteriorRoom
-		if not interior_room.content_rebuilt.is_connected(_on_terrain_world_rebuilt):
-			interior_room.content_rebuilt.connect(_on_terrain_world_rebuilt)
-		return interior_room.get_playable_terrain()
+	if world_node is TerrariumRoom:
+		var terrarium_room: TerrariumRoom = world_node as TerrariumRoom
+		if not terrarium_room.content_rebuilt.is_connected(_on_terrain_world_rebuilt):
+			terrarium_room.content_rebuilt.connect(_on_terrain_world_rebuilt)
+		return terrarium_room.get_playable_terrain()
 	return null
 
 

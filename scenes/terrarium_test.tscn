@@ -1,6 +1,6 @@
 [gd_scene format=4 uid="uid://b7idc0edory0j"]
 
-[ext_resource type="Script" uid="uid://dm3y304nef4ts" path="res://terrain/interior_room.gd" id="1"]
+[ext_resource type="Script" uid="uid://dm3y304nef4ts" path="res://terrain/terrarium_room.gd" id="1"]
 [ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="2"]
 [ext_resource type="Environment" path="res://materials/interior_env.tres" id="3"]
 [ext_resource type="PackedScene" uid="uid://glassbox01" path="res://props/glass_box/glass_box.tscn" id="3_1mhv0"]
@@ -556,7 +556,7 @@ data = PackedVector3Array(0, -7.784, -7, 0, -8, -7.8402996, -0.046, -8, -8, 0, -
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_cndaa"]
 
-[node name="InteriorRoomTest" type="Node3D" unique_id=1708003555]
+[node name="TerrariumTest" type="Node3D" unique_id=1708003555]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=848278023]
 environment = ExtResource("3")
@@ -568,7 +568,7 @@ light_energy = 0.25
 shadow_enabled = true
 shadow_opacity = 0.5
 
-[node name="InteriorRoom" type="Node3D" parent="." unique_id=420812662]
+[node name="TerrariumRoom" type="Node3D" parent="." unique_id=420812662]
 script = ExtResource("1")
 room_seed = 101
 room_type = 1
@@ -581,303 +581,303 @@ terrarium_chunk_size = 16.0
 terrarium_noise_seed = 52
 auto_rebuild_in_editor = true
 
-[node name="RoomShell" type="Node3D" parent="InteriorRoom" unique_id=512442446]
+[node name="RoomShell" type="Node3D" parent="TerrariumRoom" unique_id=512442446]
 
-[node name="@StaticBody3D@27672" type="StaticBody3D" parent="InteriorRoom/RoomShell" unique_id=1702838035]
+[node name="@StaticBody3D@27672" type="StaticBody3D" parent="TerrariumRoom/RoomShell" unique_id=1702838035]
 
-[node name="@MeshInstance3D@27673" type="MeshInstance3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=435164786]
+[node name="@MeshInstance3D@27673" type="MeshInstance3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=435164786]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
 material_override = SubResource("StandardMaterial3D_1mhv0")
 mesh = SubResource("BoxMesh_cgglp")
 
-[node name="@CollisionShape3D@27674" type="CollisionShape3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=212562843]
+[node name="@CollisionShape3D@27674" type="CollisionShape3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=212562843]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
 shape = SubResource("BoxShape3D_njmqc")
 
-[node name="@MeshInstance3D@27675" type="MeshInstance3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=1656519796]
+[node name="@MeshInstance3D@27675" type="MeshInstance3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=1656519796]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 349.96, 0)
 material_override = SubResource("StandardMaterial3D_mquig")
 mesh = SubResource("BoxMesh_441n2")
 
-[node name="@CollisionShape3D@27676" type="CollisionShape3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=312503180]
+[node name="@CollisionShape3D@27676" type="CollisionShape3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=312503180]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 349.96, 0)
 shape = SubResource("BoxShape3D_65bk6")
 
-[node name="@MeshInstance3D@27677" type="MeshInstance3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=561101525]
+[node name="@MeshInstance3D@27677" type="MeshInstance3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=561101525]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 175, -340)
 material_override = SubResource("StandardMaterial3D_l1yrj")
 mesh = SubResource("BoxMesh_sjhmc")
 
-[node name="@CollisionShape3D@27678" type="CollisionShape3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=973586948]
+[node name="@CollisionShape3D@27678" type="CollisionShape3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=973586948]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 175, -340)
 shape = SubResource("BoxShape3D_rik8t")
 
-[node name="@MeshInstance3D@27679" type="MeshInstance3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=354108204]
+[node name="@MeshInstance3D@27679" type="MeshInstance3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=354108204]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 175, 340)
 material_override = SubResource("StandardMaterial3D_l1yrj")
 mesh = SubResource("BoxMesh_k203f")
 
-[node name="@CollisionShape3D@27680" type="CollisionShape3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=1301735795]
+[node name="@CollisionShape3D@27680" type="CollisionShape3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=1301735795]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 175, 340)
 shape = SubResource("BoxShape3D_ep0o1")
 
-[node name="@MeshInstance3D@27681" type="MeshInstance3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=1125415405]
+[node name="@MeshInstance3D@27681" type="MeshInstance3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=1125415405]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -340, 175, 0)
 material_override = SubResource("StandardMaterial3D_l1yrj")
 mesh = SubResource("BoxMesh_ymwbb")
 
-[node name="@CollisionShape3D@27682" type="CollisionShape3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=421147350]
+[node name="@CollisionShape3D@27682" type="CollisionShape3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=421147350]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -340, 175, 0)
 shape = SubResource("BoxShape3D_6tyvt")
 
-[node name="@MeshInstance3D@27683" type="MeshInstance3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=1527216202]
+[node name="@MeshInstance3D@27683" type="MeshInstance3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=1527216202]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 340, 175, 0)
 material_override = SubResource("StandardMaterial3D_l1yrj")
 mesh = SubResource("BoxMesh_taa76")
 
-[node name="@CollisionShape3D@27684" type="CollisionShape3D" parent="InteriorRoom/RoomShell/@StaticBody3D@27672" unique_id=860751298]
+[node name="@CollisionShape3D@27684" type="CollisionShape3D" parent="TerrariumRoom/RoomShell/@StaticBody3D@27672" unique_id=860751298]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 340, 175, 0)
 shape = SubResource("BoxShape3D_uos8u")
 
-[node name="RoomLight" type="Node3D" parent="InteriorRoom" unique_id=490289684]
+[node name="RoomLight" type="Node3D" parent="TerrariumRoom" unique_id=490289684]
 
-[node name="@OmniLight3D@27685" type="OmniLight3D" parent="InteriorRoom/RoomLight" unique_id=646052325]
+[node name="@OmniLight3D@27685" type="OmniLight3D" parent="TerrariumRoom/RoomLight" unique_id=646052325]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 349.85, 0)
 light_energy = 1.2
 shadow_enabled = true
 omni_range = 540.0
 
-[node name="Furniture" type="Node3D" parent="InteriorRoom" unique_id=915216163]
+[node name="Furniture" type="Node3D" parent="TerrariumRoom" unique_id=915216163]
 
-[node name="COUCH" type="StaticBody3D" parent="InteriorRoom/Furniture" unique_id=137235456]
+[node name="COUCH" type="StaticBody3D" parent="TerrariumRoom/Furniture" unique_id=137235456]
 transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 198)
 
-[node name="@MeshInstance3D@27686" type="MeshInstance3D" parent="InteriorRoom/Furniture/COUCH" unique_id=1146358694]
+[node name="@MeshInstance3D@27686" type="MeshInstance3D" parent="TerrariumRoom/Furniture/COUCH" unique_id=1146358694]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.225, 0)
 material_override = SubResource("StandardMaterial3D_k11pw")
 mesh = SubResource("BoxMesh_2lclg")
 
-[node name="@CollisionShape3D@27687" type="CollisionShape3D" parent="InteriorRoom/Furniture/COUCH" unique_id=249709529]
+[node name="@CollisionShape3D@27687" type="CollisionShape3D" parent="TerrariumRoom/Furniture/COUCH" unique_id=249709529]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.225, 0)
 shape = SubResource("BoxShape3D_lr1ts")
 
-[node name="@MeshInstance3D@27688" type="MeshInstance3D" parent="InteriorRoom/Furniture/COUCH" unique_id=1538648459]
+[node name="@MeshInstance3D@27688" type="MeshInstance3D" parent="TerrariumRoom/Furniture/COUCH" unique_id=1538648459]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, -0.35)
 material_override = SubResource("StandardMaterial3D_5f05i")
 mesh = SubResource("BoxMesh_t263y")
 
-[node name="@CollisionShape3D@27689" type="CollisionShape3D" parent="InteriorRoom/Furniture/COUCH" unique_id=1834389659]
+[node name="@CollisionShape3D@27689" type="CollisionShape3D" parent="TerrariumRoom/Furniture/COUCH" unique_id=1834389659]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, -0.35)
 shape = SubResource("BoxShape3D_c0102")
 
-[node name="ARMCHAIR" type="StaticBody3D" parent="InteriorRoom/Furniture" unique_id=1688025388]
+[node name="ARMCHAIR" type="StaticBody3D" parent="TerrariumRoom/Furniture" unique_id=1688025388]
 transform = Transform3D(-4.371139e-06, 0, 100, 0, 100, 0, -100, 0, -4.371139e-06, -162, 0, 36)
 
-[node name="@MeshInstance3D@27690" type="MeshInstance3D" parent="InteriorRoom/Furniture/ARMCHAIR" unique_id=211032835]
+[node name="@MeshInstance3D@27690" type="MeshInstance3D" parent="TerrariumRoom/Furniture/ARMCHAIR" unique_id=211032835]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 material_override = SubResource("StandardMaterial3D_xxmo8")
 mesh = SubResource("BoxMesh_oou16")
 
-[node name="@CollisionShape3D@27691" type="CollisionShape3D" parent="InteriorRoom/Furniture/ARMCHAIR" unique_id=1025658939]
+[node name="@CollisionShape3D@27691" type="CollisionShape3D" parent="TerrariumRoom/Furniture/ARMCHAIR" unique_id=1025658939]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 shape = SubResource("BoxShape3D_rw14u")
 
-[node name="@MeshInstance3D@27692" type="MeshInstance3D" parent="InteriorRoom/Furniture/ARMCHAIR" unique_id=613512385]
+[node name="@MeshInstance3D@27692" type="MeshInstance3D" parent="TerrariumRoom/Furniture/ARMCHAIR" unique_id=613512385]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, -0.38)
 material_override = SubResource("StandardMaterial3D_37ief")
 mesh = SubResource("BoxMesh_w65xh")
 
-[node name="@CollisionShape3D@27693" type="CollisionShape3D" parent="InteriorRoom/Furniture/ARMCHAIR" unique_id=800937687]
+[node name="@CollisionShape3D@27693" type="CollisionShape3D" parent="TerrariumRoom/Furniture/ARMCHAIR" unique_id=800937687]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, -0.38)
 shape = SubResource("BoxShape3D_rfiod")
 
-[node name="@StaticBody3D@27698" type="StaticBody3D" parent="InteriorRoom/Furniture" unique_id=1034390466]
+[node name="@StaticBody3D@27698" type="StaticBody3D" parent="TerrariumRoom/Furniture" unique_id=1034390466]
 transform = Transform3D(-4.371139e-06, 0, -100, 0, 100, 0, 100, 0, -4.371139e-06, 162, 0, 36)
 
-[node name="@MeshInstance3D@27694" type="MeshInstance3D" parent="InteriorRoom/Furniture/@StaticBody3D@27698" unique_id=789132342]
+[node name="@MeshInstance3D@27694" type="MeshInstance3D" parent="TerrariumRoom/Furniture/@StaticBody3D@27698" unique_id=789132342]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 material_override = SubResource("StandardMaterial3D_ajhy5")
 mesh = SubResource("BoxMesh_51gy0")
 
-[node name="@CollisionShape3D@27695" type="CollisionShape3D" parent="InteriorRoom/Furniture/@StaticBody3D@27698" unique_id=1875675845]
+[node name="@CollisionShape3D@27695" type="CollisionShape3D" parent="TerrariumRoom/Furniture/@StaticBody3D@27698" unique_id=1875675845]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 shape = SubResource("BoxShape3D_mp2vw")
 
-[node name="@MeshInstance3D@27696" type="MeshInstance3D" parent="InteriorRoom/Furniture/@StaticBody3D@27698" unique_id=1353898806]
+[node name="@MeshInstance3D@27696" type="MeshInstance3D" parent="TerrariumRoom/Furniture/@StaticBody3D@27698" unique_id=1353898806]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, -0.38)
 material_override = SubResource("StandardMaterial3D_kbxar")
 mesh = SubResource("BoxMesh_a2pac")
 
-[node name="@CollisionShape3D@27697" type="CollisionShape3D" parent="InteriorRoom/Furniture/@StaticBody3D@27698" unique_id=1494250189]
+[node name="@CollisionShape3D@27697" type="CollisionShape3D" parent="TerrariumRoom/Furniture/@StaticBody3D@27698" unique_id=1494250189]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, -0.38)
 shape = SubResource("BoxShape3D_8qvni")
 
-[node name="COFFEE_TABLE" type="StaticBody3D" parent="InteriorRoom/Furniture" unique_id=368364790]
+[node name="COFFEE_TABLE" type="StaticBody3D" parent="TerrariumRoom/Furniture" unique_id=368364790]
 transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
 
-[node name="@MeshInstance3D@27699" type="MeshInstance3D" parent="InteriorRoom/Furniture/COFFEE_TABLE" unique_id=1765936750]
+[node name="@MeshInstance3D@27699" type="MeshInstance3D" parent="TerrariumRoom/Furniture/COFFEE_TABLE" unique_id=1765936750]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 material_override = SubResource("StandardMaterial3D_es42c")
 mesh = SubResource("BoxMesh_hat8j")
 
-[node name="@CollisionShape3D@27700" type="CollisionShape3D" parent="InteriorRoom/Furniture/COFFEE_TABLE" unique_id=955467094]
+[node name="@CollisionShape3D@27700" type="CollisionShape3D" parent="TerrariumRoom/Furniture/COFFEE_TABLE" unique_id=955467094]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 shape = SubResource("BoxShape3D_o3wso")
 
-[node name="@MeshInstance3D@27701" type="MeshInstance3D" parent="InteriorRoom/Furniture/COFFEE_TABLE" unique_id=663951971]
+[node name="@MeshInstance3D@27701" type="MeshInstance3D" parent="TerrariumRoom/Furniture/COFFEE_TABLE" unique_id=663951971]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.43, 0.155, -0.22999999)
 material_override = SubResource("StandardMaterial3D_ywieo")
 mesh = SubResource("BoxMesh_81uc5")
 
-[node name="@CollisionShape3D@27702" type="CollisionShape3D" parent="InteriorRoom/Furniture/COFFEE_TABLE" unique_id=1944983557]
+[node name="@CollisionShape3D@27702" type="CollisionShape3D" parent="TerrariumRoom/Furniture/COFFEE_TABLE" unique_id=1944983557]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.43, 0.155, -0.22999999)
 shape = SubResource("BoxShape3D_tyxe2")
 
-[node name="@MeshInstance3D@27703" type="MeshInstance3D" parent="InteriorRoom/Furniture/COFFEE_TABLE" unique_id=488876745]
+[node name="@MeshInstance3D@27703" type="MeshInstance3D" parent="TerrariumRoom/Furniture/COFFEE_TABLE" unique_id=488876745]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.43, 0.155, 0.22999999)
 material_override = SubResource("StandardMaterial3D_ub4la")
 mesh = SubResource("BoxMesh_om32l")
 
-[node name="@CollisionShape3D@27704" type="CollisionShape3D" parent="InteriorRoom/Furniture/COFFEE_TABLE" unique_id=1830367807]
+[node name="@CollisionShape3D@27704" type="CollisionShape3D" parent="TerrariumRoom/Furniture/COFFEE_TABLE" unique_id=1830367807]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.43, 0.155, 0.22999999)
 shape = SubResource("BoxShape3D_bb2qg")
 
-[node name="@MeshInstance3D@27705" type="MeshInstance3D" parent="InteriorRoom/Furniture/COFFEE_TABLE" unique_id=2025764395]
+[node name="@MeshInstance3D@27705" type="MeshInstance3D" parent="TerrariumRoom/Furniture/COFFEE_TABLE" unique_id=2025764395]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.43, 0.155, -0.22999999)
 material_override = SubResource("StandardMaterial3D_irwq7")
 mesh = SubResource("BoxMesh_d7mpd")
 
-[node name="@CollisionShape3D@27706" type="CollisionShape3D" parent="InteriorRoom/Furniture/COFFEE_TABLE" unique_id=113249298]
+[node name="@CollisionShape3D@27706" type="CollisionShape3D" parent="TerrariumRoom/Furniture/COFFEE_TABLE" unique_id=113249298]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.43, 0.155, -0.22999999)
 shape = SubResource("BoxShape3D_5q4j1")
 
-[node name="@MeshInstance3D@27707" type="MeshInstance3D" parent="InteriorRoom/Furniture/COFFEE_TABLE" unique_id=282746467]
+[node name="@MeshInstance3D@27707" type="MeshInstance3D" parent="TerrariumRoom/Furniture/COFFEE_TABLE" unique_id=282746467]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.43, 0.155, 0.22999999)
 material_override = SubResource("StandardMaterial3D_0a64x")
 mesh = SubResource("BoxMesh_sq5bm")
 
-[node name="@CollisionShape3D@27708" type="CollisionShape3D" parent="InteriorRoom/Furniture/COFFEE_TABLE" unique_id=1530632436]
+[node name="@CollisionShape3D@27708" type="CollisionShape3D" parent="TerrariumRoom/Furniture/COFFEE_TABLE" unique_id=1530632436]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.43, 0.155, 0.22999999)
 shape = SubResource("BoxShape3D_hck46")
 
-[node name="RUG" type="StaticBody3D" parent="InteriorRoom/Furniture" unique_id=1808655402]
+[node name="RUG" type="StaticBody3D" parent="TerrariumRoom/Furniture" unique_id=1808655402]
 transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0.15)
 
-[node name="@MeshInstance3D@27709" type="MeshInstance3D" parent="InteriorRoom/Furniture/RUG" unique_id=909559317]
+[node name="@MeshInstance3D@27709" type="MeshInstance3D" parent="TerrariumRoom/Furniture/RUG" unique_id=909559317]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, 0)
 material_override = SubResource("StandardMaterial3D_7yxhw")
 mesh = SubResource("BoxMesh_1sejq")
 
-[node name="TV_STAND" type="StaticBody3D" parent="InteriorRoom/Furniture" unique_id=2064168249]
+[node name="TV_STAND" type="StaticBody3D" parent="TerrariumRoom/Furniture" unique_id=2064168249]
 transform = Transform3D(-100, 0, -8.742278e-06, 0, 100, 0, 8.742278e-06, 0, -100, 0, 0, -216)
 
-[node name="@MeshInstance3D@27710" type="MeshInstance3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=1052670785]
+[node name="@MeshInstance3D@27710" type="MeshInstance3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=1052670785]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
 material_override = SubResource("StandardMaterial3D_6yd1t")
 mesh = SubResource("BoxMesh_tbuno")
 
-[node name="@CollisionShape3D@27711" type="CollisionShape3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=1053170127]
+[node name="@CollisionShape3D@27711" type="CollisionShape3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=1053170127]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
 shape = SubResource("BoxShape3D_2i6ik")
 
-[node name="@MeshInstance3D@27712" type="MeshInstance3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=1015676832]
+[node name="@MeshInstance3D@27712" type="MeshInstance3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=1015676832]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.58, 0.21, -0.080000006)
 material_override = SubResource("StandardMaterial3D_kl7pl")
 mesh = SubResource("BoxMesh_60gdx")
 
-[node name="@CollisionShape3D@27713" type="CollisionShape3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=35775539]
+[node name="@CollisionShape3D@27713" type="CollisionShape3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=35775539]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.58, 0.21, -0.080000006)
 shape = SubResource("BoxShape3D_suyar")
 
-[node name="@MeshInstance3D@27714" type="MeshInstance3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=1563460046]
+[node name="@MeshInstance3D@27714" type="MeshInstance3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=1563460046]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.58, 0.21, 0.080000006)
 material_override = SubResource("StandardMaterial3D_3jw2y")
 mesh = SubResource("BoxMesh_1kibg")
 
-[node name="@CollisionShape3D@27715" type="CollisionShape3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=748473740]
+[node name="@CollisionShape3D@27715" type="CollisionShape3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=748473740]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.58, 0.21, 0.080000006)
 shape = SubResource("BoxShape3D_aq4bx")
 
-[node name="@MeshInstance3D@27716" type="MeshInstance3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=1938986373]
+[node name="@MeshInstance3D@27716" type="MeshInstance3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=1938986373]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.58, 0.21, -0.080000006)
 material_override = SubResource("StandardMaterial3D_3u11x")
 mesh = SubResource("BoxMesh_kb83r")
 
-[node name="@CollisionShape3D@27717" type="CollisionShape3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=2037810018]
+[node name="@CollisionShape3D@27717" type="CollisionShape3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=2037810018]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.58, 0.21, -0.080000006)
 shape = SubResource("BoxShape3D_kvaq5")
 
-[node name="@MeshInstance3D@27718" type="MeshInstance3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=1018558945]
+[node name="@MeshInstance3D@27718" type="MeshInstance3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=1018558945]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.58, 0.21, 0.080000006)
 material_override = SubResource("StandardMaterial3D_gi8yi")
 mesh = SubResource("BoxMesh_bcxe3")
 
-[node name="@CollisionShape3D@27719" type="CollisionShape3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=109272224]
+[node name="@CollisionShape3D@27719" type="CollisionShape3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=109272224]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.58, 0.21, 0.080000006)
 shape = SubResource("BoxShape3D_kwife")
 
-[node name="@MeshInstance3D@27720" type="MeshInstance3D" parent="InteriorRoom/Furniture/TV_STAND" unique_id=571526577]
+[node name="@MeshInstance3D@27720" type="MeshInstance3D" parent="TerrariumRoom/Furniture/TV_STAND" unique_id=571526577]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, -0.05)
 material_override = SubResource("StandardMaterial3D_sugyp")
 mesh = SubResource("BoxMesh_cypyj")
 
-[node name="FLOOR_LAMP" type="StaticBody3D" parent="InteriorRoom/Furniture" unique_id=1247794423]
+[node name="FLOOR_LAMP" type="StaticBody3D" parent="TerrariumRoom/Furniture" unique_id=1247794423]
 transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 234, 0, -126)
 
-[node name="@MeshInstance3D@27721" type="MeshInstance3D" parent="InteriorRoom/Furniture/FLOOR_LAMP" unique_id=1824378233]
+[node name="@MeshInstance3D@27721" type="MeshInstance3D" parent="TerrariumRoom/Furniture/FLOOR_LAMP" unique_id=1824378233]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 material_override = SubResource("StandardMaterial3D_voxe8")
 mesh = SubResource("BoxMesh_y6vlp")
 
-[node name="@MeshInstance3D@27722" type="MeshInstance3D" parent="InteriorRoom/Furniture/FLOOR_LAMP" unique_id=478583440]
+[node name="@MeshInstance3D@27722" type="MeshInstance3D" parent="TerrariumRoom/Furniture/FLOOR_LAMP" unique_id=478583440]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
 material_override = SubResource("StandardMaterial3D_fnkkh")
 mesh = SubResource("BoxMesh_5gm8h")
 
-[node name="GlassBoxProp" type="Node3D" parent="InteriorRoom" unique_id=750970394]
+[node name="GlassBoxProp" type="Node3D" parent="TerrariumRoom" unique_id=750970394]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 39, 0)
 
-[node name="GlassBox" type="Node3D" parent="InteriorRoom/GlassBoxProp" unique_id=1189468596 instance=ExtResource("3_1mhv0")]
+[node name="GlassBox" type="Node3D" parent="TerrariumRoom/GlassBoxProp" unique_id=1189468596 instance=ExtResource("3_1mhv0")]
 transform = Transform3D(48.1, 0, 0, 0, 48.3, 0, 0, 0, 48.1, 0, 0, 0)
 script = ExtResource("4_cgglp")
 
-[node name="Bottom" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/GlassBox" unique_id=557716516]
+[node name="Bottom" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/GlassBox" unique_id=557716516]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0125, 0)
 material_override = SubResource("StandardMaterial3D_ghgc3")
 cast_shadow = 0
 mesh = SubResource("BoxMesh_lblyn")
 
-[node name="Top" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/GlassBox" unique_id=498449687]
+[node name="Top" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/GlassBox" unique_id=498449687]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9875, 0)
 material_override = SubResource("StandardMaterial3D_ghgc3")
 cast_shadow = 0
 mesh = SubResource("BoxMesh_f5ddb")
 
-[node name="Front" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/GlassBox" unique_id=2093529622]
+[node name="Front" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/GlassBox" unique_id=2093529622]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0.4875)
 material_override = SubResource("StandardMaterial3D_ghgc3")
 cast_shadow = 0
 mesh = SubResource("BoxMesh_pkqn0")
 
-[node name="Back" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/GlassBox" unique_id=1416774293]
+[node name="Back" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/GlassBox" unique_id=1416774293]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -0.4875)
 material_override = SubResource("StandardMaterial3D_ghgc3")
 cast_shadow = 0
 mesh = SubResource("BoxMesh_rnq6u")
 
-[node name="Left" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/GlassBox" unique_id=1316985388]
+[node name="Left" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/GlassBox" unique_id=1316985388]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.4875, 0.5, 0)
 material_override = SubResource("StandardMaterial3D_ghgc3")
 cast_shadow = 0
 mesh = SubResource("BoxMesh_lkim6")
 
-[node name="Right" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/GlassBox" unique_id=705683886]
+[node name="Right" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/GlassBox" unique_id=705683886]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4875, 0.5, 0)
 material_override = SubResource("StandardMaterial3D_ghgc3")
 cast_shadow = 0
 mesh = SubResource("BoxMesh_5ocl0")
 
-[node name="TerrariumTerrain" type="Node3D" parent="InteriorRoom/GlassBoxProp" unique_id=259799542]
+[node name="TerrariumTerrain" type="Node3D" parent="TerrariumRoom/GlassBoxProp" unique_id=259799542]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 24, 0)
 script = ExtResource("5_njmqc")
 chunks_x = 3
@@ -893,278 +893,278 @@ is_playable_world = false
 rebuild_on_ready = false
 use_threaded_rebuild = false
 
-[node name="Chunk_0_0_0" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=2042746709]
+[node name="Chunk_0_0_0" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=2042746709]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, -16, -16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_v1kow")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27724" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_0" unique_id=1857538739]
+[node name="@StaticBody3D@27724" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_0" unique_id=1857538739]
 
-[node name="@CollisionShape3D@27723" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_0/@StaticBody3D@27724" unique_id=679760494]
+[node name="@CollisionShape3D@27723" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_0/@StaticBody3D@27724" unique_id=679760494]
 shape = SubResource("ConcavePolygonShape3D_1faig")
 
-[node name="Chunk_1_0_0" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1768595797]
+[node name="Chunk_1_0_0" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1768595797]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -16, -16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_rerbm")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27726" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_0" unique_id=1382211288]
+[node name="@StaticBody3D@27726" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_0" unique_id=1382211288]
 
-[node name="@CollisionShape3D@27725" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_0/@StaticBody3D@27726" unique_id=108310398]
+[node name="@CollisionShape3D@27725" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_0/@StaticBody3D@27726" unique_id=108310398]
 shape = SubResource("ConcavePolygonShape3D_pvdro")
 
-[node name="Chunk_2_0_0" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=46692365]
+[node name="Chunk_2_0_0" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=46692365]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, -16, -16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_dist8")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27728" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_0" unique_id=1571565348]
+[node name="@StaticBody3D@27728" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_0" unique_id=1571565348]
 
-[node name="@CollisionShape3D@27727" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_0/@StaticBody3D@27728" unique_id=2139027996]
+[node name="@CollisionShape3D@27727" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_0/@StaticBody3D@27728" unique_id=2139027996]
 shape = SubResource("ConcavePolygonShape3D_07x6e")
 
-[node name="Chunk_0_1_0" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1184989718]
+[node name="Chunk_0_1_0" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1184989718]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, -16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_1trs0")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27730" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_0" unique_id=271453687]
+[node name="@StaticBody3D@27730" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_0" unique_id=271453687]
 
-[node name="@CollisionShape3D@27729" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_0/@StaticBody3D@27730" unique_id=1703379898]
+[node name="@CollisionShape3D@27729" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_0/@StaticBody3D@27730" unique_id=1703379898]
 shape = SubResource("ConcavePolygonShape3D_1lf4f")
 
-[node name="Chunk_1_1_0" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=557407672]
+[node name="Chunk_1_1_0" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=557407672]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_cmuaf")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27732" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_0" unique_id=647272945]
+[node name="@StaticBody3D@27732" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_0" unique_id=647272945]
 
-[node name="@CollisionShape3D@27731" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_0/@StaticBody3D@27732" unique_id=624879910]
+[node name="@CollisionShape3D@27731" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_0/@StaticBody3D@27732" unique_id=624879910]
 shape = SubResource("ConcavePolygonShape3D_pcdxj")
 
-[node name="Chunk_2_1_0" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1062681891]
+[node name="Chunk_2_1_0" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1062681891]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, -16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_qatv8")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27734" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_0" unique_id=671111956]
+[node name="@StaticBody3D@27734" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_0" unique_id=671111956]
 
-[node name="@CollisionShape3D@27733" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_0/@StaticBody3D@27734" unique_id=460245639]
+[node name="@CollisionShape3D@27733" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_0/@StaticBody3D@27734" unique_id=460245639]
 shape = SubResource("ConcavePolygonShape3D_qcsq8")
 
-[node name="Chunk_0_2_0" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=46796721]
+[node name="Chunk_0_2_0" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=46796721]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 16, -16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_jtlv3")
 script = ExtResource("8_65bk6")
 
-[node name="Chunk_1_2_0" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=295367098]
+[node name="Chunk_1_2_0" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=295367098]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 16, -16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_35pt4")
 script = ExtResource("8_65bk6")
 
-[node name="Chunk_2_2_0" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=200248011]
+[node name="Chunk_2_2_0" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=200248011]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 16, -16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_c0c11")
 script = ExtResource("8_65bk6")
 
-[node name="Chunk_0_0_1" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1429852987]
+[node name="Chunk_0_0_1" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1429852987]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, -16, 0)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_m3q7p")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27736" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_1" unique_id=454843628]
+[node name="@StaticBody3D@27736" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_1" unique_id=454843628]
 
-[node name="@CollisionShape3D@27735" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_1/@StaticBody3D@27736" unique_id=313071874]
+[node name="@CollisionShape3D@27735" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_1/@StaticBody3D@27736" unique_id=313071874]
 shape = SubResource("ConcavePolygonShape3D_6sohv")
 
-[node name="Chunk_1_0_1" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1269170669]
+[node name="Chunk_1_0_1" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1269170669]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -16, 0)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_urs4v")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27738" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_1" unique_id=1329413657]
+[node name="@StaticBody3D@27738" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_1" unique_id=1329413657]
 
-[node name="@CollisionShape3D@27737" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_1/@StaticBody3D@27738" unique_id=1712714076]
+[node name="@CollisionShape3D@27737" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_1/@StaticBody3D@27738" unique_id=1712714076]
 shape = SubResource("ConcavePolygonShape3D_u60b0")
 
-[node name="Chunk_2_0_1" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=595643387]
+[node name="Chunk_2_0_1" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=595643387]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, -16, 0)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_yh85f")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27740" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_1" unique_id=652135374]
+[node name="@StaticBody3D@27740" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_1" unique_id=652135374]
 
-[node name="@CollisionShape3D@27739" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_1/@StaticBody3D@27740" unique_id=1092200712]
+[node name="@CollisionShape3D@27739" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_1/@StaticBody3D@27740" unique_id=1092200712]
 shape = SubResource("ConcavePolygonShape3D_dmktc")
 
-[node name="Chunk_0_1_1" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1971423282]
+[node name="Chunk_0_1_1" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1971423282]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, 0)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_if1ma")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27742" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_1" unique_id=688508463]
+[node name="@StaticBody3D@27742" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_1" unique_id=688508463]
 
-[node name="@CollisionShape3D@27741" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_1/@StaticBody3D@27742" unique_id=1918431507]
+[node name="@CollisionShape3D@27741" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_1/@StaticBody3D@27742" unique_id=1918431507]
 shape = SubResource("ConcavePolygonShape3D_lvbs8")
 
-[node name="Chunk_1_1_1" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1624005893]
+[node name="Chunk_1_1_1" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1624005893]
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_mlm55")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27744" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_1" unique_id=843475712]
+[node name="@StaticBody3D@27744" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_1" unique_id=843475712]
 
-[node name="@CollisionShape3D@27743" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_1/@StaticBody3D@27744" unique_id=2031052351]
+[node name="@CollisionShape3D@27743" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_1/@StaticBody3D@27744" unique_id=2031052351]
 shape = SubResource("ConcavePolygonShape3D_im150")
 
-[node name="Chunk_2_1_1" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1981576724]
+[node name="Chunk_2_1_1" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1981576724]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 0)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_onm13")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27746" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_1" unique_id=1723751793]
+[node name="@StaticBody3D@27746" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_1" unique_id=1723751793]
 
-[node name="@CollisionShape3D@27745" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_1/@StaticBody3D@27746" unique_id=733056075]
+[node name="@CollisionShape3D@27745" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_1/@StaticBody3D@27746" unique_id=733056075]
 shape = SubResource("ConcavePolygonShape3D_n2ifn")
 
-[node name="Chunk_0_2_1" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=217994394]
+[node name="Chunk_0_2_1" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=217994394]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 16, 0)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_4ho2y")
 script = ExtResource("8_65bk6")
 
-[node name="Chunk_1_2_1" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1464868864]
+[node name="Chunk_1_2_1" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1464868864]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 16, 0)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_tg5q4")
 script = ExtResource("8_65bk6")
 
-[node name="Chunk_2_2_1" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1137791961]
+[node name="Chunk_2_2_1" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1137791961]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 16, 0)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_5yid3")
 script = ExtResource("8_65bk6")
 
-[node name="Chunk_0_0_2" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1608823998]
+[node name="Chunk_0_0_2" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1608823998]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, -16, 16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_5i6oi")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27748" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_2" unique_id=1816440555]
+[node name="@StaticBody3D@27748" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_2" unique_id=1816440555]
 
-[node name="@CollisionShape3D@27747" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_2/@StaticBody3D@27748" unique_id=362477760]
+[node name="@CollisionShape3D@27747" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_0_2/@StaticBody3D@27748" unique_id=362477760]
 shape = SubResource("ConcavePolygonShape3D_qb0sq")
 
-[node name="Chunk_1_0_2" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1424858487]
+[node name="Chunk_1_0_2" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1424858487]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -16, 16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_0b84h")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27750" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_2" unique_id=1923629185]
+[node name="@StaticBody3D@27750" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_2" unique_id=1923629185]
 
-[node name="@CollisionShape3D@27749" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_2/@StaticBody3D@27750" unique_id=192935088]
+[node name="@CollisionShape3D@27749" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_0_2/@StaticBody3D@27750" unique_id=192935088]
 shape = SubResource("ConcavePolygonShape3D_5hrsr")
 
-[node name="Chunk_2_0_2" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=467520126]
+[node name="Chunk_2_0_2" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=467520126]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, -16, 16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_vpglj")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27752" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_2" unique_id=1891564237]
+[node name="@StaticBody3D@27752" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_2" unique_id=1891564237]
 
-[node name="@CollisionShape3D@27751" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_2/@StaticBody3D@27752" unique_id=464493487]
+[node name="@CollisionShape3D@27751" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_0_2/@StaticBody3D@27752" unique_id=464493487]
 shape = SubResource("ConcavePolygonShape3D_nrfyj")
 
-[node name="Chunk_0_1_2" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=957919061]
+[node name="Chunk_0_1_2" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=957919061]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, 16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_1xsaa")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27754" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_2" unique_id=764461891]
+[node name="@StaticBody3D@27754" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_2" unique_id=764461891]
 
-[node name="@CollisionShape3D@27753" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_2/@StaticBody3D@27754" unique_id=2140650928]
+[node name="@CollisionShape3D@27753" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_0_1_2/@StaticBody3D@27754" unique_id=2140650928]
 shape = SubResource("ConcavePolygonShape3D_dvqi8")
 
-[node name="Chunk_1_1_2" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=461081209]
+[node name="Chunk_1_1_2" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=461081209]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_yfu1o")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27756" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_2" unique_id=1997940058]
+[node name="@StaticBody3D@27756" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_2" unique_id=1997940058]
 
-[node name="@CollisionShape3D@27755" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_2/@StaticBody3D@27756" unique_id=1075763062]
+[node name="@CollisionShape3D@27755" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_1_1_2/@StaticBody3D@27756" unique_id=1075763062]
 shape = SubResource("ConcavePolygonShape3D_pusak")
 
-[node name="Chunk_2_1_2" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=1831154945]
+[node name="Chunk_2_1_2" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=1831154945]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_q51vr")
 script = ExtResource("8_65bk6")
 
-[node name="@StaticBody3D@27758" type="StaticBody3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_2" unique_id=1494820050]
+[node name="@StaticBody3D@27758" type="StaticBody3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_2" unique_id=1494820050]
 
-[node name="@CollisionShape3D@27757" type="CollisionShape3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_2/@StaticBody3D@27758" unique_id=1008769963]
+[node name="@CollisionShape3D@27757" type="CollisionShape3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain/Chunk_2_1_2/@StaticBody3D@27758" unique_id=1008769963]
 shape = SubResource("ConcavePolygonShape3D_slgsa")
 
-[node name="Chunk_0_2_2" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=255668572]
+[node name="Chunk_0_2_2" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=255668572]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 16, 16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_a326w")
 script = ExtResource("8_65bk6")
 
-[node name="Chunk_1_2_2" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=2098646948]
+[node name="Chunk_1_2_2" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=2098646948]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 16, 16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
 mesh = SubResource("ArrayMesh_j7wlr")
 script = ExtResource("8_65bk6")
 
-[node name="Chunk_2_2_2" type="MeshInstance3D" parent="InteriorRoom/GlassBoxProp/TerrariumTerrain" unique_id=865769885]
+[node name="Chunk_2_2_2" type="MeshInstance3D" parent="TerrariumRoom/GlassBoxProp/TerrariumTerrain" unique_id=865769885]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 16, 16)
 material_override = SubResource("ShaderMaterial_fu4h6")
 cast_shadow = 0
@@ -1174,7 +1174,7 @@ script = ExtResource("8_65bk6")
 [node name="PlayerSpawner" type="Node" parent="." unique_id=1477086261]
 script = ExtResource("6")
 world_kind = 2
-terrain_path = NodePath("../InteriorRoom")
+terrain_path = NodePath("../TerrariumRoom")
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=779928238]
 script = ExtResource("2")

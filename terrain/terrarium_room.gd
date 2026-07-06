@@ -1,7 +1,7 @@
 @tool
-class_name InteriorRoom
+class_name TerrariumRoom
 extends Node3D
-## Procedurally generates a furnished interior room with an optional terrarium.
+## Procedurally generates a furnished room with an optional glass terrarium and voxel terrain.
 
 
 const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrain_procedural.tres"
@@ -154,7 +154,7 @@ var _force_sync_rebuild: bool = false
 
 func _ready() -> void:
 	_ensure_export_defaults()
-	add_to_group("interior_room")
+	add_to_group("terrarium_room")
 	add_to_group("boxed_in_terrain")
 	if rebuild_on_ready:
 		call_deferred("rebuild_all")
@@ -275,7 +275,7 @@ func destroy_all() -> void:
 	_layout = null
 	_dirty = true
 	if Engine.is_editor_hint():
-		print("[InteriorRoom] Destroyed room (editor)")
+		print("[TerrariumRoom] Destroyed room (editor)")
 
 
 func _request_rebuild() -> void:
@@ -353,7 +353,7 @@ func _log_editor_build() -> void:
 				grid.world_size.z,
 			]
 		print(
-			"[InteriorRoom] Built %s (editor, seed %d)%s"
+			"[TerrariumRoom] Built %s (editor, seed %d)%s"
 			% [get_room_type_name(), room_seed, terrarium_note]
 		)
 

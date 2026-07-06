@@ -73,7 +73,7 @@ func _bind_world_references(player: Node) -> void:
 
 func _wait_for_world_ready() -> void:
 	var terrain_node: Node3D = get_node_or_null(terrain_path) as Node3D
-	if terrain_node is InteriorRoom:
-		var interior_room: InteriorRoom = terrain_node as InteriorRoom
-		if interior_room.rebuild_on_ready:
-			await interior_room.content_rebuilt
+	if terrain_node is TerrariumRoom:
+		var terrarium_room: TerrariumRoom = terrain_node as TerrariumRoom
+		if terrarium_room.rebuild_on_ready:
+			await terrarium_room.content_rebuilt

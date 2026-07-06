@@ -4,7 +4,7 @@ extends EditorInspectorPlugin
 const _PLANET_SCRIPT_PATH: String = "res://terrain/planet.gd"
 const _BOXED_IN_TERRAIN_SCRIPT_PATH: String = "res://terrain/boxed_in_terrain.gd"
 const _OPEN_TERRAIN_SCRIPT_PATH: String = "res://terrain/open_terrain.gd"
-const _INTERIOR_ROOM_SCRIPT_PATH: String = "res://terrain/interior_room.gd"
+const _TERRARIUM_ROOM_SCRIPT_PATH: String = "res://terrain/terrarium_room.gd"
 
 
 func _can_handle(object: Object) -> bool:
@@ -16,7 +16,7 @@ func _can_handle(object: Object) -> bool:
 func _parse_begin(object: Object) -> void:
 	var node: Node3D = object as Node3D
 	var script_path: String = _get_script_path(node.get_script())
-	var is_interior_room: bool = script_path == _INTERIOR_ROOM_SCRIPT_PATH
+	var is_terrarium_room: bool = script_path == _TERRARIUM_ROOM_SCRIPT_PATH
 	var root: Node = EditorInterface.get_edited_scene_root()
 	var node_path: NodePath = root.get_path_to(node) if root != null else NodePath()
 
@@ -24,7 +24,7 @@ func _parse_begin(object: Object) -> void:
 	panel.add_theme_constant_override("separation", 6)
 
 	var label: Label = Label.new()
-	label.text = "Interior Room Editor" if is_interior_room else "Terrain Editor"
+	label.text = "Terrarium Editor" if is_terrarium_room else "Terrain Editor"
 	panel.add_child(label)
 
 	var row: HBoxContainer = HBoxContainer.new()
@@ -32,22 +32,22 @@ func _parse_begin(object: Object) -> void:
 	panel.add_child(row)
 
 	var build_button: Button = Button.new()
-	build_button.text = "Build Room" if is_interior_room else "Build Terrain"
+	build_button.text = "Build Terrarium" if is_terrarium_room else "Build Terrain"
 	build_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	build_button.pressed.connect(func() -> void: _on_build_pressed(node_path))
 	row.add_child(build_button)
 
 	var destroy_button: Button = Button.new()
-	destroy_button.text = "Destroy Room" if is_interior_room else "Destroy Terrain"
+	destroy_button.text = "Destroy Terrarium" if is_terrarium_room else "Destroy Terrain"
 	destroy_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	destroy_button.pressed.connect(func() -> void: _on_destroy_pressed(node_path))
 	row.add_child(destroy_button)
 
-	if is_interior_room:
+	if is_terrarium_room:
 		var hint: Label = Label.new()
 		hint.text = (
-			"Generates a giant furnished room with a glass terrarium and small voxel terrain. "
-			+ "Use Destroy Room before saving the scene."
+			"Generates a giant furnished room with a glass terrarium and voxel terrain. "
+			+ "Use Destroy Terrarium before saving the scene."
 		)
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		panel.add_child(hint)
@@ -60,7 +60,7 @@ func _handled_script_paths() -> Array[String]:
 		_PLANET_SCRIPT_PATH,
 		_BOXED_IN_TERRAIN_SCRIPT_PATH,
 		_OPEN_TERRAIN_SCRIPT_PATH,
-		_INTERIOR_ROOM_SCRIPT_PATH,
+		_TERRARIUM_ROOM_SCRIPT_PATH,
 	]
 
 

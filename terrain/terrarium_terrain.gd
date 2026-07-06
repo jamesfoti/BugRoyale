@@ -6,11 +6,11 @@ extends OpenTerrain
 
 func _ready() -> void:
 	_apply_defaults_without_rebuild()
-	# Rebuild is driven by InteriorRoom, not export setters or rebuild_on_ready.
+	# Rebuild is driven by TerrariumRoom, not export setters or rebuild_on_ready.
 
 
 func _request_rebuild() -> void:
-	# Export setters must not auto-rebuild; InteriorRoom calls rebuild_all() explicitly.
+	# Export setters must not auto-rebuild; TerrariumRoom calls rebuild_all() explicitly.
 	pass
 
 

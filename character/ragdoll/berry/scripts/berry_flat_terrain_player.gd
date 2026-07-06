@@ -24,10 +24,10 @@ func _cache_terrain_refs() -> void:
 		terrain = get_tree().get_first_node_in_group("terrain_world") as Node3D
 	if terrain == null:
 		terrain = get_tree().get_first_node_in_group("boxed_in_terrain") as Node3D
-	if terrain is InteriorRoom:
-		var interior_room: InteriorRoom = terrain as InteriorRoom
-		var playable: TerrariumTerrain = interior_room.get_playable_terrain()
-		_walk_surface = playable if playable != null else interior_room
+	if terrain is TerrariumRoom:
+		var terrarium_room: TerrariumRoom = terrain as TerrariumRoom
+		var playable: TerrariumTerrain = terrarium_room.get_playable_terrain()
+		_walk_surface = playable if playable != null else terrarium_room
 	elif terrain is ChunkedTerrainWorld:
 		_terrain_world = terrain as ChunkedTerrainWorld
 		_walk_surface = terrain
@@ -61,12 +61,12 @@ func _find_random_surface_spawn() -> Dictionary:
 		"position": Vector3.ZERO,
 		"from_raycast_hit": false,
 	}
-	if terrain is InteriorRoom:
-		var interior_room: InteriorRoom = terrain as InteriorRoom
-		var playable: TerrariumTerrain = interior_room.get_playable_terrain()
+	if terrain is TerrariumRoom:
+		var terrarium_room: TerrariumRoom = terrain as TerrariumRoom
+		var playable: TerrariumTerrain = terrarium_room.get_playable_terrain()
 		if playable != null:
 			_walk_surface = playable
-		spawn_data.position = interior_room.get_spawn_position(spawn_clearance)
+		spawn_data.position = terrarium_room.get_spawn_position(spawn_clearance)
 		spawn_data.from_raycast_hit = playable != null
 		return spawn_data
 	if _walk_surface == null:
@@ -108,8 +108,8 @@ func _is_terrain_collider(collider: Variant) -> bool:
 	if terrain == null or not (collider is Node):
 		return false
 	var node: Node = collider as Node
-	if terrain is InteriorRoom:
-		var playable: TerrariumTerrain = (terrain as InteriorRoom).get_playable_terrain()
+	if terrain is TerrariumRoom:
+		var playable: TerrariumTerrain = (terrain as TerrariumRoom).get_playable_terrain()
 		if playable != null:
 			return playable == node or playable.is_ancestor_of(node)
 		return false

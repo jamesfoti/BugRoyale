@@ -105,11 +105,11 @@ layout_mode = 2
 size_flags_horizontal = 4
 text = "Open Terrain"
 
-[node name="InteriorRoomButton" type="Button" parent="UI/Margin/VBox/Buttons"]
+[node name="TerrariumButton" type="Button" parent="UI/Margin/VBox/Buttons"]
 custom_minimum_size = Vector2(320, 48)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Interior Room"
+text = "Terrarium"
 
 [node name="RagdollCheck" type="CheckButton" parent="UI/Margin/VBox/Buttons"]
 custom_minimum_size = Vector2(320, 36)
