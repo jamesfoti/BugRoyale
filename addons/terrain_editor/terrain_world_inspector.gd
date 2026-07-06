@@ -5,18 +5,21 @@ const _PLANET_SCRIPT_PATH: String = "res://terrain/planet.gd"
 const _BOXED_IN_TERRAIN_SCRIPT_PATH: String = "res://terrain/boxed_in_terrain.gd"
 const _OPEN_TERRAIN_SCRIPT_PATH: String = "res://terrain/open_terrain.gd"
 const _TERRARIUM_ROOM_SCRIPT_PATH: String = "res://terrain/terrarium_room.gd"
+const _LEGACY_INTERIOR_ROOM_SCRIPT_PATH: String = "res://terrain/interior_room.gd"
 
 
 func _can_handle(object: Object) -> bool:
 	if not (object is Node3D):
 		return false
-	return _get_script_path((object as Node3D).get_script()) in _handled_script_paths()
+	var node: Node3D = object as Node3D
+	if _is_terrarium_room_node(node):
+		return true
+	return _get_script_path(node.get_script()) in _terrain_script_paths()
 
 
 func _parse_begin(object: Object) -> void:
 	var node: Node3D = object as Node3D
-	var script_path: String = _get_script_path(node.get_script())
-	var is_terrarium_room: bool = script_path == _TERRARIUM_ROOM_SCRIPT_PATH
+	var is_terrarium_room: bool = _is_terrarium_room_node(node)
 	var root: Node = EditorInterface.get_edited_scene_root()
 	var node_path: NodePath = root.get_path_to(node) if root != null else NodePath()
 
@@ -34,34 +37,54 @@ func _parse_begin(object: Object) -> void:
 	var build_button: Button = Button.new()
 	build_button.text = "Build Terrarium" if is_terrarium_room else "Build Terrain"
 	build_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	build_button.disabled = is_terrarium_room and not node.has_method("rebuild_all")
 	build_button.pressed.connect(func() -> void: _on_build_pressed(node_path))
 	row.add_child(build_button)
 
 	var destroy_button: Button = Button.new()
 	destroy_button.text = "Destroy Terrarium" if is_terrarium_room else "Destroy Terrain"
 	destroy_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	destroy_button.disabled = is_terrarium_room and not node.has_method("destroy_all")
 	destroy_button.pressed.connect(func() -> void: _on_destroy_pressed(node_path))
 	row.add_child(destroy_button)
 
 	if is_terrarium_room:
 		var hint: Label = Label.new()
-		hint.text = (
-			"Generates a giant furnished room with a glass terrarium and voxel terrain. "
-			+ "Use Destroy Terrarium before saving the scene."
-		)
+		if not node.has_method("rebuild_all"):
+			hint.text = (
+				"TerrariumRoom script failed to load — check the Output panel, "
+				+ "then reassign res://terrain/terrarium_room.gd on this node."
+			)
+		else:
+			hint.text = (
+				"Generates a giant furnished room with a glass terrarium and voxel terrain. "
+				+ "Use Destroy Terrarium before saving the scene."
+			)
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		panel.add_child(hint)
 
 	add_custom_control(panel)
 
 
-func _handled_script_paths() -> Array[String]:
+func _terrain_script_paths() -> Array[String]:
 	return [
 		_PLANET_SCRIPT_PATH,
 		_BOXED_IN_TERRAIN_SCRIPT_PATH,
 		_OPEN_TERRAIN_SCRIPT_PATH,
 		_TERRARIUM_ROOM_SCRIPT_PATH,
+		_LEGACY_INTERIOR_ROOM_SCRIPT_PATH,
 	]
+
+
+func _is_terrarium_room_node(node: Node3D) -> bool:
+	var script_path: String = _get_script_path(node.get_script())
+	if script_path in [_TERRARIUM_ROOM_SCRIPT_PATH, _LEGACY_INTERIOR_ROOM_SCRIPT_PATH]:
+		return true
+	var script: Script = node.get_script()
+	if script == null:
+		return false
+	var global_name: StringName = script.get_global_name()
+	return global_name == &"TerrariumRoom" or global_name == &"InteriorRoom"
 
 
 func _get_script_path(script: Script) -> String:

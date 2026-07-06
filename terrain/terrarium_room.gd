@@ -133,6 +133,18 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrain_procedura
 		terrarium_noise_gain = clampf(value, 0.01, 1.0)
 		_request_rebuild()
 
+@export_subgroup("Water")
+## Fills the bottom of the terrarium with shader water.
+@export var spawn_terrarium_water: bool = true:
+	set(value):
+		spawn_terrarium_water = value
+		_request_rebuild()
+## Water depth as a fraction of terrarium height (from the bottom).
+@export_range(0.05, 0.6, 0.01) var terrarium_water_level: float = TerrariumWater.DEFAULT_WATER_LEVEL_RATIO:
+	set(value):
+		terrarium_water_level = clampf(value, TerrariumWater.MIN_WATER_LEVEL_RATIO, TerrariumWater.MAX_WATER_LEVEL_RATIO)
+		_request_rebuild()
+
 @export_group("Runtime")
 @export var rebuild_on_ready: bool = true
 @export var auto_rebuild_in_editor: bool = false
@@ -378,7 +390,9 @@ func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement
 			terrarium_surface_height_offset,
 			terrarium_heightmap,
 			terrarium_boxed_edges_enabled,
-			furniture_scale
+			furniture_scale,
+			spawn_terrarium_water,
+			terrarium_water_level
 		)
 		if spawn_result == null:
 			return
@@ -506,6 +520,10 @@ func _ensure_export_defaults() -> void:
 		spawn_terrarium = true
 	if get("spawn_terrarium_terrain") == null:
 		spawn_terrarium_terrain = true
+	if get("spawn_terrarium_water") == null:
+		spawn_terrarium_water = true
+	if get("terrarium_water_level") == null:
+		terrarium_water_level = TerrariumWater.DEFAULT_WATER_LEVEL_RATIO
 	if get("terrarium_boxed_edges_enabled") == null:
 		terrarium_boxed_edges_enabled = true
 	if get("terrarium_surface_height_offset") == null:

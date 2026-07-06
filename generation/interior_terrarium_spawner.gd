@@ -11,6 +11,7 @@ class SpawnResult:
 	var root: Node3D
 	var glass_box: Node3D
 	var terrain: Node3D
+	var water: TerrariumWater
 	var floor_position: Vector3 = Vector3.ZERO
 	var terrarium_world_size: Vector3 = Vector3(5.0, 5.0, 5.0)
 	var glass_box_size: Vector3 = Vector3.ONE
@@ -31,7 +32,9 @@ static func build_if_clear(
 	surface_height_offset: float = OpenTerrainPreset.SURFACE_HEIGHT_OFFSET,
 	heightmap: Texture2D = null,
 	boxed_edges_enabled: bool = OpenTerrainPreset.BOXED_EDGES_ENABLED,
-	furniture_scale: float = 1.0
+	furniture_scale: float = 1.0,
+	spawn_water: bool = true,
+	water_level_ratio: float = TerrariumWater.DEFAULT_WATER_LEVEL_RATIO
 ) -> Variant:
 	var glass_box_size: Vector3 = TerrariumBudget.derive_glass_box_size(grid_config.world_size)
 	var spawn_position: Vector3 = find_spawn_position(
@@ -55,7 +58,9 @@ static func build_if_clear(
 		noise_gain,
 		surface_height_offset,
 		heightmap,
-		boxed_edges_enabled
+		boxed_edges_enabled,
+		spawn_water,
+		water_level_ratio
 	)
 
 
@@ -121,7 +126,9 @@ static func _build_at(
 	noise_gain: float,
 	surface_height_offset: float,
 	heightmap: Texture2D,
-	boxed_edges_enabled: bool
+	boxed_edges_enabled: bool,
+	spawn_water: bool = true,
+	water_level_ratio: float = TerrariumWater.DEFAULT_WATER_LEVEL_RATIO
 ) -> SpawnResult:
 	var result := SpawnResult.new()
 	result.terrarium_world_size = grid_config.world_size
@@ -158,6 +165,11 @@ static func _build_at(
 		terrain.position = Vector3(0.0, TerrariumBudget.get_terrain_floor_offset(grid_config.world_size), 0.0)
 		root.add_child(terrain)
 		result.terrain = terrain
+
+	if spawn_water:
+		var water: TerrariumWater = TerrariumWater.create(grid_config.world_size, water_level_ratio)
+		root.add_child(water)
+		result.water = water
 	result.root = root
 	return result
 
