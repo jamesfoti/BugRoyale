@@ -1,6 +1,6 @@
 extends Node
 class_name PlayerSpawner
-## Spawns the standard or ragdoll player for a playable world scene.
+## Spawns the standard player for a playable world scene.
 
 
 enum WorldKind { PLANET, OPEN_TERRAIN, BOXED_IN_TERRAIN }
@@ -13,12 +13,6 @@ enum WorldKind { PLANET, OPEN_TERRAIN, BOXED_IN_TERRAIN }
 @export var open_terrain_player_scene: PackedScene = preload("res://character/open_terrain_player.tscn")
 @export var boxed_in_terrain_player_scene: PackedScene = preload(
 	"res://character/boxed_in_terrain_player.tscn"
-)
-@export var ragdoll_planet_player_scene: PackedScene = preload(
-	"res://character/ragdoll/berry/scenes/ragdoll_planet_player.tscn"
-)
-@export var ragdoll_flat_terrain_player_scene: PackedScene = preload(
-	"res://character/ragdoll/berry/scenes/ragdoll_flat_terrain_player.tscn"
 )
 
 
@@ -41,10 +35,6 @@ func _spawn_player() -> void:
 
 
 func _pick_player_scene() -> PackedScene:
-	if LoadingScreen.use_ragdoll_character:
-		if world_kind == WorldKind.PLANET:
-			return ragdoll_planet_player_scene
-		return ragdoll_flat_terrain_player_scene
 	match world_kind:
 		WorldKind.PLANET:
 			return planet_player_scene
@@ -61,16 +51,12 @@ func _bind_world_references(player: Node) -> void:
 			var planet_node: Node3D = get_node_or_null(planet_path) as Node3D
 			if player is PlanetPlayer:
 				(player as PlanetPlayer).planet = planet_node
-			elif player is BerryPlanetPlayer:
-				(player as BerryPlanetPlayer).planet = planet_node
 		WorldKind.OPEN_TERRAIN, WorldKind.BOXED_IN_TERRAIN:
 			var terrain_node: Node3D = get_node_or_null(terrain_path) as Node3D
 			if player is OpenTerrainPlayer:
 				(player as OpenTerrainPlayer).terrain = terrain_node
 			elif player is BoxedInTerrainPlayer:
 				(player as BoxedInTerrainPlayer).terrain = terrain_node
-			elif player is BerryFlatTerrainPlayer:
-				(player as BerryFlatTerrainPlayer).terrain = terrain_node
 
 
 func _wait_for_world_ready() -> void:

@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://character/orbit_camera.gd" id="3"]
 [ext_resource type="Script" path="res://character/terrain_brush.gd" id="4"]
 [ext_resource type="Script" path="res://character/terrain_edit_cursor.gd" id="5"]
+[ext_resource type="Script" path="res://combat/shooter_test.gd" id="6"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_1"]
 radius = 0.35
@@ -42,3 +43,6 @@ script = ExtResource("3")
 [node name="Camera3D" type="Camera3D" parent="OrbitCamera"]
 current = true
 fov = 60.0
+
+[node name="ShooterTest" type="Node" parent="."]
+script = ExtResource("6")

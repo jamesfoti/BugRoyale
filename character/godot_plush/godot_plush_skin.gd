@@ -3,6 +3,23 @@ extends Node3D
 const TORCH_SCENE: PackedScene = preload("res://props/torch.tscn")
 const PICKAXE_SCENE: PackedScene = preload("res://props/pickaxe.tscn")
 const TORCH_ANIM_GLB_PATH: String = "res://character/godot_plush/custom_animations/torch_animations.glb"
+const WEAPON_SOURCE_SCENE_PATH: String = "res://character/shooter_kit/Characters/glTF/Character_Soldier.gltf"
+const WEAPON_MESH_NAMES: Array[String] = [
+	"AK",
+	"GrenadeLauncher",
+	"Knife_1",
+	"Knife_2",
+	"Pistol",
+	"Revolver",
+	"Revolver_Small",
+	"RocketLauncher",
+	"ShortCannon",
+	"Shotgun",
+	"Shovel",
+	"SMG",
+	"Sniper",
+	"Sniper_2",
+]
 
 const TORCH_BONES: PackedStringArray = [
 	"DEF-upper_arm.R",
@@ -54,6 +71,10 @@ var _pickaxe_blend: float = 0.0
 var _pickaxe_equipped: bool = false
 var _pickaxe_animating: bool = false
 var _terrain_edit_active: bool = false
+var _weapon_attachment: BoneAttachment3D
+var _weapon_mesh_instance: MeshInstance3D
+var _weapon_mesh_library: Dictionary = {}
+var _equipped_weapon_item: PlayerItems.Item = PlayerItems.Item.NONE
 
 signal footstep(intensity: float)
 signal waved
@@ -66,6 +87,7 @@ func _ready() -> void:
 	_register_torch_animations()
 	_setup_torch_attachment()
 	_setup_pickaxe_attachment()
+	_setup_weapon_attachment()
 	get_tree().process_frame.connect(_apply_hand_item_pose)
 
 
@@ -134,6 +156,7 @@ func set_terrain_edit_equipped(active: bool) -> void:
 		return
 	_terrain_edit_active = active
 	if active:
+		_set_weapon_mesh("")
 		if _torch != null and _torch_equipped:
 			_torch.visible = false
 		_equip_pickaxe()
@@ -141,6 +164,8 @@ func set_terrain_edit_equipped(active: bool) -> void:
 		_unequip_pickaxe()
 		if _torch != null and _torch_equipped:
 			_torch.visible = true
+		elif has_weapon_equipped():
+			_set_weapon_mesh(PlayerItems.weapon_mesh_name(_equipped_weapon_item))
 
 
 func is_pickaxe_equipped() -> bool:
@@ -149,6 +174,24 @@ func is_pickaxe_equipped() -> bool:
 
 func is_pickaxe_busy() -> bool:
 	return _pickaxe_animating
+
+
+func set_equipped_weapon_from_item(item: PlayerItems.Item) -> void:
+	_equipped_weapon_item = item
+	var weapon_mesh_name: String = ""
+	if PlayerItems.is_weapon(item):
+		weapon_mesh_name = PlayerItems.weapon_mesh_name(item)
+		if _torch_equipped:
+			stow_torch()
+	_set_weapon_mesh(weapon_mesh_name)
+
+
+func has_weapon_equipped() -> bool:
+	return _equipped_weapon_item != PlayerItems.Item.NONE
+
+
+func get_equipped_weapon_item() -> PlayerItems.Item:
+	return _equipped_weapon_item
 
 
 func _equip_pickaxe() -> void:
@@ -206,6 +249,7 @@ func _set_pickaxe_blend(value: float) -> void:
 
 func _draw_torch() -> void:
 	_torch_animating = true
+	_set_weapon_mesh("")
 	if _torch != null:
 		_torch.visible = true
 	var tween := create_tween()
@@ -240,6 +284,8 @@ func _finish_stow_torch() -> void:
 	_torch_animating = false
 	if _torch != null:
 		_torch.visible = false
+	if has_weapon_equipped() and not _terrain_edit_active:
+		_set_weapon_mesh(PlayerItems.weapon_mesh_name(_equipped_weapon_item))
 	torch_equipped_changed.emit(false)
 
 
@@ -299,6 +345,51 @@ func _setup_pickaxe_attachment() -> void:
 	_pickaxe.rotation_degrees = Vector3(88.0, 12.0, -92.0)
 	_pickaxe.scale = Vector3.ONE * 0.75
 	_pickaxe.visible = false
+
+
+func _setup_weapon_attachment() -> void:
+	_weapon_attachment = BoneAttachment3D.new()
+	_weapon_attachment.bone_name = "DEF-hand.R"
+	_skeleton.add_child(_weapon_attachment)
+	_weapon_mesh_instance = MeshInstance3D.new()
+	_weapon_mesh_instance.name = "WeaponMesh"
+	_weapon_mesh_instance.position = Vector3(0.0, 0.03, 0.0)
+	_weapon_mesh_instance.rotation_degrees = Vector3(88.0, 12.0, -92.0)
+	_weapon_mesh_instance.scale = Vector3.ONE * 0.75
+	_weapon_mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	_weapon_mesh_instance.visible = false
+	_weapon_attachment.add_child(_weapon_mesh_instance)
+	_cache_weapon_meshes()
+
+
+func _cache_weapon_meshes() -> void:
+	_weapon_mesh_library.clear()
+	if not ResourceLoader.exists(WEAPON_SOURCE_SCENE_PATH):
+		return
+	var weapon_source_scene: PackedScene = load(WEAPON_SOURCE_SCENE_PATH) as PackedScene
+	if weapon_source_scene == null:
+		return
+	var temporary_root: Node = weapon_source_scene.instantiate()
+	if temporary_root == null:
+		return
+	for weapon_mesh_name: String in WEAPON_MESH_NAMES:
+		var weapon_node: Node = temporary_root.find_child(weapon_mesh_name, true, false)
+		if weapon_node is MeshInstance3D:
+			var weapon_mesh: Mesh = (weapon_node as MeshInstance3D).mesh
+			if weapon_mesh != null:
+				_weapon_mesh_library[weapon_mesh_name] = weapon_mesh
+	temporary_root.free()
+
+
+func _set_weapon_mesh(weapon_mesh_name: String) -> void:
+	if _weapon_mesh_instance == null:
+		return
+	if weapon_mesh_name.is_empty() or not _weapon_mesh_library.has(weapon_mesh_name):
+		_weapon_mesh_instance.mesh = null
+		_weapon_mesh_instance.visible = false
+		return
+	_weapon_mesh_instance.mesh = _weapon_mesh_library[weapon_mesh_name] as Mesh
+	_weapon_mesh_instance.visible = true
 
 
 func _register_torch_animations() -> void:

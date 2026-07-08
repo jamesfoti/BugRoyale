@@ -7,13 +7,15 @@ signal item_selected(item: PlayerItems.Item)
 
 @onready var _toggle_button: Button = $ToggleButton
 @onready var _popup: PanelContainer = $Popup
-@onready var _none_button: Button = $Popup/Margin/Buttons/NoneButton
-@onready var _torch_button: Button = $Popup/Margin/Buttons/TorchButton
-@onready var _pickaxe_destroy_button: Button = $Popup/Margin/Buttons/PickaxeDestroyButton
-@onready var _pickaxe_add_button: Button = $Popup/Margin/Buttons/PickaxeAddButton
+@onready var _none_button: Button = $Popup/Margin/Scroll/Buttons/NoneButton
+@onready var _torch_button: Button = $Popup/Margin/Scroll/Buttons/TorchButton
+@onready var _pickaxe_destroy_button: Button = $Popup/Margin/Scroll/Buttons/PickaxeDestroyButton
+@onready var _pickaxe_add_button: Button = $Popup/Margin/Scroll/Buttons/PickaxeAddButton
+@onready var _weapon_buttons_container: VBoxContainer = $Popup/Margin/Scroll/Buttons/WeaponButtons
 
 var _open: bool = false
 var _active_item: PlayerItems.Item = PlayerItems.Item.NONE
+var _weapon_buttons: Dictionary = {}
 
 
 func _ready() -> void:
@@ -31,6 +33,7 @@ func _ready() -> void:
 	_torch_button.pressed.connect(_select.bind(PlayerItems.Item.TORCH))
 	_pickaxe_destroy_button.pressed.connect(_select.bind(PlayerItems.Item.PICKAXE_DESTROY))
 	_pickaxe_add_button.pressed.connect(_select.bind(PlayerItems.Item.PICKAXE_ADD))
+	_build_weapon_buttons()
 	_set_open(false)
 	_refresh_buttons()
 
@@ -81,6 +84,19 @@ func _refresh_buttons() -> void:
 		_active_item == PlayerItems.Item.PICKAXE_DESTROY
 	)
 	_reset_button_style(_pickaxe_add_button, _active_item == PlayerItems.Item.PICKAXE_ADD)
+	for weapon_item: PlayerItems.Item in _weapon_buttons.keys():
+		var weapon_button: Button = _weapon_buttons[weapon_item] as Button
+		_reset_button_style(weapon_button, _active_item == weapon_item)
+
+
+func _build_weapon_buttons() -> void:
+	for weapon_item: PlayerItems.Item in PlayerItems.WEAPON_ITEMS:
+		var weapon_button: Button = Button.new()
+		weapon_button.text = PlayerItems.weapon_display_name(weapon_item)
+		weapon_button.focus_mode = Control.FOCUS_NONE
+		weapon_button.pressed.connect(_select.bind(weapon_item))
+		_weapon_buttons_container.add_child(weapon_button)
+		_weapon_buttons[weapon_item] = weapon_button
 
 
 func _reset_button_style(button: Button, active: bool) -> void:

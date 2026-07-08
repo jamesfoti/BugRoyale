@@ -4,8 +4,11 @@ class_name LoadingScreen
 
 
 const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/planet_test.tscn"
+enum PlayerCharacter {
+	STANDARD,
+}
 static var pending_scene_path: String = ""
-static var use_ragdoll_character: bool = false
+static var selected_player_character: PlayerCharacter = PlayerCharacter.STANDARD
 
 @onready var _title: Label = $UI/Margin/VBox/Title
 @onready var _status: Label = $UI/Margin/VBox/Status

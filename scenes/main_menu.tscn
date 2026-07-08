@@ -105,12 +105,118 @@ layout_mode = 2
 size_flags_horizontal = 4
 text = "Terrarium"
 
-[node name="RagdollCheck" type="CheckButton" parent="UI/Margin/VBox/Buttons"]
+[node name="SelectedPlayerLabel" type="Label" parent="UI/Margin/VBox/Buttons"]
 custom_minimum_size = Vector2(320, 36)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Active ragdoll character"
+text = "Player: Godot Plush"
+horizontal_alignment = 1
+
+[node name="ChoosePlayerButton" type="Button" parent="UI/Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(320, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Choose Player"
 
 [node name="BottomSpacer" type="Control" parent="UI/Margin/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
+
+[node name="PlayerSelectPage" type="Control" parent="UI"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Backdrop" type="ColorRect" parent="UI/PlayerSelectPage"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.55)
+
+[node name="CenterPanel" type="PanelContainer" parent="UI/PlayerSelectPage"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -280.0
+offset_top = -230.0
+offset_right = 280.0
+offset_bottom = 230.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="UI/PlayerSelectPage/CenterPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="UI/PlayerSelectPage/CenterPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Choose Player"
+horizontal_alignment = 1
+
+[node name="PlayerName" type="Label" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Godot Plush"
+horizontal_alignment = 1
+
+[node name="PreviewContainer" type="SubViewportContainer" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox"]
+custom_minimum_size = Vector2(520, 280)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+stretch = true
+
+[node name="PreviewViewport" type="SubViewport" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer"]
+handle_input_locally = false
+size = Vector2i(520, 280)
+render_target_update_mode = 4
+
+[node name="PreviewWorldEnvironment" type="WorldEnvironment" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport"]
+environment = ExtResource("2")
+
+[node name="PreviewLight" type="DirectionalLight3D" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport"]
+transform = Transform3D(0.836516, -0.5, 0.224144, 0, 0.408494, 0.912761, -0.547942, -0.763129, 0.342752, 0, 0, 0)
+light_energy = 1.15
+shadow_enabled = false
+
+[node name="PreviewCamera" type="Camera3D" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport"]
+transform = Transform3D(0.978148, 0, -0.207912, 0, 1, 0, 0.207912, 0, 0.978148, 0, 1.45, 3.25)
+current = true
+fov = 40.0
+
+[node name="PreviewRoot" type="Node3D" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport"]
+
+[node name="Buttons" type="HBoxContainer" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="UseButton" type="Button" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(110, 36)
+layout_mode = 2
+text = "Use This"
+
+[node name="BackButton" type="Button" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox"]
+custom_minimum_size = Vector2(120, 34)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Back"

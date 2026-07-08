@@ -8,7 +8,38 @@ enum Item {
 	TORCH,
 	PICKAXE_DESTROY,
 	PICKAXE_ADD,
+	WEAPON_AK,
+	WEAPON_GRENADE_LAUNCHER,
+	WEAPON_KNIFE_1,
+	WEAPON_KNIFE_2,
+	WEAPON_PISTOL,
+	WEAPON_REVOLVER,
+	WEAPON_REVOLVER_SMALL,
+	WEAPON_ROCKET_LAUNCHER,
+	WEAPON_SHORT_CANNON,
+	WEAPON_SHOTGUN,
+	WEAPON_SHOVEL,
+	WEAPON_SMG,
+	WEAPON_SNIPER,
+	WEAPON_SNIPER_2,
 }
+
+const WEAPON_ITEMS: Array[Item] = [
+	Item.WEAPON_AK,
+	Item.WEAPON_GRENADE_LAUNCHER,
+	Item.WEAPON_KNIFE_1,
+	Item.WEAPON_KNIFE_2,
+	Item.WEAPON_PISTOL,
+	Item.WEAPON_REVOLVER,
+	Item.WEAPON_REVOLVER_SMALL,
+	Item.WEAPON_ROCKET_LAUNCHER,
+	Item.WEAPON_SHORT_CANNON,
+	Item.WEAPON_SHOTGUN,
+	Item.WEAPON_SHOVEL,
+	Item.WEAPON_SMG,
+	Item.WEAPON_SNIPER,
+	Item.WEAPON_SNIPER_2,
+]
 
 
 static func item_from_edit_mode(mode: TerrainBrush.EditMode) -> Item:
@@ -27,3 +58,78 @@ static func edit_mode_from_item(item: Item) -> TerrainBrush.EditMode:
 		Item.PICKAXE_ADD:
 			return TerrainBrush.EditMode.ADD
 	return TerrainBrush.EditMode.OFF
+
+
+static func is_weapon(item: Item) -> bool:
+	return item in WEAPON_ITEMS
+
+
+static func weapon_mesh_name(item: Item) -> String:
+	match item:
+		Item.WEAPON_AK:
+			return "AK"
+		Item.WEAPON_GRENADE_LAUNCHER:
+			return "GrenadeLauncher"
+		Item.WEAPON_KNIFE_1:
+			return "Knife_1"
+		Item.WEAPON_KNIFE_2:
+			return "Knife_2"
+		Item.WEAPON_PISTOL:
+			return "Pistol"
+		Item.WEAPON_REVOLVER:
+			return "Revolver"
+		Item.WEAPON_REVOLVER_SMALL:
+			return "Revolver_Small"
+		Item.WEAPON_ROCKET_LAUNCHER:
+			return "RocketLauncher"
+		Item.WEAPON_SHORT_CANNON:
+			return "ShortCannon"
+		Item.WEAPON_SHOTGUN:
+			return "Shotgun"
+		Item.WEAPON_SHOVEL:
+			return "Shovel"
+		Item.WEAPON_SMG:
+			return "SMG"
+		Item.WEAPON_SNIPER:
+			return "Sniper"
+		Item.WEAPON_SNIPER_2:
+			return "Sniper_2"
+	return ""
+
+
+static func weapon_display_name(item: Item) -> String:
+	match item:
+		Item.WEAPON_AK:
+			return "AK"
+		Item.WEAPON_GRENADE_LAUNCHER:
+			return "Grenade Launcher"
+		Item.WEAPON_KNIFE_1:
+			return "Knife"
+		Item.WEAPON_KNIFE_2:
+			return "Knife (alt)"
+		Item.WEAPON_PISTOL:
+			return "Pistol"
+		Item.WEAPON_REVOLVER:
+			return "Revolver"
+		Item.WEAPON_REVOLVER_SMALL:
+			return "Small Revolver"
+		Item.WEAPON_ROCKET_LAUNCHER:
+			return "Rocket Launcher"
+		Item.WEAPON_SHORT_CANNON:
+			return "Short Cannon"
+		Item.WEAPON_SHOTGUN:
+			return "Shotgun"
+		Item.WEAPON_SHOVEL:
+			return "Shovel"
+		Item.WEAPON_SMG:
+			return "SMG"
+		Item.WEAPON_SNIPER:
+			return "Sniper"
+		Item.WEAPON_SNIPER_2:
+			return "Sniper (alt)"
+	return ""
+
+
+static func apply_weapon_visual(skin: Node, item: Item) -> void:
+	if skin != null and skin.has_method("set_equipped_weapon_from_item"):
+		skin.call("set_equipped_weapon_from_item", item)

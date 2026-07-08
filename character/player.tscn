@@ -1,44 +1,47 @@
-[gd_scene load_steps=6 format=3 uid="uid://r24kyistqxpc"]
+[gd_scene format=3 uid="uid://r24kyistqxpc"]
 
-[ext_resource type="Script" path="res://character/planet_player.gd" id="1"]
+[ext_resource type="Script" uid="uid://dxrs0deeav2p3" path="res://character/planet_player.gd" id="1"]
 [ext_resource type="PackedScene" uid="uid://dmyrflud401tg" path="res://character/godot_plush/godot_plush_skin.tscn" id="2"]
-[ext_resource type="Script" path="res://character/orbit_camera.gd" id="3"]
-[ext_resource type="Script" path="res://character/terrain_brush.gd" id="4"]
-[ext_resource type="Script" path="res://character/terrain_edit_cursor.gd" id="5"]
+[ext_resource type="Script" uid="uid://depnlbni3k8m5" path="res://character/orbit_camera.gd" id="3"]
+[ext_resource type="Script" uid="uid://cay4uu1tnmyat" path="res://character/terrain_brush.gd" id="4"]
+[ext_resource type="Script" uid="uid://bd85wg2ue6dm6" path="res://character/terrain_edit_cursor.gd" id="5"]
+[ext_resource type="Script" path="res://combat/shooter_test.gd" id="6"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_1"]
 radius = 0.35
 height = 1.2
 
-[node name="Player" type="CharacterBody3D" groups=["player"]]
-floor_stop_on_slope = true
+[node name="Player" type="CharacterBody3D" unique_id=139921666 groups=["player"]]
 floor_max_angle = 1.2217305
 floor_snap_length = 0.5
 script = ExtResource("1")
 
-[node name="TerrainBrush" type="Node" parent="."]
+[node name="TerrainBrush" type="Node" parent="." unique_id=382823798]
 script = ExtResource("4")
 
-[node name="TerrainEditCursor" type="MeshInstance3D" parent="TerrainBrush"]
+[node name="TerrainEditCursor" type="MeshInstance3D" parent="TerrainBrush" unique_id=62474804]
 script = ExtResource("5")
 
-[node name="VisualRoot" type="Node3D" parent="."]
+[node name="VisualRoot" type="Node3D" parent="." unique_id=765313386]
 unique_name_in_owner = true
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
-[node name="GodotPlushSkin" parent="VisualRoot" instance=ExtResource("2")]
+[node name="GodotPlushSkin" parent="VisualRoot" unique_id=1953200702 instance=ExtResource("2")]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=568215548]
 unique_name_in_owner = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
 shape = SubResource("CapsuleShape3D_1")
 
-[node name="OrbitCamera" type="SpringArm3D" parent="."]
+[node name="OrbitCamera" type="SpringArm3D" parent="." unique_id=1633088150]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 collision_mask = 0
 spring_length = 6.0
 script = ExtResource("3")
 
-[node name="Camera3D" type="Camera3D" parent="OrbitCamera"]
+[node name="Camera3D" type="Camera3D" parent="OrbitCamera" unique_id=2135513807]
 current = true
 fov = 60.0
+
+[node name="ShooterTest" type="Node" parent="."]
+script = ExtResource("6")

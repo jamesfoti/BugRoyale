@@ -411,6 +411,13 @@ func apply_hand_item(item: PlayerItems.Item) -> void:
 				plush_skin.stow_torch()
 			if terrain_hud_layer != null and terrain_hud_layer.has_method("set_edit_mode"):
 				terrain_hud_layer.set_edit_mode(PlayerItems.edit_mode_from_item(item))
+		_:
+			if PlayerItems.is_weapon(item):
+				if plush_skin.is_torch_equipped():
+					plush_skin.stow_torch()
+				if terrain_hud_layer != null and terrain_hud_layer.has_method("set_edit_mode"):
+					terrain_hud_layer.set_edit_mode(TerrainBrush.EditMode.OFF)
+	PlayerItems.apply_weapon_visual(plush_skin, item)
 	_sync_item_menu(item)
 
 

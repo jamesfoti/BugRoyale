@@ -5,6 +5,7 @@ extends CanvasLayer
 signal terrain_edit_mode_changed(mode: TerrainBrush.EditMode)
 
 const PlayerHealthHudScene: PackedScene = preload("res://gui/player_health_hud.tscn")
+const CrosshairHudScene: PackedScene = preload("res://gui/crosshair_hud.tscn")
 
 @onready var _bar: HBoxContainer = $Bar
 @onready var _item_anchor: VBoxContainer = $Bar/ItemAnchor
@@ -29,6 +30,7 @@ const _MARGIN: float = 8.0
 func _ready() -> void:
 	add_to_group("terrain_hud")
 	_setup_health_hud()
+	_setup_crosshair_hud()
 	_toggle_button.focus_mode = Control.FOCUS_NONE
 	_toggle_button.pressed.connect(_on_toggle_pressed)
 	_set_expanded(false)
@@ -195,6 +197,13 @@ func _setup_health_hud() -> void:
 		return
 	_item_anchor.add_child(health_hud)
 	_item_anchor.move_child(health_hud, 0)
+
+
+func _setup_crosshair_hud() -> void:
+	var crosshair_hud: CrosshairHud = CrosshairHudScene.instantiate() as CrosshairHud
+	if crosshair_hud == null:
+		return
+	add_child(crosshair_hud)
 
 
 func _on_toggle_pressed() -> void:

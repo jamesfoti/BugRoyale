@@ -1,0 +1,56 @@
+extends Node3D
+class_name ShootProjectileVisual
+## Short-lived sphere that travels toward the shot target.
+
+
+signal arrived
+
+@export var travel_speed: float = 140.0
+
+var _target_position: Vector3 = Vector3.ZERO
+var _is_flying: bool = false
+
+
+func launch(start_position: Vector3, target_position: Vector3, projectile_radius: float) -> void:
+	global_position = start_position
+	_target_position = target_position
+	_is_flying = true
+	_configure_mesh(projectile_radius)
+
+
+func _process(delta: float) -> void:
+	if not _is_flying:
+		return
+
+	var offset_to_target: Vector3 = _target_position - global_position
+	var distance_remaining: float = offset_to_target.length()
+	var travel_distance: float = travel_speed * delta
+	if distance_remaining <= travel_distance:
+		global_position = _target_position
+		_is_flying = false
+		arrived.emit()
+		queue_free()
+		return
+
+	global_position += offset_to_target.normalized() * travel_distance
+
+
+func _configure_mesh(projectile_radius: float) -> void:
+	var mesh_instance: MeshInstance3D = get_node_or_null("MeshInstance3D") as MeshInstance3D
+	if mesh_instance == null:
+		return
+	var sphere_mesh: SphereMesh = SphereMesh.new()
+	sphere_mesh.radius = projectile_radius
+	sphere_mesh.height = projectile_radius * 2.0
+	sphere_mesh.radial_segments = 12
+	sphere_mesh.rings = 8
+	mesh_instance.mesh = sphere_mesh
+
+	var projectile_material: StandardMaterial3D = StandardMaterial3D.new()
+	projectile_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	projectile_material.albedo_color = Color(1.0, 0.82, 0.35, 1.0)
+	projectile_material.emission_enabled = true
+	projectile_material.emission = Color(1.0, 0.55, 0.12, 1.0)
+	projectile_material.emission_energy_multiplier = 1.8
+	mesh_instance.material_override = projectile_material
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

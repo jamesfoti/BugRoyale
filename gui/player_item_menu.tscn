@@ -21,26 +21,39 @@ theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="Buttons" type="VBoxContainer" parent="Popup/Margin"]
+[node name="Scroll" type="ScrollContainer" parent="Popup/Margin"]
+custom_minimum_size = Vector2(260, 320)
 layout_mode = 2
+
+[node name="Buttons" type="VBoxContainer" parent="Popup/Margin/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 4
 
-[node name="Title" type="Label" parent="Popup/Margin/Buttons"]
+[node name="Title" type="Label" parent="Popup/Margin/Scroll/Buttons"]
 layout_mode = 2
 text = "Hand items"
 
-[node name="NoneButton" type="Button" parent="Popup/Margin/Buttons"]
+[node name="NoneButton" type="Button" parent="Popup/Margin/Scroll/Buttons"]
 layout_mode = 2
 text = "None — empty hands"
 
-[node name="TorchButton" type="Button" parent="Popup/Margin/Buttons"]
+[node name="TorchButton" type="Button" parent="Popup/Margin/Scroll/Buttons"]
 layout_mode = 2
 text = "Torch — light the way"
 
-[node name="PickaxeDestroyButton" type="Button" parent="Popup/Margin/Buttons"]
+[node name="PickaxeDestroyButton" type="Button" parent="Popup/Margin/Scroll/Buttons"]
 layout_mode = 2
 text = "Pickaxe — destroy terrain"
 
-[node name="PickaxeAddButton" type="Button" parent="Popup/Margin/Buttons"]
+[node name="PickaxeAddButton" type="Button" parent="Popup/Margin/Scroll/Buttons"]
 layout_mode = 2
 text = "Pickaxe — add terrain"
+
+[node name="WeaponTitle" type="Label" parent="Popup/Margin/Scroll/Buttons"]
+layout_mode = 2
+text = "Weapons"
+
+[node name="WeaponButtons" type="VBoxContainer" parent="Popup/Margin/Scroll/Buttons"]
+layout_mode = 2
+theme_override_constants/separation = 4

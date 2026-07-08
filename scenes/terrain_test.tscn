@@ -1,0 +1,114 @@
+[gd_scene format=3 uid="uid://ttn4n3qfdu3q"]
+
+[ext_resource type="Script" uid="uid://oo8yvl75l0h5" path="res://terrain/planet.gd" id="1"]
+[ext_resource type="Material" uid="uid://ct8q5pbs54ajt" path="res://materials/terrain_procedural.tres" id="2"]
+[ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="4"]
+[ext_resource type="Environment" uid="uid://c8gcug836onl0" path="res://materials/terrain_env.tres" id="5"]
+[ext_resource type="PackedScene" uid="uid://r24kyistqxpc" path="res://character/player.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="7"]
+[ext_resource type="PackedScene" uid="uid://bnpr1un6n0hoq" path="res://scenes/sun.tscn" id="8"]
+[ext_resource type="PackedScene" uid="uid://dnitu1aqqnorc" path="res://gui/player_item_menu.tscn" id="10"]
+[ext_resource type="Script" uid="uid://db46nykbsl1s8" path="res://asteroids/asteroid_spawner.gd" id="11"]
+
+[node name="TerrainTest" type="Node3D" unique_id=234830412]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=600744623]
+environment = ExtResource("5")
+
+[node name="Sun" parent="." unique_id=279231167 instance=ExtResource("8")]
+
+[node name="TerrainWorld" type="Node3D" parent="." unique_id=1063690967]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 180, 0, 0)
+script = ExtResource("1")
+planet_caves_enabled = false
+noise_seed = 43
+terrain_material = ExtResource("2")
+bounds_falloff_distance = 10.0
+bounds_falloff_strength = 8.0
+auto_rebuild_in_editor = true
+
+[node name="Player" parent="." unique_id=359295895 instance=ExtResource("6")]
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1801855157]
+script = ExtResource("4")
+
+[node name="Bar" type="HBoxContainer" parent="HUD" unique_id=2079050654]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = 40.0
+grow_horizontal = 2
+
+[node name="ItemAnchor" type="VBoxContainer" parent="HUD/Bar" unique_id=1543834956]
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/separation = 4
+
+[node name="PlayerItemMenu" parent="HUD/Bar/ItemAnchor" unique_id=72206680 instance=ExtResource("10")]
+layout_mode = 2
+
+[node name="Spacer" type="Control" parent="HUD/Bar" unique_id=715279942]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Anchor" type="VBoxContainer" parent="HUD/Bar" unique_id=502954853]
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/separation = 4
+
+[node name="ToggleButton" type="Button" parent="HUD/Bar/Anchor" unique_id=2128167645]
+layout_mode = 2
+size_flags_horizontal = 8
+text = "Debug (F3) ▼"
+
+[node name="Panel" type="PanelContainer" parent="HUD/Bar/Anchor" unique_id=1253521856]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 8
+
+[node name="Margin" type="MarginContainer" parent="HUD/Bar/Anchor/Panel" unique_id=404188978]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 6
+
+[node name="Fields" type="VBoxContainer" parent="HUD/Bar/Anchor/Panel/Margin" unique_id=1671369140]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Fps" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=2110181568]
+layout_mode = 2
+text = "Frames Per Second (FPS): --"
+
+[node name="Position" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=1562950077]
+layout_mode = 2
+text = "Player's position: n/a"
+
+[node name="Chunks" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=1369719000]
+layout_mode = 2
+text = "Chunks: n/a"
+
+[node name="ChunkSize" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=1621179848]
+layout_mode = 2
+text = "Chunk size: n/a"
+
+[node name="PlanetSize" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=757140977]
+layout_mode = 2
+text = "Planet size: n/a"
+
+[node name="VertexCount" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=45302509]
+layout_mode = 2
+text = "Mesh: n/a"
+
+[node name="EditMode" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=2003998354]
+layout_mode = 2
+text = "Terrain edit: Off"
+
+[node name="PauseMenu" parent="." unique_id=1417284425 instance=ExtResource("7")]
+
+[node name="AsteroidSpawner" type="Node" parent="." unique_id=212858479]
+script = ExtResource("11")
