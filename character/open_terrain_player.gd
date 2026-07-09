@@ -7,7 +7,6 @@ const _MIN_DIR_LEN_SQ: float = 0.0001
 const _INPUT_DEADZONE: float = 0.01
 const _SPAWN_ATTEMPTS: int = 12
 const _SPAWN_RAY_HEIGHT: float = 80.0
-const _MAX_MOUSE_DELTA: float = 80.0
 
 @export var terrain: Node3D
 @export var speed: float = 5.0
@@ -17,6 +16,7 @@ const _MAX_MOUSE_DELTA: float = 80.0
 @export var spawn_clearance: float = 1.2
 
 @onready var _plush_skin: GODOT_PLUSH_SKIN_SCRIPT = $VisualRoot/GodotPlushSkin
+@onready var _visual_root: Node3D = $VisualRoot
 @onready var _orbit_camera: OrbitCamera = $OrbitCamera
 @onready var _camera: Camera3D = $OrbitCamera/Camera3D
 
@@ -26,6 +26,7 @@ var _anim_state: String = ""
 var _want_jump: bool = false
 var _spawned: bool = false
 var _terrain_focus: bool = false
+var _visual_rest_basis: Basis = Basis.IDENTITY
 
 
 func is_terrain_focus_active() -> bool:
@@ -37,6 +38,7 @@ func exit_terrain_focus() -> void:
 
 
 func _ready() -> void:
+	_visual_rest_basis = _visual_root.transform.basis
 	_cache_terrain_refs()
 	call_deferred("_spawn_on_terrain")
 	call_deferred("_connect_terrain_hud")
@@ -67,18 +69,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _input(event: InputEvent) -> void:
-	if not _spawned or _terrain_focus or _is_item_menu_open():
-		return
-	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
-		return
-	if _is_camera_orbiting():
-		return
-	if event is InputEventMouseMotion:
-		var motion: InputEventMouseMotion = event as InputEventMouseMotion
-		_apply_mouse_yaw(motion.relative.x)
-
-
 func _physics_process(delta: float) -> void:
 	if terrain == null or not _spawned:
 		return
@@ -86,7 +76,7 @@ func _physics_process(delta: float) -> void:
 	if _terrain_focus:
 		_want_jump = false
 		_apply_focus_physics(delta)
-		_align_to_flat_forward(delta, _get_flat_forward())
+		_align_visual_to_flat_forward(delta, _get_flat_forward())
 		move_and_slide()
 		_update_animation(Vector3.ZERO)
 		return
@@ -103,12 +93,7 @@ func _physics_process(delta: float) -> void:
 
 	var facing_direction: Vector3 = _get_facing_direction(movement_direction)
 	if movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
-		var forward_backward_input: float = Input.get_axis("move_backward", "move_forward")
-		if forward_backward_input > _INPUT_DEADZONE:
-			_orbit_camera.recenter_yaw(delta)
-		_align_to_flat_forward(delta, facing_direction)
-	elif not _is_camera_orbiting():
-		global_transform.basis = global_transform.basis.orthonormalized()
+		_align_visual_to_flat_forward(delta, facing_direction)
 	move_and_slide()
 	_update_animation(movement_direction)
 
@@ -142,21 +127,11 @@ func _apply_focus_physics(delta: float) -> void:
 		velocity.y -= _gravity * delta
 
 
-func _apply_mouse_yaw(mouse_delta_x: float) -> void:
-	if absf(mouse_delta_x) > _MAX_MOUSE_DELTA:
-		return
-	rotate_y(-mouse_delta_x * mouse_sensitivity)
-
-
-func _is_camera_orbiting() -> bool:
-	return _orbit_camera.is_orbiting()
-
-
 func _get_flat_forward() -> Vector3:
-	var forward: Vector3 = -global_transform.basis.z
+	var forward: Vector3 = -_visual_root.global_basis.z
 	forward.y = 0.0
 	if forward.length_squared() < _MIN_DIR_LEN_SQ:
-		forward = global_transform.basis.x
+		forward = _visual_root.global_basis.x
 		forward.y = 0.0
 	if forward.length_squared() < _MIN_DIR_LEN_SQ:
 		return Vector3.FORWARD
@@ -171,37 +146,48 @@ func _get_camera_flat_forward() -> Vector3:
 	return forward.normalized()
 
 
+func _get_camera_flat_right() -> Vector3:
+	var forward: Vector3 = _get_camera_flat_forward()
+	if forward.length_squared() < _MIN_DIR_LEN_SQ:
+		return Vector3.ZERO
+	return forward.cross(Vector3.UP).normalized()
+
+
 func _get_movement_direction() -> Vector3:
 	var forward_backward_input: float = Input.get_axis("move_backward", "move_forward")
-	if absf(forward_backward_input) < _INPUT_DEADZONE:
+	var left_right_input: float = Input.get_axis("move_left", "move_right")
+	if absf(forward_backward_input) < _INPUT_DEADZONE and absf(left_right_input) < _INPUT_DEADZONE:
 		return Vector3.ZERO
 	var forward: Vector3 = _get_camera_flat_forward()
-	if forward == Vector3.ZERO:
+	var right: Vector3 = _get_camera_flat_right()
+	if forward.length_squared() < _MIN_DIR_LEN_SQ and right.length_squared() < _MIN_DIR_LEN_SQ:
 		return Vector3.ZERO
-	return forward * forward_backward_input
+	var direction: Vector3 = forward * forward_backward_input + right * left_right_input
+	if direction.length_squared() < _MIN_DIR_LEN_SQ:
+		return Vector3.ZERO
+	return direction.normalized()
 
 
 func _get_facing_direction(movement_direction: Vector3) -> Vector3:
 	if movement_direction.length_squared() < _MIN_DIR_LEN_SQ:
 		return _get_flat_forward()
-	var forward_backward_input: float = Input.get_axis("move_backward", "move_forward")
-	if forward_backward_input < -_INPUT_DEADZONE:
-		var camera_forward: Vector3 = _get_camera_flat_forward()
-		if camera_forward != Vector3.ZERO:
-			return camera_forward
 	return movement_direction.normalized()
 
 
-func _align_to_flat_forward(delta: float, facing_direction: Vector3) -> void:
+func _align_visual_to_flat_forward(delta: float, facing_direction: Vector3) -> void:
 	if facing_direction.length_squared() < _MIN_DIR_LEN_SQ:
 		return
 	var target_basis: Basis = Basis.looking_at(facing_direction, Vector3.UP).orthonormalized()
 	var alignment_blend: float = minf(1.0, 10.0 * delta)
-	var current_rotation: Quaternion = global_transform.basis.get_rotation_quaternion()
-	var target_rotation: Quaternion = target_basis.get_rotation_quaternion()
+	var current_rotation: Quaternion = _visual_root.basis.get_rotation_quaternion()
+	var target_rotation: Quaternion = (target_basis * _visual_rest_basis).get_rotation_quaternion()
 	if current_rotation.dot(target_rotation) < 0.0:
 		target_rotation = -target_rotation
-	global_transform.basis = Basis(current_rotation.slerp(target_rotation, alignment_blend))
+	_visual_root.basis = Basis(current_rotation.slerp(target_rotation, alignment_blend))
+
+
+func _is_camera_orbiting() -> bool:
+	return _orbit_camera.is_orbiting()
 
 
 func _cache_terrain_refs() -> void:

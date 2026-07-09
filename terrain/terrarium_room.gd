@@ -168,7 +168,7 @@ func _ready() -> void:
 	_ensure_export_defaults()
 	add_to_group("terrarium_room")
 	add_to_group("boxed_in_terrain")
-	if rebuild_on_ready:
+	if rebuild_on_ready and (not Engine.is_editor_hint() or auto_rebuild_in_editor):
 		call_deferred("rebuild_all")
 
 

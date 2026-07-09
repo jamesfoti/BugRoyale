@@ -157,6 +157,8 @@ func _notification(what: int) -> void:
 
 
 func _process(_delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
 	_poll_async_rebuilds()
 	if _async_rebuild_requested:
 		_async_rebuild_requested = false

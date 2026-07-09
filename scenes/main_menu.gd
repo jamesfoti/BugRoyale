@@ -19,6 +19,8 @@ const PLAYER_STANDARD_PREVIEW_SCENE_PATH: String = "res://character/godot_plush/
 @onready var _preview_root: Node3D = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport/PreviewRoot
 @onready var _preview_use_button: Button = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/Buttons/UseButton
 @onready var _preview_back_button: Button = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/BackButton
+@onready var _sky_viewport: SubViewport = $SkyViewportContainer/SkyViewport
+@onready var _preview_viewport: SubViewport = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport
 
 var _preview_player_scenes: Dictionary[LoadingScreen.PlayerCharacter, PackedScene] = {}
 var _preview_instance: Node3D
@@ -27,6 +29,10 @@ var _preview_selected_character: LoadingScreen.PlayerCharacter = LoadingScreen.P
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		return
+	_sky_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_set_preview_viewport_active(false)
 	_title.text = str(ProjectSettings.get_setting("application/config/name", "PhysicsRoyale"))
 	_setup_preview_scenes()
 	_preview_selected_character = LoadingScreen.selected_player_character
@@ -41,6 +47,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
 	if _preview_instance == null:
 		return
 	_preview_instance.rotate_y(deg_to_rad(_preview_rotation_degrees_per_second * delta))
@@ -55,17 +63,20 @@ func _setup_preview_scenes() -> void:
 func _on_choose_player_pressed() -> void:
 	_preview_selected_character = LoadingScreen.selected_player_character
 	_player_select_page.visible = true
+	_set_preview_viewport_active(true)
 	_update_preview_display()
 
 
 func _on_preview_use_pressed() -> void:
 	_set_selected_character(_preview_selected_character)
 	_player_select_page.visible = false
+	_set_preview_viewport_active(false)
 	_refresh_selected_player_label()
 
 
 func _on_preview_back_pressed() -> void:
 	_player_select_page.visible = false
+	_set_preview_viewport_active(false)
 	_preview_selected_character = LoadingScreen.selected_player_character
 
 
@@ -112,6 +123,8 @@ func _set_idle_state_if_supported(preview_node: Node3D) -> void:
 		animation_player.play("idle")
 	elif animation_player.has_animation("Idle_1"):
 		animation_player.play("Idle_1")
+	elif animation_player.has_animation("walk"):
+		animation_player.play("walk")
 
 
 func _refresh_selected_player_label() -> void:
@@ -120,8 +133,16 @@ func _refresh_selected_player_label() -> void:
 	)
 
 
-func _display_name_for_character(selected_character: LoadingScreen.PlayerCharacter) -> String:
+func _display_name_for_character(_selected_character: LoadingScreen.PlayerCharacter) -> String:
 	return "Godot Plush"
+
+
+func _set_preview_viewport_active(active: bool) -> void:
+	if _preview_viewport == null:
+		return
+	_preview_viewport.render_target_update_mode = (
+		SubViewport.UPDATE_ALWAYS if active else SubViewport.UPDATE_DISABLED
+	)
 
 
 func _on_planet_pressed() -> void:

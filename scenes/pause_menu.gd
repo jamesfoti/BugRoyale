@@ -27,7 +27,9 @@ const _CONTROLS_LINES: Array[String] = [
 	"Esc — Free / capture mouse (or stow item / exit terrain edit)",
 	"F3 — Debug overlay",
 	"Ctrl — Toggle terrain focus while editing (stay put, aim with mouse)",
-	"Hold left click — Paint terrain (threaded mesh rebuild)",
+	"Left click — Shoot (weapon equipped)",
+	"Right click — Aim / zoom (weapon equipped)",
+	"Hold left click — Paint terrain (pickaxe equipped)",
 ]
 
 var _paused: bool = false

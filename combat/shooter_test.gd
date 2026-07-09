@@ -51,6 +51,7 @@ const WEAPON_FIRE_PROFILE: Dictionary = {
 }
 
 @export var camera_path: NodePath = ^"../OrbitCamera/Camera3D"
+@export var orbit_camera_path: NodePath = ^"../OrbitCamera"
 @export var max_shoot_distance: float = 650.0
 @export var default_cooldown_seconds: float = 0.2
 @export var default_damage: float = 8.0
@@ -64,7 +65,11 @@ var _shoot_visual_timer_seconds: float = 0.0
 
 
 func _ready() -> void:
-	_ensure_shoot_action()
+	if not InputMap.has_action(SHOOT_ACTION):
+		push_error(
+			"Missing InputMap action '%s'. Add it under Project > Project Settings > Input Map."
+			% SHOOT_ACTION
+		)
 	_camera = get_node_or_null(camera_path) as Camera3D
 
 
@@ -95,8 +100,11 @@ func _try_shoot() -> void:
 	var projectile_speed: float = fire_profile.get("projectile_speed", default_projectile_speed)
 	var projectile_radius: float = fire_profile.get("projectile_radius", default_projectile_radius)
 
-	var ray_origin: Vector3 = _camera.global_position
-	var ray_direction: Vector3 = -_camera.global_basis.z
+	var ray_origin: Vector3
+	var ray_direction: Vector3
+	var aim_ray: Dictionary = _get_aim_ray()
+	ray_origin = aim_ray["origin"]
+	ray_direction = aim_ray["direction"]
 	if ray_direction.length_squared() <= 0.0001:
 		return
 	ray_direction = ray_direction.normalized()
@@ -165,6 +173,7 @@ func _apply_shot_impact(
 ) -> void:
 	_apply_damage_at_hit(raycast_hit, hit_damage)
 	_apply_terrain_explosion(hit_position, explosion_radius)
+	_spawn_explosion_effect(hit_position, explosion_radius)
 
 
 func _apply_damage_at_hit(raycast_hit: Dictionary, hit_damage: float) -> void:
@@ -182,6 +191,13 @@ func _apply_terrain_explosion(hit_position: Vector3, explosion_radius: float) ->
 	if terrain_world == null:
 		return
 	terrain_world.apply_brush(hit_position, explosion_radius, false)
+
+
+func _spawn_explosion_effect(hit_position: Vector3, explosion_radius: float) -> void:
+	var world_root: Node = get_tree().current_scene
+	if world_root == null:
+		return
+	WeaponExplosionEffect.spawn(world_root, hit_position, explosion_radius)
 
 
 func _resolve_terrain_world() -> ChunkedTerrainWorld:
@@ -249,10 +265,15 @@ func _get_skin_node() -> Node:
 	return visual_root.get_child(0)
 
 
-func _ensure_shoot_action() -> void:
-	if InputMap.has_action(SHOOT_ACTION):
-		return
-	InputMap.add_action(SHOOT_ACTION)
-	var shoot_key: InputEventKey = InputEventKey.new()
-	shoot_key.physical_keycode = KEY_F
-	InputMap.action_add_event(SHOOT_ACTION, shoot_key)
+func _get_aim_ray() -> Dictionary:
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	var screen_position: Vector2 = viewport_size * 0.5
+	var orbit_camera: OrbitCamera = get_node_or_null(orbit_camera_path) as OrbitCamera
+	if orbit_camera != null:
+		screen_position = orbit_camera.get_crosshair_screen_position(viewport_size)
+	if _camera == null:
+		return {"origin": Vector3.ZERO, "direction": Vector3.FORWARD}
+	return {
+		"origin": _camera.project_ray_origin(screen_position),
+		"direction": _camera.project_ray_normal(screen_position),
+	}

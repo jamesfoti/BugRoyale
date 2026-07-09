@@ -26,7 +26,7 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
-	var center: Vector2 = size * 0.5
+	var center: Vector2 = _get_crosshair_center()
 	var half_thickness: float = crosshair_thickness * 0.5
 	var outline_offset: float = crosshair_outline_thickness
 
@@ -68,7 +68,10 @@ func _should_show_crosshair() -> bool:
 		return false
 	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
 		return false
-	return PlayerItems.is_weapon(_get_equipped_weapon_item())
+	if not PlayerItems.is_weapon(_get_equipped_weapon_item()):
+		return false
+	var orbit_camera: OrbitCamera = _get_orbit_camera()
+	return orbit_camera != null and orbit_camera.is_aiming()
 
 
 func _is_item_menu_open() -> bool:
@@ -89,3 +92,17 @@ func _get_equipped_weapon_item() -> PlayerItems.Item:
 	if skin_node == null or not skin_node.has_method("get_equipped_weapon_item"):
 		return PlayerItems.Item.NONE
 	return skin_node.call("get_equipped_weapon_item")
+
+
+func _get_orbit_camera() -> OrbitCamera:
+	var player: Node = get_tree().get_first_node_in_group("player")
+	if player == null:
+		return null
+	return player.get_node_or_null("OrbitCamera") as OrbitCamera
+
+
+func _get_crosshair_center() -> Vector2:
+	var orbit_camera: OrbitCamera = _get_orbit_camera()
+	if orbit_camera != null:
+		return orbit_camera.get_crosshair_screen_position(size)
+	return size * 0.5

@@ -1,4 +1,5 @@
 .godot/
+_tmp_*/
 builds/github/*.import
 build/
 tools/godot/
