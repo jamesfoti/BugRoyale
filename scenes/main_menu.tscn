@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scenes/main_menu.gd" id="1"]
 [ext_resource type="Environment" path="res://materials/loading_env.tres" id="2"]
+[ext_resource type="PackedScene" path="res://gui/settings_menu.tscn" id="3"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -118,6 +119,12 @@ layout_mode = 2
 size_flags_horizontal = 4
 text = "Choose Player"
 
+[node name="SettingsButton" type="Button" parent="UI/Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(320, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Settings"
+
 [node name="BottomSpacer" type="Control" parent="UI/Margin/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -220,3 +227,5 @@ custom_minimum_size = Vector2(120, 34)
 layout_mode = 2
 size_flags_horizontal = 4
 text = "Back"
+
+[node name="SettingsMenu" parent="UI" instance=ExtResource("3")]

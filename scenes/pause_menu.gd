@@ -1,36 +1,15 @@
 extends CanvasLayer
-## Pause overlay: Resume, Controls, Restart, Main Menu, or Quit.
+## Pause overlay: Resume, Settings, Restart, Main Menu, or Quit.
 
 @onready var _panel: PanelContainer = $Panel
-@onready var _main_menu: VBoxContainer = $Panel/Margin/MainMenu
-@onready var _controls_menu: VBoxContainer = $Panel/Margin/ControlsMenu
-@onready var _controls_text: Label = $Panel/Margin/ControlsMenu/ControlsText
 @onready var _resume_button: Button = $Panel/Margin/MainMenu/ResumeButton
-@onready var _controls_button: Button = $Panel/Margin/MainMenu/ControlsButton
+@onready var _settings_button: Button = $Panel/Margin/MainMenu/SettingsButton
 @onready var _reset_button: Button = $Panel/Margin/MainMenu/ResetButton
 @onready var _main_menu_button: Button = $Panel/Margin/MainMenu/MainMenuButton
 @onready var _quit_button: Button = $Panel/Margin/MainMenu/QuitButton
-@onready var _back_button: Button = $Panel/Margin/ControlsMenu/BackButton
+@onready var _settings_menu: Control = $SettingsMenu
 
 const MAIN_MENU_SCENE_PATH: String = "res://scenes/main_menu.tscn"
-
-const _CONTROLS_LINES: Array[String] = [
-	"W / S — Move forward / backward",
-	"Mouse — Turn player",
-	"Mouse — Camera pitch",
-	"Middle mouse + drag — Orbit camera",
-	"Scroll wheel — Zoom in / out",
-	"Space — Jump",
-	"Shift — Run",
-	"E — Inventory (torch, pickaxe, empty hands)",
-	"P — Pause menu",
-	"Esc — Free / capture mouse (or stow item / exit terrain edit)",
-	"F3 — Debug overlay",
-	"Ctrl — Toggle terrain focus while editing (stay put, aim with mouse)",
-	"Left click — Shoot (weapon equipped)",
-	"Right click — Aim / zoom (weapon equipped)",
-	"Hold left click — Paint terrain (pickaxe equipped)",
-]
 
 var _paused: bool = false
 
@@ -38,23 +17,19 @@ var _paused: bool = false
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
-	_controls_text.text = "\n".join(_CONTROLS_LINES)
-	_show_main_menu()
 	_resume_button.pressed.connect(_on_resume_pressed)
-	_controls_button.pressed.connect(_on_controls_pressed)
+	_settings_button.pressed.connect(_on_settings_pressed)
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_main_menu_button.pressed.connect(_on_main_menu_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
-	_back_button.pressed.connect(_on_back_pressed)
+	_settings_menu.closed.connect(_on_settings_closed)
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# The settings page handles its own Esc / Pause (back) while it is open.
 	if event.is_action_pressed("pause"):
 		if _paused:
-			if _controls_menu.visible:
-				_show_main_menu()
-			else:
-				_resume()
+			_resume()
 		else:
 			_pause()
 		get_viewport().set_input_as_handled()
@@ -64,10 +39,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not event.is_action_pressed("ui_cancel"):
 		return
-	if _controls_menu.visible:
-		_show_main_menu()
-	else:
-		_resume()
+	_resume()
 	get_viewport().set_input_as_handled()
 
 
@@ -75,11 +47,12 @@ func _on_resume_pressed() -> void:
 	_resume()
 
 
-func _on_controls_pressed() -> void:
-	_show_controls_menu()
+func _on_settings_pressed() -> void:
+	_panel.visible = false
+	_settings_menu.open()
 
 
-func _on_back_pressed() -> void:
+func _on_settings_closed() -> void:
 	_show_main_menu()
 
 
@@ -100,15 +73,9 @@ func _on_quit_pressed() -> void:
 
 
 func _show_main_menu() -> void:
-	_main_menu.visible = true
-	_controls_menu.visible = false
-	_panel.custom_minimum_size = Vector2(240, 0)
-
-
-func _show_controls_menu() -> void:
-	_main_menu.visible = false
-	_controls_menu.visible = true
-	_panel.custom_minimum_size = Vector2(320, 0)
+	_settings_menu.visible = false
+	_panel.visible = true
+	_settings_button.grab_focus()
 
 
 func _pause() -> void:
@@ -122,7 +89,8 @@ func _pause() -> void:
 func _resume() -> void:
 	_paused = false
 	visible = false
-	_show_main_menu()
+	_settings_menu.visible = false
+	_panel.visible = true
 	get_tree().paused = false
 	_sync_game_mouse_mode()
 

@@ -16,11 +16,20 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 config/name="PhysicsRoyale"
 run/main_scene="res://scenes/main_menu.tscn"
-config/features=PackedStringArray("4.6", "Forward Plus")
+config/features=PackedStringArray("4.7", "Forward Plus")
 
 [audio]
 
 buses/default_bus_layout=""
+
+[autoload]
+
+GraphicsSettings="*res://gui/graphics_settings.gd"
+
+[display]
+
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 
 [dotnet]
 

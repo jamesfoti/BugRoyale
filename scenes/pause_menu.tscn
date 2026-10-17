@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://s8e4um0v33pc"]
 
 [ext_resource type="Script" path="res://scenes/pause_menu.gd" id="1"]
+[ext_resource type="PackedScene" path="res://gui/settings_menu.tscn" id="2"]
 
 [node name="PauseMenu" type="CanvasLayer"]
 layer = 10
@@ -58,9 +59,9 @@ horizontal_alignment = 1
 layout_mode = 2
 text = "Resume"
 
-[node name="ControlsButton" type="Button" parent="Panel/Margin/MainMenu"]
+[node name="SettingsButton" type="Button" parent="Panel/Margin/MainMenu"]
 layout_mode = 2
-text = "Controls"
+text = "Settings"
 
 [node name="ResetButton" type="Button" parent="Panel/Margin/MainMenu"]
 layout_mode = 2
@@ -74,21 +75,5 @@ text = "Main Menu"
 layout_mode = 2
 text = "Quit"
 
-[node name="ControlsMenu" type="VBoxContainer" parent="Panel/Margin"]
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 10
-alignment = 1
-
-[node name="ControlsTitle" type="Label" parent="Panel/Margin/ControlsMenu"]
-layout_mode = 2
-text = "Controls"
-horizontal_alignment = 1
-
-[node name="ControlsText" type="Label" parent="Panel/Margin/ControlsMenu"]
-layout_mode = 2
-autowrap_mode = 3
-
-[node name="BackButton" type="Button" parent="Panel/Margin/ControlsMenu"]
-layout_mode = 2
-text = "Back"
+[node name="SettingsMenu" parent="." instance=ExtResource("2")]
+show_backdrop = false

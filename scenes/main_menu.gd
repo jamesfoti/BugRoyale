@@ -1,5 +1,5 @@
 extends Control
-## Entry menu: choose world and player character.
+## Entry menu: choose world and player character, or open settings.
 
 
 const PLANET_SCENE_PATH: String = "res://scenes/planet_test.tscn"
@@ -14,6 +14,8 @@ const PLAYER_STANDARD_PREVIEW_SCENE_PATH: String = "res://character/godot_plush/
 @onready var _terrarium_button: Button = $UI/Margin/VBox/Buttons/TerrariumButton
 @onready var _selected_player_label: Label = $UI/Margin/VBox/Buttons/SelectedPlayerLabel
 @onready var _choose_player_button: Button = $UI/Margin/VBox/Buttons/ChoosePlayerButton
+@onready var _settings_button: Button = $UI/Margin/VBox/Buttons/SettingsButton
+@onready var _settings_menu: Control = $UI/SettingsMenu
 @onready var _player_select_page: Control = $UI/PlayerSelectPage
 @onready var _player_name_label: Label = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PlayerName
 @onready var _preview_root: Node3D = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport/PreviewRoot
@@ -38,6 +40,8 @@ func _ready() -> void:
 	_preview_selected_character = LoadingScreen.selected_player_character
 	_refresh_selected_player_label()
 	_choose_player_button.pressed.connect(_on_choose_player_pressed)
+	_settings_button.pressed.connect(_settings_menu.open)
+	_settings_menu.closed.connect(_settings_button.grab_focus)
 	_preview_use_button.pressed.connect(_on_preview_use_pressed)
 	_preview_back_button.pressed.connect(_on_preview_back_pressed)
 	_planet_button.pressed.connect(_on_planet_pressed)

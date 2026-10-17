@@ -1,0 +1,98 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gui/settings_menu.gd" id="1"]
+
+[node name="SettingsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.55)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 16
+
+[node name="SettingsPage" type="VBoxContainer" parent="Center/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="Title" type="Label" parent="Center/Panel/Margin/SettingsPage"]
+layout_mode = 2
+text = "Settings"
+horizontal_alignment = 1
+
+[node name="GraphicsRow" type="HBoxContainer" parent="Center/Panel/Margin/SettingsPage"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="GraphicsLabel" type="Label" parent="Center/Panel/Margin/SettingsPage/GraphicsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Graphics Quality"
+
+[node name="GraphicsOption" type="OptionButton" parent="Center/Panel/Margin/SettingsPage/GraphicsRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+
+[node name="GraphicsDescription" type="Label" parent="Center/Panel/Margin/SettingsPage"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.78, 0.85, 1)
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 3
+
+[node name="ControlsButton" type="Button" parent="Center/Panel/Margin/SettingsPage"]
+layout_mode = 2
+text = "Controls"
+
+[node name="BackButton" type="Button" parent="Center/Panel/Margin/SettingsPage"]
+layout_mode = 2
+text = "Back"
+
+[node name="ControlsPage" type="VBoxContainer" parent="Center/Panel/Margin"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="ControlsTitle" type="Label" parent="Center/Panel/Margin/ControlsPage"]
+layout_mode = 2
+text = "Controls"
+horizontal_alignment = 1
+
+[node name="ControlsText" type="Label" parent="Center/Panel/Margin/ControlsPage"]
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="BackButton" type="Button" parent="Center/Panel/Margin/ControlsPage"]
+layout_mode = 2
+text = "Back"
