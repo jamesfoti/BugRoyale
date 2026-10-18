@@ -25,6 +25,13 @@ class SpawnData:
 @export var mouse_sensitivity: float = 0.0025
 @export var spawn_clearance: float = 1.2
 
+@export_group("Flight")
+## Set by the class stats (CharacterSkin.apply_class_stats) for flying bugs.
+@export var can_fly: bool = false
+@export var fly_speed: float = 7.0
+@export var fly_run_speed: float = 11.0
+@export var fly_vertical_speed: float = 5.0
+
 ## The selected character is installed under VisualRoot on ready.
 @onready var _skin: CharacterSkin = CharacterSkin.install_selected($VisualRoot)
 @onready var _orbit_camera: OrbitCamera = $OrbitCamera
@@ -36,6 +43,7 @@ var _anim_state: String = ""
 var _want_jump: bool = false
 var _spawned: bool = false
 var _terrain_focus: bool = false
+var _flying: bool = false
 
 
 func is_terrain_focus_active() -> bool:
@@ -113,7 +121,10 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var movement_direction: Vector3 = _get_movement_direction()
-	_apply_movement(delta, movement_direction)
+	if _flying:
+		_apply_flight(movement_direction)
+	else:
+		_apply_movement(delta, movement_direction)
 
 	var facing_direction: Vector3 = _get_facing_direction(movement_direction)
 	if movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
@@ -141,7 +152,26 @@ func _apply_movement(delta: float, movement_direction: Vector3) -> void:
 
 	if _want_jump and is_on_floor() and not _get_skin().is_waving():
 		velocity += _get_up() * jump_velocity
+	elif _want_jump and can_fly and not is_on_floor():
+		# Take off: keep horizontal speed, cancel any falling speed.
+		_flying = true
+		velocity -= _gravity_direction * maxf(velocity.dot(_gravity_direction), 0.0)
 	_want_jump = false
+
+
+## Flight: no gravity; W/S move along the surface, hold Jump to rise, Descend to sink. Touching
+## down without rising lands.
+func _apply_flight(movement_direction: Vector3) -> void:
+	var horizontal_speed: float = fly_run_speed if Input.is_action_pressed("run") else fly_speed
+	var vertical: float = 0.0
+	if Input.is_action_pressed("jump"):
+		vertical += fly_vertical_speed
+	if InputMap.has_action(&"descend") and Input.is_action_pressed(&"descend"):
+		vertical -= fly_vertical_speed
+	velocity = movement_direction * horizontal_speed + _get_up() * vertical
+	_want_jump = false
+	if is_on_floor() and vertical <= 0.0:
+		_flying = false
 
 
 func _apply_focus_physics(delta: float) -> void:
@@ -284,6 +314,7 @@ func _apply_spawn(spawn_data: SpawnData) -> void:
 	velocity = Vector3.ZERO
 	_want_jump = false
 	_terrain_focus = false
+	_flying = false
 	_anim_state = ""
 	_update_gravity_direction()
 	_orbit_camera.rotation = Vector3(_orbit_camera.rotation.x, 0.0, _orbit_camera.rotation.z)
@@ -357,7 +388,9 @@ func _update_animation(movement_direction: Vector3) -> void:
 		return
 
 	var vertical_speed: float = velocity.dot(_get_up())
-	if not is_on_floor():
+	if _flying:
+		_set_anim_state(skin, "fly")
+	elif not is_on_floor():
 		_set_anim_state(skin, "jump" if vertical_speed > 0.05 else "fall")
 	elif movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
 		_set_anim_state(skin, "run" if Input.is_action_pressed("run") else "walk")

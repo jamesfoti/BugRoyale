@@ -62,7 +62,8 @@ func _build_procedural_panels() -> void:
 	var sz: float = REFERENCE_SIZE.z
 	var thickness: float = WALL_THICKNESS
 
-	_add_panel("Bottom", Vector3(sx, thickness, sz), Vector3(0.0, thickness * 0.5, 0.0), glass_material, false)
+	# Every panel collides (including the floor) so climbing bugs can't crawl out of the terrarium.
+	_add_panel("Bottom", Vector3(sx, thickness, sz), Vector3(0.0, thickness * 0.5, 0.0), glass_material)
 	_add_panel("Top", Vector3(sx, thickness, sz), Vector3(0.0, sy - thickness * 0.5, 0.0), glass_material)
 	_add_panel(
 		"Front",
