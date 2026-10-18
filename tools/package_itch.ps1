@@ -4,7 +4,7 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $ExportDir = Join-Path $ProjectRoot "builds\github"
 $ExportHtml = Join-Path $ExportDir "index.html"
 $ItchDir = Join-Path $ProjectRoot "builds\itch"
-$OutZip = Join-Path $ItchDir "PhysicsRoyale-web.zip"
+$OutZip = Join-Path $ItchDir "BugRoyale-web.zip"
 
 if (-not (Test-Path $ExportHtml)) {
 	throw "Missing $ExportHtml - run tools/export_web.ps1 first."
@@ -12,7 +12,7 @@ if (-not (Test-Path $ExportHtml)) {
 
 New-Item -ItemType Directory -Force -Path $ItchDir | Out-Null
 
-$staging = Join-Path $env:TEMP "PhysicsRoyale-web-itch"
+$staging = Join-Path $env:TEMP "BugRoyale-web-itch"
 if (Test-Path $staging) {
 	Remove-Item -Path $staging -Recurse -Force
 }

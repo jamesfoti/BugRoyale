@@ -1,4 +1,4 @@
-PhysicsRoyale
+BugRoyale
 =======================
 
 A Godot 4.6 technical demo: walk on a procedurally generated spherical planet and paint terrain in real time. Terrain is pure GDScript (density field + Flying Edges mesher + chunked rebuilds) with no Voxel Tools dependency.
@@ -53,7 +53,7 @@ Web and GitHub Pages builds are **not** maintained to the same standard as deskt
 If you still want to try a browser build:
 
 - `builds/github/` — static site for GitHub Pages (may be outdated or broken)
-- `builds/itch/PhysicsRoyale-web.zip` — browser build for itch.io upload
+- `builds/itch/BugRoyale-web.zip` — browser build for itch.io upload
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/export_web.ps1

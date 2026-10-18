@@ -22,8 +22,8 @@ Ensure-Godot -RequiredTemplates $requiredTemplates
 
 if ($exportWindows) {
 	$windowsDir = Join-Path $ProjectRoot "builds\windows"
-	$windowsExe = Join-Path $windowsDir "PhysicsRoyale.exe"
-	$windowsZip = Join-Path $windowsDir "PhysicsRoyale.zip"
+	$windowsExe = Join-Path $windowsDir "BugRoyale.exe"
+	$windowsZip = Join-Path $windowsDir "BugRoyale.zip"
 	Invoke-GodotExport `
 		-PresetName "Windows Desktop" `
 		-ExportPath $windowsExe
@@ -31,13 +31,13 @@ if ($exportWindows) {
 		Remove-Item $windowsZip -Force
 	}
 	Compress-Archive -Path $windowsExe -DestinationPath $windowsZip -CompressionLevel Optimal
-	Write-Host "Windows build complete: builds\windows\PhysicsRoyale.exe"
-	Write-Host "Windows zip for GitHub: builds\windows\PhysicsRoyale.zip"
+	Write-Host "Windows build complete: builds\windows\BugRoyale.exe"
+	Write-Host "Windows zip for GitHub: builds\windows\BugRoyale.zip"
 }
 
 if ($exportMacOS) {
 	Invoke-GodotExport `
 		-PresetName "macOS" `
-		-ExportPath (Join-Path $ProjectRoot "builds\macos\PhysicsRoyale.zip")
-	Write-Host "macOS build complete: builds\macos\PhysicsRoyale.zip"
+		-ExportPath (Join-Path $ProjectRoot "builds\macos\BugRoyale.zip")
+	Write-Host "macOS build complete: builds\macos\BugRoyale.zip"
 }
