@@ -44,6 +44,8 @@ var _terrain: OpenTerrain
 ## Draws every bird cone in one call instead of one MeshInstance3D per bird.
 var _bird_multimesh_instance: MultiMeshInstance3D
 var _bird_mesh_offset: Transform3D = _make_bird_mesh_offset()
+## Shot-down birds still tumbling to the ground; drawn but no longer flocking.
+var _falling_birds: Array[Bird] = []
 
 
 func _ready() -> void:
@@ -52,11 +54,12 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not enabled or _birds.is_empty():
+	if not enabled or (_birds.is_empty() and _falling_birds.is_empty()):
 		return
 
-	_update_flock_center()
-	_simulate_flock(delta)
+	if not _birds.is_empty():
+		_update_flock_center()
+		_simulate_flock(delta)
 	_update_bird_multimesh()
 
 
@@ -77,6 +80,8 @@ func _build_flock() -> void:
 		bird.velocity = _random_horizontal_velocity()
 		add_child(bird)
 		bird.global_position = spawn_position
+		bird.ground_height = _minimum_flight_height
+		bird.killed.connect(_on_bird_killed)
 		_birds.append(bird)
 
 	_resize_arrays()
@@ -114,11 +119,24 @@ func _build_bird_multimesh() -> void:
 func _update_bird_multimesh() -> void:
 	if _bird_multimesh_instance == null:
 		return
+	var still_falling: Array[Bird] = []
+	# Untyped on purpose: a freed bird must not be cast while filtering it out.
+	for falling_bird in _falling_birds:
+		if is_instance_valid(falling_bird):
+			still_falling.append(falling_bird)
+	_falling_birds = still_falling
 	var multimesh: MultiMesh = _bird_multimesh_instance.multimesh
-	for bird_index in _birds.size():
-		multimesh.set_instance_transform(
-			bird_index, _birds[bird_index].global_transform * _bird_mesh_offset
-		)
+	var drawn: int = 0
+	for bird: Bird in _birds + _falling_birds:
+		multimesh.set_instance_transform(drawn, bird.global_transform * _bird_mesh_offset)
+		drawn += 1
+	multimesh.visible_instance_count = drawn
+
+
+func _on_bird_killed(bird: Bird) -> void:
+	_birds.erase(bird)
+	_falling_birds.append(bird)
+	_resize_arrays()
 
 
 ## Cone points along the bird's -Z (look_at forward), with its base at the bird origin.
@@ -272,9 +290,10 @@ func _resize_arrays() -> void:
 
 
 func _clear_birds() -> void:
-	for bird in _birds:
+	for bird in _birds + _falling_birds:
 		if is_instance_valid(bird):
 			bird.queue_free()
 	_birds.clear()
+	_falling_birds.clear()
 	_positions = PackedVector3Array()
 	_velocities = PackedVector3Array()

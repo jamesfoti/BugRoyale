@@ -58,6 +58,9 @@ const WEAPON_FIRE_PROFILE: Dictionary = {
 @export var default_explosion_radius: float = 1.2
 @export var default_projectile_speed: float = 140.0
 @export var default_projectile_radius: float = 0.1
+## Splash damage at the edge of the explosion radius, as a fraction of the shot's damage
+## (full damage at the center, falling off linearly).
+@export_range(0.0, 1.0, 0.05) var splash_edge_damage_fraction: float = 0.25
 
 var _camera: Camera3D
 var _cooldown_left_seconds: float = 0.0
@@ -171,19 +174,53 @@ func _apply_shot_impact(
 	hit_position: Vector3,
 	explosion_radius: float
 ) -> void:
-	_apply_damage_at_hit(raycast_hit, hit_damage)
+	var direct_hit: Damageable = _apply_damage_at_hit(raycast_hit, hit_damage)
+	_apply_splash_damage(hit_position, explosion_radius, hit_damage, direct_hit)
 	_apply_terrain_explosion(hit_position, explosion_radius)
 	_spawn_explosion_effect(hit_position, explosion_radius)
 
 
-func _apply_damage_at_hit(raycast_hit: Dictionary, hit_damage: float) -> void:
-	var hit_collider: Node = raycast_hit.get("collider") as Node
+## Damages whatever the shot hit directly and returns its Damageable (null if none).
+func _apply_damage_at_hit(raycast_hit: Dictionary, hit_damage: float) -> Damageable:
+	# The hit was recorded when the shot fired; by the time the projectile arrives the collider
+	# may be gone (e.g. a terrain chunk's collision rebuilt by an earlier explosion).
+	var hit_collider_variant: Variant = raycast_hit.get("collider")
+	if not is_instance_valid(hit_collider_variant):
+		return null
+	var hit_collider: Node = hit_collider_variant as Node
 	if hit_collider == null:
-		return
+		return null
 	var damageable: Damageable = _resolve_damageable(hit_collider)
 	if damageable == null:
+		return null
+	damageable.apply_damage(hit_damage, get_parent())
+	return damageable
+
+
+## Explosion splash: every other damageable within the radius takes damage that falls off from
+## full at the center to splash_edge_damage_fraction at the edge. Skips the direct hit (already
+## damaged) and the shooter's own player.
+func _apply_splash_damage(
+	explosion_position: Vector3,
+	explosion_radius: float,
+	hit_damage: float,
+	direct_hit: Damageable
+) -> void:
+	if explosion_radius <= 0.0:
 		return
-	damageable.apply_damage(hit_damage)
+	var shooter_owner: Node = get_parent()
+	for node: Node in get_tree().get_nodes_in_group("damageable"):
+		var damageable: Damageable = node as Damageable
+		if damageable == null or damageable == direct_hit or not damageable.is_alive():
+			continue
+		var target: Node3D = damageable.get_parent() as Node3D
+		if target == null or target == shooter_owner:
+			continue
+		var distance: float = target.global_position.distance_to(explosion_position)
+		if distance > explosion_radius:
+			continue
+		var falloff: float = lerpf(1.0, splash_edge_damage_fraction, distance / explosion_radius)
+		damageable.apply_damage(hit_damage * falloff, shooter_owner)
 
 
 func _apply_terrain_explosion(hit_position: Vector3, explosion_radius: float) -> void:
