@@ -125,7 +125,11 @@ func _process_paint_input(delta: float) -> void:
 
 
 func _can_apply_edit() -> bool:
-	if get_viewport().gui_get_hovered_control() != null:
+	# UI can only take the click when the cursor is visible; a captured mouse aims at screen center.
+	if (
+		Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED
+		and get_viewport().gui_get_hovered_control() != null
+	):
 		return false
 	if _hover_hit.is_empty():
 		return false
