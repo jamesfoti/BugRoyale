@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://r24kyistqxpc"]
 
 [ext_resource type="Script" uid="uid://dxrs0deeav2p3" path="res://character/planet_player.gd" id="1"]
-[ext_resource type="PackedScene" path="res://character/ant/ant_skin.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://character/ant/skins/soldier_ant.tscn" id="2"]
 [ext_resource type="Script" uid="uid://depnlbni3k8m5" path="res://character/orbit_camera.gd" id="3"]
 [ext_resource type="Script" uid="uid://cay4uu1tnmyat" path="res://character/terrain_brush.gd" id="4"]
 [ext_resource type="Script" uid="uid://bd85wg2ue6dm6" path="res://character/terrain_edit_cursor.gd" id="5"]

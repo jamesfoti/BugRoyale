@@ -110,7 +110,7 @@ text = "Terrarium"
 custom_minimum_size = Vector2(320, 36)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Player: Soldier Ant"
+text = "Player: Ant Warrior"
 horizontal_alignment = 1
 
 [node name="ChoosePlayerButton" type="Button" parent="UI/Margin/VBox/Buttons"]
@@ -181,8 +181,17 @@ horizontal_alignment = 1
 [node name="PlayerName" type="Label" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "Soldier Ant"
+text = "Ant Warrior"
 horizontal_alignment = 1
+
+[node name="PlayerDescription" type="Label" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox"]
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.82, 0.9, 1)
+theme_override_font_sizes/font_size = 14
+text = "Assault / All-Rounder"
+horizontal_alignment = 1
+autowrap_mode = 3
 
 [node name="PreviewContainer" type="SubViewportContainer" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox"]
 custom_minimum_size = Vector2(520, 280)

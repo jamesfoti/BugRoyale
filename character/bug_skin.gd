@@ -1,12 +1,14 @@
 extends CharacterSkin
-## Soldier ant skin: plays the ant.glb animations and holds the torch, pickaxe or a weapon in
-## its right claw. Built by tools/blender/create_ant.py.
+## Skin for every six-legged bug (ants, termites): plays the model's animations and holds the torch,
+## pickaxe or a weapon in its right claw. Models are built by tools/blender/create_bugs.py.
 
 const TORCH_SCENE: PackedScene = preload("res://props/torch.tscn")
 const PICKAXE_SCENE: PackedScene = preload("res://props/pickaxe.tscn")
 const WEAPON_SOURCE_SCENE_PATH: String = "res://character/shooter_kit/Characters/glTF/Character_Soldier.gltf"
 const HAND_BONE: String = "DEF-hand.R"
-const LOOPING_ANIMATIONS: PackedStringArray = ["idle", "walk", "run", "fall"]
+const LOOPING_ANIMATIONS: PackedStringArray = ["idle", "walk", "run", "fall", "fly"]
+## States a model may lack, and what to play instead (only winged bugs have "fly").
+const ANIMATION_FALLBACKS: Dictionary = {"fly": "fall"}
 const ANIMATION_BLEND_SECONDS: float = 0.15
 ## Longest dimension each weapon is scaled to, in meters (the ant is about 1.1 m tall).
 const WEAPON_LENGTHS: Dictionary = {
@@ -48,6 +50,8 @@ func _ready() -> void:
 
 
 func set_state(state_name: String) -> void:
+	if not _anim_player.has_animation(state_name):
+		state_name = ANIMATION_FALLBACKS.get(state_name, "")
 	if state_name == _current_state or not _anim_player.has_animation(state_name):
 		return
 	_current_state = state_name

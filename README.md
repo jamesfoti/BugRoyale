@@ -22,7 +22,7 @@ Features
 - Chunked mesh generation with threaded rebuilds on desktop
 - Hold-to-paint terrain editing (destroy / add modes)
 - Procedural asteroids that impact planets and carve craters
-- Soldier ant third-person character (generated in Blender by `tools/blender/create_ant.py`) with orbit camera, torch, pickaxe, and weapons
+- Four playable bug classes (Ant Warrior, Termite Soldier, Wasp, Trapdoor Spider; models generated in Blender by `tools/blender/create_bugs.py`) with orbit camera, torch, pickaxe, and weapons
 - Debug HUD (FPS, position, edit mode)
 - Pause menu with controls reference
 

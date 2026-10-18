@@ -7,22 +7,87 @@ class_name CharacterSkin
 signal torch_equipped_changed(equipped: bool)
 signal pickaxe_equipped_changed(equipped: bool)
 
-const ANT_SKIN_SCENE_PATH: String = "res://character/ant/ant_skin.tscn"
-## Skin scene and display name per selectable character; add an entry for each new bug.
-const CHARACTER_SCENES: Dictionary = {
-	LoadingScreen.PlayerCharacter.ANT: ANT_SKIN_SCENE_PATH,
+const DEFAULT_SKIN_SCENE_PATH: String = "res://character/ant/skins/soldier_ant.tscn"
+## Per class: skin scene, display name, role, description, and stats. max_health replaces the
+## player's Damageable health; speed and jump multiply the controller's speed, run_speed and
+## jump_velocity; can_fly lets the class take off by jumping in mid-air. Models are built by
+## tools/blender/create_bugs.py. Add an entry per new class.
+const CHARACTERS: Dictionary = {
+	LoadingScreen.PlayerCharacter.ANT_WARRIOR: {
+		"scene": "res://character/ant/skins/soldier_ant.tscn",
+		"name": "Ant Warrior",
+		"role": "Assault / All-Rounder",
+		"description": "High stamina, balanced armor and rapid ground speed. Formidable mandibles for close quarters and acid-artillery for range.",
+		"max_health": 110.0,
+		"speed": 1.15,
+		"jump": 1.0,
+	},
+	LoadingScreen.PlayerCharacter.TERMITE_SOLDIER: {
+		"scene": "res://character/termite/skins/dampwood_termite.tscn",
+		"name": "Termite Soldier",
+		"role": "Heavy Juggernaut",
+		"description": "Tank class. Slow but heavily armored. Close-range chemical sprays and a defensive pheromone shield to protect the squad.",
+		"max_health": 170.0,
+		"speed": 0.75,
+		"jump": 0.8,
+	},
+	LoadingScreen.PlayerCharacter.WASP: {
+		"scene": "res://character/wasp/skins/yellowjacket_wasp.tscn",
+		"name": "Wasp",
+		"role": "Airborne Skirmisher",
+		"description": "High mobility and rapid-fire stingers for hit-and-run attacks. Fragile armor, but incredibly hard to hit in mid-air.",
+		"max_health": 70.0,
+		"speed": 1.25,
+		"jump": 1.1,
+		"can_fly": true,
+	},
+	LoadingScreen.PlayerCharacter.TRAPDOOR_SPIDER: {
+		"scene": "res://character/spider/skins/trapdoor_spider.tscn",
+		"name": "Trapdoor Spider",
+		"role": "Stealth Sniper",
+		"description": "Camouflages into terrain and foliage, sets web traps to anchor enemies, then strikes with high-damage venom shots.",
+		"max_health": 90.0,
+		"speed": 1.0,
+		"jump": 1.25,
+	},
 }
-const CHARACTER_NAMES: Dictionary = {
-	LoadingScreen.PlayerCharacter.ANT: "Soldier Ant",
-}
+
+
+static func _entry(character: LoadingScreen.PlayerCharacter) -> Dictionary:
+	return CHARACTERS.get(character, {})
 
 
 static func scene_path_for(character: LoadingScreen.PlayerCharacter) -> String:
-	return CHARACTER_SCENES.get(character, ANT_SKIN_SCENE_PATH)
+	return _entry(character).get("scene", DEFAULT_SKIN_SCENE_PATH)
 
 
 static func display_name_for(character: LoadingScreen.PlayerCharacter) -> String:
-	return CHARACTER_NAMES.get(character, "Unknown Bug")
+	return _entry(character).get("name", "Unknown Bug")
+
+
+static func role_for(character: LoadingScreen.PlayerCharacter) -> String:
+	return _entry(character).get("role", "")
+
+
+static func description_for(character: LoadingScreen.PlayerCharacter) -> String:
+	return _entry(character).get("description", "")
+
+
+## Applies the selected class's health, speed and jump to a freshly spawned player.
+static func apply_class_stats(player: Node, damageable: Damageable) -> void:
+	var entry: Dictionary = _entry(LoadingScreen.selected_player_character)
+	if damageable != null and entry.has("max_health"):
+		damageable.max_health = entry["max_health"]
+		damageable.health = damageable.max_health
+	var speed_multiplier: float = entry.get("speed", 1.0)
+	var jump_multiplier: float = entry.get("jump", 1.0)
+	for property: String in ["speed", "run_speed"]:
+		if property in player:
+			player.set(property, float(player.get(property)) * speed_multiplier)
+	if "jump_velocity" in player:
+		player.set("jump_velocity", float(player.get("jump_velocity")) * jump_multiplier)
+	if "can_fly" in player:
+		player.set("can_fly", entry.get("can_fly", false))
 
 
 ## Makes the selected character the skin under visual_root (replacing the scene's default skin

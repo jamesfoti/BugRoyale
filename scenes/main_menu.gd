@@ -19,6 +19,7 @@ const PREVIEW_FRAMING_PADDING: float = 1.15
 @onready var _settings_menu: Control = $UI/SettingsMenu
 @onready var _player_select_page: Control = $UI/PlayerSelectPage
 @onready var _player_name_label: Label = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PlayerName
+@onready var _player_description_label: Label = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PlayerDescription
 @onready var _preview_root: Node3D = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport/PreviewRoot
 @onready var _preview_use_button: Button = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/Buttons/UseButton
 @onready var _preview_previous_button: Button = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/Buttons/PreviousButton
@@ -31,7 +32,7 @@ const PREVIEW_FRAMING_PADDING: float = 1.15
 var _preview_player_scenes: Dictionary[LoadingScreen.PlayerCharacter, PackedScene] = {}
 var _preview_instance: Node3D
 var _preview_rotation_degrees_per_second: float = 25.0
-var _preview_selected_character: LoadingScreen.PlayerCharacter = LoadingScreen.PlayerCharacter.ANT
+var _preview_selected_character: LoadingScreen.PlayerCharacter = LoadingScreen.PlayerCharacter.ANT_WARRIOR
 
 
 func _ready() -> void:
@@ -110,6 +111,9 @@ func _set_selected_character(selected_character: LoadingScreen.PlayerCharacter) 
 func _update_preview_display() -> void:
 	var selected_character: LoadingScreen.PlayerCharacter = _preview_selected_character
 	_player_name_label.text = _display_name_for_character(selected_character)
+	_player_description_label.text = "%s\n%s" % [
+		CharacterSkin.role_for(selected_character), CharacterSkin.description_for(selected_character)
+	]
 	_spawn_preview_character(selected_character)
 
 

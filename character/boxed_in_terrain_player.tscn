@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://caddrbdw2qnx5"]
 
 [ext_resource type="Script" path="res://character/boxed_in_terrain_player.gd" id="1"]
-[ext_resource type="PackedScene" path="res://character/ant/ant_skin.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://character/ant/skins/soldier_ant.tscn" id="2"]
 [ext_resource type="Script" path="res://character/orbit_camera.gd" id="3"]
 [ext_resource type="Script" path="res://character/terrain_brush.gd" id="4"]
 [ext_resource type="Script" path="res://character/terrain_edit_cursor.gd" id="5"]

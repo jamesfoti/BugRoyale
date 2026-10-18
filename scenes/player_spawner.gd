@@ -1,6 +1,6 @@
 extends Node
 class_name PlayerSpawner
-## Spawns the standard player for a playable world scene.
+## Spawns the player (with the selected class's stats) for a playable world scene.
 
 
 enum WorldKind { PLANET, OPEN_TERRAIN, BOXED_IN_TERRAIN }
@@ -31,6 +31,7 @@ func _spawn_player() -> void:
 	player.add_to_group("player")
 	_bind_world_references(player)
 	_attach_damageable(player)
+	CharacterSkin.apply_class_stats(player, player.get_node_or_null("Damageable") as Damageable)
 	get_parent().add_child(player)
 
 

@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cfrsruecmr2y"
-path="res://.godot/imported/ant.glb-93db9b09ac36ecef31ec903318574249.scn"
+uid="uid://cal7601x84pf1"
+path="res://.godot/imported/soldier_ant.glb-a2727861cf0112142082b9f4d8c9d35f.scn"
 
 [deps]
 
-source_file="res://character/ant/ant.glb"
-dest_files=["res://.godot/imported/ant.glb-93db9b09ac36ecef31ec903318574249.scn"]
+source_file="res://character/ant/models/soldier_ant.glb"
+dest_files=["res://.godot/imported/soldier_ant.glb-a2727861cf0112142082b9f4d8c9d35f.scn"]
 
 [params]
 
