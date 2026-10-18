@@ -14,6 +14,13 @@ uniform vec2 noise_separation = vec2(10.0, 10.0);
 uniform float distortion_amount = 0.25;
 uniform float vertex_displacement = 0.08;
 
+// Set by the GraphicsSettings autoload; Low uses a 3×3 cell search and fewer noise octaves.
+global uniform bool graphics_low_quality;
+
+int search_radius() {
+	return graphics_low_quality ? 1 : 2;
+}
+
 const int PRIME_1 = 182489;
 const int PRIME_2 = 307609;
 const int PRIME_3 = 566851;
@@ -51,8 +58,9 @@ ivec2 get_closest_cell(vec2 point) {
 	float min_dist = cell_separation.x + cell_separation.y;
 	ivec2 square = ivec2(point * cell_separation);
 
-	for (int i = -2; i < 3; i++) {
-		for (int j = -2; j < 3; j++) {
+	int radius = search_radius();
+	for (int i = -radius; i <= radius; i++) {
+		for (int j = -radius; j <= radius; j++) {
 			ivec2 cell = ivec2(square.x + i, square.y + j);
 			float dist = length(point - voronoi_pos(cell.x, cell.y));
 			if (dist < min_dist) {
@@ -75,8 +83,9 @@ float get_close_to_border(vec2 point) {
 	vec2 point_1 = voronoi_pos(cell.x, cell.y);
 	float min_dist = 2.0 * (cell_separation.x + cell_separation.y);
 
-	for (int i = -2; i < 3; i++) {
-		for (int j = -2; j < 3; j++) {
+	int radius = search_radius();
+	for (int i = -radius; i <= radius; i++) {
+		for (int j = -radius; j <= radius; j++) {
 			vec2 point_2 = voronoi_pos(square.x + i, square.y + j);
 			vec2 rel_line_pos = (point_2 - point_1) * 0.5;
 			vec2 rel_point = (point - point_1) / max(length(rel_line_pos), 0.0001);
@@ -147,7 +156,8 @@ float interpolate_noise(vec2 uv) {
 
 float compute_fractal_noise(vec2 uv) {
 	float noise = 0.0;
-	for (float i = 1.0; i < 5.0; i += 1.0) {
+	float octave_end = graphics_low_quality ? 3.0 : 5.0;
+	for (float i = 1.0; i < octave_end; i += 1.0) {
 		float octave = pow(2.0, i);
 		noise += pow(0.5, i) * interpolate_noise(octave * uv + vec2(octave, octave));
 	}

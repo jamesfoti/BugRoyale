@@ -7,8 +7,8 @@ signal closed
 enum GraphicsItem { HIGH, LOW }
 
 const _GRAPHICS_DESCRIPTIONS: Dictionary[GraphicsItem, String] = {
-	GraphicsItem.HIGH: "Full resolution, ambient occlusion, and all shadows.",
-	GraphicsItem.LOW: "60% 3D resolution (upscaled), no ambient occlusion, fewer shadows.",
+	GraphicsItem.HIGH: "Full resolution, glow, ambient occlusion, and all shadows.",
+	GraphicsItem.LOW: "Half 3D resolution (upscaled), no glow or ambient occlusion, fewer shadows, simpler water and sky.",
 }
 
 const _CONTROLS_LINES: Array[String] = [

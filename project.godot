@@ -117,6 +117,13 @@ aim={
 ]
 }
 
+[shader_globals]
+
+graphics_low_quality={
+"type": "bool",
+"value": false
+}
+
 [rendering]
 
 textures/vram_compression/import_etc2_astc=true

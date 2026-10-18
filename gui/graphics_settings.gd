@@ -1,16 +1,16 @@
 extends Node
 ## Autoload: Low / High graphics toggle, saved to user:// and applied to every loaded scene.
-## Low renders 3D at reduced resolution (FSR upscaled), disables SSAO-style post effects,
-## drops omni/spot shadows, and shortens directional shadows. High restores scene values.
+## Low renders 3D at half resolution (FSR upscaled), disables glow and SSAO-style post effects,
+## drops omni/spot shadows, shortens directional shadows, and sets the graphics_low_quality
+## global shader uniform (cheaper water / sky paths). High restores scene values.
 
 signal low_quality_changed(enabled: bool)
 
 const SETTINGS_PATH: String = "user://graphics_settings.cfg"
-const LOW_3D_SCALE: float = 0.6
+const LOW_3D_SCALE: float = 0.5
 const LOW_DIRECTIONAL_SHADOW_DISTANCE: float = 60.0
 const LOW_DIRECTIONAL_ATLAS_SIZE: int = 2048
 const LOW_POSITIONAL_ATLAS_SIZE: int = 1024
-const LOW_SKY_RADIANCE_SIZE: Sky.RadianceSize = Sky.RADIANCE_SIZE_64
 
 ## Meta key holding a node's / resource's original values while Low is active.
 const _ORIGINAL_META: StringName = &"_graphics_original"
@@ -50,6 +50,7 @@ func set_low_quality(enabled: bool) -> void:
 
 
 func _apply_viewport() -> void:
+	RenderingServer.global_shader_parameter_set(&"graphics_low_quality", low_quality)
 	var root: Viewport = get_tree().root
 	if low_quality:
 		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
@@ -98,17 +99,15 @@ func _apply_environment(environment: Environment) -> void:
 				"ssr": environment.ssr_enabled,
 				"sdfgi": environment.sdfgi_enabled,
 				"volumetric_fog": environment.volumetric_fog_enabled,
+				"glow": environment.glow_enabled,
 			}
-			if environment.sky != null:
-				original["radiance_size"] = environment.sky.radiance_size
 			environment.set_meta(_ORIGINAL_META, original)
 		environment.ssao_enabled = false
 		environment.ssil_enabled = false
 		environment.ssr_enabled = false
 		environment.sdfgi_enabled = false
 		environment.volumetric_fog_enabled = false
-		if environment.sky != null:
-			environment.sky.radiance_size = mini(environment.sky.radiance_size, LOW_SKY_RADIANCE_SIZE)
+		environment.glow_enabled = false
 	elif environment.has_meta(_ORIGINAL_META):
 		var original: Dictionary = environment.get_meta(_ORIGINAL_META)
 		environment.ssao_enabled = original["ssao"]
@@ -116,8 +115,7 @@ func _apply_environment(environment: Environment) -> void:
 		environment.ssr_enabled = original["ssr"]
 		environment.sdfgi_enabled = original["sdfgi"]
 		environment.volumetric_fog_enabled = original["volumetric_fog"]
-		if environment.sky != null and original.has("radiance_size"):
-			environment.sky.radiance_size = original["radiance_size"]
+		environment.glow_enabled = original["glow"]
 		environment.remove_meta(_ORIGINAL_META)
 
 

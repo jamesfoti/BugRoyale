@@ -12,6 +12,9 @@ uniform vec3 nebula_color_a : source_color = vec3(0.12, 0.08, 0.28);
 uniform vec3 nebula_color_b : source_color = vec3(0.22, 0.1, 0.08);
 uniform float glow_strength : hint_range(0.0, 2.0) = 0.55;
 
+// Set by the GraphicsSettings autoload; Low draws one star layer instead of three.
+global uniform bool graphics_low_quality;
+
 vec3 hash33(vec3 p) {
 	p = fract(p * vec3(127.1, 311.7, 74.7));
 	p += dot(p, p.yzx + 19.19);
@@ -79,10 +82,19 @@ void sky() {
 	vec3 nebula_tint = mix(nebula_color_a, nebula_color_b, nebula_noise(EYEDIR * 1.7));
 	color += nebula_tint * nebula * nebula_strength;
 
-	float layer_a = star_layer(EYEDIR, star_field_scale, star_size, 0.0);
-	float layer_b = star_layer(EYEDIR, star_field_scale * 1.65, star_size * 0.75, 17.0);
-	float layer_c = star_layer(EYEDIR, star_field_scale * 2.4, star_size * 0.55, 43.0);
-	float stars = (layer_a + layer_b * 0.7 + layer_c * 0.45) * star_brightness;
+	// Stars are pinpoints that add nothing to ambient light or reflections, and TIME (twinkle)
+	// makes Godot rebuild the radiance cubemap every frame, so skip them in that pass.
+	float stars = 0.0;
+	if (!AT_CUBEMAP_PASS) {
+		float layer_a = star_layer(EYEDIR, star_field_scale, star_size, 0.0);
+		stars = layer_a;
+		if (!graphics_low_quality) {
+			float layer_b = star_layer(EYEDIR, star_field_scale * 1.65, star_size * 0.75, 17.0);
+			float layer_c = star_layer(EYEDIR, star_field_scale * 2.4, star_size * 0.55, 43.0);
+			stars += layer_b * 0.7 + layer_c * 0.45;
+		}
+		stars *= star_brightness;
+	}
 
 	float pick = hash11(dot(floor(EYEDIR * star_field_scale), vec3(12.3, 45.6, 78.9)));
 	vec3 star_tint = star_color_for(pick);
