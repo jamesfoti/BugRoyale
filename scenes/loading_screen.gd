@@ -5,11 +5,10 @@ class_name LoadingScreen
 
 const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/planet_test.tscn"
 enum PlayerCharacter {
-	STANDARD,
 	ANT,
 }
 static var pending_scene_path: String = ""
-static var selected_player_character: PlayerCharacter = PlayerCharacter.STANDARD
+static var selected_player_character: PlayerCharacter = PlayerCharacter.ANT
 
 @onready var _title: Label = $UI/Margin/VBox/Title
 @onready var _status: Label = $UI/Margin/VBox/Status

@@ -31,7 +31,7 @@ const PREVIEW_FRAMING_PADDING: float = 1.15
 var _preview_player_scenes: Dictionary[LoadingScreen.PlayerCharacter, PackedScene] = {}
 var _preview_instance: Node3D
 var _preview_rotation_degrees_per_second: float = 25.0
-var _preview_selected_character: LoadingScreen.PlayerCharacter = LoadingScreen.PlayerCharacter.STANDARD
+var _preview_selected_character: LoadingScreen.PlayerCharacter = LoadingScreen.PlayerCharacter.ANT
 
 
 func _ready() -> void:
@@ -49,6 +49,10 @@ func _ready() -> void:
 	_preview_use_button.pressed.connect(_on_preview_use_pressed)
 	_preview_previous_button.pressed.connect(_cycle_preview_character.bind(-1))
 	_preview_next_button.pressed.connect(_cycle_preview_character.bind(1))
+	# Cycling needs at least two characters; the buttons stay for future bugs.
+	var has_choices: bool = LoadingScreen.PlayerCharacter.size() > 1
+	_preview_previous_button.disabled = not has_choices
+	_preview_next_button.disabled = not has_choices
 	_preview_back_button.pressed.connect(_on_preview_back_pressed)
 	_planet_button.pressed.connect(_on_planet_pressed)
 	_battlefield_button.pressed.connect(_on_battlefield_pressed)

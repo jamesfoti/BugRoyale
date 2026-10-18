@@ -1,34 +1,31 @@
 extends Node3D
 class_name CharacterSkin
-## Interface shared by every playable character skin (Godot plush, ant, ...).
+## Interface shared by every playable character skin (ant, and future bugs).
 ## Players, the shooter and the HUD talk to whichever skin is the first child of VisualRoot.
 ## Methods here are safe defaults; skins override what they support.
 
-signal footstep(intensity: float)
-signal waved
 signal torch_equipped_changed(equipped: bool)
 signal pickaxe_equipped_changed(equipped: bool)
 
-const PLUSH_SKIN_SCENE_PATH: String = "res://character/godot_plush/godot_plush_skin.tscn"
 const ANT_SKIN_SCENE_PATH: String = "res://character/ant/ant_skin.tscn"
+## Skin scene and display name per selectable character; add an entry for each new bug.
+const CHARACTER_SCENES: Dictionary = {
+	LoadingScreen.PlayerCharacter.ANT: ANT_SKIN_SCENE_PATH,
+}
+const CHARACTER_NAMES: Dictionary = {
+	LoadingScreen.PlayerCharacter.ANT: "Soldier Ant",
+}
 
 
-## Scene for each selectable character (see LoadingScreen.PlayerCharacter).
 static func scene_path_for(character: LoadingScreen.PlayerCharacter) -> String:
-	match character:
-		LoadingScreen.PlayerCharacter.ANT:
-			return ANT_SKIN_SCENE_PATH
-	return PLUSH_SKIN_SCENE_PATH
+	return CHARACTER_SCENES.get(character, ANT_SKIN_SCENE_PATH)
 
 
 static func display_name_for(character: LoadingScreen.PlayerCharacter) -> String:
-	match character:
-		LoadingScreen.PlayerCharacter.ANT:
-			return "Soldier Ant"
-	return "Godot Plush"
+	return CHARACTER_NAMES.get(character, "Unknown Bug")
 
 
-## Makes the selected character the skin under visual_root (replacing the scene's default plush
+## Makes the selected character the skin under visual_root (replacing the scene's default skin
 ## when another character is chosen) and returns it.
 static func install_selected(visual_root: Node3D) -> CharacterSkin:
 	var current: CharacterSkin = null
@@ -52,10 +49,6 @@ static func install_selected(visual_root: Node3D) -> CharacterSkin:
 
 
 func set_state(_state_name: String) -> void:
-	pass
-
-
-func wave() -> void:
 	pass
 
 

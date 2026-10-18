@@ -25,7 +25,7 @@ class SpawnData:
 @export var mouse_sensitivity: float = 0.0025
 @export var spawn_clearance: float = 1.2
 
-## The selected character (plush by default) is installed under VisualRoot on ready.
+## The selected character is installed under VisualRoot on ready.
 @onready var _skin: CharacterSkin = CharacterSkin.install_selected($VisualRoot)
 @onready var _orbit_camera: OrbitCamera = $OrbitCamera
 @onready var _camera: Camera3D = $OrbitCamera/Camera3D

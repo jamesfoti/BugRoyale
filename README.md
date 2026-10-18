@@ -22,7 +22,7 @@ Features
 - Chunked mesh generation with threaded rebuilds on desktop
 - Hold-to-paint terrain editing (destroy / add modes)
 - Procedural asteroids that impact planets and carve craters
-- Godot Plush third-person character with orbit camera, torch, and pickaxe
+- Soldier ant third-person character (generated in Blender by `tools/blender/create_ant.py`) with orbit camera, torch, pickaxe, and weapons
 - Debug HUD (FPS, position, edit mode)
 - Pause menu with controls reference
 
@@ -66,4 +66,3 @@ Credits
 
 Textures from https://ambientcg.com/  
 Sound effects partly from https://sonniss.com/gameaudiogdc  
-Godot Plush character by [Tibo](https://gtibo.itch.io/godot-plush-character) (MIT; assets in `character/godot_plush/`)
