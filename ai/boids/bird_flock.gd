@@ -4,6 +4,8 @@ class_name BirdFlock
 
 
 const BirdScene: PackedScene = preload("res://ai/boids/bird.tscn")
+const BIRD_CONE_HEIGHT: float = 0.42
+const BIRD_CONE_RADIUS: float = 0.13
 
 @export_group("Flock")
 @export var enabled: bool = true
@@ -39,6 +41,9 @@ var _positions: PackedVector3Array
 var _velocities: PackedVector3Array
 var _flock_center: Vector3 = Vector3.ZERO
 var _terrain: OpenTerrain
+## Draws every bird cone in one call instead of one MeshInstance3D per bird.
+var _bird_multimesh_instance: MultiMeshInstance3D
+var _bird_mesh_offset: Transform3D = _make_bird_mesh_offset()
 
 
 func _ready() -> void:
@@ -52,6 +57,7 @@ func _physics_process(delta: float) -> void:
 
 	_update_flock_center()
 	_simulate_flock(delta)
+	_update_bird_multimesh()
 
 
 func _build_flock() -> void:
@@ -74,6 +80,52 @@ func _build_flock() -> void:
 		_birds.append(bird)
 
 	_resize_arrays()
+	_build_bird_multimesh()
+	_update_bird_multimesh()
+
+
+func _build_bird_multimesh() -> void:
+	if _bird_multimesh_instance == null:
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.0
+		cone.bottom_radius = BIRD_CONE_RADIUS
+		cone.height = BIRD_CONE_HEIGHT
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Color(0.28, 0.24, 0.2)
+		material.roughness = 0.72
+		material.metallic = 0.05
+		cone.material = material
+
+		var multimesh := MultiMesh.new()
+		multimesh.transform_format = MultiMesh.TRANSFORM_3D
+		multimesh.mesh = cone
+
+		_bird_multimesh_instance = MultiMeshInstance3D.new()
+		_bird_multimesh_instance.name = "BirdMeshes"
+		_bird_multimesh_instance.multimesh = multimesh
+		_bird_multimesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		# Instance transforms are written in world space.
+		_bird_multimesh_instance.top_level = true
+		add_child(_bird_multimesh_instance)
+		_bird_multimesh_instance.global_transform = Transform3D.IDENTITY
+	_bird_multimesh_instance.multimesh.instance_count = _birds.size()
+
+
+func _update_bird_multimesh() -> void:
+	if _bird_multimesh_instance == null:
+		return
+	var multimesh: MultiMesh = _bird_multimesh_instance.multimesh
+	for bird_index in _birds.size():
+		multimesh.set_instance_transform(
+			bird_index, _birds[bird_index].global_transform * _bird_mesh_offset
+		)
+
+
+## Cone points along the bird's -Z (look_at forward), with its base at the bird origin.
+static func _make_bird_mesh_offset() -> Transform3D:
+	var offset := Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3.ZERO)
+	offset.origin = Vector3(0.0, 0.0, BIRD_CONE_HEIGHT * 0.5)
+	return offset
 
 
 func _simulate_flock(delta: float) -> void:

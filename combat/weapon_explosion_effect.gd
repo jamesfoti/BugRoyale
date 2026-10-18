@@ -8,6 +8,18 @@ const EFFECT_LIFETIME_SECONDS: float = 2.0
 
 var _cleanup_timer_seconds: float = 0.0
 
+## Particle materials, ramps and meshes shared by every explosion, keyed by kind and scale, so
+## each shot reuses resources instead of rebuilding them.
+static var _shared_resources: Dictionary = {}
+
+
+static func _get_shared(key: String, create: Callable) -> Resource:
+	var resource: Resource = _shared_resources.get(key) as Resource
+	if resource == null:
+		resource = create.call() as Resource
+		_shared_resources[key] = resource
+	return resource
+
 
 static func spawn(world_root: Node, explosion_position: Vector3, explosion_radius: float) -> void:
 	var effect: WeaponExplosionEffect = WeaponExplosionEffect.new()
@@ -17,7 +29,8 @@ static func spawn(world_root: Node, explosion_position: Vector3, explosion_radiu
 
 func play(explosion_position: Vector3, explosion_radius: float) -> void:
 	global_position = explosion_position
-	var effect_scale: float = clampf(explosion_radius / 2.0, 0.45, 2.5)
+	# Snapped so nearby radii share cached materials and meshes.
+	var effect_scale: float = snappedf(clampf(explosion_radius / 2.0, 0.45, 2.5), 0.05)
 	_add_burst_particles(effect_scale)
 	_add_fire_particles(effect_scale)
 	_add_smoke_particles(effect_scale)
@@ -44,9 +57,9 @@ func _add_burst_particles(effect_scale: float) -> void:
 	burst_particles.randomness = 0.2
 	burst_particles.local_coords = false
 	burst_particles.visibility_aabb = _build_visibility_aabb(effect_scale)
-	burst_particles.process_material = _create_burst_process_material(effect_scale)
-	burst_particles.draw_pass_1 = _create_billboard_quad_mesh(effect_scale * 0.18)
-	burst_particles.material_override = _create_smoke_billboard_material(0.45)
+	burst_particles.process_material = _get_shared("burst_process_%.2f" % effect_scale, _create_burst_process_material.bind(effect_scale))
+	burst_particles.draw_pass_1 = _get_shared("burst_quad_%.2f" % effect_scale, _create_billboard_quad_mesh.bind(effect_scale * 0.18))
+	burst_particles.material_override = _get_shared("billboard_0.45", _create_smoke_billboard_material.bind(0.45))
 	add_child(burst_particles)
 	burst_particles.restart()
 
@@ -62,9 +75,9 @@ func _add_fire_particles(effect_scale: float) -> void:
 	fire_particles.randomness = 0.35
 	fire_particles.local_coords = false
 	fire_particles.visibility_aabb = _build_visibility_aabb(effect_scale)
-	fire_particles.process_material = _create_fire_process_material(effect_scale)
-	fire_particles.draw_pass_1 = _create_billboard_quad_mesh(effect_scale * 0.22)
-	fire_particles.material_override = _create_smoke_billboard_material(0.35)
+	fire_particles.process_material = _get_shared("fire_process_%.2f" % effect_scale, _create_fire_process_material.bind(effect_scale))
+	fire_particles.draw_pass_1 = _get_shared("fire_quad_%.2f" % effect_scale, _create_billboard_quad_mesh.bind(effect_scale * 0.22))
+	fire_particles.material_override = _get_shared("billboard_0.35", _create_smoke_billboard_material.bind(0.35))
 	add_child(fire_particles)
 	fire_particles.restart()
 
@@ -81,9 +94,9 @@ func _add_smoke_particles(effect_scale: float) -> void:
 	smoke_particles.local_coords = false
 	smoke_particles.draw_order = 1
 	smoke_particles.visibility_aabb = _build_visibility_aabb(effect_scale * 1.4)
-	smoke_particles.process_material = _create_smoke_process_material(effect_scale)
-	smoke_particles.draw_pass_1 = _create_billboard_quad_mesh(effect_scale * 0.35)
-	smoke_particles.material_override = _create_smoke_billboard_material(0.3)
+	smoke_particles.process_material = _get_shared("smoke_process_%.2f" % effect_scale, _create_smoke_process_material.bind(effect_scale))
+	smoke_particles.draw_pass_1 = _get_shared("smoke_quad_%.2f" % effect_scale, _create_billboard_quad_mesh.bind(effect_scale * 0.35))
+	smoke_particles.material_override = _get_shared("billboard_0.3", _create_smoke_billboard_material.bind(0.3))
 	add_child(smoke_particles)
 	smoke_particles.restart()
 
@@ -107,7 +120,7 @@ func _build_visibility_aabb(effect_scale: float) -> AABB:
 
 
 func _create_burst_process_material(effect_scale: float) -> ParticleProcessMaterial:
-	var color_ramp: GradientTexture1D = _create_burst_color_ramp()
+	var color_ramp: GradientTexture1D = _get_shared("burst_ramp", _create_burst_color_ramp)
 	var process_material: ParticleProcessMaterial = ParticleProcessMaterial.new()
 	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	process_material.emission_sphere_radius = 0.2 * effect_scale
@@ -128,8 +141,8 @@ func _create_burst_process_material(effect_scale: float) -> ParticleProcessMater
 
 
 func _create_fire_process_material(effect_scale: float) -> ParticleProcessMaterial:
-	var color_ramp: GradientTexture1D = _create_fire_color_ramp()
-	var scale_curve: CurveTexture = _create_constant_scale_curve()
+	var color_ramp: GradientTexture1D = _get_shared("fire_ramp", _create_fire_color_ramp)
+	var scale_curve: CurveTexture = _get_shared("constant_scale_curve", _create_constant_scale_curve)
 	var process_material: ParticleProcessMaterial = ParticleProcessMaterial.new()
 	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	process_material.emission_box_extents = Vector3(0.35, 0.0, 0.35) * effect_scale
@@ -151,7 +164,7 @@ func _create_fire_process_material(effect_scale: float) -> ParticleProcessMateri
 
 
 func _create_smoke_process_material(effect_scale: float) -> ParticleProcessMaterial:
-	var color_ramp: GradientTexture1D = _create_smoke_color_ramp()
+	var color_ramp: GradientTexture1D = _get_shared("smoke_ramp", _create_smoke_color_ramp)
 	var process_material: ParticleProcessMaterial = ParticleProcessMaterial.new()
 	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	process_material.emission_sphere_radius = 0.25 * effect_scale
