@@ -74,6 +74,28 @@ func get_water_surface_y() -> float:
 	return global_position.y + _water_level_y
 
 
+## Moves the water surface to a world height (clamped to the terrarium), resizing the volume, the
+## surface and the splash detector. Used by Battle Royale's rising water.
+func set_water_surface_y(world_y: float) -> void:
+	_water_level_y = clampf(world_y - global_position.y, 0.05, _world_size.y)
+	var volume: MeshInstance3D = get_node_or_null("WaterVolume") as MeshInstance3D
+	if volume != null:
+		(volume.mesh as BoxMesh).size.y = _water_level_y
+		volume.position.y = _water_level_y * 0.5
+		if volume.material_override is ShaderMaterial:
+			(volume.material_override as ShaderMaterial).set_shader_parameter("volume_height", _water_level_y)
+	var surface: MeshInstance3D = get_node_or_null("WaterSurface") as MeshInstance3D
+	if surface != null:
+		surface.position.y = _water_level_y
+	if _splash_detector != null:
+		var air_probe: float = maxf(_world_size.y * SPLASH_AIR_PROBE_RATIO, MIN_SPLASH_AIR_PROBE)
+		var detector_height: float = _water_level_y + air_probe
+		_splash_detector.position.y = detector_height * 0.5
+		var shape: CollisionShape3D = _splash_detector.get_child(0) as CollisionShape3D
+		if shape != null and shape.shape is BoxShape3D:
+			(shape.shape as BoxShape3D).size.y = detector_height
+
+
 func get_water_level_ratio() -> float:
 	if _world_size.y <= 0.001:
 		return DEFAULT_WATER_LEVEL_RATIO

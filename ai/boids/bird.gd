@@ -14,8 +14,10 @@ const MAX_FALL_SECONDS: float = 6.0
 
 var velocity: Vector3 = Vector3.ZERO
 var attack_cooldown: float = 0.0
-## Returns the ground height under a position; set by the flock so falling birds land on terrain.
-var ground_height: Callable
+## Set by the flock: height above the ground at a position, and the up direction there (radial on
+## the planet), so shot-down birds fall the right way and land on the terrain.
+var altitude: Callable
+var up: Callable
 
 var _dead: bool = false
 var _fall_time: float = 0.0
@@ -71,10 +73,12 @@ func _physics_process(delta: float) -> void:
 			queue_free()
 		return
 	_fall_time += delta
-	velocity.y -= FALL_GRAVITY * delta
+	var up_here: Vector3 = up.call(global_position) if up.is_valid() else Vector3.UP
+	velocity -= up_here * FALL_GRAVITY * delta
 	global_position += velocity * delta
 	rotate_object_local(Vector3.RIGHT, deg_to_rad(FALL_SPIN_DEGREES_PER_SECOND) * delta)
-	var floor_y: float = ground_height.call(global_position) if ground_height.is_valid() else -INF
-	if global_position.y <= floor_y + 0.1 or _fall_time >= MAX_FALL_SECONDS:
-		global_position.y = maxf(global_position.y, floor_y + 0.1)
+	var height: float = altitude.call(global_position) if altitude.is_valid() else INF
+	if height <= 0.1 or _fall_time >= MAX_FALL_SECONDS:
+		if height < 0.1:
+			global_position += up_here * (0.1 - height)
 		_landed_time = 0.0

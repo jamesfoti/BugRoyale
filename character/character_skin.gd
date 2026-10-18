@@ -8,6 +8,8 @@ signal torch_equipped_changed(equipped: bool)
 signal pickaxe_equipped_changed(equipped: bool)
 
 const DEFAULT_SKIN_SCENE_PATH: String = "res://character/ant/skins/soldier_ant.tscn"
+## Bot skin for the Black colony in Ants vs Ants (the player's Red colony uses the soldier ant).
+const BLACK_ANT_BOT_SCENE_PATH: String = "res://character/ant/skins/little_black_ant_bot.tscn"
 ## Per class: skin scene, display name, role, description, and stats. max_health replaces the
 ## player's Damageable health; speed and jump multiply the controller's speed, run_speed and
 ## jump_velocity; can_fly lets the class take off by jumping in mid-air. Models are built by
@@ -15,6 +17,9 @@ const DEFAULT_SKIN_SCENE_PATH: String = "res://character/ant/skins/soldier_ant.t
 const CHARACTERS: Dictionary = {
 	LoadingScreen.PlayerCharacter.ANT_WARRIOR: {
 		"scene": "res://character/ant/skins/soldier_ant.tscn",
+		"bot_scene": "res://character/ant/skins/soldier_ant_bot.tscn",
+		"weapon": PlayerItems.Item.WEAPON_AK,
+		"bot_weapon": {"damage": 7.0, "cooldown": 0.28, "range": 45.0, "spread_degrees": 3.5, "pellets": 1},
 		"name": "Ant Warrior",
 		"role": "Assault / All-Rounder",
 		"description": "High stamina, balanced armor and rapid ground speed. Formidable mandibles for close quarters and acid-artillery for range.",
@@ -24,6 +29,9 @@ const CHARACTERS: Dictionary = {
 	},
 	LoadingScreen.PlayerCharacter.TERMITE_SOLDIER: {
 		"scene": "res://character/termite/skins/dampwood_termite.tscn",
+		"bot_scene": "res://character/termite/skins/dampwood_termite_bot.tscn",
+		"weapon": PlayerItems.Item.WEAPON_SHOTGUN,
+		"bot_weapon": {"damage": 4.0, "cooldown": 0.9, "range": 18.0, "spread_degrees": 7.0, "pellets": 5},
 		"name": "Termite Soldier",
 		"role": "Heavy Juggernaut",
 		"description": "Tank class. Slow but heavily armored. Close-range chemical sprays and a defensive pheromone shield to protect the squad.",
@@ -33,6 +41,9 @@ const CHARACTERS: Dictionary = {
 	},
 	LoadingScreen.PlayerCharacter.WASP: {
 		"scene": "res://character/wasp/skins/yellowjacket_wasp.tscn",
+		"bot_scene": "res://character/wasp/skins/yellowjacket_wasp_bot.tscn",
+		"weapon": PlayerItems.Item.WEAPON_SMG,
+		"bot_weapon": {"damage": 4.0, "cooldown": 0.13, "range": 30.0, "spread_degrees": 5.0, "pellets": 1},
 		"name": "Wasp",
 		"role": "Airborne Skirmisher",
 		"description": "High mobility and rapid-fire stingers for hit-and-run attacks. Fragile armor, but incredibly hard to hit in mid-air.",
@@ -43,6 +54,9 @@ const CHARACTERS: Dictionary = {
 	},
 	LoadingScreen.PlayerCharacter.TRAPDOOR_SPIDER: {
 		"scene": "res://character/spider/skins/trapdoor_spider.tscn",
+		"bot_scene": "res://character/spider/skins/trapdoor_spider_bot.tscn",
+		"weapon": PlayerItems.Item.WEAPON_SNIPER,
+		"bot_weapon": {"damage": 18.0, "cooldown": 1.5, "range": 90.0, "spread_degrees": 1.2, "pellets": 1},
 		"name": "Trapdoor Spider",
 		"role": "Stealth Sniper",
 		"description": "Camouflages into terrain and foliage, sets web traps to anchor enemies, then strikes with high-damage venom shots.",
@@ -67,6 +81,24 @@ static func display_name_for(character: LoadingScreen.PlayerCharacter) -> String
 
 static func role_for(character: LoadingScreen.PlayerCharacter) -> String:
 	return _entry(character).get("role", "")
+
+
+## Lightweight skin used when this class is played by a bot.
+static func bot_scene_path_for(character: LoadingScreen.PlayerCharacter) -> String:
+	return _entry(character).get("bot_scene", scene_path_for(character))
+
+
+## Gun this class carries, and the bot version of it (damage, cooldown, range, spread, pellets).
+static func weapon_for(character: LoadingScreen.PlayerCharacter) -> PlayerItems.Item:
+	return _entry(character).get("weapon", PlayerItems.Item.WEAPON_AK)
+
+
+static func bot_weapon_for(character: LoadingScreen.PlayerCharacter) -> Dictionary:
+	return _entry(character).get("bot_weapon", {})
+
+
+static func stats_for(character: LoadingScreen.PlayerCharacter) -> Dictionary:
+	return _entry(character)
 
 
 static func description_for(character: LoadingScreen.PlayerCharacter) -> String:

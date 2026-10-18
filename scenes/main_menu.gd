@@ -1,18 +1,15 @@
 extends Control
-## Entry menu: choose world and player character, or open settings.
+## Entry menu: pick a game mode, then a map (see ModeCatalog), and the player class; or settings.
 
 
-const PLANET_SCENE_PATH: String = "res://scenes/planet_test.tscn"
-const BATTLEFIELD_TERRAIN_SCENE_PATH: String = "res://scenes/battlefield_terrain_test.tscn"
-const TERRARIUM_SCENE_PATH: String = "res://scenes/terrarium_test.tscn"
 const LOADING_SCREEN_SCENE_PATH: String = "res://scenes/loading_screen.tscn"
 ## Extra space around the character in the Choose Player preview.
 const PREVIEW_FRAMING_PADDING: float = 1.15
 
 @onready var _title: Label = $UI/Margin/VBox/Title
-@onready var _planet_button: Button = $UI/Margin/VBox/Buttons/PlanetButton
-@onready var _battlefield_button: Button = $UI/Margin/VBox/Buttons/BattlefieldButton
-@onready var _terrarium_button: Button = $UI/Margin/VBox/Buttons/TerrariumButton
+@onready var _hornets_button: Button = $UI/Margin/VBox/Buttons/HornetsButton
+@onready var _ants_vs_ants_button: Button = $UI/Margin/VBox/Buttons/AntsVsAntsButton
+@onready var _battle_royale_button: Button = $UI/Margin/VBox/Buttons/BattleRoyaleButton
 @onready var _selected_player_label: Label = $UI/Margin/VBox/Buttons/SelectedPlayerLabel
 @onready var _choose_player_button: Button = $UI/Margin/VBox/Buttons/ChoosePlayerButton
 @onready var _settings_button: Button = $UI/Margin/VBox/Buttons/SettingsButton
@@ -40,7 +37,7 @@ func _ready() -> void:
 		return
 	_sky_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_set_preview_viewport_active(false)
-	_title.text = str(ProjectSettings.get_setting("application/config/name", "PhysicsRoyale"))
+	_title.text = str(ProjectSettings.get_setting("application/config/name", "BugRoyale"))
 	_setup_preview_scenes()
 	_preview_selected_character = LoadingScreen.selected_player_character
 	_refresh_selected_player_label()
@@ -55,9 +52,13 @@ func _ready() -> void:
 	_preview_previous_button.disabled = not has_choices
 	_preview_next_button.disabled = not has_choices
 	_preview_back_button.pressed.connect(_on_preview_back_pressed)
-	_planet_button.pressed.connect(_on_planet_pressed)
-	_battlefield_button.pressed.connect(_on_battlefield_pressed)
-	_terrarium_button.pressed.connect(_on_terrarium_pressed)
+	_hornets_button.pressed.connect(_on_mode_pressed.bind("hornets"))
+	_ants_vs_ants_button.pressed.connect(_on_mode_pressed.bind("ants_vs_ants"))
+	_battle_royale_button.pressed.connect(_on_mode_pressed.bind("battle_royale"))
+	_hornets_button.tooltip_text = ModeCatalog.mode("hornets").get("description", "")
+	_ants_vs_ants_button.tooltip_text = ModeCatalog.mode("ants_vs_ants").get("description", "")
+	_battle_royale_button.tooltip_text = ModeCatalog.mode("battle_royale").get("description", "")
+	_build_map_page()
 	_update_preview_display()
 
 
@@ -198,18 +199,85 @@ func _set_preview_viewport_active(active: bool) -> void:
 	)
 
 
-func _on_planet_pressed() -> void:
-	_open_scene(PLANET_SCENE_PATH)
+# --- Play flow: mode -> map -> start --------------------------------------------------------
+
+var _map_page: Control
+var _map_page_title: Label
+var _map_page_description: Label
+var _map_buttons: VBoxContainer
+var _chosen_mode_id: String = ""
 
 
-func _on_battlefield_pressed() -> void:
-	_open_scene(BATTLEFIELD_TERRAIN_SCENE_PATH)
+func _on_mode_pressed(mode_id: String) -> void:
+	_chosen_mode_id = mode_id
+	var mode_info: Dictionary = ModeCatalog.mode(mode_id)
+	var maps: Array = mode_info.get("maps", [])
+	if maps.size() == 1:
+		_start_match(maps[0])
+		return
+	_map_page_title.text = mode_info.get("name", "") + ": Choose a Map"
+	_map_page_description.text = mode_info.get("description", "")
+	for child: Node in _map_buttons.get_children():
+		child.queue_free()
+	for map_id: String in maps:
+		var map_button := Button.new()
+		map_button.text = ModeCatalog.map_name(map_id)
+		map_button.custom_minimum_size = Vector2(280, 44)
+		map_button.pressed.connect(_start_match.bind(map_id))
+		_map_buttons.add_child(map_button)
+	_map_page.visible = true
 
 
-func _on_terrarium_pressed() -> void:
-	_open_scene(TERRARIUM_SCENE_PATH)
-
-
-func _open_scene(scene_path: String) -> void:
-	LoadingScreen.pending_scene_path = scene_path
+func _start_match(map_id: String) -> void:
+	var mode_info: Dictionary = ModeCatalog.mode(_chosen_mode_id)
+	if mode_info.has("forced_character"):
+		_set_selected_character(mode_info["forced_character"])
+	LoadingScreen.pending_mode_id = _chosen_mode_id
+	LoadingScreen.pending_scene_path = ModeCatalog.map_scene(map_id)
 	get_tree().change_scene_to_file(LOADING_SCREEN_SCENE_PATH)
+
+
+func _build_map_page() -> void:
+	_map_page = Control.new()
+	_map_page.name = "MapSelectPage"
+	_map_page.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map_page.visible = false
+	$UI.add_child(_map_page)
+
+	var backdrop := ColorRect.new()
+	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	backdrop.color = Color(0.0, 0.0, 0.0, 0.55)
+	_map_page.add_child(backdrop)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map_page.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(420, 0)
+	center.add_child(panel)
+	var margin := MarginContainer.new()
+	for side: String in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 20)
+	panel.add_child(margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 12)
+	margin.add_child(column)
+
+	_map_page_title = Label.new()
+	_map_page_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_map_page_title.add_theme_font_size_override("font_size", 22)
+	column.add_child(_map_page_title)
+	_map_page_description = Label.new()
+	_map_page_description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_map_page_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_map_page_description.custom_minimum_size = Vector2(380, 0)
+	_map_page_description.add_theme_color_override("font_color", Color(0.78, 0.82, 0.9))
+	column.add_child(_map_page_description)
+	_map_buttons = VBoxContainer.new()
+	_map_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	_map_buttons.add_theme_constant_override("separation", 8)
+	column.add_child(_map_buttons)
+	var back := Button.new()
+	back.text = "Back"
+	back.pressed.connect(func() -> void: _map_page.visible = false)
+	column.add_child(back)

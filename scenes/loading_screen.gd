@@ -11,6 +11,11 @@ enum PlayerCharacter {
 	TRAPDOOR_SPIDER,
 }
 static var pending_scene_path: String = ""
+## Game mode to start on the next loaded map (see ModeCatalog); empty = free roam.
+static var pending_mode_id: String = ""
+## Mode and map of the running match, for Play Again.
+static var current_mode_id: String = ""
+static var current_scene_path: String = ""
 static var selected_player_character: PlayerCharacter = PlayerCharacter.ANT_WARRIOR
 
 @onready var _title: Label = $UI/Margin/VBox/Title
@@ -19,7 +24,7 @@ static var selected_player_character: PlayerCharacter = PlayerCharacter.ANT_WARR
 
 
 func _ready() -> void:
-	_title.text = str(ProjectSettings.get_setting("application/config/name", "PhysicsRoyale"))
+	_title.text = str(ProjectSettings.get_setting("application/config/name", "BugRoyale"))
 	_set_progress(0, "Loading")
 	call_deferred("_begin_load")
 
@@ -110,12 +115,35 @@ func _start_game(game_scene: PackedScene) -> void:
 	var game_root: Node = game_scene.instantiate()
 	get_tree().root.add_child(game_root)
 	get_tree().current_scene = game_root
+	_add_game_mode(game_root)
 	queue_free()
+
+
+## Adds the chosen mode's script to the loaded map (no mode = free roam).
+func _add_game_mode(game_root: Node) -> void:
+	current_mode_id = pending_mode_id
+	pending_mode_id = ""
+	var mode_info: Dictionary = ModeCatalog.mode(current_mode_id)
+	if mode_info.is_empty():
+		return
+	var mode_script: Script = load(mode_info["script"]) as Script
+	var game_mode: Node = mode_script.new()
+	game_mode.name = "GameMode"
+	game_root.add_child(game_mode)
+
+
+## Reloads the current map with the current mode (Play Again).
+static func restart_current(tree: SceneTree) -> void:
+	pending_scene_path = current_scene_path
+	pending_mode_id = current_mode_id
+	tree.change_scene_to_file("res://scenes/loading_screen.tscn")
 
 
 func _resolve_scene_path() -> String:
 	if pending_scene_path.is_empty():
+		current_scene_path = DEFAULT_GAME_SCENE_PATH
 		return DEFAULT_GAME_SCENE_PATH
 	var scene_path: String = pending_scene_path
 	pending_scene_path = ""
+	current_scene_path = scene_path
 	return scene_path

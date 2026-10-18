@@ -1,20 +1,38 @@
 extends Node3D
 class_name BirdFlock
-## Flock of cone birds using boids steering with optional player attack behavior.
+## Flock of wasp drones (cones if no drone model is set) using boids steering, with optional
+## attack behavior. Works on any map when given a MapInfo, and spawns in waves for game modes.
 
 
 const BirdScene: PackedScene = preload("res://ai/boids/bird.tscn")
 const BIRD_CONE_HEIGHT: float = 0.42
 const BIRD_CONE_RADIUS: float = 0.13
+const WING_FLAP_SHADER: Shader = preload("res://ai/boids/wasp_wing_flap.gdshader")
+
+signal bird_died(bird: Bird)
 
 @export_group("Flock")
 @export var enabled: bool = true
+## Build bird_count members on ready. Game modes turn this off and call spawn_wave() instead.
+@export var auto_build: bool = true
+## Group the flock hunts (players; "hornet_prey" in Attack of the Hornets includes AI squadmates).
+@export var target_group: StringName = &"player"
+## Center the flock on the targets it hunts instead of flock_center_path.
+@export var follow_targets: bool = false
+## Damageable team given to every member (Damageable.NO_TEAM = anyone can hurt them).
+@export var hornet_team: int = Damageable.NO_TEAM
 @export_range(1, 128, 1) var bird_count: int = 28
 @export var flock_center_path: NodePath
 @export var terrain_path: NodePath = ^"../TerrainWorld"
 @export var spawn_radius: float = 28.0
+## Flight band, as height above the ground.
 @export var min_height: float = 10.0
 @export var max_height: float = 22.0
+## Model drawn for each flock member (a rig-free drone from create_bugs.py --drone); empty = cone.
+@export var drone_scene: PackedScene = preload("res://character/wasp/models/yellowjacket_wasp_drone.glb")
+@export var drone_scale: float = 0.45
+## Tips the (upright, centaur-style) drone forward so it flies nose-first.
+@export_range(0.0, 90.0, 1.0) var drone_pitch_degrees: float = 45.0
 
 @export_group("Movement")
 @export var max_speed: float = 11.0
@@ -41,16 +59,20 @@ var _positions: PackedVector3Array
 var _velocities: PackedVector3Array
 var _flock_center: Vector3 = Vector3.ZERO
 var _terrain: OpenTerrain
+## Set by game modes so the flock flies correctly on any map (planet up, terrarium glass).
+var map: MapInfo
 ## Draws every bird cone in one call instead of one MeshInstance3D per bird.
 var _bird_multimesh_instance: MultiMeshInstance3D
 var _bird_mesh_offset: Transform3D = _make_bird_mesh_offset()
 ## Shot-down birds still tumbling to the ground; drawn but no longer flocking.
 var _falling_birds: Array[Bird] = []
+var _spawned_total: int = 0
 
 
 func _ready() -> void:
 	add_to_group("bird_flock")
-	call_deferred("_build_flock")
+	if auto_build:
+		call_deferred("_build_flock")
 
 
 func _physics_process(delta: float) -> void:
@@ -70,50 +92,116 @@ func _build_flock() -> void:
 	_clear_birds()
 	_resolve_terrain()
 	_update_flock_center()
+	spawn_wave(bird_count)
 
-	for bird_index in bird_count:
+
+## Adds count flock members around the flock center (on top of any still alive). Used for the
+## initial flock and for each wave in Attack of the Hornets.
+func spawn_wave(count: int) -> void:
+	if _terrain == null:
+		_resolve_terrain()
+	_update_flock_center()
+	for _index: int in count:
 		var bird: Bird = BirdScene.instantiate() as Bird
 		if bird == null:
 			continue
-		bird.name = "Bird%d" % bird_index
+		bird.name = "Bird%d" % _spawned_total
+		_spawned_total += 1
 		var spawn_position: Vector3 = _random_spawn_position()
 		bird.velocity = _random_horizontal_velocity()
 		add_child(bird)
 		bird.global_position = spawn_position
-		bird.ground_height = _minimum_flight_height
+		bird.altitude = _altitude
+		bird.up = _up
+		bird.get_node("Damageable").team = hornet_team
 		bird.killed.connect(_on_bird_killed)
 		_birds.append(bird)
-
 	_resize_arrays()
 	_build_bird_multimesh()
 	_update_bird_multimesh()
 
 
+func alive_count() -> int:
+	return _birds.size()
+
+
 func _build_bird_multimesh() -> void:
 	if _bird_multimesh_instance == null:
-		var cone := CylinderMesh.new()
-		cone.top_radius = 0.0
-		cone.bottom_radius = BIRD_CONE_RADIUS
-		cone.height = BIRD_CONE_HEIGHT
-		var material := StandardMaterial3D.new()
-		material.albedo_color = Color(0.28, 0.24, 0.2)
-		material.roughness = 0.72
-		material.metallic = 0.05
-		cone.material = material
+		var mesh: Mesh = _make_drone_mesh()
+		if mesh != null:
+			_bird_mesh_offset = _make_drone_offset(mesh)
+		else:
+			mesh = _make_cone_mesh()
+			_bird_mesh_offset = _make_bird_mesh_offset()
 
 		var multimesh := MultiMesh.new()
 		multimesh.transform_format = MultiMesh.TRANSFORM_3D
-		multimesh.mesh = cone
+		multimesh.mesh = mesh
 
 		_bird_multimesh_instance = MultiMeshInstance3D.new()
 		_bird_multimesh_instance.name = "BirdMeshes"
 		_bird_multimesh_instance.multimesh = multimesh
-		_bird_multimesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		# Instance transforms are written in world space.
 		_bird_multimesh_instance.top_level = true
 		add_child(_bird_multimesh_instance)
 		_bird_multimesh_instance.global_transform = Transform3D.IDENTITY
+		_apply_graphics_quality(GraphicsSettings.low_quality)
+		GraphicsSettings.low_quality_changed.connect(_apply_graphics_quality)
 	_bird_multimesh_instance.multimesh.instance_count = _birds.size()
+
+
+## Drone shadows double the swarm's draw cost, so Low graphics turns them off.
+func _apply_graphics_quality(low_quality: bool) -> void:
+	if _bird_multimesh_instance == null:
+		return
+	_bird_multimesh_instance.cast_shadow = (
+		GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if low_quality
+		else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	)
+
+
+## Low-detail wasp mesh (frozen in flight, built by create_bugs.py --drone) with buzzing wings.
+func _make_drone_mesh() -> Mesh:
+	if drone_scene == null:
+		return null
+	var drone_root: Node = drone_scene.instantiate()
+	var source: MeshInstance3D = (
+		drone_root if drone_root is MeshInstance3D
+		else drone_root.find_children("*", "MeshInstance3D", true, false).front() as MeshInstance3D
+	)
+	var mesh: Mesh = source.mesh.duplicate() if source != null and source.mesh != null else null
+	drone_root.free()
+	if mesh == null:
+		return null
+	for surface_index: int in mesh.get_surface_count():
+		var material: Material = mesh.surface_get_material(surface_index)
+		if material != null and material.resource_name.to_lower().contains("wing"):
+			var wing_material := ShaderMaterial.new()
+			wing_material.shader = WING_FLAP_SHADER
+			mesh.surface_set_material(surface_index, wing_material)
+	return mesh
+
+
+## The drone model faces +Z; birds fly toward -Z. Turn it around, scale it, center it on the bird,
+## then pitch it nose-down.
+func _make_drone_offset(mesh: Mesh) -> Transform3D:
+	var basis := Basis(Vector3.UP, PI).scaled(Vector3.ONE * drone_scale)
+	var centered := Transform3D(basis, -(basis * mesh.get_aabb().get_center()))
+	return Transform3D(Basis(Vector3.RIGHT, -deg_to_rad(drone_pitch_degrees)), Vector3.ZERO) * centered
+
+
+func _make_cone_mesh() -> Mesh:
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.0
+	cone.bottom_radius = BIRD_CONE_RADIUS
+	cone.height = BIRD_CONE_HEIGHT
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.28, 0.24, 0.2)
+	material.roughness = 0.72
+	material.metallic = 0.05
+	cone.material = material
+	return cone
 
 
 func _update_bird_multimesh() -> void:
@@ -126,6 +214,9 @@ func _update_bird_multimesh() -> void:
 			still_falling.append(falling_bird)
 	_falling_birds = still_falling
 	var multimesh: MultiMesh = _bird_multimesh_instance.multimesh
+	var total: int = _birds.size() + _falling_birds.size()
+	if multimesh.instance_count < total:
+		multimesh.instance_count = total
 	var drawn: int = 0
 	for bird: Bird in _birds + _falling_birds:
 		multimesh.set_instance_transform(drawn, bird.global_transform * _bird_mesh_offset)
@@ -137,6 +228,7 @@ func _on_bird_killed(bird: Bird) -> void:
 	_birds.erase(bird)
 	_falling_birds.append(bird)
 	_resize_arrays()
+	bird_died.emit(bird)
 
 
 ## Cone points along the bird's -Z (look_at forward), with its base at the bird origin.
@@ -169,7 +261,8 @@ func _simulate_flock(delta: float) -> void:
 			cohesion_weight
 		)
 		steering += _compute_boundary_steering(_positions[bird_index])
-		steering += _compute_height_steering(_positions[bird_index])
+		var altitude: float = _altitude(_positions[bird_index])
+		steering += _compute_height_steering(_positions[bird_index], altitude)
 
 		var target: Node3D = _find_nearest_target(_positions[bird_index], targets)
 		var speed_limit: float = max_speed
@@ -185,7 +278,13 @@ func _simulate_flock(delta: float) -> void:
 		steering = steering.limit_length(max_steer_force)
 		var new_velocity: Vector3 = (_velocities[bird_index] + steering * delta).limit_length(speed_limit)
 		var new_position: Vector3 = _positions[bird_index] + new_velocity * delta
-		new_position.y = maxf(new_position.y, _minimum_flight_height(new_position) + 1.5)
+		# Stay above the ground (altitude estimated from this frame's probe) and inside the map.
+		var up: Vector3 = _up(new_position)
+		var new_altitude: float = altitude + (new_position - _positions[bird_index]).dot(up)
+		if new_altitude < 1.5:
+			new_position += up * (1.5 - new_altitude)
+		if map != null:
+			new_position = map.clamp_to_bounds(new_position)
 
 		bird.global_position = new_position
 		bird.set_velocity(new_velocity)
@@ -202,20 +301,18 @@ func _try_attack_target(bird: Bird, target: Node3D) -> void:
 
 
 func _find_damageable(target: Node3D) -> Damageable:
-	for child in target.get_children():
-		if child is Damageable:
-			return child as Damageable
-	return null
+	return target.get_node_or_null("Damageable") as Damageable
 
 
 func _get_attack_targets() -> Array[Node3D]:
 	var targets: Array[Node3D] = []
-	for node in get_tree().get_nodes_in_group("player"):
-		if node is Node3D:
-			var player: Node3D = node as Node3D
-			var damageable: Damageable = _find_damageable(player)
-			if damageable == null or damageable.is_alive():
-				targets.append(player)
+	for node in get_tree().get_nodes_in_group(target_group):
+		var candidate: Node3D = node as Node3D
+		if candidate == null or not candidate.visible:
+			continue
+		var damageable: Damageable = _find_damageable(candidate)
+		if damageable == null or damageable.is_alive():
+			targets.append(candidate)
 	return targets
 
 
@@ -231,21 +328,31 @@ func _find_nearest_target(position: Vector3, targets: Array[Node3D]) -> Node3D:
 
 
 func _compute_boundary_steering(position: Vector3) -> Vector3:
-	var offset: Vector3 = position - _flock_center
-	offset.y = 0.0
+	var offset: Vector3 = (position - _flock_center).slide(_up(position))
 	var distance: float = offset.length()
 	if distance <= spawn_radius:
 		return Vector3.ZERO
 	return -offset.normalized() * boundary_weight
 
 
-func _compute_height_steering(position: Vector3) -> Vector3:
-	var steering: Vector3 = Vector3.ZERO
-	if position.y < min_height:
-		steering.y += height_weight
-	elif position.y > max_height:
-		steering.y -= height_weight
-	return steering
+func _compute_height_steering(position: Vector3, altitude: float) -> Vector3:
+	if altitude < min_height:
+		return _up(position) * height_weight
+	if altitude > max_height:
+		return -_up(position) * height_weight
+	return Vector3.ZERO
+
+
+## Up at a point: the map's (radial on the planet), else world up.
+func _up(position: Vector3) -> Vector3:
+	return map.up_at(position) if map != null else Vector3.UP
+
+
+## Height above the ground under a point.
+func _altitude(position: Vector3) -> float:
+	if map != null:
+		return map.altitude(position)
+	return position.y - _minimum_flight_height(position)
 
 
 func _minimum_flight_height(position: Vector3) -> float:
@@ -255,19 +362,32 @@ func _minimum_flight_height(position: Vector3) -> float:
 
 
 func _random_spawn_position() -> Vector3:
+	var up: Vector3 = _up(_flock_center)
+	var tangent: Vector3 = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	var bitangent: Vector3 = up.cross(tangent).normalized()
 	var angle: float = randf_range(0.0, TAU)
-	var radius: float = randf_range(spawn_radius * 0.2, spawn_radius)
-	var position := _flock_center + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
-	position.y = randf_range(min_height, max_height)
-	return position
+	var radius: float = randf_range(spawn_radius * 0.4, spawn_radius)
+	var position: Vector3 = _flock_center + (tangent * cos(angle) + bitangent * sin(angle)) * radius
+	position += _up(position) * (randf_range(min_height, max_height) - _altitude(position))
+	return map.clamp_to_bounds(position) if map != null else position
 
 
 func _random_horizontal_velocity() -> Vector3:
-	var angle: float = randf_range(0.0, TAU)
-	return Vector3(cos(angle), randf_range(-0.15, 0.15), sin(angle)) * randf_range(4.0, max_speed)
+	var up: Vector3 = _up(_flock_center)
+	var direction: Vector3 = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	direction = direction.rotated(up, randf_range(0.0, TAU))
+	return direction * randf_range(4.0, max_speed)
 
 
 func _update_flock_center() -> void:
+	if follow_targets:
+		var targets: Array[Node3D] = _get_attack_targets()
+		if not targets.is_empty():
+			var sum: Vector3 = Vector3.ZERO
+			for target: Node3D in targets:
+				sum += target.global_position
+			_flock_center = sum / targets.size()
+		return
 	if flock_center_path != NodePath():
 		var center_node: Node3D = get_node_or_null(flock_center_path) as Node3D
 		if center_node != null:

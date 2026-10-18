@@ -18,8 +18,12 @@ Run from a terminal (builds every species, or only the ones listed after --speci
   blender --background --python tools/blender/create_bugs.py
   blender --background --python tools/blender/create_bugs.py -- --species fire_ant formosan_termite
   blender --background --python tools/blender/create_bugs.py -- --preview <output_dir>
+  blender --background --python tools/blender/create_bugs.py -- --species yellowjacket_wasp --drone
+  blender --background --python tools/blender/create_bugs.py -- --species soldier_ant --lod
 
 Outputs per species: character/<family>/models/<id>.glb and character/<family>/source/<id>.blend.
+With --drone: a low-detail, rig-free copy frozen in its flying pose, models/<id>_drone.glb, for
+flocks and other crowds drawn with a MultiMesh.
 Blender axes: Z up, the bug faces -Y (glTF export turns this into +Z, the player's forward).
 """
 
@@ -130,6 +134,18 @@ SPECIES = {
 	},
 }
 
+# Mesh resolution multiplier (1.0 for player models; lower for crowd "drone" meshes).
+_detail: float = 1.0
+# Drones are flock/NPC copies: frozen in a pose, no rig, far fewer triangles.
+DRONE_DETAIL = 0.22
+# Bots (AI fighters) use rigged, animated copies at reduced detail: models/<id>_lod.glb.
+LOD_DETAIL = 0.35
+
+
+def _detail_count(count: int, minimum: int) -> int:
+	return max(minimum, int(round(count * _detail)))
+
+
 # Species currently being built; set by _build_species() before any geometry is made.
 _species: dict = SPECIES["soldier_ant"]
 
@@ -182,7 +198,9 @@ class AntBuilder:
 		rings: int = 16,
 	) -> None:
 		part = bmesh.new()
-		bmesh.ops.create_uvsphere(part, u_segments=segments, v_segments=rings, radius=1.0)
+		bmesh.ops.create_uvsphere(
+			part, u_segments=_detail_count(segments, 6), v_segments=_detail_count(rings, 4), radius=1.0
+		)
 		transform = (
 			Matrix.Translation(Vector(center))
 			@ Matrix.LocRotScale(None, _euler_quat(rotation), None)
@@ -211,7 +229,7 @@ class AntBuilder:
 			part,
 			# Open tube: the rounded end spheres cover it (smooth-shaded caps catch odd highlights).
 			cap_ends=False,
-			segments=16,
+			segments=_detail_count(16, 6),
 			radius1=radius_start,
 			radius2=radius_end,
 			depth=length,
@@ -831,11 +849,11 @@ def _build_animations(rig: bpy.types.Object) -> None:
 
 # --- Output ------------------------------------------------------------------------------------
 
-def _export(species_id: str, rig: bpy.types.Object, mesh_obj: bpy.types.Object) -> None:
+def _export(species_id: str, rig: bpy.types.Object, mesh_obj: bpy.types.Object, lod: bool = False) -> None:
 	family_dir = os.path.join(PROJECT_ROOT, "character", _param("family", "ant"))
 	model_dir = os.path.join(family_dir, "models")
 	source_dir = os.path.join(family_dir, "source")
-	glb_path = os.path.join(model_dir, species_id + ".glb")
+	glb_path = os.path.join(model_dir, species_id + ("_lod.glb" if lod else ".glb"))
 	blend_path = os.path.join(source_dir, species_id + ".blend")
 	os.makedirs(model_dir, exist_ok=True)
 	os.makedirs(source_dir, exist_ok=True)
@@ -857,7 +875,8 @@ def _export(species_id: str, rig: bpy.types.Object, mesh_obj: bpy.types.Object) 
 		export_force_sampling=True,
 		export_frame_step=1,
 	)
-	bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+	if not lod:
+		bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 	print("Exported %s to: %s" % (species_id, glb_path))
 
 
@@ -906,8 +925,38 @@ def _render_preview(species_id: str, output_dir: str) -> None:
 	bpy.ops.render.render(write_still=True)
 
 
-def _build_species(species_id: str, preview_dir: str) -> None:
-	global _species
+def _export_drone(species_id: str, rig: bpy.types.Object, mesh_obj: bpy.types.Object) -> None:
+	"""Freezes the mesh in its flying pose (or idle if wingless) and exports it without a rig, for
+	cheap crowds drawn with a MultiMesh: character/<family>/models/<id>_drone.glb."""
+	pose_track = "fly" if any(t.name == "fly" for t in rig.animation_data.nla_tracks) else "idle"
+	for track in rig.animation_data.nla_tracks:
+		track.mute = track.name != pose_track
+	bpy.context.scene.frame_set(6)
+	bpy.ops.object.select_all(action="DESELECT")
+	mesh_obj.select_set(True)
+	bpy.context.view_layer.objects.active = mesh_obj
+	bpy.ops.object.modifier_apply(modifier="Armature")
+	mesh_obj.parent = None
+	mesh_obj.vertex_groups.clear()
+	bpy.data.objects.remove(rig)
+
+	model_dir = os.path.join(PROJECT_ROOT, "character", _param("family", "ant"), "models")
+	os.makedirs(model_dir, exist_ok=True)
+	glb_path = os.path.join(model_dir, species_id + "_drone.glb")
+	bpy.ops.export_scene.gltf(
+		filepath=glb_path,
+		use_selection=True,
+		export_yup=True,
+		export_animations=False,
+		export_skins=False,
+	)
+	triangles = sum(len(polygon.vertices) - 2 for polygon in mesh_obj.data.polygons)
+	print("Exported %s drone (%d triangles) to: %s" % (species_id, triangles, glb_path))
+
+
+def _build_species(species_id: str, preview_dir: str, drone: bool = False, lod: bool = False) -> None:
+	global _species, _detail
+	_detail = DRONE_DETAIL if drone else (LOD_DETAIL if lod else 1.0)
 	_species = SPECIES[species_id]
 	_apply_body_plan()
 	_clear_scene()
@@ -950,7 +999,10 @@ def _build_species(species_id: str, preview_dir: str) -> None:
 	modifier = mesh_obj.modifiers.new("Armature", "ARMATURE")
 	modifier.object = rig
 	_build_animations(rig)
-	_export(species_id, rig, mesh_obj)
+	if drone:
+		_export_drone(species_id, rig, mesh_obj)
+		return
+	_export(species_id, rig, mesh_obj, lod)
 	if preview_dir:
 		_render_preview(species_id, preview_dir)
 
@@ -969,7 +1021,7 @@ def main() -> None:
 	for species_id in species_ids:
 		if species_id not in SPECIES:
 			raise SystemExit("Unknown species '%s'. Known: %s" % (species_id, ", ".join(SPECIES)))
-		_build_species(species_id, preview_dir)
+		_build_species(species_id, preview_dir, "--drone" in argv, "--lod" in argv)
 
 
 if __name__ == "__main__":

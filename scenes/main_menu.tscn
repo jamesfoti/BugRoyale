@@ -73,14 +73,14 @@ theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.55)
 theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 56
-text = "PhysicsRoyale"
+text = "BugRoyale"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="UI/Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.95, 1)
 theme_override_font_sizes/font_size = 20
-text = "Choose a world to explore"
+text = "Choose a game mode"
 horizontal_alignment = 1
 
 [node name="Buttons" type="VBoxContainer" parent="UI/Margin/VBox"]
@@ -88,23 +88,23 @@ layout_mode = 2
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="PlanetButton" type="Button" parent="UI/Margin/VBox/Buttons"]
+[node name="HornetsButton" type="Button" parent="UI/Margin/VBox/Buttons"]
 custom_minimum_size = Vector2(320, 48)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Planet"
+text = "Attack of the Hornets"
 
-[node name="BattlefieldButton" type="Button" parent="UI/Margin/VBox/Buttons"]
+[node name="AntsVsAntsButton" type="Button" parent="UI/Margin/VBox/Buttons"]
 custom_minimum_size = Vector2(320, 48)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Open Battlefield"
+text = "Ants vs Ants"
 
-[node name="TerrariumButton" type="Button" parent="UI/Margin/VBox/Buttons"]
+[node name="BattleRoyaleButton" type="Button" parent="UI/Margin/VBox/Buttons"]
 custom_minimum_size = Vector2(320, 48)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Terrarium"
+text = "Battle Royale"
 
 [node name="SelectedPlayerLabel" type="Label" parent="UI/Margin/VBox/Buttons"]
 custom_minimum_size = Vector2(320, 36)
