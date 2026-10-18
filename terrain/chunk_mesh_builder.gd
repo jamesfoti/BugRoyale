@@ -20,8 +20,20 @@ class AsyncRebuildJob:
 	var task_id: int = -1
 
 
+## Shared state for WorkerThreadPool group tasks. Result slots are created up front on the
+## calling thread; each task only fills its own slot, so no container is resized concurrently.
+class ParallelBuildJob:
+	var chunk_coordinates: Array[Vector3i] = []
+	var results: Array[ChunkBuildResult] = []
+	var settings: ChunkedTerrainWorld.SettingsSnapshot
+
+
 static func run_async_job(job: AsyncRebuildJob) -> void:
 	job.batch_result = build_batch(job.chunk_coordinates, job.settings)
+
+
+static func run_parallel_job_element(element_index: int, job: ParallelBuildJob) -> void:
+	build_chunk_into(job.results[element_index], job.chunk_coordinates[element_index], job.settings)
 
 
 static func build_batch(
@@ -29,20 +41,25 @@ static func build_batch(
 	settings: ChunkedTerrainWorld.SettingsSnapshot
 ) -> BatchBuildResult:
 	var build_batch_result: BatchBuildResult = BatchBuildResult.new()
-	var edge_world_cache: Dictionary = {}
 	for chunk_coordinate: Vector3i in chunk_coordinates:
-		build_batch_result.chunks[chunk_coordinate] = build_chunk(
-			chunk_coordinate, settings, edge_world_cache
-		)
+		build_batch_result.chunks[chunk_coordinate] = build_chunk(chunk_coordinate, settings)
 	return build_batch_result
 
 
 static func build_chunk(
 	chunk_coordinate: Vector3i,
-	settings: ChunkedTerrainWorld.SettingsSnapshot,
-	edge_world_cache: Dictionary
+	settings: ChunkedTerrainWorld.SettingsSnapshot
 ) -> ChunkBuildResult:
 	var chunk_build_result: ChunkBuildResult = ChunkBuildResult.new()
+	build_chunk_into(chunk_build_result, chunk_coordinate, settings)
+	return chunk_build_result
+
+
+static func build_chunk_into(
+	chunk_build_result: ChunkBuildResult,
+	chunk_coordinate: Vector3i,
+	settings: ChunkedTerrainWorld.SettingsSnapshot
+) -> void:
 	var cells_per_axis: int = settings.cells_per_axis
 	var extent: float = settings.chunk_world_size
 	var sample_size: Vector3i = Vector3i.ONE * (cells_per_axis + 1)
@@ -50,6 +67,8 @@ static func build_chunk(
 	var half_extent: Vector3 = Vector3.ONE * extent * 0.5
 	var world_corner: Vector3 = settings.world_origin + corner_local
 	var world_center: Vector3 = world_corner + half_extent
+	var grid_world_origin: Vector3 = settings.world_origin + _chunk_corner_local(Vector3i.ZERO, settings)
+	var world_step: float = extent / float(cells_per_axis)
 	var grid_offset: Vector3i = Vector3i(
 		chunk_coordinate.x * cells_per_axis,
 		chunk_coordinate.y * cells_per_axis,
@@ -127,21 +146,20 @@ static func build_chunk(
 	var field: SignedDensityField = DensitySampler.build_chunk_field(
 		density,
 		sample_size,
-		world_corner,
-		extent
+		grid_world_origin,
+		grid_offset,
+		world_step
 	)
 	chunk_build_result.mesh_result = FlyingEdgesMesher.build_mesh(
 		field,
 		extent,
 		settings.iso_level,
 		grid_offset,
-		edge_world_cache,
-		world_corner,
+		grid_world_origin,
 		world_center,
 		density
 	)
 	chunk_build_result.local_position = corner_local + half_extent
-	return chunk_build_result
 
 
 static func _chunk_corner_local(

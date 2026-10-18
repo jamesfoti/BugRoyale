@@ -204,22 +204,39 @@ func rebuild_all() -> void:
 	_rebuild_all_sync(settings, grid_dimensions)
 
 
+## Blocks until every chunk exists (callers such as spawning rely on that), but meshes the
+## chunks on all WorkerThreadPool threads when use_threaded_rebuild is on.
 func _rebuild_all_sync(settings: SettingsSnapshot, grid_dimensions: Vector3i) -> void:
-	var edge_world_cache: Dictionary = {}
 	var rebuild_start_milliseconds: int = Time.get_ticks_msec()
+	var job: ChunkMeshBuilder.ParallelBuildJob = ChunkMeshBuilder.ParallelBuildJob.new()
+	job.settings = settings
 	for chunk_z: int in grid_dimensions.z:
 		for chunk_y: int in grid_dimensions.y:
 			for chunk_x: int in grid_dimensions.x:
-				var chunk_coordinate: Vector3i = Vector3i(chunk_x, chunk_y, chunk_z)
-				_build_chunk_at(chunk_coordinate, settings, edge_world_cache)
+				job.chunk_coordinates.append(Vector3i(chunk_x, chunk_y, chunk_z))
+				job.results.append(ChunkMeshBuilder.ChunkBuildResult.new())
+	if use_threaded_rebuild and job.chunk_coordinates.size() > 1:
+		var group_task_id: int = WorkerThreadPool.add_group_task(
+			ChunkMeshBuilder.run_parallel_job_element.bind(job),
+			job.chunk_coordinates.size(),
+			-1,
+			true,
+			"%s chunk rebuild" % _get_world_log_name()
+		)
+		WorkerThreadPool.wait_for_group_task_completion(group_task_id)
+	else:
+		for element_index: int in job.chunk_coordinates.size():
+			ChunkMeshBuilder.run_parallel_job_element(element_index, job)
+	for element_index: int in job.chunk_coordinates.size():
+		_build_chunk_at(job.chunk_coordinates[element_index], job.results[element_index], settings)
 	var elapsed_milliseconds: int = Time.get_ticks_msec() - rebuild_start_milliseconds
 	_log_rebuild_complete(_chunks.size(), settings, grid_dimensions, elapsed_milliseconds)
 
 
 func _build_chunk_at(
 	chunk_coordinate: Vector3i,
-	settings: SettingsSnapshot,
-	edge_world_cache: Dictionary
+	chunk_build_result: ChunkMeshBuilder.ChunkBuildResult,
+	settings: SettingsSnapshot
 ) -> void:
 	var chunk: PlanetChunk = _CHUNK_SCRIPT.new()
 	chunk.name = "Chunk_%d_%d_%d" % [
@@ -229,7 +246,7 @@ func _build_chunk_at(
 	if not is_playable_world:
 		chunk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(chunk)
-	chunk.rebuild(settings, edge_world_cache)
+	chunk.apply_build_result(chunk_build_result, settings.rebuild_collision)
 	if settings.material != null:
 		chunk.material_override = settings.material
 	_register_editor_scene_node(chunk)
@@ -573,12 +590,11 @@ func _rebuild_chunk_coordinates(
 		return
 	if settings == null:
 		settings = _make_settings_snapshot()
-	var edge_world_cache: Dictionary = {}
 	for chunk_coordinate: Vector3i in chunk_coordinates:
 		var chunk: PlanetChunk = _chunks.get(chunk_coordinate) as PlanetChunk
 		if chunk == null:
 			continue
-		chunk.rebuild(settings, edge_world_cache)
+		chunk.rebuild(settings)
 		if settings.material != null:
 			chunk.material_override = settings.material
 

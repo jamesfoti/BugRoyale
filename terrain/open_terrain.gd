@@ -23,6 +23,7 @@ extends ChunkedTerrainWorld
 @export var heightmap: Texture2D:
 	set(value):
 		heightmap = value
+		_heightmap_image_cache = null
 		_request_rebuild()
 ## Raises or lowers the ground surface in meters (relative to this node's Y).
 @export var surface_height_offset: float = 0.0:
@@ -41,6 +42,11 @@ extends ChunkedTerrainWorld
 	set(value):
 		solid_underside = value
 		_request_rebuild()
+
+
+## Private copy of the heightmap's image, shared read-only by every settings snapshot and
+## worker thread instead of being duplicated per snapshot.
+var _heightmap_image_cache: Image
 
 
 func _register_playable_groups() -> void:
@@ -93,7 +99,10 @@ func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> Den
 func _duplicate_heightmap_image() -> Image:
 	if heightmap == null:
 		return null
+	if _heightmap_image_cache != null:
+		return _heightmap_image_cache
 	var image: Image = heightmap.get_image()
 	if image == null or image.is_empty():
 		return null
-	return image.duplicate()
+	_heightmap_image_cache = image.duplicate()
+	return _heightmap_image_cache

@@ -5,6 +5,10 @@ extends RefCounted
 
 var size: Vector3i = Vector3i.ZERO
 var values: PackedFloat32Array = PackedFloat32Array()
+## Sample range, when known (DensitySampler.build_chunk_field fills it). Lets the mesher skip
+## chunks that are entirely solid or entirely air.
+var min_value: float = -INF
+var max_value: float = INF
 
 
 func _init(sample_size: Vector3i = Vector3i.ZERO) -> void:

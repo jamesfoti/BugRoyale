@@ -6,11 +6,10 @@ extends MeshInstance3D
 var chunk_coordinate: Vector3i = Vector3i.ZERO
 
 
-func rebuild(settings: ChunkedTerrainWorld.SettingsSnapshot, edge_world_cache: Dictionary = {}) -> void:
+func rebuild(settings: ChunkedTerrainWorld.SettingsSnapshot) -> void:
 	var chunk_build_result: ChunkMeshBuilder.ChunkBuildResult = ChunkMeshBuilder.build_chunk(
 		chunk_coordinate,
-		settings,
-		edge_world_cache
+		settings
 	)
 	apply_build_result(chunk_build_result, settings.rebuild_collision)
 

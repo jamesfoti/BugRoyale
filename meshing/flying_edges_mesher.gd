@@ -1,6 +1,8 @@
 class_name FlyingEdgesMesher
 extends RefCounted
-## Flying Edges-style mesher with per-chunk edge→vertex dedup and cross-chunk world-position cache.
+## Flying Edges-style mesher with per-chunk edge→vertex dedup.
+## Samples live on a shared world grid (see DensitySampler.build_chunk_field), so vertices and
+## normals on a chunk face are computed from identical values by both neighbouring chunks.
 
 
 class MeshResult:
@@ -9,47 +11,160 @@ class MeshResult:
 	var indices: PackedInt32Array = PackedInt32Array()
 
 
+## Per-edge lower corner (cell-local) and axis (0 = x, 1 = y, 2 = z), derived from
+## FlyingEdgesTables.EDGE_CORNERS with corners 0..7 = (0,0,0) (1,0,0) (1,0,1) (0,0,1)
+## (0,1,0) (1,1,0) (1,1,1) (0,1,1).
+const _EDGE_LOWER_CORNER: Array[Vector3i] = [
+	Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, 0),
+	Vector3i(0, 1, 0), Vector3i(1, 1, 0), Vector3i(0, 1, 1), Vector3i(0, 1, 0),
+	Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(1, 0, 1), Vector3i(0, 0, 1),
+]
+const _EDGE_AXIS: PackedInt32Array = [0, 2, 0, 2, 0, 2, 0, 2, 1, 1, 1, 1]
+
+
+## Reads samples by local grid coordinate. Coordinates one step outside the chunk (needed for
+## central-difference normals on chunk faces) are evaluated from the density and cached.
+class _FieldReader:
+	var values: PackedFloat32Array
+	var size: Vector3i
+	var stride_y: int
+	var stride_z: int
+	var density: DensitySampler.WorldDensity
+	var grid_world_origin: Vector3
+	var grid_offset: Vector3i
+	var step: float
+	var _outside_samples: Dictionary = {}
+
+	func sample(x: int, y: int, z: int) -> float:
+		if x >= 0 and y >= 0 and z >= 0 and x < size.x and y < size.y and z < size.z:
+			return values[x + y * stride_y + z * stride_z]
+		var key: Vector3i = Vector3i(x, y, z)
+		var cached: Variant = _outside_samples.get(key)
+		if cached != null:
+			return cached as float
+		var world_pos: Vector3 = DensitySampler.grid_sample_position(
+			grid_world_origin, grid_offset + key, step
+		)
+		var value: float = density.evaluate(world_pos)
+		_outside_samples[key] = value
+		return value
+
+	func gradient(x: int, y: int, z: int) -> Vector3:
+		return Vector3(
+			sample(x + 1, y, z) - sample(x - 1, y, z),
+			sample(x, y + 1, z) - sample(x, y - 1, z),
+			sample(x, y, z + 1) - sample(x, y, z - 1)
+		)
+
+
+## grid_world_origin + (grid_offset + local sample) * step is each sample's world position;
+## vertices are returned relative to chunk_world_center. With a density, normals come from
+## central differences of the sample grid; without one, from face normals.
 static func build_mesh(
 	field: SignedDensityField,
 	chunk_extent: float,
 	iso_level: float = 0.0,
 	grid_offset: Vector3i = Vector3i.ZERO,
-	edge_world_cache: Dictionary = {},
-	chunk_world_origin: Vector3 = Vector3.ZERO,
+	grid_world_origin: Vector3 = Vector3.ZERO,
 	chunk_world_center: Vector3 = Vector3.ZERO,
 	density: DensitySampler.WorldDensity = null
 ) -> MeshResult:
 	var result := MeshResult.new()
 	if not field.is_valid():
 		return result
+	# Every sample on one side of the surface: no cell can produce triangles.
+	if field.min_value >= iso_level or field.max_value < iso_level:
+		return result
 
-	var cells := field.cell_counts()
-	var world_step := chunk_extent / float(cells.x)
-	var tri_table := FlyingEdgesTables.get_tri_table()
-	var edge_vertex_cache: Dictionary = {}
+	var cells: Vector3i = field.cell_counts()
+	var world_step: float = chunk_extent / float(cells.x)
+	var tri_table: Array[PackedInt32Array] = FlyingEdgesTables.get_tri_table()
+	var values: PackedFloat32Array = field.values
+	var stride_y: int = field.size.x
+	var stride_z: int = field.size.x * field.size.y
+
+	var reader: _FieldReader = null
+	if density != null:
+		reader = _FieldReader.new()
+		reader.values = values
+		reader.size = field.size
+		reader.stride_y = stride_y
+		reader.stride_z = stride_z
+		reader.density = density
+		reader.grid_world_origin = grid_world_origin
+		reader.grid_offset = grid_offset
+		reader.step = world_step
+
+	# Edge vertex index keyed by (lower sample index * 3 + axis); -1 = not created yet.
+	var edge_vertex_index: PackedInt32Array = PackedInt32Array()
+	edge_vertex_index.resize(values.size() * 3)
+	edge_vertex_index.fill(-1)
+	var edge_lower_offset: PackedInt32Array = PackedInt32Array()
+	edge_lower_offset.resize(12)
+	for edge_id in 12:
+		var lower: Vector3i = _EDGE_LOWER_CORNER[edge_id]
+		edge_lower_offset[edge_id] = lower.x + lower.y * stride_y + lower.z * stride_z
+	var center_offset: Vector3 = chunk_world_center - grid_world_origin
+	var cell_edge_vertices: PackedInt32Array = PackedInt32Array()
+	cell_edge_vertices.resize(12)
 
 	for z in cells.z:
 		for y in cells.y:
+			var row_base: int = y * stride_y + z * stride_z
 			for x in cells.x:
-				_process_cell(
-					field,
-					world_step,
-					iso_level,
-					grid_offset,
-					edge_world_cache,
-					edge_vertex_cache,
-					chunk_world_origin,
-					chunk_world_center,
-					x,
-					y,
-					z,
-					tri_table,
-					result
-				)
+				var i0: int = row_base + x
+				var case_index: int = 0
+				if values[i0] < iso_level:
+					case_index |= 1
+				if values[i0 + 1] < iso_level:
+					case_index |= 2
+				if values[i0 + 1 + stride_z] < iso_level:
+					case_index |= 4
+				if values[i0 + stride_z] < iso_level:
+					case_index |= 8
+				if values[i0 + stride_y] < iso_level:
+					case_index |= 16
+				if values[i0 + 1 + stride_y] < iso_level:
+					case_index |= 32
+				if values[i0 + 1 + stride_y + stride_z] < iso_level:
+					case_index |= 64
+				if values[i0 + stride_y + stride_z] < iso_level:
+					case_index |= 128
+				if case_index == 0 or case_index == 255:
+					continue
 
-	if density != null:
-		_compute_gradient_normals(result, density, chunk_world_center, world_step)
-	else:
+				var edge_mask: int = FlyingEdgesTables.EDGE_TABLE[case_index]
+				for edge_id in 12:
+					if (edge_mask & (1 << edge_id)) == 0:
+						cell_edge_vertices[edge_id] = -1
+						continue
+					var lower_index: int = i0 + edge_lower_offset[edge_id]
+					var axis: int = _EDGE_AXIS[edge_id]
+					var key: int = lower_index * 3 + axis
+					var vertex_index: int = edge_vertex_index[key]
+					if vertex_index < 0:
+						var lower_corner: Vector3i = Vector3i(x, y, z) + _EDGE_LOWER_CORNER[edge_id]
+						vertex_index = _create_edge_vertex(
+							values, lower_index, lower_corner, axis, stride_y, stride_z,
+							iso_level, grid_offset, world_step, center_offset, reader, result
+						)
+						edge_vertex_index[key] = vertex_index
+					cell_edge_vertices[edge_id] = vertex_index
+
+				var row: PackedInt32Array = tri_table[case_index]
+				var tri_i: int = 0
+				while tri_i < row.size() and row[tri_i] != -1:
+					var i_a: int = cell_edge_vertices[row[tri_i]]
+					var i_b: int = cell_edge_vertices[row[tri_i + 1]]
+					var i_c: int = cell_edge_vertices[row[tri_i + 2]]
+					if i_a >= 0 and i_b >= 0 and i_c >= 0:
+						# Paul Bourke tables wound for "inside = below iso"; flip for Godot CCW outward.
+						result.indices.append(i_a)
+						result.indices.append(i_c)
+						result.indices.append(i_b)
+					tri_i += 3
+
+	if reader == null:
 		_compute_face_normals(result)
 	return result
 
@@ -67,212 +182,60 @@ static func to_array_mesh(mesh_result: MeshResult) -> ArrayMesh:
 	return mesh
 
 
-static func _process_cell(
-	field: SignedDensityField,
-	world_step: float,
-	iso: float,
-	grid_offset: Vector3i,
-	edge_world_cache: Dictionary,
-	edge_vertex_cache: Dictionary,
-	chunk_world_origin: Vector3,
-	chunk_world_center: Vector3,
-	cx: int,
-	cy: int,
-	cz: int,
-	tri_table: Array[PackedInt32Array],
-	result: MeshResult
-) -> void:
-	var case_index := _case_index(field, iso, cx, cy, cz)
-	if case_index == 0 or case_index == 255:
-		return
-
-	var edge_mask: int = FlyingEdgesTables.EDGE_TABLE[case_index]
-	if edge_mask == 0:
-		return
-
-	var local_edges: PackedInt32Array = PackedInt32Array()
-	local_edges.resize(12)
-	for i in 12:
-		local_edges[i] = -1
-
-	for edge_id in 12:
-		var bit: int = 1 << edge_id
-		if (edge_mask & bit) == 0:
-			continue
-		local_edges[edge_id] = _create_edge_vertex(
-			field,
-			world_step,
-			iso,
-			grid_offset,
-			edge_world_cache,
-			edge_vertex_cache,
-			chunk_world_origin,
-			chunk_world_center,
-			cx,
-			cy,
-			cz,
-			edge_id,
-			result.vertices
-		)
-
-	var row: PackedInt32Array = tri_table[case_index]
-	var tri_i := 0
-	while tri_i < row.size() and row[tri_i] != -1:
-		var e0: int = row[tri_i]
-		var e1: int = row[tri_i + 1]
-		var e2: int = row[tri_i + 2]
-		var i0: int = local_edges[e0]
-		var i1: int = local_edges[e1]
-		var i2: int = local_edges[e2]
-		if i0 >= 0 and i1 >= 0 and i2 >= 0:
-			# Paul Bourke tables wound for "inside = below iso"; flip for Godot CCW outward.
-			result.indices.append_array([i0, i2, i1])
-		tri_i += 3
-
-
-static func _case_index(
-	field: SignedDensityField,
-	iso_level: float,
-	x: int,
-	y: int,
-	z: int
-) -> int:
-	var case_index := 0
-	if field.get_sample(x, y, z) < iso_level:
-		case_index |= 1
-	if field.get_sample(x + 1, y, z) < iso_level:
-		case_index |= 2
-	if field.get_sample(x + 1, y, z + 1) < iso_level:
-		case_index |= 4
-	if field.get_sample(x, y, z + 1) < iso_level:
-		case_index |= 8
-	if field.get_sample(x, y + 1, z) < iso_level:
-		case_index |= 16
-	if field.get_sample(x + 1, y + 1, z) < iso_level:
-		case_index |= 32
-	if field.get_sample(x + 1, y + 1, z + 1) < iso_level:
-		case_index |= 64
-	if field.get_sample(x, y + 1, z + 1) < iso_level:
-		case_index |= 128
-	return case_index
-
-
 static func _create_edge_vertex(
-	field: SignedDensityField,
-	world_step: float,
+	values: PackedFloat32Array,
+	lower_index: int,
+	lower_corner: Vector3i,
+	axis: int,
+	stride_y: int,
+	stride_z: int,
 	iso: float,
 	grid_offset: Vector3i,
-	edge_world_cache: Dictionary,
-	edge_vertex_cache: Dictionary,
-	chunk_world_origin: Vector3,
-	chunk_world_center: Vector3,
-	cx: int,
-	cy: int,
-	cz: int,
-	edge_id: int,
-	vertices: PackedVector3Array
+	world_step: float,
+	center_offset: Vector3,
+	reader: _FieldReader,
+	result: MeshResult
 ) -> int:
-	var cache_key := _edge_cache_key(grid_offset, cx, cy, cz, edge_id)
-	if edge_vertex_cache.has(cache_key):
-		return edge_vertex_cache[cache_key]
-
-	var world_pos: Vector3
-	if edge_world_cache.has(cache_key):
-		world_pos = edge_world_cache[cache_key]
-	else:
-		var corners := FlyingEdgesTables.EDGE_CORNERS[edge_id]
-		var c0: Vector3i = _corner_offset(corners.x)
-		var c1: Vector3i = _corner_offset(corners.y)
-		var p0 := Vector3(cx + c0.x, cy + c0.y, cz + c0.z)
-		var p1 := Vector3(cx + c1.x, cy + c1.y, cz + c1.z)
-		var v0 := field.get_sample(int(p0.x), int(p0.y), int(p0.z))
-		var v1 := field.get_sample(int(p1.x), int(p1.y), int(p1.z))
-		var denom := v1 - v0
-		var t: float
-		if absf(denom) < 0.00001:
-			t = 0.5
-		else:
-			t = (iso - v0) / denom
-		t = clampf(t, 0.0, 1.0)
-		var grid_pos := p0.lerp(p1, t) * world_step
-		world_pos = chunk_world_origin + grid_pos
-		edge_world_cache[cache_key] = world_pos
-
-	var local_pos := world_pos - chunk_world_center
-	var index := vertices.size()
-	vertices.append(local_pos)
-	edge_vertex_cache[cache_key] = index
-	return index
-
-
-static func _edge_cache_key(
-	grid_offset: Vector3i,
-	cx: int,
-	cy: int,
-	cz: int,
-	edge_id: int
-) -> String:
-	var corners := FlyingEdgesTables.EDGE_CORNERS[edge_id]
-	var c0: Vector3i = _corner_offset(corners.x)
-	var c1: Vector3i = _corner_offset(corners.y)
-	var base := Vector3i(cx, cy, cz)
-	var p0: Vector3i = grid_offset + base + c0
-	var p1: Vector3i = grid_offset + base + c1
-	if _lex_less(p1, p0):
-		var tmp: Vector3i = p0
-		p0 = p1
-		p1 = tmp
-	return "%d,%d,%d,%d,%d,%d" % [p0.x, p0.y, p0.z, p1.x, p1.y, p1.z]
-
-
-static func _lex_less(a: Vector3i, b: Vector3i) -> bool:
-	if a.x != b.x:
-		return a.x < b.x
-	if a.y != b.y:
-		return a.y < b.y
-	return a.z < b.z
-
-
-static func _corner_offset(corner_id: int) -> Vector3i:
-	match corner_id:
+	var axis_step: Vector3i = Vector3i.ZERO
+	var upper_index: int = lower_index
+	match axis:
 		0:
-			return Vector3i(0, 0, 0)
+			axis_step = Vector3i(1, 0, 0)
+			upper_index += 1
 		1:
-			return Vector3i(1, 0, 0)
-		2:
-			return Vector3i(1, 0, 1)
-		3:
-			return Vector3i(0, 0, 1)
-		4:
-			return Vector3i(0, 1, 0)
-		5:
-			return Vector3i(1, 1, 0)
-		6:
-			return Vector3i(1, 1, 1)
-		7:
-			return Vector3i(0, 1, 1)
-	return Vector3i.ZERO
+			axis_step = Vector3i(0, 1, 0)
+			upper_index += stride_y
+		_:
+			axis_step = Vector3i(0, 0, 1)
+			upper_index += stride_z
+	var lower_value: float = values[lower_index]
+	var upper_value: float = values[upper_index]
+	var denom: float = upper_value - lower_value
+	var t: float = 0.5
+	if absf(denom) >= 0.00001:
+		t = clampf((iso - lower_value) / denom, 0.0, 1.0)
 
+	# Global grid coordinates keep shared-face vertices identical across chunks.
+	var global_lower: Vector3 = Vector3(grid_offset + lower_corner)
+	var grid_pos: Vector3 = global_lower + Vector3(axis_step) * t
+	var index: int = result.vertices.size()
+	result.vertices.append(grid_pos * world_step - center_offset)
 
-static func _compute_gradient_normals(
-	mesh_result: MeshResult,
-	density: DensitySampler.WorldDensity,
-	chunk_world_center: Vector3,
-	world_step: float
-) -> void:
-	mesh_result.normals.resize(mesh_result.vertices.size())
-	var epsilon := maxf(world_step * 0.5, 0.05)
-	for i in mesh_result.vertices.size():
-		var world_pos := chunk_world_center + mesh_result.vertices[i]
-		var grad := density.gradient(world_pos, epsilon)
-		if grad.length_squared() > 0.000001:
-			mesh_result.normals[i] = grad.normalized()
+	if reader != null:
+		var upper_corner: Vector3i = lower_corner + axis_step
+		var gradient: Vector3 = reader.gradient(lower_corner.x, lower_corner.y, lower_corner.z).lerp(
+			reader.gradient(upper_corner.x, upper_corner.y, upper_corner.z), t
+		)
+		if gradient.length_squared() > 0.0000000001:
+			result.normals.append(gradient.normalized())
 		else:
-			mesh_result.normals[i] = Vector3.UP
+			result.normals.append(Vector3.UP)
+	return index
 
 
 static func _compute_face_normals(mesh_result: MeshResult) -> void:
 	mesh_result.normals.resize(mesh_result.vertices.size())
+	mesh_result.normals.fill(Vector3.ZERO)
 	for i in mesh_result.indices.size() / 3:
 		var i0: int = mesh_result.indices[i * 3]
 		var i1: int = mesh_result.indices[i * 3 + 1]

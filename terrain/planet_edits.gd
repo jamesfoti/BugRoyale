@@ -5,6 +5,8 @@ extends RefCounted
 
 var _voxel_size: float = 1.0
 var _overrides: Dictionary = {}
+## Read-only copy shared by worker-thread rebuilds; dropped whenever the edits change.
+var _thread_snapshot: PlanetEdits = null
 
 
 func set_voxel_size(voxel_size: float) -> void:
@@ -43,9 +45,12 @@ func add_brush(
 				if is_equal_approx(new_density_value, density_value):
 					continue
 				_overrides[voxel_key] = new_density_value
+				_thread_snapshot = null
 
 
 func apply_to_density(density: float, world_position: Vector3) -> float:
+	if _overrides.is_empty():
+		return density
 	var voxel_key: Vector3i = position_to_key(world_position, _voxel_size)
 	if _overrides.has(voxel_key):
 		return _overrides[voxel_key] as float
@@ -56,11 +61,15 @@ func get_override_count() -> int:
 	return _overrides.size()
 
 
+## Returns a copy that worker threads may read while the main thread keeps editing. The copy is
+## reused across rebuild jobs until the next brush change, so it must not be modified.
 func duplicate_for_thread() -> PlanetEdits:
+	if _thread_snapshot != null and is_equal_approx(_thread_snapshot._voxel_size, _voxel_size):
+		return _thread_snapshot
 	var thread_copy: PlanetEdits = PlanetEdits.new()
 	thread_copy._voxel_size = _voxel_size
-	for key: Variant in _overrides.keys():
-		thread_copy._overrides[key] = _overrides[key]
+	thread_copy._overrides = _overrides.duplicate()
+	_thread_snapshot = thread_copy
 	return thread_copy
 
 

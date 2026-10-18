@@ -2,6 +2,9 @@ class_name DensitySampler
 extends RefCounted
 ## Builds signed density fields from analytic shapes and noise.
 
+## Height above the open-terrain surface where 3D noise can no longer win the max() and is skipped.
+const OPEN_TERRAIN_NOISE_SKIP_HEIGHT: float = 2.0
+
 
 class WorldDensity:
 	## Analytic density + gradient at any world position (seam-consistent normals).
@@ -178,9 +181,17 @@ class WorldDensity:
 
 	func _evaluate_open_terrain(world_pos: Vector3) -> float:
 		var surface_height: float = _sample_open_terrain_height(world_pos.x, world_pos.z)
+		return evaluate_open_terrain_with_surface(world_pos, surface_height)
+
+	## Open-terrain density when the column's surface height is already known (field builds
+	## sample one height per XZ column instead of per voxel).
+	func evaluate_open_terrain_with_surface(world_pos: Vector3, surface_height: float) -> float:
 		var above_surface: float = world_pos.y - surface_height
 		var value: float
 		if open_terrain_solid_fill:
+			value = above_surface
+		elif above_surface >= OPEN_TERRAIN_NOISE_SKIP_HEIGHT:
+			# FBM noise stays within [-1, 1], so max(noise, above_surface) is exactly above_surface.
 			value = above_surface
 		else:
 			# Same 3D noise field as boxed-in terrain; heightmap clips the open top.
@@ -306,7 +317,8 @@ static func create_open_terrain_world_density(
 	density.bounds_half = bounds_half
 	density.bounds_clip_inset = bounds_clip_inset
 	if heightmap_image != null and not heightmap_image.is_empty():
-		density._heightmap_image = heightmap_image.duplicate()
+		# Shared read-only: callers pass a private copy (OpenTerrain caches one per texture).
+		density._heightmap_image = heightmap_image
 	density._init_open_terrain_height_noise(
 		noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
 	)
@@ -691,18 +703,64 @@ static func apply_bounds_falloff(
 				field.set_sample(x, y, z, current + push)
 
 
+## Samples density on the shared world grid: sample (x, y, z) sits at
+## grid_world_origin + (grid_offset + (x, y, z)) * step, so neighbouring chunks get bit-identical
+## values on their shared faces.
 static func build_chunk_field(
 	density: WorldDensity,
 	sample_size: Vector3i,
-	chunk_origin: Vector3,
-	chunk_extent: float
+	grid_world_origin: Vector3,
+	grid_offset: Vector3i,
+	step: float
 ) -> SignedDensityField:
 	var field := SignedDensityField.new(sample_size)
-	var cells := sample_size.x - 1
-	var step := chunk_extent / float(cells)
-	for z in field.size.z:
-		for y in field.size.y:
-			for x in field.size.x:
-				var world_pos := chunk_origin + Vector3(x, y, z) * step
-				field.set_sample(x, y, z, density.evaluate(world_pos))
+	var values: PackedFloat32Array = field.values
+	var size_x: int = sample_size.x
+	var size_y: int = sample_size.y
+	var size_z: int = sample_size.z
+	var min_value: float = INF
+	var max_value: float = -INF
+	var column_heights: PackedFloat32Array = PackedFloat32Array()
+	var use_column_heights: bool = density.open_terrain_enabled
+	if use_column_heights:
+		column_heights.resize(size_x * size_z)
+		for z in size_z:
+			var world_z: float = grid_world_origin.z + float(grid_offset.z + z) * step
+			for x in size_x:
+				var world_x: float = grid_world_origin.x + float(grid_offset.x + x) * step
+				column_heights[x + z * size_x] = density.sample_open_terrain_height(world_x, world_z)
+	var index: int = 0
+	for z in size_z:
+		var world_z: float = grid_world_origin.z + float(grid_offset.z + z) * step
+		for y in size_y:
+			var world_y: float = grid_world_origin.y + float(grid_offset.y + y) * step
+			for x in size_x:
+				var world_pos := Vector3(
+					grid_world_origin.x + float(grid_offset.x + x) * step, world_y, world_z
+				)
+				var value: float
+				if use_column_heights:
+					value = density.evaluate_open_terrain_with_surface(
+						world_pos, column_heights[x + z * size_x]
+					)
+				else:
+					value = density.evaluate(world_pos)
+				values[index] = value
+				min_value = minf(min_value, value)
+				max_value = maxf(max_value, value)
+				index += 1
+	field.values = values
+	field.min_value = min_value
+	field.max_value = max_value
 	return field
+
+
+## World position of a (possibly out-of-chunk) grid sample; matches build_chunk_field.
+static func grid_sample_position(
+	grid_world_origin: Vector3, global_sample: Vector3i, step: float
+) -> Vector3:
+	return Vector3(
+		grid_world_origin.x + float(global_sample.x) * step,
+		grid_world_origin.y + float(global_sample.y) * step,
+		grid_world_origin.z + float(global_sample.z) * step
+	)
