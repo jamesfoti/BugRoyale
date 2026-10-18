@@ -2,7 +2,6 @@ extends CharacterBody3D
 class_name BoxedInTerrainPlayer
 ## Walks on boxed-in terrain with standard gravity and camera-relative movement.
 
-const GODOT_PLUSH_SKIN_SCRIPT = preload("res://character/godot_plush/godot_plush_skin.gd")
 const _MIN_DIR_LEN_SQ: float = 0.0001
 const _INPUT_DEADZONE: float = 0.01
 const _SPAWN_ATTEMPTS: int = 12
@@ -15,7 +14,8 @@ const _SPAWN_RAY_HEIGHT: float = 80.0
 @export var mouse_sensitivity: float = 0.0025
 @export var spawn_clearance: float = 1.2
 
-@onready var _plush_skin: GODOT_PLUSH_SKIN_SCRIPT = $VisualRoot/GodotPlushSkin
+## The selected character (plush by default) is installed under VisualRoot on ready.
+@onready var _skin: CharacterSkin = CharacterSkin.install_selected($VisualRoot)
 @onready var _visual_root: Node3D = $VisualRoot
 @onready var _orbit_camera: OrbitCamera = $OrbitCamera
 @onready var _camera: Camera3D = $OrbitCamera/Camera3D
@@ -300,28 +300,28 @@ func _is_terrain_collider(collider: Variant) -> bool:
 	return false
 
 
-func _get_skin() -> GODOT_PLUSH_SKIN_SCRIPT:
-	return _plush_skin
+func _get_skin() -> CharacterSkin:
+	return _skin
 
 
-func _set_anim_state(plush_skin: GODOT_PLUSH_SKIN_SCRIPT, state_name: String) -> void:
+func _set_anim_state(skin: CharacterSkin, state_name: String) -> void:
 	if _anim_state == state_name:
 		return
 	_anim_state = state_name
-	plush_skin.set_state(state_name)
+	skin.set_state(state_name)
 
 
 func _update_animation(movement_direction: Vector3) -> void:
-	var plush_skin: GODOT_PLUSH_SKIN_SCRIPT = _get_skin()
-	if plush_skin.is_waving():
+	var skin: CharacterSkin = _get_skin()
+	if skin.is_waving():
 		return
 
 	if not is_on_floor():
-		_set_anim_state(plush_skin, "jump" if velocity.y > 0.05 else "fall")
+		_set_anim_state(skin, "jump" if velocity.y > 0.05 else "fall")
 	elif movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
-		_set_anim_state(plush_skin, "run" if Input.is_action_pressed("run") else "walk")
+		_set_anim_state(skin, "run" if Input.is_action_pressed("run") else "walk")
 	else:
-		_set_anim_state(plush_skin, "idle")
+		_set_anim_state(skin, "idle")
 
 
 func _set_terrain_focus(enabled: bool) -> void:
@@ -367,43 +367,43 @@ func _connect_terrain_hud() -> void:
 	)
 	if terrain_brush != null:
 		_on_terrain_edit_mode_changed(terrain_brush.get_edit_mode())
-	var plush_skin: GODOT_PLUSH_SKIN_SCRIPT = _get_skin()
-	if plush_skin != null:
-		plush_skin.torch_equipped_changed.connect(_on_torch_equipped_changed)
+	var skin: CharacterSkin = _get_skin()
+	if skin != null:
+		skin.torch_equipped_changed.connect(_on_torch_equipped_changed)
 
 
 func apply_hand_item(item: PlayerItems.Item) -> void:
 	if not _spawned:
 		return
-	var plush_skin: GODOT_PLUSH_SKIN_SCRIPT = _get_skin()
-	if plush_skin.is_torch_busy() or plush_skin.is_pickaxe_busy():
+	var skin: CharacterSkin = _get_skin()
+	if skin.is_torch_busy() or skin.is_pickaxe_busy():
 		return
 	var terrain_hud_layer: CanvasLayer = (
 		get_tree().get_first_node_in_group("terrain_hud") as CanvasLayer
 	)
 	match item:
 		PlayerItems.Item.NONE:
-			if plush_skin.is_torch_equipped():
-				plush_skin.stow_torch()
+			if skin.is_torch_equipped():
+				skin.stow_torch()
 			if terrain_hud_layer != null and terrain_hud_layer.has_method("set_edit_mode"):
 				terrain_hud_layer.set_edit_mode(TerrainBrush.EditMode.OFF)
 		PlayerItems.Item.TORCH:
 			if terrain_hud_layer != null and terrain_hud_layer.has_method("set_edit_mode"):
 				terrain_hud_layer.set_edit_mode(TerrainBrush.EditMode.OFF)
-			if not plush_skin.is_torch_equipped():
-				plush_skin.equip_torch()
+			if not skin.is_torch_equipped():
+				skin.equip_torch()
 		PlayerItems.Item.PICKAXE_DESTROY, PlayerItems.Item.PICKAXE_ADD:
-			if plush_skin.is_torch_equipped():
-				plush_skin.stow_torch()
+			if skin.is_torch_equipped():
+				skin.stow_torch()
 			if terrain_hud_layer != null and terrain_hud_layer.has_method("set_edit_mode"):
 				terrain_hud_layer.set_edit_mode(PlayerItems.edit_mode_from_item(item))
 		_:
 			if PlayerItems.is_weapon(item):
-				if plush_skin.is_torch_equipped():
-					plush_skin.stow_torch()
+				if skin.is_torch_equipped():
+					skin.stow_torch()
 				if terrain_hud_layer != null and terrain_hud_layer.has_method("set_edit_mode"):
 					terrain_hud_layer.set_edit_mode(TerrainBrush.EditMode.OFF)
-	PlayerItems.apply_weapon_visual(plush_skin, item)
+	PlayerItems.apply_weapon_visual(skin, item)
 	_sync_item_menu(item)
 
 

@@ -217,10 +217,22 @@ size_flags_horizontal = 4
 alignment = 1
 theme_override_constants/separation = 8
 
+[node name="PreviousButton" type="Button" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(44, 36)
+layout_mode = 2
+tooltip_text = "Previous character"
+text = "◀"
+
 [node name="UseButton" type="Button" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox/Buttons"]
 custom_minimum_size = Vector2(110, 36)
 layout_mode = 2
 text = "Use This"
+
+[node name="NextButton" type="Button" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(44, 36)
+layout_mode = 2
+tooltip_text = "Next character"
+text = "▶"
 
 [node name="BackButton" type="Button" parent="UI/PlayerSelectPage/CenterPanel/Margin/VBox"]
 custom_minimum_size = Vector2(120, 34)

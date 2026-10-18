@@ -1,4 +1,4 @@
-extends Node3D
+extends CharacterSkin
 
 const TORCH_SCENE: PackedScene = preload("res://props/torch.tscn")
 const PICKAXE_SCENE: PackedScene = preload("res://props/pickaxe.tscn")
@@ -76,10 +76,6 @@ var _weapon_mesh_instance: MeshInstance3D
 var _weapon_mesh_library: Dictionary = {}
 var _equipped_weapon_item: PlayerItems.Item = PlayerItems.Item.NONE
 
-signal footstep(intensity: float)
-signal waved
-signal torch_equipped_changed(equipped: bool)
-signal pickaxe_equipped_changed(equipped: bool)
 
 
 func _ready() -> void:

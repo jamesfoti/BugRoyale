@@ -8,3 +8,6 @@ builds/windows/*.exe
 builds/macos/*.import
 builds/itch/*.zip
 .cursor/
+
+# Blender auto-backups
+*.blend1
