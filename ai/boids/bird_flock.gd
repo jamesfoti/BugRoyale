@@ -8,6 +8,9 @@ const BirdScene: PackedScene = preload("res://ai/boids/bird.tscn")
 const BIRD_CONE_HEIGHT: float = 0.42
 const BIRD_CONE_RADIUS: float = 0.13
 const WING_FLAP_SHADER: Shader = preload("res://ai/boids/wasp_wing_flap.gdshader")
+## Flocks up to this size refresh every bird's steering and ground probe every physics tick.
+const FULL_RATE_BIRD_COUNT: int = 24
+const UNKNOWN_ALTITUDE: float = -INF
 
 signal bird_died(bird: Bird)
 
@@ -30,7 +33,8 @@ signal bird_died(bird: Bird)
 @export var max_height: float = 22.0
 ## Model drawn for each flock member (a rig-free drone from create_bugs.py --drone); empty = cone.
 @export var drone_scene: PackedScene = preload("res://character/wasp/models/yellowjacket_wasp_drone.glb")
-@export var drone_scale: float = 0.45
+## Same scale as the playable Wasp skin (yellowjacket_wasp.tscn), so a hornet is wasp-sized.
+@export var drone_scale: float = 1.15
 ## Tips the (upright, centaur-style) drone forward so it flies nose-first.
 @export_range(0.0, 90.0, 1.0) var drone_pitch_degrees: float = 45.0
 
@@ -57,6 +61,15 @@ signal bird_died(bird: Bird)
 var _birds: Array[Bird] = []
 var _positions: PackedVector3Array
 var _velocities: PackedVector3Array
+## Flocking steering and ground probe per bird, refreshed in a staggered round-robin (see
+## _simulate_flock): the O(n²) neighbor loop and the per-bird terrain raycast are the two costly
+## parts of the simulation, and at 60 Hz a bird can coast on a one- or two-tick-old answer.
+var _flock_steering: PackedVector3Array
+## Height above the ground per bird; UNKNOWN_ALTITUDE forces a probe on the bird's next tick.
+var _altitudes: PackedFloat32Array
+var _tick: int = 0
+## Targets found this tick, shared by the flock center and every bird.
+var _targets: Array[Node3D] = []
 var _flock_center: Vector3 = Vector3.ZERO
 var _terrain: OpenTerrain
 ## Set by game modes so the flock flies correctly on any map (planet up, terrarium glass).
@@ -80,6 +93,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if not _birds.is_empty():
+		_targets = _get_attack_targets()
 		_update_flock_center()
 		_simulate_flock(delta)
 	_update_bird_multimesh()
@@ -91,7 +105,6 @@ func _build_flock() -> void:
 		return
 	_clear_birds()
 	_resolve_terrain()
-	_update_flock_center()
 	spawn_wave(bird_count)
 
 
@@ -100,7 +113,9 @@ func _build_flock() -> void:
 func spawn_wave(count: int) -> void:
 	if _terrain == null:
 		_resolve_terrain()
+	_targets = _get_attack_targets()
 	_update_flock_center()
+	var previous_count: int = _birds.size()
 	for _index: int in count:
 		var bird: Bird = BirdScene.instantiate() as Bird
 		if bird == null:
@@ -117,6 +132,8 @@ func spawn_wave(count: int) -> void:
 		bird.killed.connect(_on_bird_killed)
 		_birds.append(bird)
 	_resize_arrays()
+	for index: int in range(previous_count, _birds.size()):
+		_altitudes[index] = UNKNOWN_ALTITUDE
 	_build_bird_multimesh()
 	_update_bird_multimesh()
 
@@ -218,14 +235,22 @@ func _update_bird_multimesh() -> void:
 	if multimesh.instance_count < total:
 		multimesh.instance_count = total
 	var drawn: int = 0
-	for bird: Bird in _birds + _falling_birds:
+	for bird: Bird in _birds:
+		multimesh.set_instance_transform(drawn, bird.global_transform * _bird_mesh_offset)
+		drawn += 1
+	for bird: Bird in _falling_birds:
 		multimesh.set_instance_transform(drawn, bird.global_transform * _bird_mesh_offset)
 		drawn += 1
 	multimesh.visible_instance_count = drawn
 
 
 func _on_bird_killed(bird: Bird) -> void:
-	_birds.erase(bird)
+	var index: int = _birds.find(bird)
+	if index >= 0:
+		_birds.remove_at(index)
+		# Keep the per-bird caches aligned with the birds that follow it.
+		_flock_steering.remove_at(index)
+		_altitudes.remove_at(index)
 	_falling_birds.append(bird)
 	_resize_arrays()
 	bird_died.emit(bird)
@@ -239,7 +264,11 @@ static func _make_bird_mesh_offset() -> Transform3D:
 
 
 func _simulate_flock(delta: float) -> void:
-	var targets: Array[Node3D] = _get_attack_targets()
+	var targets: Array[Node3D] = _targets
+	_tick += 1
+	# Small flocks refresh every bird every tick; big waves spread the neighbor loop and the
+	# ground raycasts over 2-3 ticks (a 70-hornet wave does a third of the work per tick).
+	var refresh_interval: int = clampi(ceili(_birds.size() / float(FULL_RATE_BIRD_COUNT)), 1, 3)
 
 	for bird_index in _birds.size():
 		_positions[bird_index] = _birds[bird_index].global_position
@@ -249,20 +278,24 @@ func _simulate_flock(delta: float) -> void:
 		var bird: Bird = _birds[bird_index]
 		bird.tick_cooldown(delta)
 
-		var steering: Vector3 = BoidsRules.compute_steering(
-			bird_index,
-			_positions,
-			_velocities,
-			separation_radius,
-			alignment_radius,
-			cohesion_radius,
-			separation_weight,
-			alignment_weight,
-			cohesion_weight
-		)
-		steering += _compute_boundary_steering(_positions[bird_index])
-		var altitude: float = _altitude(_positions[bird_index])
-		steering += _compute_height_steering(_positions[bird_index], altitude)
+		var altitude: float = _altitudes[bird_index]
+		if (_tick + bird_index) % refresh_interval == 0 or altitude == UNKNOWN_ALTITUDE:
+			var flock_steering: Vector3 = BoidsRules.compute_steering(
+				bird_index,
+				_positions,
+				_velocities,
+				separation_radius,
+				alignment_radius,
+				cohesion_radius,
+				separation_weight,
+				alignment_weight,
+				cohesion_weight
+			)
+			flock_steering += _compute_boundary_steering(_positions[bird_index])
+			altitude = _altitude(_positions[bird_index])
+			flock_steering += _compute_height_steering(_positions[bird_index], altitude)
+			_flock_steering[bird_index] = flock_steering
+		var steering: Vector3 = _flock_steering[bird_index]
 
 		var target: Node3D = _find_nearest_target(_positions[bird_index], targets)
 		var speed_limit: float = max_speed
@@ -283,13 +316,15 @@ func _simulate_flock(delta: float) -> void:
 		var new_altitude: float = altitude + (new_position - _positions[bird_index]).dot(up)
 		if new_altitude < 1.5:
 			new_position += up * (1.5 - new_altitude)
+			new_altitude = 1.5
 		if map != null:
 			new_position = map.clamp_to_bounds(new_position)
 
-		bird.global_position = new_position
-		bird.set_velocity(new_velocity)
+		bird.set_motion(new_position, new_velocity)
 		_positions[bird_index] = new_position
 		_velocities[bird_index] = new_velocity
+		# Dead-reckoned until this bird's next ground probe.
+		_altitudes[bird_index] = new_altitude
 
 
 func _try_attack_target(bird: Bird, target: Node3D) -> void:
@@ -379,14 +414,14 @@ func _random_horizontal_velocity() -> Vector3:
 	return direction * randf_range(4.0, max_speed)
 
 
+## Uses the targets gathered this tick (_targets) when following them.
 func _update_flock_center() -> void:
 	if follow_targets:
-		var targets: Array[Node3D] = _get_attack_targets()
-		if not targets.is_empty():
+		if not _targets.is_empty():
 			var sum: Vector3 = Vector3.ZERO
-			for target: Node3D in targets:
+			for target: Node3D in _targets:
 				sum += target.global_position
-			_flock_center = sum / targets.size()
+			_flock_center = sum / _targets.size()
 		return
 	if flock_center_path != NodePath():
 		var center_node: Node3D = get_node_or_null(flock_center_path) as Node3D
@@ -407,6 +442,8 @@ func _resolve_terrain() -> void:
 func _resize_arrays() -> void:
 	_positions.resize(_birds.size())
 	_velocities.resize(_birds.size())
+	_flock_steering.resize(_birds.size())
+	_altitudes.resize(_birds.size())
 
 
 func _clear_birds() -> void:
@@ -417,3 +454,5 @@ func _clear_birds() -> void:
 	_falling_birds.clear()
 	_positions = PackedVector3Array()
 	_velocities = PackedVector3Array()
+	_flock_steering = PackedVector3Array()
+	_altitudes = PackedFloat32Array()

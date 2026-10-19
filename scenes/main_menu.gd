@@ -6,11 +6,13 @@ const LOADING_SCREEN_SCENE_PATH: String = "res://scenes/loading_screen.tscn"
 ## Extra space around the character in the Choose Player preview.
 const PREVIEW_FRAMING_PADDING: float = 1.15
 
+## The title and button column. Hidden while a page (Choose Player, Settings, map pick) is open,
+## the way the pause menu hides its own panel behind Settings, so nothing shows through.
+@onready var _main_page: Control = $UI/Margin
 @onready var _title: Label = $UI/Margin/VBox/Title
 @onready var _hornets_button: Button = $UI/Margin/VBox/Buttons/HornetsButton
 @onready var _ants_vs_ants_button: Button = $UI/Margin/VBox/Buttons/AntsVsAntsButton
 @onready var _battle_royale_button: Button = $UI/Margin/VBox/Buttons/BattleRoyaleButton
-@onready var _selected_player_label: Label = $UI/Margin/VBox/Buttons/SelectedPlayerLabel
 @onready var _choose_player_button: Button = $UI/Margin/VBox/Buttons/ChoosePlayerButton
 @onready var _settings_button: Button = $UI/Margin/VBox/Buttons/SettingsButton
 @onready var _settings_menu: Control = $UI/SettingsMenu
@@ -40,10 +42,9 @@ func _ready() -> void:
 	_title.text = str(ProjectSettings.get_setting("application/config/name", "BugRoyale"))
 	_setup_preview_scenes()
 	_preview_selected_character = LoadingScreen.selected_player_character
-	_refresh_selected_player_label()
 	_choose_player_button.pressed.connect(_on_choose_player_pressed)
-	_settings_button.pressed.connect(_settings_menu.open)
-	_settings_menu.closed.connect(_settings_button.grab_focus)
+	_settings_button.pressed.connect(_on_settings_pressed)
+	_settings_menu.closed.connect(_on_settings_closed)
 	_preview_use_button.pressed.connect(_on_preview_use_pressed)
 	_preview_previous_button.pressed.connect(_cycle_preview_character.bind(-1))
 	_preview_next_button.pressed.connect(_cycle_preview_character.bind(1))
@@ -59,7 +60,7 @@ func _ready() -> void:
 	_ants_vs_ants_button.tooltip_text = ModeCatalog.mode("ants_vs_ants").get("description", "")
 	_battle_royale_button.tooltip_text = ModeCatalog.mode("battle_royale").get("description", "")
 	_build_map_page()
-	_update_preview_display()
+	# The preview character is only spawned while the Choose Player page is open.
 
 
 func _process(delta: float) -> void:
@@ -84,29 +85,61 @@ func _cycle_preview_character(direction: int) -> void:
 	_update_preview_display()
 
 
+## Swaps the main button column for a page, or back. Returning refocuses the button that opened
+## the page so keyboard and gamepad navigation picks up where it left off.
+func _show_main_page(focus_button: Button = null) -> void:
+	_main_page.visible = true
+	if focus_button != null:
+		focus_button.grab_focus()
+
+
+func _hide_main_page() -> void:
+	_main_page.visible = false
+
+
+func _on_settings_pressed() -> void:
+	_hide_main_page()
+	_settings_menu.open()
+
+
+func _on_settings_closed() -> void:
+	_show_main_page(_settings_button)
+
+
 func _on_choose_player_pressed() -> void:
 	_preview_selected_character = LoadingScreen.selected_player_character
+	_hide_main_page()
 	_player_select_page.visible = true
 	_set_preview_viewport_active(true)
 	_update_preview_display()
+	_preview_use_button.grab_focus()
 
 
 func _on_preview_use_pressed() -> void:
 	_set_selected_character(_preview_selected_character)
-	_player_select_page.visible = false
-	_set_preview_viewport_active(false)
-	_refresh_selected_player_label()
+	_close_player_select_page()
 
 
 func _on_preview_back_pressed() -> void:
+	_close_player_select_page()
+	_preview_selected_character = LoadingScreen.selected_player_character
+
+
+func _close_player_select_page() -> void:
 	_player_select_page.visible = false
 	_set_preview_viewport_active(false)
-	_preview_selected_character = LoadingScreen.selected_player_character
+	_clear_preview_character()
+	_show_main_page(_choose_player_button)
+
+
+func _clear_preview_character() -> void:
+	if _preview_instance != null:
+		_preview_instance.queue_free()
+		_preview_instance = null
 
 
 func _set_selected_character(selected_character: LoadingScreen.PlayerCharacter) -> void:
 	LoadingScreen.selected_player_character = selected_character
-	_refresh_selected_player_label()
 
 
 func _update_preview_display() -> void:
@@ -119,9 +152,7 @@ func _update_preview_display() -> void:
 
 
 func _spawn_preview_character(selected_character: LoadingScreen.PlayerCharacter) -> void:
-	if _preview_instance != null:
-		_preview_instance.queue_free()
-		_preview_instance = null
+	_clear_preview_character()
 
 	var preview_scene: PackedScene = _preview_player_scenes.get(selected_character, null) as PackedScene
 	if preview_scene == null:
@@ -181,12 +212,6 @@ func _set_idle_state_if_supported(preview_node: Node3D) -> void:
 		animation_player.play("walk")
 
 
-func _refresh_selected_player_label() -> void:
-	_selected_player_label.text = "Player: %s" % _display_name_for_character(
-		LoadingScreen.selected_player_character
-	)
-
-
 func _display_name_for_character(selected_character: LoadingScreen.PlayerCharacter) -> String:
 	return CharacterSkin.display_name_for(selected_character)
 
@@ -225,7 +250,18 @@ func _on_mode_pressed(mode_id: String) -> void:
 		map_button.custom_minimum_size = Vector2(280, 44)
 		map_button.pressed.connect(_start_match.bind(map_id))
 		_map_buttons.add_child(map_button)
+	_hide_main_page()
 	_map_page.visible = true
+	if _map_buttons.get_child_count() > 0:
+		(_map_buttons.get_child(0) as Button).grab_focus()
+
+
+func _close_map_page() -> void:
+	_map_page.visible = false
+	var mode_buttons: Dictionary = {
+		"hornets": _hornets_button, "ants_vs_ants": _ants_vs_ants_button, "battle_royale": _battle_royale_button,
+	}
+	_show_main_page(mode_buttons.get(_chosen_mode_id) as Button)
 
 
 func _start_match(map_id: String) -> void:
@@ -279,5 +315,5 @@ func _build_map_page() -> void:
 	column.add_child(_map_buttons)
 	var back := Button.new()
 	back.text = "Back"
-	back.pressed.connect(func() -> void: _map_page.visible = false)
+	back.pressed.connect(_close_map_page)
 	column.add_child(back)

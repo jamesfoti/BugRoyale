@@ -7,22 +7,29 @@ var _voxel_size: float = 1.0
 var _overrides: Dictionary = {}
 ## Read-only copy shared by worker-thread rebuilds; dropped whenever the edits change.
 var _thread_snapshot: PlanetEdits = null
+## World-space box around the voxels the last add_brush actually changed (one voxel of padding).
+var _last_changed_bounds: AABB = AABB()
 
 
 func set_voxel_size(voxel_size: float) -> void:
 	_voxel_size = maxf(voxel_size, 0.001)
 
 
+## Carves (or fills) a sphere. Returns false when no voxel changed, e.g. a shot that hit a hornet
+## in mid-air: the caller can then skip rebuilding chunks that would come out identical.
 func add_brush(
 	world_position: Vector3,
 	radius: float,
 	add_solid: bool,
 	procedural_density: Callable
-) -> void:
+) -> bool:
 	var brush_radius: float = maxf(radius, 0.1)
 	var extent_voxels: int = int(ceil(brush_radius / _voxel_size)) + 1
 	var center_key: Vector3i = position_to_key(world_position, _voxel_size)
 	var radius_squared: float = brush_radius * brush_radius
+	var changed: bool = false
+	var changed_min: Vector3i = Vector3i.ZERO
+	var changed_max: Vector3i = Vector3i.ZERO
 
 	for offset_z: int in range(-extent_voxels, extent_voxels + 1):
 		for offset_y: int in range(-extent_voxels, extent_voxels + 1):
@@ -46,6 +53,26 @@ func add_brush(
 					continue
 				_overrides[voxel_key] = new_density_value
 				_thread_snapshot = null
+				if changed:
+					changed_min = changed_min.min(voxel_key)
+					changed_max = changed_max.max(voxel_key)
+				else:
+					changed = true
+					changed_min = voxel_key
+					changed_max = voxel_key
+	if changed:
+		var padding: Vector3i = Vector3i.ONE
+		var bounds_min: Vector3 = key_to_position(changed_min - padding, _voxel_size)
+		var bounds_max: Vector3 = key_to_position(changed_max + padding, _voxel_size)
+		_last_changed_bounds = AABB(bounds_min, bounds_max - bounds_min)
+	else:
+		_last_changed_bounds = AABB()
+	return changed
+
+
+## World-space bounds of the voxels changed by the last add_brush (zero-size if none).
+func get_last_changed_bounds() -> AABB:
+	return _last_changed_bounds
 
 
 func apply_to_density(density: float, world_position: Vector3) -> float:

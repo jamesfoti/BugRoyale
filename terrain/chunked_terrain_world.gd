@@ -370,9 +370,13 @@ func end_continuous_edit() -> void:
 func apply_brush(world_position: Vector3, radius: float, add_solid: bool) -> void:
 	_edits.set_voxel_size(get_voxel_size())
 	var procedural_density: Callable = Callable(_get_bake_density(), "evaluate")
-	_edits.add_brush(world_position, radius, add_solid, procedural_density)
-	var chunk_coordinates: Array[Vector3i] = _get_chunk_coordinates_intersecting_sphere(
-		world_position, radius
+	if not _edits.add_brush(world_position, radius, add_solid, procedural_density):
+		# Nothing changed (a shot that burst in mid-air, or re-carving an existing hole): the
+		# chunks would rebuild identical, so skip the mesh and collision rebuilds entirely.
+		return
+	# Only the chunks holding changed voxels, not every chunk the brush sphere grazed.
+	var chunk_coordinates: Array[Vector3i] = _get_chunk_coordinates_intersecting_aabb(
+		_edits.get_last_changed_bounds()
 	)
 	for chunk_coordinate: Vector3i in chunk_coordinates:
 		_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
@@ -600,13 +604,18 @@ func _rebuild_chunk_coordinates(
 
 
 func _get_chunk_coordinates_intersecting_sphere(center: Vector3, radius: float) -> Array[Vector3i]:
+	return _get_chunk_coordinates_intersecting_aabb(
+		AABB(center - Vector3.ONE * radius, Vector3.ONE * radius * 2.0)
+	)
+
+
+## Chunks whose density samples a world-space box can touch (padded so edge samples shared with
+## neighboring chunks count too).
+func _get_chunk_coordinates_intersecting_aabb(bounds: AABB) -> Array[Vector3i]:
 	var chunk_coordinates: Array[Vector3i] = []
 	var settings: SettingsSnapshot = _make_settings_snapshot()
 	var padding: float = get_voxel_size() * 2.0
-	var search_aabb: AABB = AABB(
-		center - Vector3.ONE * (radius + padding),
-		Vector3.ONE * (radius + padding) * 2.0
-	)
+	var search_aabb: AABB = bounds.grow(padding)
 	for chunk_coordinate_variant: Variant in _chunks.keys():
 		var chunk_coordinate: Vector3i = chunk_coordinate_variant as Vector3i
 		if _get_chunk_world_aabb(chunk_coordinate, settings).intersects(search_aabb):

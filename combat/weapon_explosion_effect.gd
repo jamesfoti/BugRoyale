@@ -4,13 +4,19 @@ class_name WeaponExplosionEffect
 
 
 const SMOKE_TEXTURE_PATH: String = "res://combat/effects/smoke_05.png"
-const EFFECT_LIFETIME_SECONDS: float = 2.0
+## Just past the longest particle lifetime (smoke, 1.4 s).
+const EFFECT_LIFETIME_SECONDS: float = 1.5
+## Each effect is three particle systems and a light. Automatic fire (an AK is 9 shots/s, an SMG
+## 12) would otherwise keep 20+ of them alive at once, so the oldest is dropped past this many.
+const MAX_LIVE_EFFECTS: int = 12
 
 var _cleanup_timer_seconds: float = 0.0
 
 ## Particle materials, ramps and meshes shared by every explosion, keyed by kind and scale, so
 ## each shot reuses resources instead of rebuilding them.
 static var _shared_resources: Dictionary = {}
+## Effects currently playing, oldest first.
+static var _live_effects: Array[WeaponExplosionEffect] = []
 
 
 static func _get_shared(key: String, create: Callable) -> Resource:
@@ -22,7 +28,12 @@ static func _get_shared(key: String, create: Callable) -> Resource:
 
 
 static func spawn(world_root: Node, explosion_position: Vector3, explosion_radius: float) -> void:
+	while _live_effects.size() >= MAX_LIVE_EFFECTS:
+		var oldest: WeaponExplosionEffect = _live_effects.pop_front()
+		if is_instance_valid(oldest):
+			oldest.queue_free()
 	var effect: WeaponExplosionEffect = WeaponExplosionEffect.new()
+	_live_effects.append(effect)
 	world_root.add_child(effect)
 	effect.play(explosion_position, explosion_radius)
 
@@ -34,7 +45,9 @@ func play(explosion_position: Vector3, explosion_radius: float) -> void:
 	_add_burst_particles(effect_scale)
 	_add_fire_particles(effect_scale)
 	_add_smoke_particles(effect_scale)
-	_add_flash_light(effect_scale)
+	# A dozen overlapping dynamic lights is the priciest part of rapid fire on Low graphics.
+	if not GraphicsSettings.low_quality:
+		_add_flash_light(effect_scale)
 	_cleanup_timer_seconds = EFFECT_LIFETIME_SECONDS
 
 
@@ -44,6 +57,10 @@ func _process(delta: float) -> void:
 	_cleanup_timer_seconds -= delta
 	if _cleanup_timer_seconds <= 0.0:
 		queue_free()
+
+
+func _exit_tree() -> void:
+	_live_effects.erase(self)
 
 
 func _add_burst_particles(effect_scale: float) -> void:

@@ -1,6 +1,8 @@
 class_name BoidsRules
 extends RefCounted
 ## Classic boids steering: separation, alignment, and cohesion.
+## This is the flock's O(n²) inner loop, so it compares squared distances and never takes a
+## square root per pair.
 
 
 static func compute_steering(
@@ -21,24 +23,27 @@ static func compute_steering(
 	var cohesion: Vector3 = Vector3.ZERO
 	var alignment_count: int = 0
 	var cohesion_count: int = 0
+	var separation_radius_sq: float = separation_radius * separation_radius
+	var alignment_radius_sq: float = alignment_radius * alignment_radius
+	var cohesion_radius_sq: float = cohesion_radius * cohesion_radius
+	var widest_radius_sq: float = maxf(separation_radius_sq, maxf(alignment_radius_sq, cohesion_radius_sq))
 
 	for other_index in positions.size():
 		if other_index == index:
 			continue
 		var offset: Vector3 = position - positions[other_index]
 		var distance_sq: float = offset.length_squared()
-		if distance_sq < 0.0001:
+		if distance_sq < 0.0001 or distance_sq >= widest_radius_sq:
 			continue
 
-		var distance: float = sqrt(distance_sq)
-		if distance < separation_radius:
+		if distance_sq < separation_radius_sq:
 			separation += offset / distance_sq
 
-		if distance < alignment_radius:
+		if distance_sq < alignment_radius_sq:
 			alignment += velocities[other_index]
 			alignment_count += 1
 
-		if distance < cohesion_radius:
+		if distance_sq < cohesion_radius_sq:
 			cohesion += positions[other_index]
 			cohesion_count += 1
 

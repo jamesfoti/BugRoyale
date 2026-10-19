@@ -35,13 +35,17 @@ func is_dead() -> bool:
 	return _dead
 
 
-func set_velocity(new_velocity: Vector3) -> void:
+## Moves the bird and points it along its velocity in a single transform write (each write is a
+## physics-server update, so the flock does one per bird per tick instead of two).
+func set_motion(new_position: Vector3, new_velocity: Vector3) -> void:
 	velocity = new_velocity
+	var heading: Basis = global_basis
 	if velocity.length_squared() > 0.01:
 		var forward: Vector3 = velocity.normalized()
 		if absf(forward.dot(Vector3.UP)) > 0.95:
 			forward = Vector3.FORWARD
-		look_at(global_position + forward, Vector3.UP)
+		heading = Basis.looking_at(forward, Vector3.UP)
+	global_transform = Transform3D(heading, new_position)
 
 
 func tick_cooldown(delta: float) -> void:

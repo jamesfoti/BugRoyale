@@ -127,15 +127,15 @@ aim={
 ]
 }
 
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true
+environment/default_clear_color=Color(0, 0, 0, 1)
+environment/default_environment="res://materials/terrain_env.tres"
+
 [shader_globals]
 
 graphics_low_quality={
 "type": "bool",
 "value": false
 }
-
-[rendering]
-
-textures/vram_compression/import_etc2_astc=true
-environment/default_clear_color=Color(0, 0, 0, 1)
-environment/default_environment="res://materials/terrain_env.tres"
