@@ -225,23 +225,59 @@ func _opening_light(parent: Node3D, along_x: bool, offset: float, along: float, 
 
 # --- Services and lights ----------------------------------------------------------------------
 
+## Plumbing hangs below the girders (between the pier rows, so nothing runs through the
+## framing): two black ABS drain lines along X in destructible sections, one with a drop to the
+## dirt, red and blue PEX water lines running as hot/cold pairs, plus an indestructible round
+## duct along Z threaded between the piers.
 func _build_services(extents: Vector3) -> void:
 	var services := Node3D.new()
 	services.name = "Services"
 	add_child(services)
-	var under_joists: float = _ceiling - joist_depth
-	# Two PVC drain lines along X, one dropping to the dirt.
+	var girder_bottom: float = _ceiling - joist_depth - 1.2
+	var row_gap: float = extents.z / (girder_rows + 1)
+	var span: float = extents.x - wall_thickness * 2.0
+	# Drains in the first and third gaps between pier rows.
 	for index: int in 2:
-		var z: float = _center.z + _rng.randf_range(-_half.z * 0.7, _half.z * 0.7)
-		var y: float = under_joists - 0.45
-		_cylinder(services, "DrainPipe", 0.3, extents.x - wall_thickness * 2.0, Vector3(_center.x, y, z), Vector3(0.0, 0.0, PI * 0.5), _material(PVC_COLOR, 0.35))
+		var z: float = _center.z - _half.z + row_gap * (0.5 + index * 2.0 + _rng.randf_range(-0.3, 0.3))
+		var drain_y: float = girder_bottom - 0.8
+		_run_line(services, UtilityPipe.Fluid.SEWAGE, 0.3, drain_y, z, span, "Drain%d" % index)
 		if index == 0:
+			# A drop line down into the dirt, in its own section.
 			var x: float = _center.x + _rng.randf_range(-_half.x * 0.5, _half.x * 0.5)
-			var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z)) - 0.5
-			_cylinder(services, "DropPipe", 0.3, y - ground, Vector3(x, (y + ground) * 0.5, z), Vector3.ZERO, _material(PVC_COLOR, 0.35))
-	# A round duct along Z.
-	var duct_x: float = _center.x + _rng.randf_range(-_half.x * 0.6, _half.x * 0.6)
-	_cylinder(services, "Duct", 1.0, extents.z - wall_thickness * 2.0, Vector3(duct_x, under_joists - 1.3, _center.z), Vector3(PI * 0.5, 0.0, 0.0), _material(DUCT_COLOR, 0.3))
+			var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
+			var drop: UtilityPipe = UtilityPipe.create(UtilityPipe.Fluid.SEWAGE, drain_y - ground + 0.5, 0.3, ground)
+			drop.name = "DropPipe"
+			drop.position = Vector3(x, (drain_y + ground - 0.5) * 0.5, z)
+			services.add_child(drop)
+	# PEX hot/cold pairs in the second and fourth gaps, hot on one side, cold 0.7 m over, with a
+	# yellow gas line a little further along.
+	for index: int in 2:
+		var z: float = _center.z - _half.z + row_gap * (1.5 + index * 2.0 + _rng.randf_range(-0.3, 0.3))
+		var water_y: float = girder_bottom - 0.5
+		_run_line(services, UtilityPipe.Fluid.HOT_WATER, 0.15, water_y, z - 0.35, span, "HotWater%d" % index)
+		_run_line(services, UtilityPipe.Fluid.COLD_WATER, 0.15, water_y, z + 0.35, span, "ColdWater%d" % index)
+		_run_line(services, UtilityPipe.Fluid.GAS, 0.12, water_y - 0.4, z + 1.6, span, "Gas%d" % index)
+	# A round duct along Z, halfway between two piers so it threads past every row.
+	var duct_x: float = _center.x + pier_spacing * 0.5 + pier_spacing * float(_rng.randi_range(-2, 1))
+	_cylinder(services, "Duct", 1.0, extents.z - wall_thickness * 2.0, Vector3(duct_x, girder_bottom - 1.4, _center.z), Vector3(PI * 0.5, 0.0, 0.0), _material(DUCT_COLOR, 0.3))
+
+
+## A line along X made of destructible sections, with a hanger strap up to the joists at each
+## joint.
+func _run_line(parent: Node3D, fluid: UtilityPipe.Fluid, pipe_radius: float, y: float, z: float, span: float, line_name: String) -> void:
+	var strap_material: Material = _material(Color(0.3, 0.3, 0.32), 0.5)
+	var joist_bottom: float = _ceiling - joist_depth
+	var section_count: int = maxi(int(round(span / 8.0)), 1)
+	var section_length: float = span / section_count
+	for section: int in section_count:
+		var x: float = _center.x - span * 0.5 + section_length * (section + 0.5)
+		var dirt: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
+		var pipe: UtilityPipe = UtilityPipe.create(fluid, section_length, pipe_radius, dirt)
+		pipe.name = "%s_%d" % [line_name, section]
+		pipe.position = Vector3(x, y, z)
+		pipe.rotation = Vector3(0.0, 0.0, PI * 0.5)
+		parent.add_child(pipe)
+		_box(parent, "Hanger", Vector3(0.06, joist_bottom - y, pipe_radius * 2.0 + 0.1), Vector3(x - section_length * 0.5, (joist_bottom + y) * 0.5, z), strap_material)
 
 
 func _build_bulbs(extents: Vector3) -> void:
