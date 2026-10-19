@@ -55,7 +55,7 @@ static func create(
 	bot.character = bot_character
 	bot.map = map_info
 	bot.collision_layer = MapInfo.FIGHTER_LAYER
-	bot.collision_mask = MapInfo.TERRAIN_LAYER | MapInfo.FIGHTER_LAYER
+	bot.collision_mask = MapInfo.TERRAIN_LAYER | MapInfo.FIGHTER_LAYER | MapInfo.STRUCTURE_LAYER
 	bot.floor_snap_length = 0.3
 
 	var shape := CollisionShape3D.new()

@@ -54,6 +54,10 @@ func _start_match() -> void:
 			swarm.min_height = 8.0
 			swarm.max_height = 16.0
 			swarm.spawn_radius = 24.0
+	if map.ceiling_y < INF:
+		# Under a ceiling (the crawlspace): fly low enough to stay beneath the joists.
+		swarm.min_height = 2.0
+		swarm.max_height = clampf(map.ceiling_y - map.center().y - 3.0, 3.0, swarm.max_height)
 	get_parent().add_child(swarm)
 	swarm.bird_died.connect(func(_bird: Bird) -> void: hornets_killed += 1)
 	_start_break()

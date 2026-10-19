@@ -10,6 +10,9 @@ enum Kind { FLAT, CELESTIAL_BODY, TERRARIUM }
 ## so ground probes ignore them; hornets use layer 4.
 const TERRAIN_LAYER: int = 1
 const FIGHTER_LAYER: int = 2
+## Built structure (a crawlspace's joists, piers and walls): fighters collide with it, but ground
+## probes look through it, so spawns and flight heights come from the dirt.
+const STRUCTURE_LAYER: int = 16
 
 const _SPAWN_TRIES: int = 24
 
@@ -23,6 +26,8 @@ var water: TerrariumWater
 ## Fish-bowl terrarium: the glass sphere (radius 0 on a box terrarium or other maps).
 var bowl_radius: float = 0.0
 var bowl_center: Vector3 = Vector3.ZERO
+## World Y of an overhead ceiling (a crawlspace's joists), INF on open maps. Flyers stay under it.
+var ceiling_y: float = INF
 
 var _space: PhysicsDirectSpaceState3D
 
@@ -60,6 +65,10 @@ static func from_scene(scene_root: Node) -> MapInfo:
 	elif info.world != null and info.world.has_method("get_world_extents"):
 		var size: Vector3 = info.world.get_world_extents()
 		info.bounds = AABB(info.world.global_position - size * 0.5, size).grow(-1.0)
+		# A map with overhead structure (CrawlspaceBuilder) caps flight at the top of the bounds,
+		# which is where the builder hangs its joists.
+		if not scene_root.get_tree().get_nodes_in_group("map_ceiling").is_empty():
+			info.ceiling_y = info.bounds.end.y
 	return info
 
 

@@ -31,7 +31,7 @@ func _begin() -> void:
 		flock.queue_free()
 
 	player.collision_layer = MapInfo.FIGHTER_LAYER
-	player.collision_mask = MapInfo.TERRAIN_LAYER | MapInfo.FIGHTER_LAYER
+	player.collision_mask = MapInfo.TERRAIN_LAYER | MapInfo.FIGHTER_LAYER | MapInfo.STRUCTURE_LAYER
 	player.add_to_group("fighter")
 	player_health = player.get_node_or_null("Damageable") as Damageable
 	player_health.died.connect(_on_player_died)

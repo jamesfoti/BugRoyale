@@ -8,6 +8,7 @@ const MAPS: Dictionary = {
 	"celestial_body": {"name": "Celestial Body", "scene": "res://scenes/celestial_body_test.tscn"},
 	"terrarium": {"name": "Terrarium", "scene": "res://scenes/terrarium_test.tscn"},
 	"fishbowl": {"name": "Fish Bowl", "scene": "res://scenes/fishbowl_test.tscn"},
+	"crawlspace": {"name": "Crawlspace", "scene": "res://scenes/crawlspace_test.tscn"},
 }
 
 ## forced_character: the class every player uses in that mode (the class picker is skipped).
@@ -16,13 +17,13 @@ const MODES: Dictionary = {
 		"name": "Attack of the Hornets",
 		"description": "You and 3 AI squadmates hold out against ever-bigger hornet waves. Fallen squadmates return each wave.",
 		"script": "res://modes/attack_of_the_hornets.gd",
-		"maps": ["battlefield", "celestial_body", "terrarium", "fishbowl"],
+		"maps": ["battlefield", "celestial_body", "terrarium", "fishbowl", "crawlspace"],
 	},
 	"ants_vs_ants": {
 		"name": "Ants vs Ants",
 		"description": "10 vs 10 team deathmatch: your Red colony against the Black colony. First to 40 kills wins.",
 		"script": "res://modes/ants_vs_ants.gd",
-		"maps": ["battlefield", "celestial_body", "terrarium", "fishbowl"],
+		"maps": ["battlefield", "celestial_body", "terrarium", "fishbowl", "crawlspace"],
 		"forced_character": LoadingScreen.PlayerCharacter.ANT_WARRIOR,
 	},
 	"battle_royale": {
@@ -35,7 +36,7 @@ const MODES: Dictionary = {
 		"name": "Explore",
 		"description": "Walk any map with no enemies or AI: try the movement, climbing, flight, water and digging.",
 		"script": "res://modes/explore.gd",
-		"maps": ["battlefield", "celestial_body", "terrarium", "fishbowl"],
+		"maps": ["battlefield", "celestial_body", "terrarium", "fishbowl", "crawlspace"],
 	},
 }
 
