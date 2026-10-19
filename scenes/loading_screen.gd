@@ -142,7 +142,19 @@ static func restart_current(tree: SceneTree) -> void:
 	tree.change_scene_to_file("res://scenes/loading_screen.tscn")
 
 
+## Resolved once per load: the synchronous fallback must get the same map the threaded load
+## was given, not the default scene (pending_scene_path is consumed on first use).
+var _resolved_scene_path: String = ""
+
+
 func _resolve_scene_path() -> String:
+	if not _resolved_scene_path.is_empty():
+		return _resolved_scene_path
+	_resolved_scene_path = _resolve_pending_scene_path()
+	return _resolved_scene_path
+
+
+func _resolve_pending_scene_path() -> String:
 	if pending_scene_path.is_empty():
 		current_scene_path = DEFAULT_GAME_SCENE_PATH
 		return DEFAULT_GAME_SCENE_PATH

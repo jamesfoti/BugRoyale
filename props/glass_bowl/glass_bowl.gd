@@ -51,6 +51,8 @@ func rebuild() -> void:
 	var shape_node := CollisionShape3D.new()
 	var shape := ConcavePolygonShape3D.new()
 	shape.set_faces(mesh.get_faces())
+	# Trimesh collision is one-sided and these faces point outward; bugs are on the inside.
+	shape.backface_collision = true
 	shape_node.shape = shape
 	body.add_child(shape_node)
 	add_child(body)
