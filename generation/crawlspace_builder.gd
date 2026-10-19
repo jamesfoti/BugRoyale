@@ -438,10 +438,14 @@ func _opening_light(parent: Node3D, along_x: bool, offset: float, along: float, 
 
 # --- Services and lights ----------------------------------------------------------------------
 
-## Plumbing hangs below the girders (between the pier rows, so nothing runs through the
-## framing): two black ABS drain lines along X in destructible sections, one with a drop to the
-## dirt, red and blue PEX water lines running as hot/cold pairs, plus an indestructible round
-## duct along Z threaded between the piers.
+## Plumbing hangs below the girders, between the pier rows, so nothing runs through the
+## framing, and above the ductwork. Like a real house it branches only a little: two black ABS
+## drain mains with the bath, kitchen and laundry drains coming down to them, red/blue PEX mains
+## with hot and cold branches rising to the bathroom, kitchen, laundry and water heater, and a
+## yellow gas main feeding the furnace (dipping under the drain on the way), the water heater,
+## the stove and the dryer. Every straight piece is a destructible UtilityPipe section. The
+## ductwork is grown first so the lines know where its risers are, and it is told where the
+## mains and the plumbing risers run.
 func _build_services(extents: Vector3) -> void:
 	var services := Node3D.new()
 	services.name = "Services"
@@ -449,39 +453,135 @@ func _build_services(extents: Vector3) -> void:
 	var girder_bottom: float = _ceiling - joist_depth - 1.2
 	var row_gap: float = extents.z / (girder_rows + 1)
 	var span: float = extents.x - wall_thickness * 2.0
-	# Drains in the first and third gaps between pier rows.
+	var drain_y: float = girder_bottom - 0.5
+	var water_y: float = girder_bottom - 0.3
+	var gas_y: float = water_y - 0.3
+	var joist_bottom: float = _ceiling - joist_depth
+	# Mains: drains in the first and third gaps between pier rows, water and gas in the others.
+	var drain_zs: Array = []
+	var water_zs: Array = []
 	for index: int in 2:
-		var z: float = _center.z - _half.z + row_gap * (0.5 + index * 2.0 + _rng.randf_range(-0.3, 0.3))
-		var drain_y: float = girder_bottom - 0.5
-		_run_line(services, UtilityPipe.Fluid.SEWAGE, 0.3, drain_y, z, span, "Drain%d" % index)
-		_drain_lines.append({"z": z, "y": drain_y})
+		drain_zs.append(_center.z - _half.z + row_gap * (0.5 + index * 2.0 + _rng.randf_range(-0.3, 0.3)))
+		water_zs.append(_center.z - _half.z + row_gap * (1.5 + index * 2.0 + _rng.randf_range(-0.3, 0.3)))
+	for z: float in drain_zs:
 		_line_zs.append(z)
-		if index == 0:
-			# A drop line down into the dirt, in its own section.
-			var x: float = _center.x + _rng.randf_range(-_half.x * 0.5, _half.x * 0.5)
-			var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
-			var drop: UtilityPipe = UtilityPipe.create(UtilityPipe.Fluid.SEWAGE, drain_y - ground + 0.5, 0.3, ground)
-			drop.name = "DropPipe"
-			drop.position = Vector3(x, (drain_y + ground - 0.5) * 0.5, z)
-			services.add_child(drop)
-	# PEX hot/cold pairs in the second and fourth gaps, hot on one side, cold 0.7 m over, with a
-	# yellow gas line a little further along.
-	for index: int in 2:
-		var z: float = _center.z - _half.z + row_gap * (1.5 + index * 2.0 + _rng.randf_range(-0.3, 0.3))
-		var water_y: float = girder_bottom - 0.3
-		_run_line(services, UtilityPipe.Fluid.HOT_WATER, 0.15, water_y, z - 0.35, span, "HotWater%d" % index)
-		_run_line(services, UtilityPipe.Fluid.COLD_WATER, 0.15, water_y, z + 0.35, span, "ColdWater%d" % index)
-		_run_line(services, UtilityPipe.Fluid.GAS, 0.12, water_y - 0.3, z + 1.6, span, "Gas%d" % index)
+		_drain_lines.append({"z": z, "y": drain_y})
+	for z: float in water_zs:
 		_line_zs.append_array([z - 0.35, z + 0.35, z + 1.6])
-	# Rectangular ductwork grown from a furnace: the trunk runs along Z halfway between two
-	# piers so it threads past every row, and the branches dodge the rows and the lines.
+	# Branch x positions sit 3 m off the pier-gap midpoints: clear of the piers and of the
+	# ductwork's runs along Z, which take the midpoints themselves.
+	var branch_xs: Array = []
+	for index: int in _pier_xs.size() - 1:
+		branch_xs.append((float(_pier_xs[index]) + float(_pier_xs[index + 1])) * 0.5 + 3.0)
+	branch_xs.shuffle()
+	var blocked_xs: Array = branch_xs.duplicate()
+	_branch_x_pool = branch_xs
+	_branch_x_all = branch_xs.duplicate()
+
+	# Ductwork first, so it threads around the mains and the fixture risers.
 	var duct_x: float = _center.x + pier_spacing * 0.5 + pier_spacing * float(_rng.randi_range(-2, 1))
 	var network: DuctNetwork = DuctBuilder.build(
 		self, _center, _half, wall_thickness,
 		func(x: float, z: float) -> float: return _terrain.get_surface_height_at(Vector3(x, 0.0, z)),
-		duct_x, _pier_rows, _pier_xs, _line_zs, _ceiling - joist_depth, _rng
+		duct_x, _pier_rows, _pier_xs, _line_zs, blocked_xs, joist_bottom, _rng
 	) as DuctNetwork
 	network.obstacles.append_array(_pier_boxes)
+	var furnace_top: Vector3 = network.get_meta("furnace_top")
+
+	# Drains, with the fixture drains coming down to the mains.
+	var drain_fixtures: Array = ["BathDrain", "KitchenDrain", "LaundryDrain"]
+	for index: int in 2:
+		var z: float = drain_zs[index]
+		_run_line(services, UtilityPipe.Fluid.SEWAGE, 0.3, drain_y, z, span, "Drain%d" % index)
+		var count: int = 2 if index == 0 else 1
+		for fixture: int in count:
+			var fixture_name: String = drain_fixtures.pop_front()
+			var x: float = _next_branch_x()
+			var end_z: float = _clear_riser_z(z + _branch_side() * _rng.randf_range(5.0, 10.0))
+			_build_polyline(
+				services, UtilityPipe.Fluid.SEWAGE, 0.25,
+				[Vector3(x, drain_y, z), Vector3(x, drain_y, end_z), Vector3(x, joist_bottom, end_z)], fixture_name
+			)
+		if index == 0:
+			# A drop line down into the dirt (the cleanout), in its own section.
+			var x: float = _center.x + _rng.randf_range(-_half.x * 0.5, _half.x * 0.5)
+			var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
+			var drop: UtilityPipe = UtilityPipe.create(UtilityPipe.Fluid.SEWAGE, drain_y - ground + 0.5, 0.3, ground)
+			drop.name = "Cleanout"
+			drop.position = Vector3(x, (drain_y + ground - 0.5) * 0.5, z)
+			services.add_child(drop)
+
+	# Water: hot and cold mains side by side with paired branches up to the fixtures, and the
+	# gas main beside them with its own branches.
+	var water_fixtures: Array = ["Bathroom", "Kitchen", "Laundry", "WaterHeater"]
+	for index: int in 2:
+		var z: float = water_zs[index]
+		_run_line(services, UtilityPipe.Fluid.HOT_WATER, 0.15, water_y, z - 0.35, span, "HotWater%d" % index)
+		_run_line(services, UtilityPipe.Fluid.COLD_WATER, 0.15, water_y, z + 0.35, span, "ColdWater%d" % index)
+		for fixture: int in 2:
+			var fixture_name: String = water_fixtures.pop_front()
+			var x: float = _next_branch_x()
+			var side: float = _branch_side()
+			var end_z: float = _clear_riser_z(z + side * _rng.randf_range(5.0, 10.0))
+			_build_polyline(
+				services, UtilityPipe.Fluid.HOT_WATER, 0.15,
+				[Vector3(x - 0.35, water_y, z - 0.35), Vector3(x - 0.35, water_y, end_z), Vector3(x - 0.35, joist_bottom, end_z)],
+				fixture_name + "Hot"
+			)
+			_build_polyline(
+				services, UtilityPipe.Fluid.COLD_WATER, 0.15,
+				[Vector3(x + 0.35, water_y, z + 0.35), Vector3(x + 0.35, water_y, end_z + 0.7 * side), Vector3(x + 0.35, joist_bottom, end_z + 0.7 * side)],
+				fixture_name + "Cold"
+			)
+		var gas_z: float = z + 1.6
+		_run_line(services, UtilityPipe.Fluid.GAS, 0.12, gas_y, gas_z, span, "Gas%d" % index)
+		var gas_fixtures: Array = ["WaterHeaterGas", "Stove"] if index == 0 else ["Dryer"]
+		for fixture_name: String in gas_fixtures:
+			var x: float = _next_branch_x()
+			var end_z: float = _clear_riser_z(gas_z + _branch_side() * _rng.randf_range(5.0, 10.0))
+			_build_polyline(
+				services, UtilityPipe.Fluid.GAS, 0.12,
+				[Vector3(x, gas_y, gas_z), Vector3(x, gas_y, end_z), Vector3(x, joist_bottom, end_z)], fixture_name
+			)
+		if index == 0:
+			# The furnace feed: along the cabinet's +X face down the length of the space, dipping
+			# under the first drain main on the way.
+			var x: float = furnace_top.x + DuctBuilder.FURNACE_SIZE.x * 0.5 + 0.3
+			var drain_z: float = drain_zs[0]
+			_build_polyline(
+				services, UtilityPipe.Fluid.GAS, 0.12,
+				[
+					Vector3(x, gas_y, gas_z), Vector3(x, gas_y, drain_z + 1.4), Vector3(x, gas_y - 0.9, drain_z + 1.4),
+					Vector3(x, gas_y - 0.9, drain_z - 1.4), Vector3(x, gas_y, drain_z - 1.4), Vector3(x, gas_y, furnace_top.z),
+				],
+				"FurnaceGas"
+			)
+
+
+## The next column for a fixture branch; the columns are reused (on different mains) once
+## every one has been taken.
+var _branch_x_pool: Array = []
+var _branch_x_all: Array = []
+func _next_branch_x() -> float:
+	if _branch_x_pool.is_empty():
+		_branch_x_pool = _branch_x_all.duplicate()
+		_branch_x_pool.shuffle()
+	return float(_branch_x_pool.pop_front())
+
+
+## Which way a branch leaves its main, alternating so fixtures spread across the space.
+var _next_branch_side: float = 1.0
+func _branch_side() -> float:
+	_next_branch_side = -_next_branch_side
+	return _next_branch_side
+
+
+## Keeps a riser's z off the pier rows (and their girders above).
+func _clear_riser_z(z: float) -> float:
+	for row_z: float in _pier_rows:
+		if absf(z - row_z) < 1.8:
+			return row_z + 1.8 * (1.0 if z >= row_z else -1.0)
+	return z
 
 
 ## A line along X made of destructible sections, with a hanger strap up to the joists at each
@@ -500,6 +600,50 @@ func _run_line(parent: Node3D, fluid: UtilityPipe.Fluid, pipe_radius: float, y: 
 		pipe.rotation = Vector3(0.0, 0.0, PI * 0.5)
 		parent.add_child(pipe)
 		_box(parent, "Hanger", Vector3(0.06, joist_bottom - y, pipe_radius * 2.0 + 0.1), Vector3(x - section_length * 0.5, (joist_bottom + y) * 0.5, z), strap_material)
+
+
+## A run of pipe through a list of corners: each leg in destructible sections (at most 8 m), a
+## round fitting at every corner, and a plate where a riser meets the floor above.
+func _build_polyline(parent: Node3D, fluid: UtilityPipe.Fluid, pipe_radius: float, points: Array, line_name: String) -> void:
+	var fitting_material: Material = UtilityPipe.pipe_material(fluid)
+	for leg: int in points.size() - 1:
+		var from: Vector3 = points[leg]
+		var to: Vector3 = points[leg + 1]
+		var direction: Vector3 = (to - from).normalized()
+		var length: float = from.distance_to(to)
+		var section_count: int = maxi(int(ceil(length / 8.0)), 1)
+		var section_length: float = length / section_count
+		for section: int in section_count:
+			var mid: Vector3 = from + direction * section_length * (section + 0.5)
+			var dirt: float = _terrain.get_surface_height_at(Vector3(mid.x, 0.0, mid.z))
+			var pipe: UtilityPipe = UtilityPipe.create(fluid, section_length, pipe_radius, dirt)
+			pipe.name = "%s_%d_%d" % [line_name, leg, section]
+			pipe.position = mid
+			pipe.basis = _pipe_basis(direction)
+			parent.add_child(pipe)
+		if leg < points.size() - 2:
+			var fitting := MeshInstance3D.new()
+			fitting.name = "Fitting"
+			var sphere := SphereMesh.new()
+			sphere.radius = pipe_radius * 1.25
+			sphere.height = sphere.radius * 2.0
+			sphere.radial_segments = 10
+			sphere.rings = 5
+			fitting.mesh = sphere
+			fitting.material_override = fitting_material
+			fitting.position = to
+			parent.add_child(fitting)
+	var last: Vector3 = points.back()
+	if is_equal_approx(last.y, _ceiling - joist_depth):
+		_box(parent, "FloorPlate", Vector3(0.6, 0.06, 0.6), last - Vector3.UP * 0.03, _material(Color(0.35, 0.35, 0.37), 0.5))
+
+
+## Basis whose Y axis points along `axis` (pipes run along their local Y).
+func _pipe_basis(axis: Vector3) -> Basis:
+	var reference: Vector3 = Vector3.FORWARD if absf(axis.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+	var x_axis: Vector3 = axis.cross(reference).normalized()
+	var z_axis: Vector3 = x_axis.cross(axis).normalized()
+	return Basis(x_axis, axis, z_axis)
 
 
 func _build_bulbs(extents: Vector3) -> void:

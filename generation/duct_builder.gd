@@ -47,6 +47,8 @@ class Context:
 	var pier_rows: Array
 	var pier_xs: Array
 	var blocked_zs: Array
+	## x positions of plumbing risers running along Z, which duct risers keep clear of.
+	var blocked_xs: Array
 	var metal: StandardMaterial3D
 	var register: StandardMaterial3D
 	var furnace: StandardMaterial3D
@@ -73,6 +75,7 @@ static func build(
 	pier_rows: Array,
 	pier_xs: Array,
 	blocked_zs: Array,
+	blocked_xs: Array,
 	ceiling_bottom: float,
 	rng: RandomNumberGenerator
 ) -> DuctNetwork:
@@ -90,6 +93,7 @@ static func build(
 	context.pier_rows = pier_rows
 	context.pier_xs = pier_xs
 	context.blocked_zs = blocked_zs
+	context.blocked_xs = blocked_xs
 	context.metal = _material(METAL_COLOR, 0.45)
 	context.register = _material(REGISTER_COLOR, 0.8)
 	context.furnace = _material(FURNACE_COLOR, 0.6)
@@ -117,6 +121,7 @@ static func build(
 	# Where to find the ways in, for anything that wants to point at them.
 	context.root.set_meta("furnace_access", Vector3(trunk_x + FURNACE_SIZE.x * 0.5, furnace_dirt, furnace_z - FURNACE_SIZE.z * 0.5 + 0.6 + (WIDTH - 0.2) * 0.5))
 	context.root.set_meta("trunk_start", trunk.start)
+	context.root.set_meta("furnace_top", Vector3(trunk_x, furnace_dirt + FURNACE_SIZE.y, furnace_z))
 	context.root.set_meta("boot_ends", boots)
 	print("[Ductwork] %d runs, %d dropped boots" % [context.runs.size(), context.dropped_boots])
 	return context.root
@@ -156,6 +161,17 @@ static func _add_branch(context: Context, trunk: Run, at: float, station: Vector
 	var forward: Vector3 = (trunk.end - trunk.start).normalized()
 	var right: Vector3 = _right_of(forward)
 	trunk.cuts.append({"at": at, "width": WIDTH, "face": "r+" if direction.dot(right) > 0.0 else "r-"})
+	# Keep the branch end (where its riser goes up) clear of plumbing risers.
+	if absf(direction.x) > 0.5:
+		for _attempt: int in 6:
+			var end_x: float = station.x + direction.x * (WIDTH * 0.5 + length)
+			var clear: bool = true
+			for blocked_x: float in context.blocked_xs:
+				if absf(end_x - blocked_x) < WIDTH * 0.5 + 1.2:
+					clear = false
+			if clear:
+				break
+			length -= 2.0
 	var branch := Run.new()
 	branch.start = station + direction * (WIDTH * 0.5)
 	branch.open_start = true
