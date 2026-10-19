@@ -1,10 +1,10 @@
 @tool
 class_name ChunkedTerrainWorld
 extends Node3D
-## Shared chunked voxel terrain orchestration for planets and flat worlds.
+## Shared chunked voxel terrain orchestration for celestial bodies and flat worlds.
 
 
-const _CHUNK_SCRIPT = preload("res://terrain/planet_chunk.gd")
+const _CHUNK_SCRIPT = preload("res://terrain/terrain_chunk.gd")
 
 
 class SettingsSnapshot:
@@ -18,7 +18,7 @@ class SettingsSnapshot:
 	var sphere_enabled: bool = true
 	var sphere_center: Vector3 = Vector3.ZERO
 	var sphere_radius: float = 18.0
-	var planet_radius_chunks: float = 1.5
+	var body_radius_chunks: float = 1.5
 	var chunk_world_size: float = 12.0
 	var chunk_resolution: int = 1
 	var noise_enabled: bool = true
@@ -36,11 +36,11 @@ class SettingsSnapshot:
 	var bounds_falloff_distance: float = 8.0
 	var bounds_falloff_strength: float = 5.0
 	var bounds_clip_inset: float = 0.5
-	var planet_features_enabled: bool = false
-	var planet_ravines_enabled: bool = true
-	var planet_caves_enabled: bool = true
-	var planet_ravine_depth: float = 12.0
-	var planet_ravine_width: float = 0.08
+	var body_features_enabled: bool = false
+	var body_ravines_enabled: bool = true
+	var body_caves_enabled: bool = true
+	var body_ravine_depth: float = 12.0
+	var body_ravine_width: float = 0.08
 	var boxed_in_terrain_enabled: bool = false
 	var boxed_in_edges_enabled: bool = true
 	var open_terrain_enabled: bool = false
@@ -49,7 +49,7 @@ class SettingsSnapshot:
 	var open_terrain_heightmap_image: Image = null
 	var open_terrain_surface_offset: float = 0.0
 	var open_terrain_bowl_radius: float = 0.0
-	var planet_edits: PlanetEdits = null
+	var terrain_edits: TerrainEdits = null
 	var rebuild_collision: bool = true
 
 
@@ -130,7 +130,7 @@ var _chunks: Dictionary = {}
 signal brush_applied(world_position: Vector3, radius: float)
 
 var _rebuild_queued: bool = false
-var _edits: PlanetEdits = PlanetEdits.new()
+var _edits: TerrainEdits = TerrainEdits.new()
 var _dirty_chunks: Dictionary = {}
 var _chunk_flush_pending: bool = false
 var _continuous_edit_depth: int = 0
@@ -242,7 +242,7 @@ func _build_chunk_at(
 	chunk_build_result: ChunkMeshBuilder.ChunkBuildResult,
 	settings: SettingsSnapshot
 ) -> void:
-	var chunk: PlanetChunk = _CHUNK_SCRIPT.new()
+	var chunk: TerrainChunk = _CHUNK_SCRIPT.new()
 	chunk.name = "Chunk_%d_%d_%d" % [
 		chunk_coordinate.x, chunk_coordinate.y, chunk_coordinate.z
 	]
@@ -287,7 +287,7 @@ func get_chunk_count() -> int:
 func get_total_vertex_count() -> int:
 	var total: int = 0
 	for chunk_coordinate_variant: Variant in _chunks.keys():
-		var chunk: PlanetChunk = _chunks[chunk_coordinate_variant] as PlanetChunk
+		var chunk: TerrainChunk = _chunks[chunk_coordinate_variant] as TerrainChunk
 		if chunk == null or chunk.mesh == null:
 			continue
 		var array_mesh: ArrayMesh = chunk.mesh as ArrayMesh
@@ -301,7 +301,7 @@ func get_total_vertex_count() -> int:
 func get_total_triangle_count() -> int:
 	var total_indices: int = 0
 	for chunk_coordinate_variant: Variant in _chunks.keys():
-		var chunk: PlanetChunk = _chunks[chunk_coordinate_variant] as PlanetChunk
+		var chunk: TerrainChunk = _chunks[chunk_coordinate_variant] as TerrainChunk
 		if chunk == null or chunk.mesh == null:
 			continue
 		var array_mesh: ArrayMesh = chunk.mesh as ArrayMesh
@@ -354,7 +354,7 @@ func get_settings_snapshot() -> SettingsSnapshot:
 	return _make_settings_snapshot()
 
 
-func get_planet_edits() -> PlanetEdits:
+func get_terrain_edits() -> TerrainEdits:
 	return _edits
 
 
@@ -421,7 +421,7 @@ func _make_settings_snapshot() -> SettingsSnapshot:
 	settings.bounds_falloff_enabled = bounds_falloff_enabled
 	settings.bounds_falloff_distance = bounds_falloff_distance
 	settings.bounds_falloff_strength = bounds_falloff_strength
-	settings.planet_edits = _edits
+	settings.terrain_edits = _edits
 	settings.rebuild_collision = settings.generate_collision
 	_apply_world_specific_settings(settings)
 	return settings
@@ -539,7 +539,7 @@ func _poll_async_rebuilds() -> void:
 func _apply_async_job(async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob) -> void:
 	for chunk_coordinate: Vector3i in async_rebuild_job.chunk_coordinates:
 		_inflight_chunk_coordinates.erase(chunk_coordinate)
-		var chunk: PlanetChunk = _chunks.get(chunk_coordinate) as PlanetChunk
+		var chunk: TerrainChunk = _chunks.get(chunk_coordinate) as TerrainChunk
 		if chunk == null:
 			continue
 		var chunk_build_result: ChunkMeshBuilder.ChunkBuildResult = (
@@ -555,8 +555,8 @@ func _apply_async_job(async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob) -> vo
 
 func _make_thread_settings_snapshot() -> SettingsSnapshot:
 	var settings: SettingsSnapshot = _make_settings_snapshot()
-	if settings.planet_edits != null:
-		settings.planet_edits = settings.planet_edits.duplicate_for_thread()
+	if settings.terrain_edits != null:
+		settings.terrain_edits = settings.terrain_edits.duplicate_for_thread()
 	return settings
 
 
@@ -600,7 +600,7 @@ func _rebuild_chunk_coordinates(
 	if settings == null:
 		settings = _make_settings_snapshot()
 	for chunk_coordinate: Vector3i in chunk_coordinates:
-		var chunk: PlanetChunk = _chunks.get(chunk_coordinate) as PlanetChunk
+		var chunk: TerrainChunk = _chunks.get(chunk_coordinate) as TerrainChunk
 		if chunk == null:
 			continue
 		chunk.rebuild(settings)

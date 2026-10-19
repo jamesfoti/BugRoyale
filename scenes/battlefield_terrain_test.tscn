@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="3"]
 [ext_resource type="Environment" uid="uid://brcqpo8f7y5it" path="res://materials/battlefield_env.tres" id="4"]
 [ext_resource type="Shader" uid="uid://t3j8fdrbrkt8" path="res://shaders/terrain_spherical.gdshader" id="4_t70o5"]
-[ext_resource type="Script" uid="uid://nstgt5obdasq" path="res://terrain/planet_chunk.gd" id="5_gxd00"]
+[ext_resource type="Script" uid="uid://nstgt5obdasq" path="res://terrain/terrain_chunk.gd" id="5_gxd00"]
 [ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="6"]
 [ext_resource type="PackedScene" uid="uid://dnitu1aqqnorc" path="res://gui/player_item_menu.tscn" id="7"]
 [ext_resource type="Script" uid="uid://c6nhltrtsmske" path="res://scenes/player_spawner.gd" id="8"]
@@ -14,8 +14,8 @@
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_gxd00"]
 render_priority = 0
 shader = ExtResource("4_t70o5")
-shader_parameter/planet_center = Vector3(0, 0, 0)
-shader_parameter/planet_radius = 0.0
+shader_parameter/body_center = Vector3(0, 0, 0)
+shader_parameter/body_radius = 0.0
 shader_parameter/grass_color = Color(0.35, 0.55, 0.28, 1)
 shader_parameter/dirt_color = Color(0.45, 0.38, 0.28, 1)
 shader_parameter/rock_color = Color(0.42, 0.42, 0.46, 1)
@@ -1786,7 +1786,7 @@ text = "Chunks: n/a"
 layout_mode = 2
 text = "Chunk size: n/a"
 
-[node name="PlanetSize" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=597434254]
+[node name="BodySize" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=597434254]
 layout_mode = 2
 text = "World size: n/a"
 

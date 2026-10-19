@@ -17,7 +17,7 @@ const CrosshairHudScene: PackedScene = preload("res://gui/crosshair_hud.tscn")
 @onready var _position: Label = $Bar/Anchor/Panel/Margin/Fields/Position
 @onready var _chunks: Label = $Bar/Anchor/Panel/Margin/Fields/Chunks
 @onready var _chunk_size: Label = $Bar/Anchor/Panel/Margin/Fields/ChunkSize
-@onready var _planet_size: Label = $Bar/Anchor/Panel/Margin/Fields/PlanetSize
+@onready var _body_size: Label = $Bar/Anchor/Panel/Margin/Fields/BodySize
 @onready var _vertex_count: Label = $Bar/Anchor/Panel/Margin/Fields/VertexCount
 @onready var _edit_mode_label: Label = $Bar/Anchor/Panel/Margin/Fields/EditMode
 
@@ -133,7 +133,7 @@ func _process(delta: float) -> void:
 		)
 	_fps.text = "Frames Per Second (FPS): %d" % Engine.get_frames_per_second()
 	_position.text = position_line
-	_update_planet_debug_labels()
+	_update_body_debug_labels()
 	_edit_mode_label.text = _edit_mode_display_text()
 	_queue_layout()
 
@@ -208,14 +208,14 @@ func _set_render_time_measuring(enabled: bool) -> void:
 	_sampled_physics_ms = 0.0
 
 
-func _update_planet_debug_labels() -> void:
+func _update_body_debug_labels() -> void:
 	var terrain_world: ChunkedTerrainWorld = (
 		get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
 	)
 	if terrain_world == null:
 		_chunks.text = "Chunks: n/a"
 		_chunk_size.text = "Chunk size: n/a"
-		_planet_size.text = "World size: n/a"
+		_body_size.text = "World size: n/a"
 		_vertex_count.text = "Mesh: n/a"
 		return
 
@@ -231,14 +231,14 @@ func _update_planet_debug_labels() -> void:
 		chunk_count, grid_dimensions.x, grid_dimensions.y, grid_dimensions.z, terrain_world.noise_seed
 	]
 	_chunk_size.text = "Chunk size: %.1f" % chunk_extent
-	if terrain_world is Planet:
-		var planet: Planet = terrain_world as Planet
-		var planet_radius: float = planet.get_sphere_radius()
-		_planet_size.text = "Planet size: %.1f radius (%.1f diameter)" % [
-			planet_radius, planet_radius * 2.0
+	if terrain_world is CelestialBody:
+		var celestial_body: CelestialBody = terrain_world as CelestialBody
+		var body_radius: float = celestial_body.get_sphere_radius()
+		_body_size.text = "Body size: %.1f radius (%.1f diameter)" % [
+			body_radius, body_radius * 2.0
 		]
 	else:
-		_planet_size.text = "World size: %.0f × %.0f × %.0f" % [
+		_body_size.text = "World size: %.0f × %.0f × %.0f" % [
 			world_extents.x, world_extents.y, world_extents.z
 		]
 	_vertex_count.text = (

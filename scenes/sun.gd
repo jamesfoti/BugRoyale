@@ -1,13 +1,13 @@
 extends Node3D
 class_name SunBody
-## Terrain-meshed sun with a directional light that shines toward the planet.
+## Terrain-meshed sun with a directional light that shines toward the celestial body.
 
 
-@export var planet_path: NodePath
+@export var celestial_body_path: NodePath
 @export var light_energy: float = 1.25
 @export var light_color: Color = Color(1.0, 0.94, 0.82, 1.0)
 
-@onready var _terrain: Planet = $TerrainWorld
+@onready var _terrain: CelestialBody = $TerrainWorld
 @onready var _light: DirectionalLight3D = $DirectionalLight3D
 @onready var _corona: SunCorona = $Corona
 @onready var _corona_rays: SunCorona = $CoronaRays
@@ -35,8 +35,8 @@ func _configure_sun_mesh() -> void:
 
 
 func _update_light_direction() -> void:
-	var planet: Node3D = get_node_or_null(planet_path) as Node3D
-	if planet == null:
+	var celestial_body: Node3D = get_node_or_null(celestial_body_path) as Node3D
+	if celestial_body == null:
 		return
 	_light.global_position = global_position
-	_light.look_at(planet.global_position, Vector3.UP)
+	_light.look_at(celestial_body.global_position, Vector3.UP)

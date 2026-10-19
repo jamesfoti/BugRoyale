@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_back, diffuse_lambert, specular_disabled, fog_disabled;
+render_mode cull_back, fog_disabled;
 
 // Terrarium ground: dark potting soil with moss creeping over the flatter, higher spots and
 // bare slate on steep faces, like a planted glass garden.
@@ -65,3 +65,5 @@ void fragment() {
 	ALBEDO = base;
 	ROUGHNESS = 1.0;
 }
+
+#include "res://shaders/toon_lighting.gdshaderinc"

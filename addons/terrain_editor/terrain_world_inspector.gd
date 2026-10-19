@@ -1,7 +1,7 @@
 @tool
 extends EditorInspectorPlugin
 
-const _PLANET_SCRIPT_PATH: String = "res://terrain/planet.gd"
+const _CELESTIAL_BODY_SCRIPT_PATH: String = "res://terrain/celestial_body.gd"
 const _BOXED_IN_TERRAIN_SCRIPT_PATH: String = "res://terrain/boxed_in_terrain.gd"
 const _OPEN_TERRAIN_SCRIPT_PATH: String = "res://terrain/open_terrain.gd"
 const _TERRARIUM_ROOM_SCRIPT_PATH: String = "res://terrain/terrarium_room.gd"
@@ -68,7 +68,7 @@ func _parse_begin(object: Object) -> void:
 
 func _terrain_script_paths() -> Array[String]:
 	return [
-		_PLANET_SCRIPT_PATH,
+		_CELESTIAL_BODY_SCRIPT_PATH,
 		_BOXED_IN_TERRAIN_SCRIPT_PATH,
 		_OPEN_TERRAIN_SCRIPT_PATH,
 		_TERRARIUM_ROOM_SCRIPT_PATH,

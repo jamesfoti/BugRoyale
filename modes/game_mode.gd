@@ -105,7 +105,7 @@ func respawn_player(position: Vector3 = Vector3.INF) -> void:
 	player.collision_layer = MapInfo.FIGHTER_LAYER
 	if player.has_method("respawn_random"):
 		player.call("respawn_random")
-	if position != Vector3.INF and map.kind != MapInfo.Kind.PLANET:
+	if position != Vector3.INF and map.kind != MapInfo.Kind.CELESTIAL_BODY:
 		player.global_position = position
 	player.velocity = Vector3.ZERO
 	player_health.revive()

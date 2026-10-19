@@ -105,23 +105,23 @@ static func build_chunk_into(
 			settings.bounds_clip_inset,
 			settings.boxed_in_edges_enabled
 		)
-	elif settings.planet_features_enabled and settings.sphere_enabled:
-		density = DensitySampler.create_planet_world_density(
+	elif settings.body_features_enabled and settings.sphere_enabled:
+		density = DensitySampler.create_celestial_body_world_density(
 			sphere_world,
 			settings.sphere_radius,
 			settings.noise_seed,
 			-1.0,
 			-1.0,
-			settings.planet_ravines_enabled,
-			settings.planet_caves_enabled,
+			settings.body_ravines_enabled,
+			settings.body_caves_enabled,
 			settings.bounds_center,
 			settings.bounds_half,
 			settings.bounds_falloff_enabled,
 			settings.bounds_falloff_distance,
 			settings.bounds_falloff_strength,
 			settings.bounds_clip_inset,
-			settings.planet_ravine_depth,
-			settings.planet_ravine_width
+			settings.body_ravine_depth,
+			settings.body_ravine_width
 		)
 	else:
 		density = DensitySampler.WorldDensity.create(
@@ -142,8 +142,8 @@ static func build_chunk_into(
 			settings.bounds_falloff_strength,
 			settings.bounds_clip_inset
 		)
-	if settings.planet_edits != null:
-		density.planet_edits = settings.planet_edits
+	if settings.terrain_edits != null:
+		density.terrain_edits = settings.terrain_edits
 	var field: SignedDensityField = DensitySampler.build_chunk_field(
 		density,
 		sample_size,

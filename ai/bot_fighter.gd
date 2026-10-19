@@ -1,7 +1,7 @@
 extends CharacterBody3D
 class_name BotFighter
 ## AI stand-in for another player. Walks the map like a player (any map: uses MapInfo's up, so the
-## planet's gravity works too), hunts the nearest enemy, keeps to its weapon's preferred range,
+## celestial body's gravity works too), hunts the nearest enemy, keeps to its weapon's preferred range,
 ## strafes, and shoots with spread. Modes can make it follow a squad leader or flee rising water.
 ## Bot shots never dig into the terrain (dozens of bots would wreck the map and the frame rate).
 
@@ -34,7 +34,7 @@ var _weapon_item: PlayerItems.Item = PlayerItems.Item.WEAPON_AK
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _active: bool = true
 var _target: Node3D
-## Whether the current target was visible at the last check (hills, or the planet's curve, hide it).
+## Whether the current target was visible at the last check (hills, or the celestial body's curve, hide it).
 var _target_in_sight: bool = false
 var _retarget_timer: float = 0.0
 var _reaction_timer: float = 0.0
@@ -156,7 +156,7 @@ func _physics_process(delta: float) -> void:
 	var planar: Vector3 = to_goal.slide(up)
 	var move_direction: Vector3 = Vector3.ZERO
 	if to_goal.length() > 0.6:
-		# Walk along the ground toward the goal. On the planet a goal far around the curve projects
+		# Walk along the ground toward the goal. On the celestial body a goal far around the curve projects
 		# to a tiny (or zero, if straight through) ground vector, so only its direction is used.
 		if planar.length_squared() < 0.0001:
 			planar = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)

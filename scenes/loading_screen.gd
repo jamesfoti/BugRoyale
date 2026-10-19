@@ -3,7 +3,7 @@ class_name LoadingScreen
 ## Shows the game sky while the main scene loads in the background.
 
 
-const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/planet_test.tscn"
+const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/celestial_body_test.tscn"
 enum PlayerCharacter {
 	ANT_WARRIOR,
 	TERMITE_SOLDIER,

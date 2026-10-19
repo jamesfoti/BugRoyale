@@ -72,7 +72,7 @@ var _tick: int = 0
 var _targets: Array[Node3D] = []
 var _flock_center: Vector3 = Vector3.ZERO
 var _terrain: OpenTerrain
-## Set by game modes so the flock flies correctly on any map (planet up, terrarium glass).
+## Set by game modes so the flock flies correctly on any map (celestial body up, terrarium glass).
 var map: MapInfo
 ## Draws every bird cone in one call instead of one MeshInstance3D per bird.
 var _bird_multimesh_instance: MultiMeshInstance3D
@@ -378,7 +378,7 @@ func _compute_height_steering(position: Vector3, altitude: float) -> Vector3:
 	return Vector3.ZERO
 
 
-## Up at a point: the map's (radial on the planet), else world up.
+## Up at a point: the map's (radial on the celestial body), else world up.
 func _up(position: Vector3) -> Vector3:
 	return map.up_at(position) if map != null else Vector3.UP
 

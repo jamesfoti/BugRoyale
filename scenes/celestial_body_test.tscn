@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cepuebvnerpyu"]
 
-[ext_resource type="Script" uid="uid://oo8yvl75l0h5" path="res://terrain/planet.gd" id="1"]
+[ext_resource type="Script" uid="uid://oo8yvl75l0h5" path="res://terrain/celestial_body.gd" id="1"]
 [ext_resource type="Material" uid="uid://ct8q5pbs54ajt" path="res://materials/terrain_procedural.tres" id="2"]
 [ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="4"]
 [ext_resource type="Environment" uid="uid://c8gcug836onl0" path="res://materials/terrain_env.tres" id="5"]
@@ -14,7 +14,7 @@
 [sub_resource type="SphereShape3D" id="SphereShape3D_zero_gravity"]
 radius = 8192.0
 
-[node name="PlanetTest" type="Node3D" unique_id=234830412]
+[node name="CelestialBodyTest" type="Node3D" unique_id=234830412]
 
 [node name="ZeroGravity" type="Area3D" parent="."]
 collision_layer = 0
@@ -31,25 +31,25 @@ shape = SubResource("SphereShape3D_zero_gravity")
 environment = ExtResource("5")
 
 [node name="Sun" parent="." instance=ExtResource("8")]
-planet_path = NodePath("../TerrainWorld")
+celestial_body_path = NodePath("../TerrainWorld")
 
 [node name="TerrainWorld" type="Node3D" parent="." unique_id=1063690967]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 180, 0, 0)
 script = ExtResource("1")
-planet_radius_chunks = 1.5
+body_radius_chunks = 1.5
 noise_seed = 43
 terrain_material = ExtResource("2")
 bounds_falloff_distance = 10.0
 bounds_falloff_strength = 8.0
-planet_caves_enabled = false
-planet_ravine_depth = null
+body_caves_enabled = false
+body_ravine_depth = null
 rebuild_on_ready = true
 auto_rebuild_in_editor = true
 
 [node name="PlayerSpawner" type="Node" parent="."]
 script = ExtResource("12")
 world_kind = 0
-planet_path = NodePath("../TerrainWorld")
+celestial_body_path = NodePath("../TerrainWorld")
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=1801855157]
 script = ExtResource("4")
@@ -118,9 +118,9 @@ text = "Chunks: n/a"
 layout_mode = 2
 text = "Chunk size: n/a"
 
-[node name="PlanetSize" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields"]
+[node name="BodySize" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields"]
 layout_mode = 2
-text = "Planet size: n/a"
+text = "Body size: n/a"
 
 [node name="VertexCount" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields"]
 layout_mode = 2

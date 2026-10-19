@@ -1,4 +1,4 @@
-class_name PlanetChunk
+class_name TerrainChunk
 extends MeshInstance3D
 ## One meshed chunk. Rebuilds from density when settings change.
 

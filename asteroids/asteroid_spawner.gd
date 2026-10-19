@@ -1,6 +1,6 @@
 extends Node
 class_name AsteroidSpawner
-## Spawns procedural asteroids on trajectories toward playable planets.
+## Spawns procedural asteroids on trajectories toward playable celestial bodies.
 
 
 const AsteroidScene: PackedScene = preload("res://asteroids/asteroid.tscn")
@@ -41,27 +41,27 @@ func _process(delta: float) -> void:
 
 
 func _try_spawn() -> void:
-	var planets: Array[Node] = get_tree().get_nodes_in_group("planet")
-	if planets.is_empty():
+	var celestial_bodies: Array[Node] = get_tree().get_nodes_in_group("celestial_body")
+	if celestial_bodies.is_empty():
 		return
 
-	var planet: Planet = planets[randi() % planets.size()] as Planet
-	if planet == null:
+	var celestial_body: CelestialBody = celestial_bodies[randi() % celestial_bodies.size()] as CelestialBody
+	if celestial_body == null:
 		return
 
-	var center: Vector3 = planet.global_position + planet.sphere_center
-	var planet_radius: float = planet.get_sphere_radius()
+	var center: Vector3 = celestial_body.global_position + celestial_body.sphere_center
+	var body_radius: float = celestial_body.get_sphere_radius()
 	var spawn_dir: Vector3 = _random_unit_vector()
-	var spawn_dist: float = planet_radius * randf_range(spawn_distance_min, spawn_distance_max)
+	var spawn_dist: float = body_radius * randf_range(spawn_distance_min, spawn_distance_max)
 	var spawn_pos: Vector3 = center + spawn_dir * spawn_dist
 
-	var to_planet: Vector3 = (center - spawn_pos).normalized()
+	var to_body: Vector3 = (center - spawn_pos).normalized()
 	var tangent: Vector3 = spawn_dir.cross(Vector3.UP)
 	if tangent.length_squared() < 0.01:
 		tangent = spawn_dir.cross(Vector3.RIGHT)
 	tangent = tangent.normalized()
 	var approach: Vector3 = (
-		to_planet + tangent * randf_range(-0.35, 0.35)
+		to_body + tangent * randf_range(-0.35, 0.35)
 	).normalized()
 
 	var radius: float = randf_range(min_radius, max_radius)
@@ -72,7 +72,7 @@ func _try_spawn() -> void:
 	get_tree().current_scene.add_child(asteroid)
 	asteroid.global_position = spawn_pos
 	asteroid.setup(
-		planet,
+		celestial_body,
 		mesh_seed,
 		radius,
 		approach * speed,

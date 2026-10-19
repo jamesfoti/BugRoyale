@@ -1,20 +1,21 @@
 extends Control
-## Entry menu: pick a game mode, then a map (see ModeCatalog), and the player class; or settings.
+## Entry menu. Play opens the mode page (every mode with its description), a mode opens the map
+## page (see ModeCatalog), and a map starts the match. Choose Player and Settings are their own
+## pages. Each page hides the one beneath it and Escape steps back.
 
 
 const LOADING_SCREEN_SCENE_PATH: String = "res://scenes/loading_screen.tscn"
 ## Extra space around the character in the Choose Player preview.
 const PREVIEW_FRAMING_PADDING: float = 1.15
 
-## The title and button column. Hidden while a page (Choose Player, Settings, map pick) is open,
-## the way the pause menu hides its own panel behind Settings, so nothing shows through.
+## The title and button column. Hidden while a page is open, the way the pause menu hides its
+## own panel behind Settings, so nothing shows through.
 @onready var _main_page: Control = $UI/Margin
 @onready var _title: Label = $UI/Margin/VBox/Title
-@onready var _hornets_button: Button = $UI/Margin/VBox/Buttons/HornetsButton
-@onready var _ants_vs_ants_button: Button = $UI/Margin/VBox/Buttons/AntsVsAntsButton
-@onready var _battle_royale_button: Button = $UI/Margin/VBox/Buttons/BattleRoyaleButton
+@onready var _play_button: Button = $UI/Margin/VBox/Buttons/PlayButton
 @onready var _choose_player_button: Button = $UI/Margin/VBox/Buttons/ChoosePlayerButton
 @onready var _settings_button: Button = $UI/Margin/VBox/Buttons/SettingsButton
+@onready var _quit_button: Button = $UI/Margin/VBox/Buttons/QuitButton
 @onready var _settings_menu: Control = $UI/SettingsMenu
 @onready var _player_select_page: Control = $UI/PlayerSelectPage
 @onready var _player_name_label: Label = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PlayerName
@@ -53,14 +54,28 @@ func _ready() -> void:
 	_preview_previous_button.disabled = not has_choices
 	_preview_next_button.disabled = not has_choices
 	_preview_back_button.pressed.connect(_on_preview_back_pressed)
-	_hornets_button.pressed.connect(_on_mode_pressed.bind("hornets"))
-	_ants_vs_ants_button.pressed.connect(_on_mode_pressed.bind("ants_vs_ants"))
-	_battle_royale_button.pressed.connect(_on_mode_pressed.bind("battle_royale"))
-	_hornets_button.tooltip_text = ModeCatalog.mode("hornets").get("description", "")
-	_ants_vs_ants_button.tooltip_text = ModeCatalog.mode("ants_vs_ants").get("description", "")
-	_battle_royale_button.tooltip_text = ModeCatalog.mode("battle_royale").get("description", "")
+	_play_button.pressed.connect(_open_mode_page)
+	_quit_button.pressed.connect(get_tree().quit)
+	_build_mode_page()
 	_build_map_page()
+	_refresh_choose_player_button()
+	_play_button.grab_focus()
 	# The preview character is only spawned while the Choose Player page is open.
+
+
+## Escape steps back one page (the Settings page handles its own).
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("ui_cancel"):
+		return
+	if _map_page.visible:
+		_close_map_page()
+	elif _mode_page.visible:
+		_close_mode_page()
+	elif _player_select_page.visible:
+		_on_preview_back_pressed()
+	else:
+		return
+	get_viewport().set_input_as_handled()
 
 
 func _process(delta: float) -> void:
@@ -140,6 +155,14 @@ func _clear_preview_character() -> void:
 
 func _set_selected_character(selected_character: LoadingScreen.PlayerCharacter) -> void:
 	LoadingScreen.selected_player_character = selected_character
+	_refresh_choose_player_button()
+
+
+## The main page's Choose Player button names the class you will spawn as.
+func _refresh_choose_player_button() -> void:
+	_choose_player_button.text = "Choose Player: %s" % _display_name_for_character(
+		LoadingScreen.selected_player_character
+	)
 
 
 func _update_preview_display() -> void:
@@ -224,13 +247,30 @@ func _set_preview_viewport_active(active: bool) -> void:
 	)
 
 
-# --- Play flow: mode -> map -> start --------------------------------------------------------
+# --- Play flow: Play -> mode -> map -> start ------------------------------------------------
 
+const PAGE_DESCRIPTION_COLOR: Color = Color(0.78, 0.82, 0.9)
+
+var _mode_page: Control
+var _mode_buttons: Dictionary = {}
 var _map_page: Control
 var _map_page_title: Label
 var _map_page_description: Label
 var _map_buttons: VBoxContainer
 var _chosen_mode_id: String = ""
+
+
+func _open_mode_page() -> void:
+	_hide_main_page()
+	_mode_page.visible = true
+	var first: Button = _mode_buttons.get(_chosen_mode_id, _mode_buttons.values().front()) as Button
+	if first != null:
+		first.grab_focus()
+
+
+func _close_mode_page() -> void:
+	_mode_page.visible = false
+	_show_main_page(_play_button)
 
 
 func _on_mode_pressed(mode_id: String) -> void:
@@ -250,7 +290,7 @@ func _on_mode_pressed(mode_id: String) -> void:
 		map_button.custom_minimum_size = Vector2(280, 44)
 		map_button.pressed.connect(_start_match.bind(map_id))
 		_map_buttons.add_child(map_button)
-	_hide_main_page()
+	_mode_page.visible = false
 	_map_page.visible = true
 	if _map_buttons.get_child_count() > 0:
 		(_map_buttons.get_child(0) as Button).grab_focus()
@@ -258,10 +298,10 @@ func _on_mode_pressed(mode_id: String) -> void:
 
 func _close_map_page() -> void:
 	_map_page.visible = false
-	var mode_buttons: Dictionary = {
-		"hornets": _hornets_button, "ants_vs_ants": _ants_vs_ants_button, "battle_royale": _battle_royale_button,
-	}
-	_show_main_page(mode_buttons.get(_chosen_mode_id) as Button)
+	_mode_page.visible = true
+	var mode_button: Button = _mode_buttons.get(_chosen_mode_id) as Button
+	if mode_button != null:
+		mode_button.grab_focus()
 
 
 func _start_match(map_id: String) -> void:
@@ -273,41 +313,50 @@ func _start_match(map_id: String) -> void:
 	get_tree().change_scene_to_file(LOADING_SCREEN_SCENE_PATH)
 
 
+## One button per mode with its description underneath; Explore sits apart from the matches.
+func _build_mode_page() -> void:
+	var column: VBoxContainer
+	var built: Array = _build_page("ModeSelectPage", 460)
+	_mode_page = built[0]
+	column = built[1]
+	column.add_child(_page_title("Choose a game mode"))
+	for mode_id: String in ModeCatalog.MODES:
+		var mode_info: Dictionary = ModeCatalog.MODES[mode_id]
+		if mode_id == "explore":
+			column.add_child(HSeparator.new())
+		var entry := VBoxContainer.new()
+		entry.add_theme_constant_override("separation", 2)
+		var button := Button.new()
+		button.text = mode_info.get("name", mode_id)
+		button.custom_minimum_size = Vector2(400, 44)
+		button.pressed.connect(_on_mode_pressed.bind(mode_id))
+		entry.add_child(button)
+		var description := Label.new()
+		description.text = mode_info.get("description", "")
+		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		description.custom_minimum_size = Vector2(400, 0)
+		description.add_theme_font_size_override("font_size", 13)
+		description.add_theme_color_override("font_color", PAGE_DESCRIPTION_COLOR)
+		entry.add_child(description)
+		column.add_child(entry)
+		_mode_buttons[mode_id] = button
+	var back := Button.new()
+	back.text = "Back"
+	back.pressed.connect(_close_mode_page)
+	column.add_child(back)
+
+
 func _build_map_page() -> void:
-	_map_page = Control.new()
-	_map_page.name = "MapSelectPage"
-	_map_page.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_map_page.visible = false
-	$UI.add_child(_map_page)
-
-	var backdrop := ColorRect.new()
-	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
-	backdrop.color = Color(0.0, 0.0, 0.0, 0.55)
-	_map_page.add_child(backdrop)
-
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_map_page.add_child(center)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(420, 0)
-	center.add_child(panel)
-	var margin := MarginContainer.new()
-	for side: String in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 20)
-	panel.add_child(margin)
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 12)
-	margin.add_child(column)
-
-	_map_page_title = Label.new()
-	_map_page_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_map_page_title.add_theme_font_size_override("font_size", 22)
+	var built: Array = _build_page("MapSelectPage", 420)
+	_map_page = built[0]
+	var column: VBoxContainer = built[1]
+	_map_page_title = _page_title("")
 	column.add_child(_map_page_title)
 	_map_page_description = Label.new()
 	_map_page_description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_map_page_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_map_page_description.custom_minimum_size = Vector2(380, 0)
-	_map_page_description.add_theme_color_override("font_color", Color(0.78, 0.82, 0.9))
+	_map_page_description.add_theme_color_override("font_color", PAGE_DESCRIPTION_COLOR)
 	column.add_child(_map_page_description)
 	_map_buttons = VBoxContainer.new()
 	_map_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -317,3 +366,40 @@ func _build_map_page() -> void:
 	back.text = "Back"
 	back.pressed.connect(_close_map_page)
 	column.add_child(back)
+
+
+## A hidden full-screen page: dimmed backdrop and a centered panel. Returns [page, column].
+func _build_page(page_name: String, panel_width: float) -> Array:
+	var page := Control.new()
+	page.name = page_name
+	page.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page.visible = false
+	$UI.add_child(page)
+
+	var backdrop := ColorRect.new()
+	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	backdrop.color = Color(0.0, 0.0, 0.0, 0.55)
+	page.add_child(backdrop)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(panel_width, 0)
+	center.add_child(panel)
+	var margin := MarginContainer.new()
+	for side: String in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 20)
+	panel.add_child(margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 12)
+	margin.add_child(column)
+	return [page, column]
+
+
+func _page_title(text: String) -> Label:
+	var title := Label.new()
+	title.text = text
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 22)
+	return title

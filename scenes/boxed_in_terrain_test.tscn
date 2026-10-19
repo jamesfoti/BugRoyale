@@ -98,7 +98,7 @@ text = "Chunks: n/a"
 layout_mode = 2
 text = "Chunk size: n/a"
 
-[node name="PlanetSize" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=1419338996]
+[node name="BodySize" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=1419338996]
 layout_mode = 2
 text = "World size: n/a"
 

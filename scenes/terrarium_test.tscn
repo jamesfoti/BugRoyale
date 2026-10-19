@@ -11,7 +11,7 @@
 [ext_resource type="Script" uid="uid://c6nhltrtsmske" path="res://scenes/player_spawner.gd" id="6"]
 [ext_resource type="Material" uid="uid://ct8q5pbs54ajt" path="res://materials/terrain_procedural.tres" id="6_mquig"]
 [ext_resource type="Shader" uid="uid://t3j8fdrbrkt8" path="res://shaders/terrain_spherical.gdshader" id="7_441n2"]
-[ext_resource type="Script" uid="uid://nstgt5obdasq" path="res://terrain/planet_chunk.gd" id="8_65bk6"]
+[ext_resource type="Script" uid="uid://nstgt5obdasq" path="res://terrain/terrain_chunk.gd" id="8_65bk6"]
 [ext_resource type="Script" uid="uid://dyxv4akcyqiml" path="res://props/terrarium_water.gd" id="9_rnhue"]
 [ext_resource type="Shader" uid="uid://t2mpns7nmulq" path="res://shaders/terrarium_water_volume.gdshader" id="10_rnhue"]
 [ext_resource type="Material" uid="uid://dja5hsdk6kiru" path="res://materials/terrarium_water.tres" id="11_gd44w"]
@@ -275,8 +275,8 @@ size = Vector3(0.025, 1, 1)
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ud4ak"]
 render_priority = 0
 shader = ExtResource("7_441n2")
-shader_parameter/planet_center = Vector3(0, 0, 0)
-shader_parameter/planet_radius = 0.0
+shader_parameter/body_center = Vector3(0, 0, 0)
+shader_parameter/body_radius = 0.0
 shader_parameter/grass_color = Color(0.35, 0.55, 0.28, 1)
 shader_parameter/dirt_color = Color(0.45, 0.38, 0.28, 1)
 shader_parameter/rock_color = Color(0.42, 0.42, 0.46, 1)
@@ -1378,7 +1378,7 @@ text = "Chunks: n/a"
 layout_mode = 2
 text = "Chunk size: n/a"
 
-[node name="PlanetSize" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=147983827]
+[node name="BodySize" type="Label" parent="HUD/Bar/Anchor/Panel/Margin/Fields" unique_id=147983827]
 layout_mode = 2
 text = "World size: n/a"
 

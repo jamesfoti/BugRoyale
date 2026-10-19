@@ -1,10 +1,10 @@
 extends RefCounted
 class_name MapInfo
-## Answers map questions the same way on every map (planet, open battlefield, terrarium) so game
+## Answers map questions the same way on every map (celestial body, open battlefield, terrarium) so game
 ## modes, bots and hornets don't care which one they are on: which way is up, how high above the
 ## ground a point is, the playable bounds, random spawn points, and the terrarium's water.
 
-enum Kind { FLAT, PLANET, TERRARIUM }
+enum Kind { FLAT, CELESTIAL_BODY, TERRARIUM }
 
 ## Collision layers: terrain and walls are on layer 1; players and bots ("fighters") on layer 2
 ## so ground probes ignore them; hornets use layer 4.
@@ -15,9 +15,9 @@ const _SPAWN_TRIES: int = 24
 
 var kind: Kind = Kind.FLAT
 var world: Node3D
-var planet_center: Vector3 = Vector3.ZERO
-var planet_radius: float = 18.0
-## Playable box for flat maps and the terrarium (unused on the planet).
+var body_center: Vector3 = Vector3.ZERO
+var body_radius: float = 18.0
+## Playable box for flat maps and the terrarium (unused on the celestial body).
 var bounds: AABB = AABB()
 var water: TerrariumWater
 ## Fish-bowl terrarium: the glass sphere (radius 0 on a box terrarium or other maps).
@@ -39,11 +39,11 @@ static func from_scene(scene_root: Node) -> MapInfo:
 	if info._space == null and info.world != null:
 		info._space = info.world.get_world_3d().direct_space_state
 
-	if info.world is Planet:
-		var planet: Planet = info.world as Planet
-		info.kind = Kind.PLANET
-		info.planet_center = planet.get_planet_center_world()
-		info.planet_radius = planet.get_sphere_radius()
+	if info.world is CelestialBody:
+		var celestial_body: CelestialBody = info.world as CelestialBody
+		info.kind = Kind.CELESTIAL_BODY
+		info.body_center = celestial_body.get_body_center_world()
+		info.body_radius = celestial_body.get_sphere_radius()
 	elif info.world is TerrariumRoom:
 		var room: TerrariumRoom = info.world as TerrariumRoom
 		info.kind = Kind.TERRARIUM
@@ -64,8 +64,8 @@ static func from_scene(scene_root: Node) -> MapInfo:
 
 
 func up_at(position: Vector3) -> Vector3:
-	if kind == Kind.PLANET:
-		var radial: Vector3 = position - planet_center
+	if kind == Kind.CELESTIAL_BODY:
+		var radial: Vector3 = position - body_center
 		return radial.normalized() if radial.length_squared() > 0.0001 else Vector3.UP
 	return Vector3.UP
 
@@ -74,8 +74,8 @@ func up_at(position: Vector3) -> Vector3:
 func altitude(position: Vector3) -> float:
 	var ground: Dictionary = ground_hit(position)
 	if ground.is_empty():
-		if kind == Kind.PLANET:
-			return position.distance_to(planet_center) - planet_radius
+		if kind == Kind.CELESTIAL_BODY:
+			return position.distance_to(body_center) - body_radius
 		return position.y - bounds.position.y
 	return (position - ground.position).dot(up_at(position))
 
@@ -85,9 +85,9 @@ func ground_hit(position: Vector3) -> Dictionary:
 	var up: Vector3 = up_at(position)
 	var from: Vector3
 	var to: Vector3
-	if kind == Kind.PLANET:
-		from = planet_center + up * (planet_radius + 60.0)
-		to = planet_center
+	if kind == Kind.CELESTIAL_BODY:
+		from = body_center + up * (body_radius + 60.0)
+		to = body_center
 	else:
 		var top: float = bounds.end.y + 40.0 if bounds.size != Vector3.ZERO else position.y + 100.0
 		if kind == Kind.TERRARIUM:
@@ -113,32 +113,32 @@ func bowl_inner_top(position: Vector3) -> float:
 	return bowl_center.y + sqrt(bowl_radius * bowl_radius - horizontal * horizontal) - 0.3
 
 
-## Center of the playable area (on the planet: the point on the surface facing +Y).
+## Center of the playable area (on the celestial body: the point on the surface facing +Y).
 func center() -> Vector3:
-	if kind == Kind.PLANET:
-		return planet_center + Vector3.UP * planet_radius
+	if kind == Kind.CELESTIAL_BODY:
+		return body_center + Vector3.UP * body_radius
 	return bounds.get_center()
 
 
 ## Which half of the map a point is in (-1 or +1), used to split teams.
 func side_of(position: Vector3) -> float:
-	if kind == Kind.PLANET:
-		return signf((position - planet_center).x)
+	if kind == Kind.CELESTIAL_BODY:
+		return signf((position - body_center).x)
 	return signf(position.x - bounds.get_center().x)
 
 
 ## Random spot on the ground (plus clearance). side: 0 = anywhere, -1/+1 = that half of the map.
-## min_height: only accept ground at least this high (world Y; ignored on the planet).
+## min_height: only accept ground at least this high (world Y; ignored on the celestial body).
 func random_surface_point(clearance: float = 1.2, side: float = 0.0, min_height: float = -INF) -> Vector3:
 	var best: Vector3 = center() + up_at(center()) * clearance
 	for attempt: int in _SPAWN_TRIES:
 		var hit: Dictionary = {}
-		if kind == Kind.PLANET:
+		if kind == Kind.CELESTIAL_BODY:
 			var direction := Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized()
 			if side != 0.0:
 				direction.x = absf(direction.x) * side
 				direction = direction.normalized()
-			hit = _cast(planet_center + direction * (planet_radius + 60.0), planet_center)
+			hit = _cast(body_center + direction * (body_radius + 60.0), body_center)
 		else:
 			var margin: float = 0.12
 			var x_min: float = lerpf(bounds.position.x, bounds.end.x, margin)
@@ -163,7 +163,7 @@ func random_surface_point(clearance: float = 1.2, side: float = 0.0, min_height:
 		if hit.is_empty():
 			continue
 		var point: Vector3 = hit.position + up_at(hit.position) * clearance
-		if kind != Kind.PLANET and point.y < min_height:
+		if kind != Kind.CELESTIAL_BODY and point.y < min_height:
 			best = point
 			continue
 		return point
@@ -181,7 +181,7 @@ func is_underwater(position: Vector3) -> bool:
 
 ## Keeps a flying point inside the playable box (terrarium glass, battlefield edges).
 func clamp_to_bounds(position: Vector3) -> Vector3:
-	if kind == Kind.PLANET or bounds.size == Vector3.ZERO:
+	if kind == Kind.CELESTIAL_BODY or bounds.size == Vector3.ZERO:
 		return position
 	var clamped: Vector3 = position.clamp(bounds.position, bounds.end)
 	if bowl_radius > 0.0:
@@ -192,10 +192,10 @@ func clamp_to_bounds(position: Vector3) -> Vector3:
 	return clamped
 
 
-## Fell off the map (below the playable box, or inside the planet).
+## Fell off the map (below the playable box, or inside the celestial body).
 func is_out_of_bounds(position: Vector3) -> bool:
-	if kind == Kind.PLANET:
-		return position.distance_to(planet_center) < planet_radius * 0.4
+	if kind == Kind.CELESTIAL_BODY:
+		return position.distance_to(body_center) < body_radius * 0.4
 	return bounds.size != Vector3.ZERO and position.y < bounds.position.y - 25.0
 
 

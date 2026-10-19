@@ -81,7 +81,7 @@ horizontal_alignment = 1
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.84, 0.95, 1)
 theme_override_font_sizes/font_size = 20
-text = "Choose a game mode"
+text = "Bug-sized battles in giant terrariums"
 horizontal_alignment = 1
 
 [node name="Buttons" type="VBoxContainer" parent="UI/Margin/VBox"]
@@ -89,23 +89,11 @@ layout_mode = 2
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="HornetsButton" type="Button" parent="UI/Margin/VBox/Buttons"]
-custom_minimum_size = Vector2(320, 48)
+[node name="PlayButton" type="Button" parent="UI/Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(320, 52)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Attack of the Hornets"
-
-[node name="AntsVsAntsButton" type="Button" parent="UI/Margin/VBox/Buttons"]
-custom_minimum_size = Vector2(320, 48)
-layout_mode = 2
-size_flags_horizontal = 4
-text = "Ants vs Ants"
-
-[node name="BattleRoyaleButton" type="Button" parent="UI/Margin/VBox/Buttons"]
-custom_minimum_size = Vector2(320, 48)
-layout_mode = 2
-size_flags_horizontal = 4
-text = "Battle Royale"
+text = "Play"
 
 [node name="ChoosePlayerButton" type="Button" parent="UI/Margin/VBox/Buttons"]
 custom_minimum_size = Vector2(320, 44)
@@ -118,6 +106,12 @@ custom_minimum_size = Vector2(320, 44)
 layout_mode = 2
 size_flags_horizontal = 4
 text = "Settings"
+
+[node name="QuitButton" type="Button" parent="UI/Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(320, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Quit"
 
 [node name="BottomSpacer" type="Control" parent="UI/Margin/VBox"]
 layout_mode = 2

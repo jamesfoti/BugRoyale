@@ -15,7 +15,7 @@ const MAX_FALL_SECONDS: float = 6.0
 var velocity: Vector3 = Vector3.ZERO
 var attack_cooldown: float = 0.0
 ## Set by the flock: height above the ground at a position, and the up direction there (radial on
-## the planet), so shot-down birds fall the right way and land on the terrain.
+## the celestial body), so shot-down birds fall the right way and land on the terrain.
 var altitude: Callable
 var up: Callable
 

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bnpr1un6n0hoq"]
 
 [ext_resource type="Script" path="res://scenes/sun.gd" id="1"]
-[ext_resource type="Script" uid="uid://oo8yvl75l0h5" path="res://terrain/planet.gd" id="2"]
+[ext_resource type="Script" uid="uid://oo8yvl75l0h5" path="res://terrain/celestial_body.gd" id="2"]
 [ext_resource type="Material" path="res://materials/sun_surface.tres" id="3"]
 [ext_resource type="Script" path="res://scenes/sun_corona.gd" id="4"]
 [ext_resource type="Material" path="res://materials/sun_corona.tres" id="5"]
@@ -12,11 +12,11 @@ size = Vector2(1, 1)
 
 [node name="Sun" type="Node3D"]
 script = ExtResource("1")
-planet_path = NodePath("../TerrainWorld")
+celestial_body_path = NodePath("../TerrainWorld")
 
 [node name="TerrainWorld" type="Node3D" parent="."]
 script = ExtResource("2")
-planet_radius_chunks = 1.0
+body_radius_chunks = 1.0
 chunk_size = 8.0
 chunk_resolution = 1
 noise_seed = 17
@@ -27,9 +27,9 @@ generate_collision = false
 terrain_material = ExtResource("3")
 bounds_falloff_distance = 5.0
 bounds_falloff_strength = 7.0
-planet_features_enabled = false
-planet_caves_enabled = false
-is_playable_planet = false
+body_features_enabled = false
+body_caves_enabled = false
+is_playable_body = false
 rebuild_on_ready = true
 auto_rebuild_in_editor = true
 

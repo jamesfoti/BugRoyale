@@ -25,6 +25,7 @@ buses/default_bus_layout=""
 [autoload]
 
 GraphicsSettings="*res://gui/graphics_settings.gd"
+ToonStyle="*res://rendering/toon_style.gd"
 
 [display]
 

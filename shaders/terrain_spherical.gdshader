@@ -1,8 +1,8 @@
 shader_type spatial;
-render_mode cull_back, diffuse_lambert, specular_disabled, fog_disabled;
+render_mode cull_back, fog_disabled;
 
-uniform vec3 planet_center;
-uniform float planet_radius;
+uniform vec3 body_center;
+uniform float body_radius;
 
 uniform vec4 grass_color : source_color = vec4(0.22, 0.68, 0.18, 1.0);
 uniform vec4 dirt_color : source_color = vec4(0.45, 0.38, 0.28, 1.0);
@@ -48,8 +48,8 @@ void vertex() {
 }
 
 void fragment() {
-	vec3 sphere_dir = normalize(world_vertex - planet_center);
-	float elevation = length(world_vertex - planet_center) - planet_radius;
+	vec3 sphere_dir = normalize(world_vertex - body_center);
+	float elevation = length(world_vertex - body_center) - body_radius;
 	float rock_blend = smoothstep(rock_elevation_start, rock_elevation_end, elevation);
 	float noise = terrain_noise_at_dir(sphere_dir);
 	float dirt_from_noise = smoothstep(0.38, 0.62, noise);
@@ -68,3 +68,5 @@ void fragment() {
 
 	ALBEDO = base;
 }
+
+#include "res://shaders/toon_lighting.gdshaderinc"

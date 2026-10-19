@@ -46,7 +46,7 @@ func _start_match() -> void:
 			swarm.min_height = 3.0
 			swarm.max_height = 9.0
 			swarm.spawn_radius = 14.0
-		MapInfo.Kind.PLANET:
+		MapInfo.Kind.CELESTIAL_BODY:
 			swarm.min_height = 6.0
 			swarm.max_height = 13.0
 			swarm.spawn_radius = 14.0

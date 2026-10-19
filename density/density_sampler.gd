@@ -46,7 +46,7 @@ class WorldDensity:
 	var _ravine_noise: FastNoiseLite
 	var _ravine_blend_noise: FastNoiseLite
 	var _cave_noise: FastNoiseLite
-	var planet_edits: PlanetEdits = null
+	var terrain_edits: TerrainEdits = null
 
 	static func create(
 		sphere_enabled: bool,
@@ -88,18 +88,18 @@ class WorldDensity:
 			density._noise.frequency = noise_frequency
 		return density
 
-	func _init_planet_feature_noises(planet_seed: int) -> void:
+	func _init_body_feature_noises(body_seed: int) -> void:
 		if ravines_enabled:
 			_ravine_noise = FastNoiseLite.new()
-			_ravine_noise.seed = planet_seed
+			_ravine_noise.seed = body_seed
 			_ravine_noise.noise_type = FastNoiseLite.TYPE_PERLIN
 			_ravine_noise.frequency = 1.0
 			_ravine_blend_noise = FastNoiseLite.new()
-			_ravine_blend_noise.seed = planet_seed + 2
+			_ravine_blend_noise.seed = body_seed + 2
 			_ravine_blend_noise.noise_type = FastNoiseLite.TYPE_PERLIN
 			_ravine_blend_noise.frequency = 1.0
 		if caves_enabled:
-			_init_cave_noise(planet_seed + 202, 1.0)
+			_init_cave_noise(body_seed + 202, 1.0)
 
 	func _init_cave_noise(terrain_seed: int, frequency: float) -> void:
 		_cave_noise = FastNoiseLite.new()
@@ -143,8 +143,8 @@ class WorldDensity:
 					world_pos, bounds_center, bounds_half, bounds_clip_inset
 				)
 			)
-		if planet_edits != null:
-			value = planet_edits.apply_to_density(value, world_pos)
+		if terrain_edits != null:
+			value = terrain_edits.apply_to_density(value, world_pos)
 		return value
 
 	func _init_open_terrain_height_noise(
@@ -212,8 +212,8 @@ class WorldDensity:
 			value = maxf(
 				value, world_pos.distance_to(bounds_center) - (open_terrain_bowl_radius - bounds_clip_inset)
 			)
-		if planet_edits != null:
-			value = planet_edits.apply_to_density(value, world_pos)
+		if terrain_edits != null:
+			value = terrain_edits.apply_to_density(value, world_pos)
 		return value
 
 	func evaluate(world_pos: Vector3) -> float:
@@ -274,8 +274,8 @@ class WorldDensity:
 					bounds_falloff_distance,
 					bounds_falloff_strength
 				)
-		if planet_edits != null:
-			value = planet_edits.apply_to_density(value, world_pos)
+		if terrain_edits != null:
+			value = terrain_edits.apply_to_density(value, world_pos)
 		return value
 
 	func gradient(world_pos: Vector3, epsilon: float) -> Vector3:
@@ -371,10 +371,10 @@ static func sphere_sdf(world_pos: Vector3, center: Vector3, radius: float) -> fl
 	return world_pos.distance_to(center) - radius
 
 
-static func create_planet_world_density(
+static func create_celestial_body_world_density(
 	center: Vector3,
 	radius: float,
-	planet_seed: int = 42,
+	body_seed: int = 42,
 	surface_noise_amplitude: float = -1.0,
 	surface_noise_frequency: float = -1.0,
 	ravines_enabled: bool = true,
@@ -388,7 +388,7 @@ static func create_planet_world_density(
 	ravine_depth: float = -1.0,
 	ravine_width: float = -1.0
 ) -> WorldDensity:
-	## Planet SDF with surface noise, radial ravines, and near-surface cave pockets.
+	## CelestialBody SDF with surface noise, radial ravines, and near-surface cave pockets.
 	## Parameters scale from the old voxel graph defaults (radius ~1600).
 	var scale := maxf(radius / 1600.0, 0.01)
 	var amp := surface_noise_amplitude if surface_noise_amplitude >= 0.0 else lerpf(3.0, 100.0, scale)
@@ -402,7 +402,7 @@ static func create_planet_world_density(
 		center,
 		radius,
 		true,
-		planet_seed,
+		body_seed,
 		freq,
 		amp,
 		3,
@@ -432,7 +432,7 @@ static func create_planet_world_density(
 	density.cave_reference_scale = 1500.0 / 1600.0
 	density.cave_height_noise_scale = 1.5
 	density.cave_smoothness = maxf(5.0 * scale, 0.5)
-	density._init_planet_feature_noises(planet_seed)
+	density._init_body_feature_noises(body_seed)
 	return density
 
 
@@ -440,14 +440,14 @@ static func compute_auto_ravine_depth(
 	radius: float,
 	surface_noise_amplitude: float
 ) -> float:
-	## Graph default at r=1600 is 100 (6.25% of radius). Smaller planets bump depth so grooves
+	## Graph default at r=1600 is 100 (6.25% of radius). Smaller celestial bodies bump depth so grooves
 	## stay comparable to surface noise.
 	var graph_depth := radius * 0.0625
 	return maxf(graph_depth, surface_noise_amplitude * 0.75)
 
 
 static func compute_auto_ravine_width(radius: float) -> float:
-	## Wider grooves on small planets so ravines resolve at voxel scale (graph uses ~0.002 at r=1600).
+	## Wider grooves on small celestial bodies so ravines resolve at voxel scale (graph uses ~0.002 at r=1600).
 	return lerpf(0.12, 0.002, clampf((radius - 20.0) / 380.0, 0.0, 1.0))
 
 

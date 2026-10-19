@@ -1,9 +1,9 @@
 extends RigidBody3D
 class_name Asteroid
-## Procedural rocky body that falls toward a planet and carves terrain on impact.
+## Procedural rocky body that falls toward a celestial body and carves terrain on impact.
 
 
-signal impacted(planet: Planet, position: Vector3, crater_radius: float)
+signal impacted(celestial_body: CelestialBody, position: Vector3, crater_radius: float)
 
 const _MIN_DIR_LEN_SQ: float = 0.0001
 
@@ -17,7 +17,7 @@ const _MIN_DIR_LEN_SQ: float = 0.0001
 @onready var _mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var _collision_shape: CollisionShape3D = $CollisionShape3D
 
-var _target_planet: Planet
+var _target_body: CelestialBody
 var _asteroid_radius: float = 1.0
 var _impacted: bool = false
 var _lifetime: float = 0.0
@@ -30,14 +30,14 @@ func _ready() -> void:
 
 
 func setup(
-	planet: Planet,
+	celestial_body: CelestialBody,
 	mesh_seed: int,
 	radius: float,
 	initial_velocity: Vector3,
 	mesh_subdivisions: int = 2,
 	surface_roughness: float = 0.35
 ) -> void:
-	_target_planet = planet
+	_target_body = celestial_body
 	_asteroid_radius = radius
 
 	var built: Dictionary = AsteroidMeshBuilder.build(
@@ -63,21 +63,21 @@ func _physics_process(delta: float) -> void:
 	if _lifetime >= max_lifetime:
 		queue_free()
 		return
-	if _target_planet == null or _impacted:
+	if _target_body == null or _impacted:
 		return
 
-	var center: Vector3 = _planet_center()
+	var center: Vector3 = _body_center()
 	var dist: float = global_position.distance_to(center)
-	var planet_radius: float = _target_planet.get_sphere_radius()
-	if dist > planet_radius * 8.0:
+	var body_radius: float = _target_body.get_sphere_radius()
+	if dist > body_radius * 8.0:
 		queue_free()
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
-	if _target_planet == null or _impacted:
+	if _target_body == null or _impacted:
 		return
 
-	var center: Vector3 = _planet_center()
+	var center: Vector3 = _body_center()
 	var to_center: Vector3 = center - state.transform.origin
 	if to_center.length_squared() < _MIN_DIR_LEN_SQ:
 		return
@@ -88,13 +88,13 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 func _on_body_entered(body: Node) -> void:
 	if _impacted:
 		return
-	var terrain: Planet = _terrain_from_node(body)
+	var terrain: CelestialBody = _terrain_from_node(body)
 	if terrain == null:
 		return
 	_apply_impact(terrain)
 
 
-func _apply_impact(terrain: Planet) -> void:
+func _apply_impact(terrain: CelestialBody) -> void:
 	if _impacted:
 		return
 	_impacted = true
@@ -116,7 +116,7 @@ func _apply_impact(terrain: Planet) -> void:
 	queue_free()
 
 
-func _estimate_impact_point(terrain: Planet) -> Vector3:
+func _estimate_impact_point(terrain: CelestialBody) -> Vector3:
 	var center: Vector3 = terrain.global_position + terrain.sphere_center
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
@@ -134,11 +134,11 @@ func _estimate_impact_point(terrain: Planet) -> Vector3:
 	return center + direction * terrain.get_sphere_radius()
 
 
-func _terrain_from_node(node: Node) -> Planet:
+func _terrain_from_node(node: Node) -> CelestialBody:
 	var current: Node = node
 	while current != null:
-		if current is Planet:
-			var terrain: Planet = current as Planet
+		if current is CelestialBody:
+			var terrain: CelestialBody = current as CelestialBody
 			if terrain.generate_collision:
 				return terrain
 			return null
@@ -146,5 +146,5 @@ func _terrain_from_node(node: Node) -> Planet:
 	return null
 
 
-func _planet_center() -> Vector3:
-	return _target_planet.global_position + _target_planet.sphere_center
+func _body_center() -> Vector3:
+	return _target_body.global_position + _target_body.sphere_center

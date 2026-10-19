@@ -1,12 +1,12 @@
 extends CharacterBody3D
-class_name PlanetPlayer
+class_name CelestialBodyPlayer
 ## Walks on spherical terrain: mouse yaw, W/S move relative to camera view.
 
 const _MIN_DIR_LEN_SQ: float = 0.0001
 const _INPUT_DEADZONE: float = 0.01
 const _SPAWN_ATTEMPTS: int = 12
 const _SPAWN_RAY_MARGIN: float = 40.0
-const _FALLBACK_PLANET_RADIUS: float = 18.0
+const _FALLBACK_BODY_RADIUS: float = 18.0
 const _MAX_MOUSE_DELTA: float = 80.0
 
 class SpawnData:
@@ -16,7 +16,7 @@ class SpawnData:
 	var from_raycast_hit: bool = false
 
 
-@export var planet: Node3D
+@export var celestial_body: Node3D
 @export var speed: float = 5.0
 @export var run_speed: float = 8.0
 @export var jump_velocity: float = 4.5
@@ -38,7 +38,7 @@ class SpawnData:
 @onready var _camera: Camera3D = $OrbitCamera/Camera3D
 
 var _gravity_direction: Vector3 = Vector3.DOWN
-var _planet: Planet
+var _celestial_body: CelestialBody
 var _anim_state: String = ""
 var _want_jump: bool = false
 var _spawned: bool = false
@@ -55,8 +55,8 @@ func exit_terrain_focus() -> void:
 
 
 func _ready() -> void:
-	_cache_planet_refs()
-	call_deferred("_spawn_on_planet")
+	_cache_body_refs()
+	call_deferred("_spawn_on_body")
 	call_deferred("_connect_terrain_hud")
 
 
@@ -98,7 +98,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if planet == null or not _spawned:
+	if celestial_body == null or not _spawned:
 		return
 
 	_update_gravity_direction()
@@ -108,7 +108,7 @@ func _physics_process(delta: float) -> void:
 		_want_jump = false
 		_apply_focus_physics(delta)
 		var focus_facing: Vector3 = _get_flat_forward()
-		_align_up_to_planet(delta, focus_facing)
+		_align_up_to_body(delta, focus_facing)
 		move_and_slide()
 		_update_animation(Vector3.ZERO)
 		return
@@ -131,7 +131,7 @@ func _physics_process(delta: float) -> void:
 		var forward_backward_input: float = Input.get_axis("move_backward", "move_forward")
 		if forward_backward_input > _INPUT_DEADZONE:
 			_orbit_camera.recenter_yaw(delta)
-		_align_up_to_planet(delta, facing_direction)
+		_align_up_to_body(delta, facing_direction)
 	elif not _is_camera_orbiting():
 		_orthonormalize_basis()
 	move_and_slide()
@@ -196,7 +196,7 @@ func _is_camera_orbiting() -> bool:
 
 
 func _update_gravity_direction() -> void:
-	var to_center: Vector3 = _get_planet_center() - global_position
+	var to_center: Vector3 = _get_body_center() - global_position
 	if to_center.length_squared() > _MIN_DIR_LEN_SQ:
 		_gravity_direction = to_center.normalized()
 
@@ -205,14 +205,14 @@ func _get_up() -> Vector3:
 	return -_gravity_direction
 
 
-func _get_planet_center() -> Vector3:
-	if _planet != null:
-		return _planet.global_position + _planet.sphere_center
-	if planet is Planet:
-		var assigned_planet: Planet = planet as Planet
-		return assigned_planet.global_position + assigned_planet.sphere_center
-	if planet != null:
-		return planet.global_position
+func _get_body_center() -> Vector3:
+	if _celestial_body != null:
+		return _celestial_body.global_position + _celestial_body.sphere_center
+	if celestial_body is CelestialBody:
+		var assigned_body: CelestialBody = celestial_body as CelestialBody
+		return assigned_body.global_position + assigned_body.sphere_center
+	if celestial_body != null:
+		return celestial_body.global_position
 	return Vector3.ZERO
 
 
@@ -260,7 +260,7 @@ func _get_facing_direction(movement_direction: Vector3) -> Vector3:
 	return movement_direction.normalized()
 
 
-func _align_up_to_planet(delta: float, facing_direction: Vector3) -> void:
+func _align_up_to_body(delta: float, facing_direction: Vector3) -> void:
 	var surface_up: Vector3 = _get_up()
 	if facing_direction.length_squared() < _MIN_DIR_LEN_SQ:
 		return
@@ -278,22 +278,22 @@ func _orthonormalize_basis() -> void:
 	global_transform.basis = global_transform.basis.orthonormalized()
 
 
-func _cache_planet_refs() -> void:
-	if planet == null:
-		planet = get_tree().get_first_node_in_group("planet") as Node3D
-	if planet is Planet:
-		_planet = planet as Planet
+func _cache_body_refs() -> void:
+	if celestial_body == null:
+		celestial_body = get_tree().get_first_node_in_group("celestial_body") as Node3D
+	if celestial_body is CelestialBody:
+		_celestial_body = celestial_body as CelestialBody
 
 
 func respawn_random() -> void:
-	_cache_planet_refs()
+	_cache_body_refs()
 	_apply_spawn(_find_random_surface_spawn())
 
 
-func _spawn_on_planet() -> void:
-	_cache_planet_refs()
-	if planet == null:
-		push_warning("[PlanetPlayer] No planet assigned.")
+func _spawn_on_body() -> void:
+	_cache_body_refs()
+	if celestial_body == null:
+		push_warning("[CelestialBodyPlayer] No celestial_body assigned.")
 		return
 
 	var spawn_data: SpawnData = SpawnData.new()
@@ -329,21 +329,21 @@ func _find_random_surface_spawn() -> SpawnData:
 		randf_range(-1.0, 1.0),
 		randf_range(-1.0, 1.0),
 	).normalized()
-	var planet_center: Vector3 = _get_planet_center()
-	var planet_radius: float = (
-		_planet.get_sphere_radius() if _planet != null else _FALLBACK_PLANET_RADIUS
+	var body_center: Vector3 = _get_body_center()
+	var body_radius: float = (
+		_celestial_body.get_sphere_radius() if _celestial_body != null else _FALLBACK_BODY_RADIUS
 	)
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	var ray_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-		planet_center + random_direction * (planet_radius + _SPAWN_RAY_MARGIN),
-		planet_center - random_direction * (planet_radius + _SPAWN_RAY_MARGIN)
+		body_center + random_direction * (body_radius + _SPAWN_RAY_MARGIN),
+		body_center - random_direction * (body_radius + _SPAWN_RAY_MARGIN)
 	)
 	ray_query.collide_with_areas = false
 	var raycast_hit: Dictionary = space.intersect_ray(ray_query)
-	if not raycast_hit.is_empty() and not _is_planet_collider(raycast_hit.get("collider")):
+	if not raycast_hit.is_empty() and not _is_body_collider(raycast_hit.get("collider")):
 		raycast_hit = {}
 	if raycast_hit.is_empty():
-		spawn_data.position = planet_center + random_direction * (planet_radius + spawn_clearance)
+		spawn_data.position = body_center + random_direction * (body_radius + spawn_clearance)
 		spawn_data.surface_up = random_direction
 		spawn_data.forward = _tangent_forward_on_plane(random_direction)
 		spawn_data.from_raycast_hit = false
@@ -357,11 +357,11 @@ func _find_random_surface_spawn() -> SpawnData:
 	return spawn_data
 
 
-func _is_planet_collider(collider: Variant) -> bool:
-	if planet == null or not (collider is Node):
+func _is_body_collider(collider: Variant) -> bool:
+	if celestial_body == null or not (collider is Node):
 		return false
 	var node: Node = collider as Node
-	return planet == node or planet.is_ancestor_of(node)
+	return celestial_body == node or celestial_body.is_ancestor_of(node)
 
 
 func _tangent_forward_on_plane(surface_up: Vector3) -> Vector3:

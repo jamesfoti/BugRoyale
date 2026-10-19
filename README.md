@@ -1,7 +1,7 @@
 BugRoyale
 =======================
 
-A Godot 4.6 technical demo: walk on a procedurally generated spherical planet and paint terrain in real time. Terrain is pure GDScript (density field + Flying Edges mesher + chunked rebuilds) with no Voxel Tools dependency.
+A Godot 4.6 technical demo: walk on a procedurally generated spherical celestial body and paint terrain in real time. Terrain is pure GDScript (density field + Flying Edges mesher + chunked rebuilds) with no Voxel Tools dependency.
 
 **Target platforms:** Desktop and console-style builds. This is the supported experience.
 
@@ -21,7 +21,7 @@ Features
 - Procedural grass, dirt, rock, and polar snow coloring (shader-based)
 - Chunked mesh generation with threaded rebuilds on desktop
 - Hold-to-paint terrain editing (destroy / add modes)
-- Procedural asteroids that impact planets and carve craters
+- Procedural asteroids that impact celestial bodies and carve craters
 - Four playable bug classes (Ant Warrior, Termite Soldier, Wasp, Trapdoor Spider; models generated in Blender by `tools/blender/create_bugs.py`) with orbit camera, torch, pickaxe, and weapons
 - Debug HUD (FPS, position, edit mode)
 - Pause menu with controls reference
@@ -38,7 +38,7 @@ Running locally
 ---------------
 
 1. Open the project in Godot 4.6.
-2. Run the main scene: `scenes/planet_test.tscn` (or start from `scenes/main_menu.tscn`).
+2. Run the main scene: `scenes/celestial_body_test.tscn` (or start from `scenes/main_menu.tscn`).
 
 Performance
 -------------
