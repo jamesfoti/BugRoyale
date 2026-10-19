@@ -15,6 +15,9 @@ var lifetime: float = 30.0
 var color: Color = Color(0.27, 0.3, 0.12)
 ## Burning gas: the patch glows and flickers with flame particles.
 var burning: bool = false
+## When set, the pool rides this water's surface instead of sitting on the dirt (sewage backing
+## up into a flood, a shorted bulb's shock).
+var surface_water: TerrariumWater
 
 var _radius: float = 0.5
 var _age: float = 0.0
@@ -92,7 +95,7 @@ func _make_flames() -> GPUParticles3D:
 	process.gravity = Vector3.ZERO
 	process.scale_min = 0.5
 	process.scale_max = 1.6
-	process.color = Color(1.0, 0.55, 0.1)
+	process.color = color.lerp(Color.WHITE, 0.15)
 	particles.process_material = process
 	var tongue := SphereMesh.new()
 	tongue.radius = 0.3
@@ -117,6 +120,8 @@ func spread(pool_radius: float, damage: float, seconds: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	_age += delta
+	if surface_water != null and is_instance_valid(surface_water):
+		global_position.y = surface_water.get_water_surface_y() - 0.05
 	if _drying >= 0.0:
 		_drying += delta
 		_radius = maxf(target_radius * (1.0 - _drying / DRY_SECONDS), 0.0)

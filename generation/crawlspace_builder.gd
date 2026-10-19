@@ -7,8 +7,13 @@ extends Node3D
 ## plants: nothing grows where the sun never reaches. Sized from the terrain's extents, so the
 ## same scene works for any grid.
 ##
-## The joists and subfloor collide on MapInfo.STRUCTURE_LAYER: bugs bump into them, but ground
+## Framing, piers and walls collide on MapInfo.STRUCTURE_LAYER: bugs bump into them, but ground
 ## probes (spawns, hornet altitude) look straight through to the dirt.
+##
+## A storm rages outside: rain streaks across every vent, water streams in over the sills and
+## lightning flashes through the openings. Flood water sits dormant under the dirt until a mode
+## (Battle Royale) raises it; as it climbs, bulbs it reaches short out with a shock, and
+## start_sewage_backup() makes the drains vent sewage onto the surface.
 
 @export var terrain_path: NodePath = ^"../TerrainWorld"
 @export_group("Framing")
@@ -45,11 +50,64 @@ var _half: Vector3
 var _ceiling: float
 var _rng := RandomNumberGenerator.new()
 var _materials: Dictionary = {}
+var _water: TerrariumWater
+## Vent and hatch openings: glow panel, spotlight and geometry, for the storm and lightning.
+var _openings: Array[Dictionary] = []
+## Bare bulbs: light, mesh and position, so the flood can short them.
+var _bulbs: Array[Dictionary] = []
+## Each drain line's height and z, where sewage backs up into a flood.
+var _drain_lines: Array[Dictionary] = []
+## Pier row z positions and pier x positions, and the z of every utility line, so the ductwork
+## can thread between them.
+var _pier_rows: Array = []
+var _pier_xs: Array = []
+var _line_zs: Array = []
+## Pier volumes, handed to the ductwork's network so flyers avoid them too.
+var _pier_boxes: Array[AABB] = []
+var _lightning_in: float = 4.0
+var _flash_left: float = 0.0
+var _flashes_queued: int = 0
+var _sewage_started: bool = false
 
 
 func _ready() -> void:
 	add_to_group("map_ceiling")
+	add_to_group("crawlspace")
 	call_deferred("build")
+
+
+## Lightning timing, and restoring the vents after a flash.
+func _process(delta: float) -> void:
+	if _openings.is_empty():
+		return
+	if _flash_left > 0.0:
+		_flash_left -= delta
+		if _flash_left <= 0.0:
+			_set_lightning(false)
+			if _flashes_queued > 0:
+				_flashes_queued -= 1
+				_lightning_in = _rng.randf_range(0.08, 0.2)
+		return
+	_lightning_in -= delta
+	if _lightning_in <= 0.0:
+		_set_lightning(true)
+		_flash_left = _rng.randf_range(0.08, 0.16)
+		if _flashes_queued == 0 and _rng.randf() < 0.5:
+			_flashes_queued = 1
+		else:
+			_lightning_in = _rng.randf_range(5.0, 14.0)
+
+
+## Bulbs the flood reaches short out.
+func _physics_process(_delta: float) -> void:
+	if _water == null or _bulbs.is_empty():
+		return
+	var surface: float = _water.get_water_surface_y()
+	for bulb: Dictionary in _bulbs:
+		if not bulb["live"]:
+			continue
+		if surface >= bulb["position"].y - 0.3:
+			_short_bulb(bulb)
 
 
 func build() -> void:
@@ -71,7 +129,151 @@ func build() -> void:
 	_build_services(extents)
 	_build_bulbs(extents)
 	_build_debris()
+	_build_flood_water(extents)
+	_build_storm()
 	print("[Crawlspace] Built %.0fx%.0f m crawlspace, ceiling at y=%.1f" % [extents.x, extents.z, _ceiling])
+
+
+# --- Flood and storm --------------------------------------------------------------------------
+
+## Flood water filling the foundation box, parked under the lowest dirt until a mode raises it.
+## Its height range runs from under the dirt to just below the joists, so Battle Royale's level
+## fractions mean the same thing here as in the terrarium. Tinted to murky storm runoff.
+func _build_flood_water(extents: Vector3) -> void:
+	var floor_y: float = _center.y - 2.5
+	var size := Vector3(extents.x - wall_thickness * 2.0, (_ceiling - joist_depth - 0.6) - floor_y, extents.z - wall_thickness * 2.0)
+	_water = TerrariumWater.create(size, 0.05)
+	_water.position = Vector3(_center.x, floor_y, _center.z)
+	add_child(_water)
+	var surface: MeshInstance3D = _water.get_node_or_null("WaterSurface") as MeshInstance3D
+	if surface != null and surface.material_override is ShaderMaterial:
+		var material: ShaderMaterial = surface.material_override as ShaderMaterial
+		material.set_shader_parameter("base_color", Color(0.24, 0.28, 0.18))
+		material.set_shader_parameter("shine_color", Color(0.6, 0.62, 0.5))
+	var volume: MeshInstance3D = _water.get_node_or_null("WaterVolume") as MeshInstance3D
+	if volume != null and volume.material_override is ShaderMaterial:
+		var material: ShaderMaterial = volume.material_override as ShaderMaterial
+		material.set_shader_parameter("base_color", Color(0.18, 0.21, 0.13))
+		material.set_shader_parameter("deep_color", Color(0.08, 0.1, 0.06))
+		material.set_shader_parameter("surface_alpha", 0.5)
+
+
+## Rain across every opening and water streaming in over each sill.
+func _build_storm() -> void:
+	var storm := Node3D.new()
+	storm.name = "Storm"
+	add_child(storm)
+	for opening: Dictionary in _openings:
+		var rain: GPUParticles3D = _make_rain(opening["width"], opening["height"])
+		# Outside the wall, in front of the daylight panel, so it reads as rain beyond the vent.
+		rain.position = opening["position"] + opening["outward"] * (wall_thickness * 0.5 + 0.35) + Vector3.UP * (opening["height"] * 0.5 + 0.8)
+		storm.add_child(rain)
+		var stream: GPUParticles3D = _make_stream(opening["width"])
+		stream.position = opening["position"] - opening["outward"] * (wall_thickness * 0.5 + 0.2) - Vector3.UP * (opening["height"] * 0.5 - 0.1)
+		storm.add_child(stream)
+		stream.process_material.direction = -opening["outward"] + Vector3.DOWN * 0.6
+
+
+func _make_rain(width: float, height: float) -> GPUParticles3D:
+	var particles := GPUParticles3D.new()
+	particles.name = "Rain"
+	particles.amount = int(clampf(width * height * 9.0, 24.0, 120.0))
+	particles.lifetime = maxf((height + 1.6) / 11.0, 0.15)
+	particles.local_coords = false
+	particles.visibility_aabb = AABB(Vector3(-width, -height - 1.0, -2.0), Vector3(width * 2.0, height + 2.0, 4.0))
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	process.emission_box_extents = Vector3(width * 0.5, 0.05, 0.15)
+	process.direction = Vector3.DOWN
+	process.spread = 3.0
+	process.initial_velocity_min = 11.0
+	process.initial_velocity_max = 14.0
+	process.gravity = Vector3.ZERO
+	process.color = Color(0.5, 0.6, 0.78, 0.9)
+	particles.process_material = process
+	var streak := BoxMesh.new()
+	streak.size = Vector3(0.035, 0.55, 0.035)
+	particles.draw_pass_1 = streak
+	particles.material_override = _storm_material()
+	return particles
+
+
+func _make_stream(width: float) -> GPUParticles3D:
+	var particles := GPUParticles3D.new()
+	particles.name = "Stream"
+	particles.amount = 48
+	particles.lifetime = 1.8
+	particles.local_coords = false
+	particles.visibility_aabb = AABB(Vector3(-width, -10.0, -10.0), Vector3(width * 2.0, 12.0, 20.0))
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	process.emission_box_extents = Vector3(width * 0.4, 0.05, 0.05)
+	process.spread = 12.0
+	process.initial_velocity_min = 2.5
+	process.initial_velocity_max = 4.0
+	process.gravity = Vector3(0.0, -9.8, 0.0)
+	process.scale_min = 0.6
+	process.scale_max = 1.2
+	process.color = Color(0.6, 0.72, 0.85)
+	particles.process_material = process
+	var drop := SphereMesh.new()
+	drop.radius = 0.1
+	drop.height = 0.2
+	drop.radial_segments = 6
+	drop.rings = 3
+	particles.draw_pass_1 = drop
+	particles.material_override = _storm_material()
+	return particles
+
+
+func _storm_material() -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.vertex_color_use_as_albedo = true
+	return material
+
+
+func _set_lightning(on: bool) -> void:
+	for opening: Dictionary in _openings:
+		var glow: StandardMaterial3D = opening["glow_material"]
+		glow.albedo_color = Color(1.0, 1.0, 1.0) if on else opening["glow_color"]
+		var light: SpotLight3D = opening["light"]
+		light.light_energy = opening["light_energy"] * (5.0 if on else 1.0)
+
+
+## A flooded bulb pops: a flash, then dark, with a brief shock on the water around it.
+func _short_bulb(bulb: Dictionary) -> void:
+	bulb["live"] = false
+	var light: OmniLight3D = bulb["light"]
+	var tween: Tween = create_tween()
+	tween.tween_property(light, "light_energy", 7.0, 0.08)
+	tween.tween_property(light, "light_energy", 0.0, 0.25)
+	var mesh: MeshInstance3D = bulb["mesh"]
+	var dead := StandardMaterial3D.new()
+	dead.albedo_color = Color(0.22, 0.22, 0.2)
+	mesh.material_override = dead
+	var shock: FluidPool = FluidPool.create(5.0, 15.0, 1.5, Color(0.7, 0.85, 1.0), true)
+	shock.grow_seconds = 0.2
+	shock.surface_water = _water
+	add_child(shock)
+	shock.global_position = Vector3(bulb["position"].x, _water.get_water_surface_y(), bulb["position"].z)
+
+
+## The drains back up: sewage spreads over the flood surface along each drain line, hurting
+## anyone swimming through it. Called by Battle Royale once the water is well up.
+func start_sewage_backup() -> void:
+	if _sewage_started or _water == null:
+		return
+	_sewage_started = true
+	var span: float = _half.x * 2.0 - wall_thickness * 2.0
+	for line: Dictionary in _drain_lines:
+		for index: int in 4:
+			var x: float = _center.x - span * 0.5 + span * (index + 0.5) / 4.0 + _rng.randf_range(-3.0, 3.0)
+			var pool: FluidPool = FluidPool.create(5.5, 5.0, 600.0, Color(0.27, 0.3, 0.12))
+			pool.grow_seconds = 12.0
+			pool.surface_water = _water
+			add_child(pool)
+			pool.global_position = Vector3(x, _water.get_water_surface_y(), line["z"])
 
 
 # --- Framing ----------------------------------------------------------------------------------
@@ -126,6 +328,10 @@ func _build_girders_and_piers(extents: Vector3) -> void:
 		)
 		var pier_count: int = int(floor((extents.x - wall_thickness * 2.0 - pier_spacing) / pier_spacing)) + 1
 		var first_x: float = _center.x - (pier_count - 1) * pier_spacing * 0.5
+		_pier_rows.append(z)
+		if _pier_xs.is_empty():
+			for index: int in pier_count:
+				_pier_xs.append(first_x + index * pier_spacing)
 		for index: int in pier_count:
 			var x: float = first_x + index * pier_spacing
 			var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z)) - 0.8
@@ -134,6 +340,7 @@ func _build_girders_and_piers(extents: Vector3) -> void:
 				support, "Pier", Vector3(pier_size, height, pier_size), Vector3(x, ground + height * 0.5, z),
 				_material(CONCRETE_COLOR), MapInfo.STRUCTURE_LAYER
 			)
+			_pier_boxes.append(AABB(Vector3(x - pier_size * 0.5, ground, z - pier_size * 0.5), Vector3(pier_size, height, pier_size)))
 			# A wood cap plate between the block pier and the girder.
 			_box(support, "PierCap", Vector3(pier_size + 0.2, 0.15, pier_size + 0.2), Vector3(x, girder_bottom - 0.075, z), _material(LUMBER_COLOR))
 
@@ -207,7 +414,8 @@ func _opening_light(parent: Node3D, along_x: bool, offset: float, along: float, 
 	glow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glow_material.albedo_color = Color(0.75, 0.85, 1.0) if not hatch else Color(1.0, 0.92, 0.75)
 	glow.material_override = glow_material
-	glow.position = position + outward * (wall_thickness * 0.5 - 0.05)
+	# Set out past the wall so the rain can fall between the opening and the sky.
+	glow.position = position + outward * (wall_thickness * 0.5 + 0.7)
 	glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(glow)
 	var light := SpotLight3D.new()
@@ -221,6 +429,11 @@ func _opening_light(parent: Node3D, along_x: bool, offset: float, along: float, 
 	light.position = position - outward * (wall_thickness * 0.5 + 0.3)
 	parent.add_child(light)
 	light.look_at(light.position - outward + Vector3.DOWN * 0.35, Vector3.UP)
+	_openings.append({
+		"position": position, "outward": outward, "width": width, "height": height,
+		"glow_material": glow_material, "glow_color": glow_material.albedo_color,
+		"light": light, "light_energy": light.light_energy,
+	})
 
 
 # --- Services and lights ----------------------------------------------------------------------
@@ -239,8 +452,10 @@ func _build_services(extents: Vector3) -> void:
 	# Drains in the first and third gaps between pier rows.
 	for index: int in 2:
 		var z: float = _center.z - _half.z + row_gap * (0.5 + index * 2.0 + _rng.randf_range(-0.3, 0.3))
-		var drain_y: float = girder_bottom - 0.8
+		var drain_y: float = girder_bottom - 0.5
 		_run_line(services, UtilityPipe.Fluid.SEWAGE, 0.3, drain_y, z, span, "Drain%d" % index)
+		_drain_lines.append({"z": z, "y": drain_y})
+		_line_zs.append(z)
 		if index == 0:
 			# A drop line down into the dirt, in its own section.
 			var x: float = _center.x + _rng.randf_range(-_half.x * 0.5, _half.x * 0.5)
@@ -253,13 +468,20 @@ func _build_services(extents: Vector3) -> void:
 	# yellow gas line a little further along.
 	for index: int in 2:
 		var z: float = _center.z - _half.z + row_gap * (1.5 + index * 2.0 + _rng.randf_range(-0.3, 0.3))
-		var water_y: float = girder_bottom - 0.5
+		var water_y: float = girder_bottom - 0.3
 		_run_line(services, UtilityPipe.Fluid.HOT_WATER, 0.15, water_y, z - 0.35, span, "HotWater%d" % index)
 		_run_line(services, UtilityPipe.Fluid.COLD_WATER, 0.15, water_y, z + 0.35, span, "ColdWater%d" % index)
-		_run_line(services, UtilityPipe.Fluid.GAS, 0.12, water_y - 0.4, z + 1.6, span, "Gas%d" % index)
-	# A round duct along Z, halfway between two piers so it threads past every row.
+		_run_line(services, UtilityPipe.Fluid.GAS, 0.12, water_y - 0.3, z + 1.6, span, "Gas%d" % index)
+		_line_zs.append_array([z - 0.35, z + 0.35, z + 1.6])
+	# Rectangular ductwork grown from a furnace: the trunk runs along Z halfway between two
+	# piers so it threads past every row, and the branches dodge the rows and the lines.
 	var duct_x: float = _center.x + pier_spacing * 0.5 + pier_spacing * float(_rng.randi_range(-2, 1))
-	_cylinder(services, "Duct", 1.0, extents.z - wall_thickness * 2.0, Vector3(duct_x, girder_bottom - 1.4, _center.z), Vector3(PI * 0.5, 0.0, 0.0), _material(DUCT_COLOR, 0.3))
+	var network: DuctNetwork = DuctBuilder.build(
+		self, _center, _half, wall_thickness,
+		func(x: float, z: float) -> float: return _terrain.get_surface_height_at(Vector3(x, 0.0, z)),
+		duct_x, _pier_rows, _pier_xs, _line_zs, _ceiling - joist_depth, _rng
+	) as DuctNetwork
+	network.obstacles.append_array(_pier_boxes)
 
 
 ## A line along X made of destructible sections, with a hanger strap up to the joists at each
@@ -311,6 +533,7 @@ func _build_bulbs(extents: Vector3) -> void:
 			light.shadow_enabled = true
 			light.position = position
 			lights.add_child(light)
+			_bulbs.append({"light": light, "mesh": bulb, "position": position, "live": true})
 
 
 # --- Debris -----------------------------------------------------------------------------------

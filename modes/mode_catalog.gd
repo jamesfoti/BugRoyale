@@ -28,9 +28,9 @@ const MODES: Dictionary = {
 	},
 	"battle_royale": {
 		"name": "Battle Royale",
-		"description": "12 bugs, one survivor. The terrarium floods in stages, so keep to high ground. No respawns.",
+		"description": "12 bugs, one survivor. The map floods in stages, so keep to high ground. No respawns.",
 		"script": "res://modes/battle_royale.gd",
-		"maps": ["terrarium", "fishbowl"],
+		"maps": ["terrarium", "fishbowl", "crawlspace"],
 	},
 	"explore": {
 		"name": "Explore",

@@ -58,7 +58,6 @@ func _ready() -> void:
 	_quit_button.pressed.connect(get_tree().quit)
 	_build_mode_page()
 	_build_map_page()
-	_refresh_choose_player_button()
 	_play_button.grab_focus()
 	# The preview character is only spawned while the Choose Player page is open.
 
@@ -155,14 +154,6 @@ func _clear_preview_character() -> void:
 
 func _set_selected_character(selected_character: LoadingScreen.PlayerCharacter) -> void:
 	LoadingScreen.selected_player_character = selected_character
-	_refresh_choose_player_button()
-
-
-## The main page's Choose Player button names the class you will spawn as.
-func _refresh_choose_player_button() -> void:
-	_choose_player_button.text = "Choose Player: %s" % _display_name_for_character(
-		LoadingScreen.selected_player_character
-	)
 
 
 func _update_preview_display() -> void:

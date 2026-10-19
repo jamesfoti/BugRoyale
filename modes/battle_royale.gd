@@ -1,7 +1,9 @@
 extends GameMode
-## Battle Royale (terrarium): the player and 11 bots of mixed classes, every bug for itself, no
-## respawns. The terrarium water rises in stages (like Fortnite's storm) and hurts anything under
-## it, squeezing everyone onto the high ground. Last bug standing wins.
+## Battle Royale: the player and 11 bots of mixed classes, every bug for itself, no respawns. The
+## map's water rises in stages (like Fortnite's storm) and hurts anything under it, squeezing
+## everyone onto the high ground. In the terrariums that is the pool; in the crawlspace a storm
+## floods the foundation, and once the water is well up the drains back up with sewage. Last bug
+## standing wins.
 
 const FIGHTERS: int = 12
 const WATER_DAMAGE_PER_SECOND: float = 12.0
@@ -16,6 +18,8 @@ const WATER_STAGES: Array[Dictionary] = [
 	{"hold": 15.0, "level": 0.6, "rise": 20.0},
 	{"hold": 15.0, "level": 0.7, "rise": 25.0},
 ]
+## Stage at which a crawlspace's drains start backing up sewage onto the flood.
+const SEWAGE_STAGE: int = 2
 
 var _stage: int = 0
 var _stage_time: float = 0.0
@@ -59,7 +63,7 @@ func _status_text() -> String:
 	if map.water == null:
 		return alive
 	if _stage >= WATER_STAGES.size():
-		return alive + "  ·  The terrarium is flooded!"
+		return alive + "  ·  Flooded!"
 	var stage: Dictionary = WATER_STAGES[_stage]
 	if _stage_time < stage["hold"]:
 		return alive + "  ·  Water rises in %ds" % ceili(stage["hold"] - _stage_time)
@@ -96,6 +100,10 @@ func _update_water(delta: float) -> void:
 		_stage += 1
 		_stage_time = 0.0
 		_rise_from_y = target_y
+		if _stage == SEWAGE_STAGE:
+			for crawlspace: Node in get_tree().get_nodes_in_group("crawlspace"):
+				crawlspace.start_sewage_backup()
+				hud.show_message("The drains are backing up!", 3.0)
 
 
 func _apply_water_damage(delta: float) -> void:

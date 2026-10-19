@@ -58,6 +58,10 @@ func _start_match() -> void:
 		# Under a ceiling (the crawlspace): fly low enough to stay beneath the joists.
 		swarm.min_height = 2.0
 		swarm.max_height = clampf(map.ceiling_y - map.center().y - 3.0, 3.0, swarm.max_height)
+	var network: DuctNetwork = get_tree().get_first_node_in_group("duct_network") as DuctNetwork
+	if network != null:
+		# Ducts, furnace and piers are solid to the swarm.
+		swarm.obstacles = network.obstacles.duplicate()
 	get_parent().add_child(swarm)
 	swarm.bird_died.connect(func(_bird: Bird) -> void: hornets_killed += 1)
 	_start_break()

@@ -74,6 +74,10 @@ var _flock_center: Vector3 = Vector3.ZERO
 var _terrain: OpenTerrain
 ## Set by game modes so the flock flies correctly on any map (celestial body up, terrarium glass).
 var map: MapInfo
+## Solid boxes (world space) the flock steers around and is pushed out of: the crawlspace's
+## ducts, furnace and piers. Set by game modes from the map's DuctNetwork.
+var obstacles: Array[AABB] = []
+@export var obstacle_weight: float = 2.5
 ## Draws every bird cone in one call instead of one MeshInstance3D per bird.
 var _bird_multimesh_instance: MultiMeshInstance3D
 var _bird_mesh_offset: Transform3D = _make_bird_mesh_offset()
@@ -296,6 +300,7 @@ func _simulate_flock(delta: float) -> void:
 			flock_steering += _compute_height_steering(_positions[bird_index], altitude)
 			_flock_steering[bird_index] = flock_steering
 		var steering: Vector3 = _flock_steering[bird_index]
+		steering += _obstacle_steering(_positions[bird_index])
 
 		var target: Node3D = _find_nearest_target(_positions[bird_index], targets)
 		var speed_limit: float = max_speed
@@ -319,6 +324,7 @@ func _simulate_flock(delta: float) -> void:
 			new_altitude = 1.5
 		if map != null:
 			new_position = map.clamp_to_bounds(new_position)
+		new_position = _outside_obstacles(new_position)
 
 		bird.set_motion(new_position, new_velocity)
 		_positions[bird_index] = new_position
@@ -368,6 +374,47 @@ func _compute_boundary_steering(position: Vector3) -> Vector3:
 	if distance <= spawn_radius:
 		return Vector3.ZERO
 	return -offset.normalized() * boundary_weight
+
+
+## Pushes away from any obstacle box within a couple of meters, out through its nearest face.
+func _obstacle_steering(position: Vector3) -> Vector3:
+	var steering: Vector3 = Vector3.ZERO
+	for box: AABB in obstacles:
+		var near: AABB = box.grow(2.5)
+		if not near.has_point(position):
+			continue
+		steering += _escape_direction(near, position) * obstacle_weight
+	return steering
+
+
+## The point moved out of every obstacle box it is inside (with a little padding).
+func _outside_obstacles(position: Vector3) -> Vector3:
+	var result: Vector3 = position
+	for box: AABB in obstacles:
+		var padded: AABB = box.grow(0.4)
+		if padded.has_point(result):
+			var direction: Vector3 = _escape_direction(padded, result)
+			var axis: int = direction.abs().max_axis_index()
+			result[axis] = (padded.end[axis] if direction[axis] > 0.0 else padded.position[axis]) + direction[axis] * 0.05
+	return result
+
+
+## Unit direction through the nearest face of a box from a point inside it.
+func _escape_direction(box: AABB, position: Vector3) -> Vector3:
+	var best: float = INF
+	var direction: Vector3 = Vector3.UP
+	for axis: int in 3:
+		var to_min: float = position[axis] - box.position[axis]
+		var to_max: float = box.end[axis] - position[axis]
+		if to_min < best:
+			best = to_min
+			direction = Vector3.ZERO
+			direction[axis] = -1.0
+		if to_max < best:
+			best = to_max
+			direction = Vector3.ZERO
+			direction[axis] = 1.0
+	return direction
 
 
 func _compute_height_steering(position: Vector3, altitude: float) -> Vector3:

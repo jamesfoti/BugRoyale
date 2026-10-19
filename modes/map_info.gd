@@ -59,9 +59,6 @@ static func from_scene(scene_root: Node) -> MapInfo:
 		info.bounds = AABB(terrain_center - size * 0.5, size).grow(-0.6)
 		info.bowl_radius = room.get_bowl_radius()
 		info.bowl_center = room.get_bowl_center()
-		var waters: Array[Node] = scene_root.find_children("*", "TerrariumWater", true, false)
-		if not waters.is_empty():
-			info.water = waters[0] as TerrariumWater
 	elif info.world != null and info.world.has_method("get_world_extents"):
 		var size: Vector3 = info.world.get_world_extents()
 		info.bounds = AABB(info.world.global_position - size * 0.5, size).grow(-1.0)
@@ -69,6 +66,10 @@ static func from_scene(scene_root: Node) -> MapInfo:
 		# which is where the builder hangs its joists.
 		if not scene_root.get_tree().get_nodes_in_group("map_ceiling").is_empty():
 			info.ceiling_y = info.bounds.end.y
+	# Any map may carry a body of water (the terrariums' pools, the crawlspace's flood).
+	var waters: Array[Node] = scene_root.find_children("*", "TerrariumWater", true, false)
+	if not waters.is_empty():
+		info.water = waters[0] as TerrariumWater
 	return info
 
 

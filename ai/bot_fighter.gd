@@ -41,6 +41,17 @@ var _reaction_timer: float = 0.0
 var _cooldown: float = 0.0
 var _wander_point: Vector3 = Vector3.INF
 var _wander_timer: float = 0.0
+## A path through the map's ductwork, followed point by point whenever the bot and its goal are
+## on different sides of the sheet metal (or the bot just feels like wandering the ducts).
+var _route: PackedVector3Array = PackedVector3Array()
+var _route_index: int = 0
+var _route_destination: Vector3 = Vector3.INF
+var _route_check_timer: float = 0.0
+var _route_check_position: Vector3 = Vector3.ZERO
+## After abandoning a stuck route, no duct wandering for a while.
+var _duct_cooldown: float = 0.0
+var _duct_network: DuctNetwork
+var _duct_network_checked: bool = false
 var _strafe_sign: float = 1.0
 var _strafe_timer: float = 0.0
 var _anim_state: String = ""
@@ -141,6 +152,8 @@ func _physics_process(delta: float) -> void:
 	_cooldown -= delta
 	_strafe_timer -= delta
 	_wander_timer -= delta
+	_duct_cooldown -= delta
+	_watch_route_progress(delta)
 	if _retarget_timer <= 0.0:
 		_retarget_timer = _RETARGET_SECONDS
 		var previous: Node3D = _target
@@ -220,7 +233,7 @@ func _choose_goal(up: Vector3) -> Vector3:
 		var distance: float = to_target.length()
 		var preferred: float = clampf(float(_weapon.get("range", 40.0)) * 0.45, 6.0, 25.0)
 		if distance > preferred * 1.3 or not _target_in_sight:
-			return _target.global_position
+			return _via_ducts(_target.global_position)
 		if distance < preferred * 0.6:
 			return position_now - to_target
 		if _strafe_timer <= 0.0:
@@ -228,19 +241,116 @@ func _choose_goal(up: Vector3) -> Vector3:
 			_strafe_sign = -_strafe_sign
 		return position_now + to_target.cross(up).normalized() * 4.0 * _strafe_sign
 	if leader != null and is_instance_valid(leader) and leader.visible:
-		if position_now.distance_to(leader.global_position) > 7.0:
-			return leader.global_position
+		# "Close enough" only counts on the same side of the ductwork; 5 m through sheet metal
+		# is not with the leader.
+		if position_now.distance_to(leader.global_position) > 7.0 or _separated_by_ducts(leader.global_position):
+			return _via_ducts(leader.global_position)
 		return position_now
 	return _wander_goal(-INF)
 
 
+## True when the bot and a point are on different sides of the ductwork (one inside, one out).
+func _separated_by_ducts(point: Vector3) -> bool:
+	var network: DuctNetwork = _find_duct_network()
+	if network == null:
+		return false
+	var probe: Vector3 = Vector3.UP * 0.6
+	return network.is_inside(global_position + probe) != network.is_inside(point + probe)
+
+
+## The way to a destination: straight at it when neither end is inside the ductwork, otherwise
+## along a route through the ducts' waypoint graph (recomputed when the destination moves).
+func _via_ducts(destination: Vector3) -> Vector3:
+	var network: DuctNetwork = _find_duct_network()
+	if network == null:
+		return destination
+	var probe: Vector3 = Vector3.UP * 0.6
+	if not network.is_inside(global_position + probe) and not network.is_inside(destination + probe):
+		_clear_route()
+		return destination
+	if _route.is_empty() or _route_destination.distance_to(destination) > 4.0:
+		_start_route(network.route(global_position, destination), destination)
+		if _route.is_empty():
+			return destination
+	return _follow_route()
+
+
+func _start_route(route: PackedVector3Array, destination: Vector3) -> void:
+	_route = route
+	_route_index = 0
+	_route_destination = destination
+	_route_check_timer = 0.0
+	_route_check_position = global_position
+
+
+func _clear_route() -> void:
+	_route = PackedVector3Array()
+	_route_destination = Vector3.INF
+
+
+## A route that makes no progress for a few seconds is abandoned (something is in the way).
+func _watch_route_progress(delta: float) -> void:
+	if _route.is_empty():
+		return
+	_route_check_timer += delta
+	if _route_check_timer < 2.5:
+		return
+	_route_check_timer = 0.0
+	if global_position.distance_to(_route_check_position) < 1.0:
+		_clear_route()
+		_wander_point = Vector3.INF
+		_duct_cooldown = 12.0
+	_route_check_position = global_position
+
+
 func _wander_goal(min_height: float) -> Vector3:
+	if not _route.is_empty():
+		return _follow_route()
 	var reached: bool = _wander_point != Vector3.INF and global_position.distance_to(_wander_point) < 2.0
 	var too_low: bool = _wander_point != Vector3.INF and _wander_point.y < min_height
 	if _wander_point == Vector3.INF or reached or too_low or _wander_timer <= 0.0:
+		var network: DuctNetwork = _find_duct_network()
+		# Now and then, wander into the ductwork instead (not while fleeing water, and not through
+		# a flooded entry).
+		if network != null and min_height == -INF and _duct_cooldown <= 0.0 and randf() < 0.35:
+			var inside_spot: Vector3 = network.random_interior_point()
+			if inside_spot != Vector3.INF:
+				var route: PackedVector3Array = network.route(global_position, inside_spot)
+				if not route.is_empty() and not map.is_underwater(route[0] + Vector3.UP * 0.5):
+					_wander_point = inside_spot
+					_wander_timer = randf_range(12.0, 20.0)
+					_start_route(route, inside_spot)
+					return _follow_route()
 		_wander_point = map.random_surface_point(0.0, 0.0, min_height)
 		_wander_timer = randf_range(6.0, 11.0)
+		# Leaving the ducts means walking out the way in, not through a wall.
+		if network != null and network.is_inside(global_position + Vector3.UP * 0.6):
+			_start_route(network.route(global_position, _wander_point), _wander_point)
+	if not _route.is_empty():
+		return _follow_route()
 	return _wander_point
+
+
+## The next route point, advancing when the bot gets close (measured flat, since waypoints sit
+## at feet height on floors the bot may be above or below while climbing a ramp).
+func _follow_route() -> Vector3:
+	var point: Vector3 = _route[_route_index]
+	if Vector2(point.x - global_position.x, point.z - global_position.z).length() < 1.3:
+		_route_index += 1
+		if _route_index >= _route.size():
+			# Off the graph: head straight for wherever the route was taking us.
+			var destination: Vector3 = _route_destination
+			_clear_route()
+			return destination if destination != Vector3.INF else global_position
+		point = _route[_route_index]
+	return point
+
+
+func _find_duct_network() -> DuctNetwork:
+	if not _duct_network_checked:
+		_duct_network_checked = true
+		_duct_network = get_tree().get_first_node_in_group("duct_network") as DuctNetwork
+	return _duct_network if _duct_network != null and is_instance_valid(_duct_network) else null
 
 
 func _align_to_up(up: Vector3, weight: float) -> void:
