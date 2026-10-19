@@ -20,6 +20,9 @@ var planet_radius: float = 18.0
 ## Playable box for flat maps and the terrarium (unused on the planet).
 var bounds: AABB = AABB()
 var water: TerrariumWater
+## Fish-bowl terrarium: the glass sphere (radius 0 on a box terrarium or other maps).
+var bowl_radius: float = 0.0
+var bowl_center: Vector3 = Vector3.ZERO
 
 var _space: PhysicsDirectSpaceState3D
 
@@ -49,6 +52,8 @@ static func from_scene(scene_root: Node) -> MapInfo:
 		var size: Vector3 = room.get_world_extents()
 		# Slightly inside the glass walls.
 		info.bounds = AABB(terrain_center - size * 0.5, size).grow(-0.6)
+		info.bowl_radius = room.get_bowl_radius()
+		info.bowl_center = room.get_bowl_center()
 		var waters: Array[Node] = scene_root.find_children("*", "TerrariumWater", true, false)
 		if not waters.is_empty():
 			info.water = waters[0] as TerrariumWater
@@ -88,10 +93,24 @@ func ground_hit(position: Vector3) -> Dictionary:
 		if kind == Kind.TERRARIUM:
 			# Start under the glass lid, which would otherwise count as "ground".
 			top = bounds.end.y
+			if bowl_radius > 0.0:
+				# Fish bowl: start just inside the curved glass over this column.
+				var inner_top: float = bowl_inner_top(position)
+				if inner_top == -INF:
+					return {}
+				top = minf(top, inner_top)
 		var bottom: float = bounds.position.y - 40.0 if bounds.size != Vector3.ZERO else position.y - 200.0
 		from = Vector3(position.x, top, position.z)
 		to = Vector3(position.x, bottom, position.z)
 	return _cast(from, to)
+
+
+## Height of a fish bowl's inner glass above a column, or -INF when the column misses the bowl.
+func bowl_inner_top(position: Vector3) -> float:
+	var horizontal: float = Vector2(position.x - bowl_center.x, position.z - bowl_center.z).length()
+	if horizontal >= bowl_radius - 0.3:
+		return -INF
+	return bowl_center.y + sqrt(bowl_radius * bowl_radius - horizontal * horizontal) - 0.3
 
 
 ## Center of the playable area (on the planet: the point on the surface facing +Y).
@@ -133,6 +152,13 @@ func random_surface_point(clearance: float = 1.2, side: float = 0.0, min_height:
 				0.0,
 				randf_range(lerpf(bounds.position.z, bounds.end.z, margin), lerpf(bounds.position.z, bounds.end.z, 1.0 - margin))
 			)
+			if bowl_radius > 0.0:
+				# Fish bowl: columns inside the opening, so the probe enters through the top.
+				var angle: float = randf_range(0.0, TAU)
+				var distance: float = sqrt(randf()) * bowl_radius * 0.75
+				column = Vector3(bowl_center.x + cos(angle) * distance, 0.0, bowl_center.z + sin(angle) * distance)
+				if side != 0.0:
+					column.x = bowl_center.x + absf(column.x - bowl_center.x) * side
 			hit = ground_hit(column)
 		if hit.is_empty():
 			continue
@@ -157,7 +183,13 @@ func is_underwater(position: Vector3) -> bool:
 func clamp_to_bounds(position: Vector3) -> Vector3:
 	if kind == Kind.PLANET or bounds.size == Vector3.ZERO:
 		return position
-	return position.clamp(bounds.position, bounds.end)
+	var clamped: Vector3 = position.clamp(bounds.position, bounds.end)
+	if bowl_radius > 0.0:
+		var offset: Vector3 = clamped - bowl_center
+		var limit: float = bowl_radius - 0.8
+		if offset.length() > limit:
+			clamped = bowl_center + offset.normalized() * limit
+	return clamped
 
 
 ## Fell off the map (below the playable box, or inside the planet).

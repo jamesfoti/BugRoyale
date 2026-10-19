@@ -90,7 +90,8 @@ static func build_chunk_into(
 			settings.open_terrain_edges_enabled,
 			settings.open_terrain_heightmap_image,
 			settings.open_terrain_surface_offset,
-			settings.open_terrain_solid_fill
+			settings.open_terrain_solid_fill,
+			settings.open_terrain_bowl_radius
 		)
 	elif settings.boxed_in_terrain_enabled:
 		density = DensitySampler.create_boxed_in_terrain_world_density(

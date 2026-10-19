@@ -68,9 +68,11 @@ static func create_configured(
 	noise_gain: float = OpenTerrainPreset.NOISE_GAIN,
 	surface_height_offset: float = OpenTerrainPreset.SURFACE_HEIGHT_OFFSET,
 	heightmap: Texture2D = null,
-	boxed_edges_enabled: bool = OpenTerrainPreset.BOXED_EDGES_ENABLED
+	boxed_edges_enabled: bool = OpenTerrainPreset.BOXED_EDGES_ENABLED,
+	bowl_radius: float = 0.0
 ) -> TerrariumTerrain:
 	var terrain := TerrariumTerrain.new()
+	terrain.bowl_radius = bowl_radius
 	terrain.name = "TerrariumTerrain"
 	terrain.rebuild_on_ready = false
 	terrain.auto_rebuild_in_editor = false

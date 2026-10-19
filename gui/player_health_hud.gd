@@ -5,8 +5,12 @@ class_name PlayerHealthHud
 
 @onready var _bar: ProgressBar = $Margin/Row/HealthBar
 @onready var _value_label: Label = $Margin/Row/ValueLabel
+@onready var _breath_label: Label = $Margin/Row/BreathLabel
+@onready var _breath_bar: ProgressBar = $Margin/Row/BreathBar
 
 var _damageable: Damageable
+## The player's air supply; the Air bar shows only while it is below full.
+var _breath: Breath
 
 
 func _ready() -> void:
@@ -39,7 +43,29 @@ func _try_bind() -> void:
 	_damageable.damaged.connect(_on_damaged)
 	_damageable.died.connect(_on_died)
 	_update_display(_damageable.health, _damageable.max_health)
+	_bind_breath(player.get_node_or_null("Breath") as Breath)
 	visible = true
+
+
+func _bind_breath(breath: Breath) -> void:
+	if _breath != null and is_instance_valid(_breath) and _breath.breath_changed.is_connected(_on_breath_changed):
+		_breath.breath_changed.disconnect(_on_breath_changed)
+	_breath = breath
+	if _breath != null:
+		_breath.breath_changed.connect(_on_breath_changed)
+		_on_breath_changed(_breath.breath, _breath.max_breath_seconds)
+	else:
+		_breath_label.visible = false
+		_breath_bar.visible = false
+
+
+func _on_breath_changed(current: float, maximum: float) -> void:
+	var holding: bool = current < maximum - 0.01
+	_breath_label.visible = holding
+	_breath_bar.visible = holding
+	_breath_bar.max_value = maximum
+	_breath_bar.value = current
+	_breath_label.text = "Air" if current > 0.0 else "Drowning!"
 
 
 func _disconnect_damageable() -> void:

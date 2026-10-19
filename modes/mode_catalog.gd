@@ -7,6 +7,7 @@ const MAPS: Dictionary = {
 	"battlefield": {"name": "Open Battlefield", "scene": "res://scenes/battlefield_terrain_test.tscn"},
 	"planet": {"name": "Planet", "scene": "res://scenes/planet_test.tscn"},
 	"terrarium": {"name": "Terrarium", "scene": "res://scenes/terrarium_test.tscn"},
+	"fishbowl": {"name": "Fish Bowl", "scene": "res://scenes/fishbowl_test.tscn"},
 }
 
 ## forced_character: the class every player uses in that mode (the class picker is skipped).
@@ -15,20 +16,20 @@ const MODES: Dictionary = {
 		"name": "Attack of the Hornets",
 		"description": "You and 3 AI squadmates hold out against ever-bigger hornet waves. Fallen squadmates return each wave.",
 		"script": "res://modes/attack_of_the_hornets.gd",
-		"maps": ["battlefield", "planet", "terrarium"],
+		"maps": ["battlefield", "planet", "terrarium", "fishbowl"],
 	},
 	"ants_vs_ants": {
 		"name": "Ants vs Ants",
 		"description": "10 vs 10 team deathmatch: your Red colony against the Black colony. First to 40 kills wins.",
 		"script": "res://modes/ants_vs_ants.gd",
-		"maps": ["battlefield", "planet", "terrarium"],
+		"maps": ["battlefield", "planet", "terrarium", "fishbowl"],
 		"forced_character": LoadingScreen.PlayerCharacter.ANT_WARRIOR,
 	},
 	"battle_royale": {
 		"name": "Battle Royale",
 		"description": "12 bugs, one survivor. The terrarium floods in stages, so keep to high ground. No respawns.",
 		"script": "res://modes/battle_royale.gd",
-		"maps": ["terrarium"],
+		"maps": ["terrarium", "fishbowl"],
 	},
 }
 

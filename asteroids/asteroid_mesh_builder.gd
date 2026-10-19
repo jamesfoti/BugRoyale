@@ -119,10 +119,13 @@ static func _build_array_mesh(vertices: Array[Vector3], indices: Array[int]) -> 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	for i: int in indices.size():
-		var v: Vector3 = vertices[indices[i]]
-		st.set_normal(v.normalized())
-		st.add_vertex(v)
+	# The icosahedron table is counter-clockwise seen from outside; Godot front faces wind
+	# clockwise, so each triangle is emitted as (a, c, b) or the mesh renders inside-out.
+	for triangle: int in indices.size() / 3:
+		for corner: int in [0, 2, 1]:
+			var v: Vector3 = vertices[indices[triangle * 3 + corner]]
+			st.set_normal(v.normalized())
+			st.add_vertex(v)
 
 	var mesh: ArrayMesh = st.commit()
 	mesh.surface_set_material(0, null)

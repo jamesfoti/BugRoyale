@@ -4,7 +4,7 @@ extends RefCounted
 
 
 const GLASS_BOX_SCENE_PATH: String = "res://props/glass_box/glass_box.tscn"
-const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrain_procedural.tres"
+const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.tres"
 
 
 class SpawnResult:
@@ -15,6 +15,8 @@ class SpawnResult:
 	var floor_position: Vector3 = Vector3.ZERO
 	var terrarium_world_size: Vector3 = Vector3(5.0, 5.0, 5.0)
 	var glass_box_size: Vector3 = Vector3.ONE
+	## Sphere radius of a fish-bowl terrarium (0 for a glass box).
+	var bowl_radius: float = 0.0
 
 
 static func build_if_clear(
@@ -34,7 +36,8 @@ static func build_if_clear(
 	boxed_edges_enabled: bool = OpenTerrainPreset.BOXED_EDGES_ENABLED,
 	furniture_scale: float = 1.0,
 	spawn_water: bool = true,
-	water_level_ratio: float = TerrariumWater.DEFAULT_WATER_LEVEL_RATIO
+	water_level_ratio: float = TerrariumWater.DEFAULT_WATER_LEVEL_RATIO,
+	bowl: bool = false
 ) -> Variant:
 	var glass_box_size: Vector3 = TerrariumBudget.derive_glass_box_size(grid_config.world_size)
 	var spawn_position: Vector3 = find_spawn_position(
@@ -60,7 +63,8 @@ static func build_if_clear(
 		heightmap,
 		boxed_edges_enabled,
 		spawn_water,
-		water_level_ratio
+		water_level_ratio,
+		bowl
 	)
 
 
@@ -128,21 +132,33 @@ static func _build_at(
 	heightmap: Texture2D,
 	boxed_edges_enabled: bool,
 	spawn_water: bool = true,
-	water_level_ratio: float = TerrariumWater.DEFAULT_WATER_LEVEL_RATIO
+	water_level_ratio: float = TerrariumWater.DEFAULT_WATER_LEVEL_RATIO,
+	bowl: bool = false
 ) -> SpawnResult:
 	var result := SpawnResult.new()
 	result.terrarium_world_size = grid_config.world_size
 	result.glass_box_size = TerrariumBudget.derive_glass_box_size(grid_config.world_size)
 	result.floor_position = spawn_position
+	# The terrain grid is centered this high above the floor; a bowl's sphere shares that center.
+	var center_height: float = TerrariumBudget.get_terrain_floor_offset(grid_config.world_size)
 
 	var root := Node3D.new()
 	root.name = "GlassBoxProp"
 	root.position = spawn_position
 
-	var glass_box: Node3D = _create_glass_box(result.glass_box_size)
-	if glass_box != null:
-		root.add_child(glass_box)
-		result.glass_box = glass_box
+	if bowl:
+		result.bowl_radius = minf(
+			grid_config.world_size.x, minf(grid_config.world_size.y, grid_config.world_size.z)
+		) * 0.5
+		var glass_bowl: GlassBowl = GlassBowl.create(result.bowl_radius + TerrariumBudget.GLASS_WALL_INSET)
+		glass_bowl.position = Vector3(0.0, center_height, 0.0)
+		root.add_child(glass_bowl)
+		result.glass_box = glass_bowl
+	else:
+		var glass_box: Node3D = _create_glass_box(result.glass_box_size)
+		if glass_box != null:
+			root.add_child(glass_box)
+			result.glass_box = glass_box
 
 	var material: Material = terrain_material
 	if material == null and ResourceLoader.exists(DEFAULT_TERRAIN_MATERIAL_PATH):
@@ -160,14 +176,17 @@ static func _build_at(
 			noise_gain,
 			surface_height_offset,
 			heightmap,
-			boxed_edges_enabled
+			boxed_edges_enabled,
+			result.bowl_radius
 		)
-		terrain.position = Vector3(0.0, TerrariumBudget.get_terrain_floor_offset(grid_config.world_size), 0.0)
+		terrain.position = Vector3(0.0, center_height, 0.0)
 		root.add_child(terrain)
 		result.terrain = terrain
 
 	if spawn_water:
-		var water: TerrariumWater = TerrariumWater.create(grid_config.world_size, water_level_ratio)
+		var water: TerrariumWater = TerrariumWater.create(
+			grid_config.world_size, water_level_ratio, result.bowl_radius, center_height
+		)
 		root.add_child(water)
 		result.water = water
 	result.root = root

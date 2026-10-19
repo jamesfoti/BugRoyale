@@ -19,6 +19,10 @@ const MIN_SPLASH_AIR_PROBE: float = 1.0
 
 var _world_size: Vector3 = Vector3.ONE * 5.0
 var _water_level_y: float = 0.9
+## Fish bowl: the water is the part of this sphere (center this high above the node) below the
+## surface, instead of a box. 0 = box terrarium.
+var _bowl_radius: float = 0.0
+var _bowl_center_y: float = 0.0
 var _splash_detector: Area3D
 var _splash_particles: GPUParticles3D
 var _submerged_bodies: Dictionary = {}
@@ -28,10 +32,14 @@ var _last_body_y: Dictionary = {}
 
 static func create(
 	world_size: Vector3,
-	water_level_ratio: float = DEFAULT_WATER_LEVEL_RATIO
+	water_level_ratio: float = DEFAULT_WATER_LEVEL_RATIO,
+	bowl_radius: float = 0.0,
+	bowl_center_y: float = 0.0
 ) -> TerrariumWater:
 	var water := TerrariumWater.new()
 	water.name = "TerrariumWater"
+	water._bowl_radius = maxf(bowl_radius, 0.0)
+	water._bowl_center_y = bowl_center_y
 	water._configure(world_size, water_level_ratio)
 	water._build_visuals()
 	water._build_splash_detector()
@@ -40,6 +48,7 @@ static func create(
 
 
 func _ready() -> void:
+	add_to_group("terrarium_water")
 	if _splash_detector != null:
 		_splash_detector.monitoring = not Engine.is_editor_hint()
 
@@ -78,15 +87,24 @@ func get_water_surface_y() -> float:
 ## surface and the splash detector. Used by Battle Royale's rising water.
 func set_water_surface_y(world_y: float) -> void:
 	_water_level_y = clampf(world_y - global_position.y, 0.05, _world_size.y)
-	var volume: MeshInstance3D = get_node_or_null("WaterVolume") as MeshInstance3D
-	if volume != null:
-		(volume.mesh as BoxMesh).size.y = _water_level_y
-		volume.position.y = _water_level_y * 0.5
-		if volume.material_override is ShaderMaterial:
-			(volume.material_override as ShaderMaterial).set_shader_parameter("volume_height", _water_level_y)
-	var surface: MeshInstance3D = get_node_or_null("WaterSurface") as MeshInstance3D
-	if surface != null:
-		surface.position.y = _water_level_y
+	if _bowl_radius > 0.0:
+		# The bowl's water is a sphere cap, so it is rebuilt for the new level.
+		for child_name: String in ["WaterVolume", "WaterSurface"]:
+			var old: Node = get_node_or_null(child_name)
+			if old != null:
+				remove_child(old)
+				old.queue_free()
+		_build_bowl_visuals()
+	else:
+		var volume: MeshInstance3D = get_node_or_null("WaterVolume") as MeshInstance3D
+		if volume != null:
+			(volume.mesh as BoxMesh).size.y = _water_level_y
+			volume.position.y = _water_level_y * 0.5
+			if volume.material_override is ShaderMaterial:
+				(volume.material_override as ShaderMaterial).set_shader_parameter("volume_height", _water_level_y)
+		var surface: MeshInstance3D = get_node_or_null("WaterSurface") as MeshInstance3D
+		if surface != null:
+			surface.position.y = _water_level_y
 	if _splash_detector != null:
 		var air_probe: float = maxf(_world_size.y * SPLASH_AIR_PROBE_RATIO, MIN_SPLASH_AIR_PROBE)
 		var detector_height: float = _water_level_y + air_probe
@@ -109,6 +127,9 @@ func _configure(world_size: Vector3, water_level_ratio: float) -> void:
 
 
 func _build_visuals() -> void:
+	if _bowl_radius > 0.0:
+		_build_bowl_visuals()
+		return
 	var inner_x: float = maxf(_world_size.x - SURFACE_INSET * 2.0, 0.25)
 	var inner_z: float = maxf(_world_size.z - SURFACE_INSET * 2.0, 0.25)
 
@@ -137,6 +158,45 @@ func _build_visuals() -> void:
 	var surface_material: Material = _load_material(WATER_SURFACE_MATERIAL_PATH)
 	if surface_material is ShaderMaterial:
 		# Per-instance copy; shader params come from terrarium_water.tres.
+		surface_material = (surface_material as ShaderMaterial).duplicate()
+	surface.material_override = surface_material
+	add_child(surface)
+
+
+## Fish bowl water: the sphere below the surface, capped by a flat disc, plus a disc surface.
+## Meshes are in this node's space (origin at the bowl's floor), so the volume shader's height
+## gradient runs from the bowl bottom to the surface like it does for the box.
+func _build_bowl_visuals() -> void:
+	var inner_radius: float = maxf(_bowl_radius - SURFACE_INSET, 0.1)
+	var sphere_center := Vector3(0.0, _bowl_center_y, 0.0)
+	var bottom_y: float = _bowl_center_y - inner_radius
+	var top_y: float = clampf(_water_level_y, bottom_y + 0.05, _bowl_center_y + inner_radius - 0.05)
+	var disc_radius: float = sqrt(maxf(inner_radius * inner_radius - (top_y - _bowl_center_y) * (top_y - _bowl_center_y), 0.0))
+
+	var volume_tool := SurfaceTool.new()
+	volume_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	GlassBowl.add_sphere_band(volume_tool, inner_radius, bottom_y - _bowl_center_y, top_y - _bowl_center_y, 14, 36, false, sphere_center)
+	GlassBowl.add_disc(volume_tool, disc_radius, top_y, 36, true)
+	var volume := MeshInstance3D.new()
+	volume.name = "WaterVolume"
+	volume.mesh = volume_tool.commit()
+	volume.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var volume_material: Material = _load_material(WATER_VOLUME_MATERIAL_PATH)
+	if volume_material is ShaderMaterial:
+		volume_material = (volume_material as ShaderMaterial).duplicate()
+		(volume_material as ShaderMaterial).set_shader_parameter("volume_height", top_y)
+	volume.material_override = volume_material
+	add_child(volume)
+
+	var surface_tool := SurfaceTool.new()
+	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	GlassBowl.add_disc(surface_tool, maxf(disc_radius - SURFACE_INSET, 0.1), top_y, 48, true)
+	var surface := MeshInstance3D.new()
+	surface.name = "WaterSurface"
+	surface.mesh = surface_tool.commit()
+	surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var surface_material: Material = _load_material(WATER_SURFACE_MATERIAL_PATH)
+	if surface_material is ShaderMaterial:
 		surface_material = (surface_material as ShaderMaterial).duplicate()
 	surface.material_override = surface_material
 	add_child(surface)

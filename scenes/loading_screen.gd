@@ -17,6 +17,8 @@ static var pending_mode_id: String = ""
 static var current_mode_id: String = ""
 static var current_scene_path: String = ""
 static var selected_player_character: PlayerCharacter = PlayerCharacter.ANT_WARRIOR
+## Noise seed rolled for the match being loaded (shown in the debug HUD); 0 before any match.
+static var last_terrain_seed: int = 0
 
 @onready var _title: Label = $UI/Margin/VBox/Title
 @onready var _status: Label = $UI/Margin/VBox/Status
@@ -113,6 +115,7 @@ func _set_progress(percent: int, message: String) -> void:
 func _start_game(game_scene: PackedScene) -> void:
 	_set_progress(100, "Loading")
 	var game_root: Node = game_scene.instantiate()
+	_randomize_terrain_seeds(game_root)
 	get_tree().root.add_child(game_root)
 	get_tree().current_scene = game_root
 	_add_game_mode(game_root)
@@ -147,3 +150,15 @@ func _resolve_scene_path() -> String:
 	pending_scene_path = ""
 	current_scene_path = scene_path
 	return scene_path
+
+
+## Every match gets fresh ground: one new noise seed for the map's terrain (the terrarium's
+## garden derives its own seed from it). Set before the scene enters the tree, so the terrain's
+## single rebuild on ready already uses it. Rooms keep their seed so the furniture stays put.
+func _randomize_terrain_seeds(game_root: Node) -> void:
+	last_terrain_seed = randi() % 1000000
+	for terrain: Node in game_root.find_children("*", "ChunkedTerrainWorld", true, false):
+		terrain.set("noise_seed", last_terrain_seed)
+	for room: Node in game_root.find_children("*", "TerrariumRoom", true, false):
+		room.set("terrarium_noise_seed", last_terrain_seed)
+	print("[LoadingScreen] Terrain seed %d" % last_terrain_seed)

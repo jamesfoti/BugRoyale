@@ -48,6 +48,7 @@ class SettingsSnapshot:
 	var open_terrain_solid_fill: bool = false
 	var open_terrain_heightmap_image: Image = null
 	var open_terrain_surface_offset: float = 0.0
+	var open_terrain_bowl_radius: float = 0.0
 	var planet_edits: PlanetEdits = null
 	var rebuild_collision: bool = true
 
@@ -125,6 +126,9 @@ class SettingsSnapshot:
 @export_range(1, 8, 1) var max_concurrent_rebuild_tasks: int = 4
 
 var _chunks: Dictionary = {}
+## A brush changed the terrain at a world position (only emitted when voxels actually changed).
+signal brush_applied(world_position: Vector3, radius: float)
+
 var _rebuild_queued: bool = false
 var _edits: PlanetEdits = PlanetEdits.new()
 var _dirty_chunks: Dictionary = {}
@@ -382,6 +386,7 @@ func apply_brush(world_position: Vector3, radius: float, add_solid: bool) -> voi
 		_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
 	_pending_rebuild_collision = true
 	_dispatch_pending_rebuilds()
+	brush_applied.emit(world_position, radius)
 
 
 func get_grid_origin_local() -> Vector3:

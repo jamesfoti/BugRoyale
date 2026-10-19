@@ -36,6 +36,8 @@ class WorldDensity:
 	var open_terrain_enabled: bool = false
 	var open_terrain_edges_enabled: bool = true
 	var open_terrain_solid_fill: bool = false
+	## Clips open terrain to a sphere of this radius around bounds_center (fish bowl); 0 = off.
+	var open_terrain_bowl_radius: float = 0.0
 	var surface_height_offset: float = 0.0
 	var _macro_noise: FastNoiseLite
 	var _height_noise: FastNoiseLite
@@ -205,6 +207,11 @@ class WorldDensity:
 					world_pos, bounds_center, bounds_half, bounds_clip_inset
 				)
 			)
+		if open_terrain_bowl_radius > 0.0:
+			# Fish bowl: everything outside the sphere is air.
+			value = maxf(
+				value, world_pos.distance_to(bounds_center) - (open_terrain_bowl_radius - bounds_clip_inset)
+			)
 		if planet_edits != null:
 			value = planet_edits.apply_to_density(value, world_pos)
 		return value
@@ -300,12 +307,14 @@ static func create_open_terrain_world_density(
 	open_edges_enabled: bool = true,
 	heightmap_image: Image = null,
 	surface_height_offset: float = 0.0,
-	solid_fill: bool = false
+	solid_fill: bool = false,
+	bowl_radius: float = 0.0
 ) -> WorldDensity:
 	var density: WorldDensity = WorldDensity.new()
 	density.open_terrain_enabled = true
 	density.open_terrain_edges_enabled = open_edges_enabled
 	density.open_terrain_solid_fill = solid_fill
+	density.open_terrain_bowl_radius = bowl_radius
 	density.surface_height_offset = surface_height_offset
 	density.sphere_enabled = false
 	density.noise_enabled = true

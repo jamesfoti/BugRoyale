@@ -227,8 +227,8 @@ func _update_planet_debug_labels() -> void:
 	var triangle_count: int = terrain_world.get_total_triangle_count()
 	var edited_voxels: int = terrain_world.get_edited_voxel_count()
 
-	_chunks.text = "Chunks: %d (%d×%d×%d grid)" % [
-		chunk_count, grid_dimensions.x, grid_dimensions.y, grid_dimensions.z
+	_chunks.text = "Chunks: %d (%d×%d×%d grid) · seed %d" % [
+		chunk_count, grid_dimensions.x, grid_dimensions.y, grid_dimensions.z, terrain_world.noise_seed
 	]
 	_chunk_size.text = "Chunk size: %.1f" % chunk_extent
 	if terrain_world is Planet:

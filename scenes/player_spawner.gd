@@ -31,6 +31,7 @@ func _spawn_player() -> void:
 	player.add_to_group("player")
 	_bind_world_references(player)
 	_attach_damageable(player)
+	_attach_breath(player)
 	CharacterSkin.apply_class_stats(player, player.get_node_or_null("Damageable") as Damageable)
 	get_parent().add_child(player)
 
@@ -74,3 +75,12 @@ func _attach_damageable(player: Node) -> void:
 	var damageable := Damageable.new()
 	damageable.name = "Damageable"
 	player.add_child(damageable)
+
+
+## Air supply: drowning damage after too long under the terrarium water.
+func _attach_breath(player: Node) -> void:
+	if player.get_node_or_null("Breath") != null:
+		return
+	var breath := Breath.new()
+	breath.name = "Breath"
+	player.add_child(breath)

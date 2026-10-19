@@ -37,6 +37,11 @@ extends ChunkedTerrainWorld
 	set(value):
 		boxed_edges_enabled = value
 		_request_rebuild()
+## Clips the terrain to a sphere of this radius around the node (a fish bowl); 0 keeps box edges.
+@export var bowl_radius: float = 0.0:
+	set(value):
+		bowl_radius = maxf(value, 0.0)
+		_request_rebuild()
 ## Fills solid ground below the heightmap surface instead of 3D cave noise.
 @export var solid_underside: bool = false:
 	set(value):
@@ -76,6 +81,7 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_solid_fill = solid_underside
 	settings.open_terrain_heightmap_image = _duplicate_heightmap_image()
 	settings.open_terrain_surface_offset = surface_height_offset
+	settings.open_terrain_bowl_radius = bowl_radius
 
 
 func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> DensitySampler.WorldDensity:
@@ -92,7 +98,8 @@ func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> Den
 		settings.open_terrain_edges_enabled,
 		settings.open_terrain_heightmap_image,
 		settings.open_terrain_surface_offset,
-		settings.open_terrain_solid_fill
+		settings.open_terrain_solid_fill,
+		settings.open_terrain_bowl_radius
 	)
 
 
