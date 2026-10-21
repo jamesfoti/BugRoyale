@@ -14,11 +14,12 @@ enum Fluid { SEWAGE, HOT_WATER, COLD_WATER, GAS }
 
 const CRACK_FRACTION: float = 0.5
 const DRAIN_SECONDS: float = 30.0
-## Gas: a burst section explodes, hurting everything within this radius (full damage at the
-## center, a quarter at the edge) and setting off neighboring sections a beat later.
-const GAS_BLAST_RADIUS: float = 9.0
-const GAS_BLAST_DAMAGE: float = 45.0
-const GAS_CHAIN_DELAY: float = 0.25
+## Gas: a burst section ignites into a jet of flame from the break, like a lit flamethrower,
+## that burns anything standing in it. Only the section that was hit burns; the rest of the
+## line stays intact (a whole line going up section by section buried the GPU in effects).
+const GAS_JET_LENGTH: float = 2.2
+const GAS_JET_RADIUS: float = 0.28
+const GAS_JET_DAMAGE_PER_SECOND: float = 12.0
 const GAS_BURN_SECONDS: float = 20.0
 
 ## Per fluid: how the pipe and its fluid look, and how much the pool hurts.
@@ -51,6 +52,10 @@ var length: float = 8.0
 var radius: float = 0.3
 ## World Y of the dirt under the pipe, where the fluid pools.
 var dirt_y: float = 0.0
+## How much farther the leaks, pools and blasts reach than on a 1x house (the crawlspace passes
+## the square root of its structure scale, so a 1:100 house spills 10x as far). Droplet sizes,
+## speeds and lifetimes grow more gently, by the square root of this again.
+var effect_scale: float = 1.0
 
 var _damageable: Damageable
 var _mesh: MeshInstance3D
@@ -63,13 +68,14 @@ var _drip: GPUParticles3D
 static var _pipe_materials: Dictionary = {}
 
 
-static func create(pipe_fluid: Fluid, pipe_length: float, pipe_radius: float, ground_y: float) -> UtilityPipe:
+static func create(pipe_fluid: Fluid, pipe_length: float, pipe_radius: float, ground_y: float, pipe_effect_scale: float = 1.0) -> UtilityPipe:
 	var pipe := UtilityPipe.new()
 	pipe.name = "UtilityPipe"
 	pipe.fluid = pipe_fluid
 	pipe.length = pipe_length
 	pipe.radius = pipe_radius
 	pipe.dirt_y = ground_y
+	pipe.effect_scale = pipe_effect_scale
 	pipe.collision_layer = MapInfo.STRUCTURE_LAYER
 	pipe.collision_mask = 0
 	var shape_node := CollisionShape3D.new()
@@ -130,7 +136,7 @@ func _crack() -> void:
 	_drip.global_position = global_position - Vector3.UP * radius
 	if fluid != Fluid.GAS:
 		# Gas only hisses from a crack; nothing pools until it ignites.
-		_ensure_pool(2.0, config["crack_damage"], DRAIN_SECONDS * 2.0)
+		_ensure_pool(2.0 * effect_scale, config["crack_damage"], DRAIN_SECONDS * 2.0)
 	cracked.emit(self)
 
 
@@ -150,48 +156,41 @@ func _on_died() -> void:
 	other_stub.material_override = _mesh.material_override
 	other_stub.position = Vector3(0.0, -length * 0.35, 0.0)
 	add_child(other_stub)
-	var spray: GPUParticles3D = _make_particles(true)
-	get_parent().add_child(spray)
-	spray.global_position = global_position
-	spray.finished.connect(spray.queue_free)
-	if config["steam"]:
-		var steam: GPUParticles3D = _make_steam()
-		get_parent().add_child(steam)
-		steam.global_position = global_position
-		get_tree().create_timer(DRAIN_SECONDS).timeout.connect(func() -> void: steam.emitting = false)
-	WeaponExplosionEffect.spawn(get_tree().current_scene, global_position, config["bang_radius"])
 	if fluid == Fluid.GAS:
-		_explode()
-		# The leak keeps burning on the dirt for a while.
-		_ensure_pool(3.0, config["burst_damage"], GAS_BURN_SECONDS)
-		get_tree().create_timer(GAS_BURN_SECONDS).timeout.connect(_stop_dripping)
+		# A flash as the leak catches, then the jet burns from the break.
+		WeaponExplosionEffect.spawn(get_tree().current_scene, global_position, config["bang_radius"] * sqrt(effect_scale) * 0.5)
+		_ignite_jet()
+		_stop_dripping()
 	else:
-		_ensure_pool(6.5, config["burst_damage"], DRAIN_SECONDS)
+		var spray: GPUParticles3D = _make_particles(true)
+		get_parent().add_child(spray)
+		spray.global_position = global_position
+		spray.finished.connect(spray.queue_free)
+		if config["steam"]:
+			var steam: GPUParticles3D = _make_steam()
+			get_parent().add_child(steam)
+			steam.global_position = global_position
+			get_tree().create_timer(DRAIN_SECONDS).timeout.connect(func() -> void: steam.emitting = false)
+		WeaponExplosionEffect.spawn(get_tree().current_scene, global_position, config["bang_radius"] * sqrt(effect_scale))
+		_ensure_pool(6.5 * effect_scale, config["burst_damage"], DRAIN_SECONDS)
 		get_tree().create_timer(DRAIN_SECONDS).timeout.connect(_stop_dripping)
 	burst.emit(self)
 
 
-## Gas blast: hurts every bug in range now, and damages other pipes in range after a short
-## delay so a line chains section by section instead of all at once.
-func _explode() -> void:
-	for node: Node in get_tree().get_nodes_in_group("damageable"):
-		var damageable: Damageable = node as Damageable
-		if damageable == null or damageable == _damageable or not damageable.is_alive():
-			continue
-		var target: Node3D = damageable.get_parent() as Node3D
-		if target == null:
-			continue
-		var distance: float = target.global_position.distance_to(global_position)
-		if distance > GAS_BLAST_RADIUS:
-			continue
-		var amount: float = lerpf(GAS_BLAST_DAMAGE, GAS_BLAST_DAMAGE * 0.25, distance / GAS_BLAST_RADIUS)
-		if target is UtilityPipe:
-			# Gas in range ignites outright, so the line goes up section by section.
-			if (target as UtilityPipe).fluid == Fluid.GAS:
-				amount = GAS_BLAST_DAMAGE
-			get_tree().create_timer(GAS_CHAIN_DELAY).timeout.connect(damageable.apply_damage.bind(amount, self))
-		else:
-			damageable.apply_damage(amount, self)
+## The jet leaves the break square to the pipe, angled down toward the dirt where the bugs are.
+func _ignite_jet() -> void:
+	var axis: Vector3 = global_transform.basis.y.normalized()
+	var side: Vector3 = axis.cross(Vector3.UP)
+	if side.length_squared() < 0.001:
+		side = axis.cross(Vector3.RIGHT)
+	side = side.normalized() * (1.0 if randf() < 0.5 else -1.0)
+	var direction: Vector3 = (side * 0.7 + Vector3.DOWN * 0.7)
+	direction = (direction - axis * direction.dot(axis)).normalized()
+	var jet: GasJet = GasJet.create(
+		direction, GAS_JET_LENGTH * effect_scale, GAS_JET_RADIUS * effect_scale, GAS_JET_DAMAGE_PER_SECOND, GAS_BURN_SECONDS
+	)
+	get_parent().add_child(jet)
+	jet.global_position = global_position + direction * radius
 
 
 func _stop_dripping() -> void:
@@ -224,24 +223,25 @@ func _make_particles(spray: bool) -> GPUParticles3D:
 	particles.one_shot = spray
 	particles.explosiveness = 0.85 if spray else 0.0
 	particles.amount = 160 if spray else 28
-	particles.lifetime = 1.8 if spray else 1.3
+	var motion: float = sqrt(effect_scale)
+	particles.lifetime = (1.8 if spray else 1.3) * motion
 	particles.local_coords = false
 	particles.emitting = true
-	particles.visibility_aabb = AABB(Vector3.ONE * -12.0, Vector3.ONE * 24.0)
+	particles.visibility_aabb = AABB(Vector3.ONE * -12.0 * effect_scale, Vector3.ONE * 24.0 * effect_scale)
 	var process := ParticleProcessMaterial.new()
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	process.emission_sphere_radius = radius
 	process.direction = Vector3(0.0, 1.0, 0.0) if spray else Vector3(0.0, -1.0, 0.0)
 	process.spread = 75.0 if spray else 20.0
-	process.initial_velocity_min = 7.0 if spray else 0.5
-	process.initial_velocity_max = 13.0 if spray else 1.5
+	process.initial_velocity_min = (7.0 if spray else 0.5) * motion
+	process.initial_velocity_max = (13.0 if spray else 1.5) * motion
 	process.gravity = Vector3(0.0, -9.8, 0.0)
 	process.scale_min = 0.6
 	process.scale_max = 1.4
 	process.color = FLUIDS[fluid]["fluid_color"]
 	particles.process_material = process
 	var blob := SphereMesh.new()
-	blob.radius = 0.16 if fluid == Fluid.SEWAGE else 0.11
+	blob.radius = (0.16 if fluid == Fluid.SEWAGE else 0.11) * motion
 	blob.height = blob.radius * 2.0
 	blob.radial_segments = 6
 	blob.rings = 3
@@ -255,25 +255,26 @@ func _make_steam() -> GPUParticles3D:
 	var particles := GPUParticles3D.new()
 	particles.name = "Steam"
 	particles.amount = 36
-	particles.lifetime = 2.4
+	var motion: float = sqrt(effect_scale)
+	particles.lifetime = 2.4 * motion
 	particles.local_coords = false
 	particles.emitting = true
-	particles.visibility_aabb = AABB(Vector3.ONE * -8.0, Vector3.ONE * 16.0)
+	particles.visibility_aabb = AABB(Vector3.ONE * -8.0 * effect_scale, Vector3.ONE * 16.0 * effect_scale)
 	var process := ParticleProcessMaterial.new()
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	process.emission_sphere_radius = 0.6
+	process.emission_sphere_radius = 0.6 * motion
 	process.direction = Vector3(0.0, 1.0, 0.0)
 	process.spread = 25.0
-	process.initial_velocity_min = 0.8
-	process.initial_velocity_max = 1.6
+	process.initial_velocity_min = 0.8 * motion
+	process.initial_velocity_max = 1.6 * motion
 	process.gravity = Vector3.ZERO
 	process.scale_min = 0.8
 	process.scale_max = 2.2
 	process.color = Color(0.9, 0.92, 0.95, 0.35)
 	particles.process_material = process
 	var puff := SphereMesh.new()
-	puff.radius = 0.35
-	puff.height = 0.7
+	puff.radius = 0.35 * motion
+	puff.height = puff.radius * 2.0
 	puff.radial_segments = 6
 	puff.rings = 3
 	particles.draw_pass_1 = puff

@@ -7,20 +7,26 @@ extends RefCounted
 ## runs join), so bugs can fight inside. Ways in: the furnace's access panel is off, and a couple
 ## of runs have come off their straps and slope down to the dirt with an open end.
 ##
-## Runs are laid out to thread between the piers, girder rows and the utility lines, and all
-## panels collide on the structure layer (bugs bump into them, ground probes look through).
+## Every size here is a real-world metre multiplied by the crawlspace's structure scale (1:100
+## by default, so a 35 cm trunk is 35 m across to a bug). Runs thread between the piers and
+## hang below the plumbing; the plumbing is laid afterwards around the risers (see the
+## "riser_zs" meta). All panels collide on the structure layer (bugs bump into them, ground
+## probes look through).
 
-const WIDTH: float = 2.8
-const HEIGHT: float = 2.0
-const WALL: float = 0.1
-## Duct centerline height above the dirt's mean level; the top stays under the utility lines.
-const CENTER_ABOVE_DIRT: float = 2.9
-const BOOT_LENGTH: float = 9.0
 const MAX_DROPPED_BOOTS: int = 2
 const METAL_COLOR: Color = Color(0.74, 0.76, 0.78)
 const REGISTER_COLOR: Color = Color(0.25, 0.25, 0.27)
 const FURNACE_COLOR: Color = Color(0.72, 0.72, 0.7)
-const FURNACE_SIZE: Vector3 = Vector3(6.0, 6.0, 8.0)
+## Furnace cabinet, in real metres: a low horizontal unit sitting on the dirt, under the lines.
+const FURNACE_SIZE: Vector3 = Vector3(0.4, 0.45, 0.6)
+## Trunk cross-section and sheet thickness, in real metres: a compact 7x5 inch rectangular
+## duct, which at 1:100 still leaves bugs a corridor 18 m wide.
+const DUCT_WIDTH: float = 0.18
+const DUCT_HEIGHT: float = 0.125
+const DUCT_WALL: float = 0.012
+## Centerline height above the dirt's mean level: tucked up under the plumbing, with the top
+## clearing the drains.
+const DUCT_CENTER_ABOVE_DIRT: float = 0.33
 
 
 ## One straight hollow run between two centerline points.
@@ -36,18 +42,23 @@ class Run:
 
 
 class Context:
-	var root: Node3D
+	var root: DuctNetwork
 	var rng: RandomNumberGenerator
 	var ground: Callable
 	var center: Vector3
 	var half: Vector3
+	## Structure scale: real metres to world metres.
+	var s: float = 1.0
+	var width: float
+	var height: float
+	var wall: float
 	var inset: float
 	var duct_y: float
 	var ceiling_bottom: float
 	var pier_rows: Array
 	var pier_xs: Array
-	var blocked_zs: Array
-	## x positions of plumbing risers running along Z, which duct risers keep clear of.
+	var pier_size: float
+	## x positions of the plumbing's fixture columns, which duct risers keep clear of.
 	var blocked_xs: Array
 	var metal: StandardMaterial3D
 	var register: StandardMaterial3D
@@ -63,8 +74,10 @@ class Context:
 	var furnace_access_outside: Vector3
 
 
-## Builds the ductwork under `parent`. ground(x, z) gives the dirt height; blocked_zs are the z
-## positions of utility lines running along X that risers and branches must avoid.
+## Builds the ductwork under `parent`. ground(x, z) gives the dirt height; pier_rows/pier_xs
+## the pier grid (piers are pier_size square); blocked_xs the plumbing's fixture columns;
+## ceiling_bottom the joists' underside, beam_bottom the beams' (the trunk passes under them);
+## `scale` the crawlspace's structure scale.
 static func build(
 	parent: Node3D,
 	center: Vector3,
@@ -74,9 +87,11 @@ static func build(
 	trunk_x: float,
 	pier_rows: Array,
 	pier_xs: Array,
-	blocked_zs: Array,
+	pier_size: float,
 	blocked_xs: Array,
 	ceiling_bottom: float,
+	beam_bottom: float,
+	scale: float,
 	rng: RandomNumberGenerator
 ) -> DuctNetwork:
 	var context := Context.new()
@@ -87,42 +102,56 @@ static func build(
 	context.ground = ground
 	context.center = center
 	context.half = half
-	context.inset = wall_thickness + 1.5
-	context.duct_y = center.y + CENTER_ABOVE_DIRT
+	context.s = scale
+	context.width = DUCT_WIDTH * scale
+	context.height = DUCT_HEIGHT * scale
+	context.wall = DUCT_WALL * scale
+	context.inset = wall_thickness + 0.2 * scale
+	# Never higher than clears the beams on the pier rows (the clearance varies per match).
+	context.duct_y = minf(center.y + DUCT_CENTER_ABOVE_DIRT * scale, beam_bottom - 0.02 * scale - context.height * 0.5)
 	context.ceiling_bottom = ceiling_bottom
 	context.pier_rows = pier_rows
 	context.pier_xs = pier_xs
-	context.blocked_zs = blocked_zs
+	context.pier_size = pier_size
 	context.blocked_xs = blocked_xs
 	context.metal = _material(METAL_COLOR, 0.45)
 	context.register = _material(REGISTER_COLOR, 0.8)
 	context.furnace = _material(FURNACE_COLOR, 0.6)
 
-	var furnace_z: float = center.z - half.z + context.inset + FURNACE_SIZE.z * 0.5
+	var furnace_size: Vector3 = FURNACE_SIZE * scale
+	var furnace_z: float = center.z - half.z + context.inset + furnace_size.z * 0.5
+	# Seated on the lowest dirt under its footprint, so no edge of the cabinet hangs in the air.
 	var furnace_dirt: float = ground.call(trunk_x, furnace_z)
+	for corner_x: float in [-1.0, 1.0]:
+		for corner_z: float in [-1.0, 1.0]:
+			furnace_dirt = minf(furnace_dirt, ground.call(trunk_x + corner_x * furnace_size.x * 0.5, furnace_z + corner_z * furnace_size.z * 0.5))
 	_build_furnace(context, Vector3(trunk_x, furnace_dirt, furnace_z))
 
 	# Trunk from the furnace outlet to near the far wall.
 	var trunk := Run.new()
-	trunk.start = Vector3(trunk_x, context.duct_y, furnace_z + FURNACE_SIZE.z * 0.5)
-	trunk.end = Vector3(trunk_x, context.duct_y, center.z + half.z - context.inset - 1.0)
+	trunk.start = Vector3(trunk_x, context.duct_y, furnace_z + furnace_size.z * 0.5)
+	trunk.end = Vector3(trunk_x, context.duct_y, center.z + half.z - context.inset - 0.1 * scale)
 	trunk.open_start = true
 	context.runs.append(trunk)
 	_grow_branches(context, trunk, Vector3.RIGHT, 2)
 
 	var boots: Array = []
-	var network: DuctNetwork = context.root as DuctNetwork
+	var riser_zs: Array = []
 	for run: Run in context.runs:
 		_build_run(context, run)
-		network.obstacles.append(_run_bounds(run))
+		context.root.obstacles.append(_run_bounds(context, run))
 		if run.open_end and run.start.y > run.end.y:
 			boots.append(run.end)
+		if run.register_end:
+			riser_zs.append(run.end.z)
 	_build_graph(context)
-	# Where to find the ways in, for anything that wants to point at them.
-	context.root.set_meta("furnace_access", Vector3(trunk_x + FURNACE_SIZE.x * 0.5, furnace_dirt, furnace_z - FURNACE_SIZE.z * 0.5 + 0.6 + (WIDTH - 0.2) * 0.5))
+	# Where to find the ways in, and what the plumbing must steer around.
+	context.root.set_meta("furnace_access", context.furnace_access_outside)
 	context.root.set_meta("trunk_start", trunk.start)
-	context.root.set_meta("furnace_top", Vector3(trunk_x, furnace_dirt + FURNACE_SIZE.y, furnace_z))
+	context.root.set_meta("furnace_top", Vector3(trunk_x, furnace_dirt + furnace_size.y, furnace_z))
+	context.root.set_meta("furnace_size", furnace_size)
 	context.root.set_meta("boot_ends", boots)
+	context.root.set_meta("riser_zs", riser_zs)
 	print("[Ductwork] %d runs, %d dropped boots" % [context.runs.size(), context.dropped_boots])
 	return context.root
 
@@ -132,16 +161,17 @@ static func build(
 ## Branches off a run at intervals, alternating sides, along `axis` (RIGHT for branches off a Z
 ## trunk, FORWARD for sub-branches off an X branch). depth counts remaining forks.
 static func _grow_branches(context: Context, trunk: Run, axis: Vector3, depth: int) -> void:
+	var s: float = context.s
 	var forward: Vector3 = (trunk.end - trunk.start).normalized()
 	var length: float = trunk.start.distance_to(trunk.end)
 	var side: float = 1.0 if context.rng.randf() < 0.5 else -1.0
-	var at: float = context.rng.randf_range(8.0, 12.0)
-	while at < length - 6.0:
-		# Nudge the station along the run until it clears the piers and lines.
+	var at: float = context.rng.randf_range(0.5, 0.8) * s
+	while at < length - 0.4 * s:
+		# Nudge the station along the run until it clears the piers.
 		var clear_at: float = -1.0
-		for nudge: float in [0.0, 2.0, -2.0, 4.0, -4.0, 6.0]:
-			var candidate: float = at + nudge
-			if candidate < 6.0 or candidate > length - 6.0:
+		for nudge: float in [0.0, 0.15, -0.15, 0.3, -0.3, 0.45, -0.45, 0.6, 0.75]:
+			var candidate: float = at + nudge * s
+			if candidate < 0.4 * s or candidate > length - 0.4 * s:
 				continue
 			if _station_clear(context, trunk.start + forward * candidate, axis):
 				clear_at = candidate
@@ -149,42 +179,44 @@ static func _grow_branches(context: Context, trunk: Run, axis: Vector3, depth: i
 		if clear_at >= 0.0:
 			var station: Vector3 = trunk.start + forward * clear_at
 			var direction: Vector3 = axis * side
-			var branch_length: float = context.rng.randf_range(12.0, 30.0) if depth == 2 else context.rng.randf_range(8.0, 16.0)
+			var branch_length: float = (context.rng.randf_range(1.2, 3.0) if depth == 2 else context.rng.randf_range(0.8, 1.6)) * s
 			branch_length = _clamp_length(context, station, direction, branch_length)
-			if branch_length >= 8.0:
+			if branch_length >= 0.6 * s:
 				_add_branch(context, trunk, clear_at, station, direction, branch_length, depth)
 				side = -side
-		at += context.rng.randf_range(12.0, 17.0)
+		at += context.rng.randf_range(0.8, 1.2) * s
 
 
 static func _add_branch(context: Context, trunk: Run, at: float, station: Vector3, direction: Vector3, length: float, depth: int) -> void:
+	var s: float = context.s
 	var forward: Vector3 = (trunk.end - trunk.start).normalized()
 	var right: Vector3 = _right_of(forward)
-	trunk.cuts.append({"at": at, "width": WIDTH, "face": "r+" if direction.dot(right) > 0.0 else "r-"})
-	# Keep the branch end (where its riser goes up) clear of plumbing risers.
+	trunk.cuts.append({"at": at, "width": context.width, "face": "r+" if direction.dot(right) > 0.0 else "r-"})
+	# Keep the branch end (where its riser goes up) clear of the plumbing's fixture columns.
 	if absf(direction.x) > 0.5:
 		for _attempt: int in 6:
-			var end_x: float = station.x + direction.x * (WIDTH * 0.5 + length)
+			var end_x: float = station.x + direction.x * (context.width * 0.5 + length)
 			var clear: bool = true
 			for blocked_x: float in context.blocked_xs:
-				if absf(end_x - blocked_x) < WIDTH * 0.5 + 1.2:
+				if absf(end_x - blocked_x) < context.width * 0.5 + 0.2 * s:
 					clear = false
 			if clear:
 				break
-			length -= 2.0
+			length -= 0.2 * s
 	var branch := Run.new()
-	branch.start = station + direction * (WIDTH * 0.5)
+	branch.start = station + direction * (context.width * 0.5)
 	branch.open_start = true
 	context.junctions.append({"parent": trunk, "at": at, "child": branch})
-	var drop: bool = context.dropped_boots < MAX_DROPPED_BOOTS and context.rng.randf() < 0.4 and length >= BOOT_LENGTH + 8.0
+	var boot_length: float = 0.8 * s
+	var drop: bool = context.dropped_boots < MAX_DROPPED_BOOTS and context.rng.randf() < 0.55 and length >= boot_length + 0.5 * s
 	if drop:
 		# The run ends short; the last stretch has fallen to the dirt with its end open.
-		branch.end = branch.start + direction * (length - BOOT_LENGTH)
+		branch.end = branch.start + direction * (length - boot_length)
 		branch.open_end = true
 		var boot := Run.new()
 		boot.start = branch.end
 		var landing: Vector3 = branch.start + direction * length
-		landing.y = context.ground.call(landing.x, landing.z) + HEIGHT * 0.5 + 0.1
+		landing.y = context.ground.call(landing.x, landing.z) + context.height * 0.5 + 0.1
 		boot.end = landing
 		boot.open_start = true
 		boot.open_end = true
@@ -203,6 +235,7 @@ static func _add_branch(context: Context, trunk: Run, at: float, station: Vector
 
 
 static func _grow_sub_branch(context: Context, branch: Run, axis: Vector3) -> void:
+	var s: float = context.s
 	var forward: Vector3 = (branch.end - branch.start).normalized()
 	var length: float = branch.start.distance_to(branch.end)
 	var at: float = length * context.rng.randf_range(0.4, 0.7)
@@ -213,11 +246,13 @@ static func _grow_sub_branch(context: Context, branch: Run, axis: Vector3) -> vo
 		if absf(station.x - (branch.start + forward * at).x) > length * 0.3:
 			return
 		at = (station - branch.start).dot(forward)
+		if at < 0.3 * s or at > length - 0.3 * s:
+			return
 	var side: float = 1.0 if context.rng.randf() < 0.5 else -1.0
 	for attempt: int in 2:
 		var direction: Vector3 = axis * side
-		var sub_length: float = _clamp_length(context, station, direction, context.rng.randf_range(8.0, 16.0))
-		if sub_length >= 8.0 and _station_clear(context, station, axis):
+		var sub_length: float = _clamp_length(context, station, direction, context.rng.randf_range(0.8, 1.6) * s)
+		if sub_length >= 0.6 * s and _station_clear(context, station, axis):
 			_add_branch(context, branch, at, station, direction, sub_length, 1)
 			return
 		side = -side
@@ -227,9 +262,9 @@ static func _grow_sub_branch(context: Context, branch: Run, axis: Vector3) -> vo
 static func _add_riser(context: Context, run: Run) -> void:
 	var forward: Vector3 = (run.end - run.start).normalized()
 	var length: float = run.start.distance_to(run.end)
-	run.cuts.append({"at": length - WIDTH * 0.5, "width": WIDTH, "face": "u+"})
+	run.cuts.append({"at": length - context.width * 0.5, "width": context.width, "face": "u+"})
 	var riser := Run.new()
-	var top_of_run: Vector3 = run.end - forward * (WIDTH * 0.5) + Vector3.UP * (HEIGHT * 0.5)
+	var top_of_run: Vector3 = run.end - forward * (context.width * 0.5) + Vector3.UP * (context.height * 0.5)
 	riser.start = top_of_run
 	riser.end = Vector3(top_of_run.x, context.ceiling_bottom, top_of_run.z)
 	riser.open_start = true
@@ -237,16 +272,12 @@ static func _add_riser(context: Context, run: Run) -> void:
 	context.runs.append(riser)
 
 
-## True when a branch leaving `station` along `axis` won't sit on a pier row, a girder, or a
-## utility line.
+## True when a run leaving `station` along `axis` won't hit a pier. Runs along X cross every
+## pier row, so they must stay off the rows; runs along Z sit in the gaps between piers.
 static func _station_clear(context: Context, station: Vector3, axis: Vector3) -> bool:
 	if absf(axis.x) > 0.5:
-		# A run along X: its z must dodge pier rows and the lines that also run along X.
 		for row_z: float in context.pier_rows:
-			if absf(station.z - row_z) < WIDTH * 0.5 + 1.6:
-				return false
-		for blocked_z: float in context.blocked_zs:
-			if absf(station.z - blocked_z) < WIDTH * 0.5 + 0.8:
+			if absf(station.z - row_z) < context.width * 0.5 + context.pier_size * 0.5 + 0.08 * context.s:
 				return false
 	return true
 
@@ -257,7 +288,7 @@ static func _clamp_length(context: Context, station: Vector3, direction: Vector3
 		limit = (context.center.x + direction.x * (context.half.x - context.inset) - station.x) * direction.x
 	else:
 		limit = (context.center.z + direction.z * (context.half.z - context.inset) - station.z) * direction.z
-	return minf(wanted, limit - WIDTH)
+	return minf(wanted, limit - context.width)
 
 
 static func _nearest_pier_gap(context: Context, x: float) -> float:
@@ -277,16 +308,19 @@ static func _nearest_pier_gap(context: Context, x: float) -> float:
 
 ## Four wall panels (split around any cuts) plus end caps, in the run's own frame.
 static func _build_run(context: Context, run: Run) -> void:
+	var width: float = context.width
+	var height: float = context.height
+	var wall: float = context.wall
 	var forward: Vector3 = (run.end - run.start).normalized()
 	var right: Vector3 = _right_of(forward)
 	var up: Vector3 = right.cross(forward).normalized()
 	var length: float = run.start.distance_to(run.end)
 	var basis := Basis(right, up, forward)
 	var faces: Array = [
-		["r+", right, WIDTH * 0.5, Vector3(WALL, HEIGHT, 0.0)],
-		["r-", -right, WIDTH * 0.5, Vector3(WALL, HEIGHT, 0.0)],
-		["u+", up, HEIGHT * 0.5, Vector3(WIDTH, WALL, 0.0)],
-		["u-", -up, HEIGHT * 0.5, Vector3(WIDTH, WALL, 0.0)],
+		["r+", right, width * 0.5, Vector3(wall, height, 0.0)],
+		["r-", -right, width * 0.5, Vector3(wall, height, 0.0)],
+		["u+", up, height * 0.5, Vector3(width, wall, 0.0)],
+		["u-", -up, height * 0.5, Vector3(width, wall, 0.0)],
 	]
 	for face: Array in faces:
 		var gaps: Array = []
@@ -300,17 +334,17 @@ static func _build_run(context: Context, run: Run) -> void:
 			cursor = gap[1]
 		_panel_span(context, run, basis, face, cursor, length)
 	if not run.open_start:
-		_panel(context, run.start + forward * (WALL * 0.5), basis, Vector3(WIDTH, HEIGHT, WALL), context.metal)
+		_panel(context, run.start + forward * (wall * 0.5), basis, Vector3(width, height, wall), context.metal)
 	if not run.open_end:
-		_panel(context, run.end - forward * (WALL * 0.5), basis, Vector3(WIDTH, HEIGHT, WALL), context.register if run.register_end else context.metal)
+		_panel(context, run.end - forward * (wall * 0.5), basis, Vector3(width, height, wall), context.register if run.register_end else context.metal)
 	if run.register_end:
 		# Light from the room above leaks through the register grille into the duct.
 		var leak := OmniLight3D.new()
 		leak.name = "RegisterLight"
 		leak.light_color = Color(1.0, 0.95, 0.85)
 		leak.light_energy = 1.2
-		leak.omni_range = 14.0
-		leak.position = run.end - forward * 0.6
+		leak.omni_range = 1.5 * context.s
+		leak.position = run.end - forward * 0.08 * context.s
 		context.root.add_child(leak)
 
 
@@ -321,7 +355,7 @@ static func _panel_span(context: Context, run: Run, basis: Basis, face: Array, f
 	var normal: Vector3 = face[1]
 	var size: Vector3 = face[3]
 	size.z = to - from
-	var position: Vector3 = run.start + forward * ((from + to) * 0.5) + normal * (float(face[2]) - WALL * 0.5)
+	var position: Vector3 = run.start + forward * ((from + to) * 0.5) + normal * (float(face[2]) - context.wall * 0.5)
 	_panel(context, position, basis, size, context.metal)
 
 
@@ -347,22 +381,26 @@ static func _panel(context: Context, position: Vector3, basis: Basis, size: Vect
 	return mesh_instance
 
 
-## The furnace: a hollow cabinet on the dirt with its front access panel missing and the trunk
+## The furnace: a hollow cabinet on the dirt with its side access panel missing and the trunk
 ## leaving through the back, plus a ramp inside up to the trunk's floor and a flue on top.
 static func _build_furnace(context: Context, base: Vector3) -> void:
-	var size: Vector3 = FURNACE_SIZE
+	var s: float = context.s
+	var width: float = context.width
+	var height: float = context.height
+	var wall: float = context.wall
+	var size: Vector3 = FURNACE_SIZE * s
 	var center: Vector3 = base + Vector3.UP * size.y * 0.5
 	var identity := Basis.IDENTITY
 	# Top, the front (-Z, toward the wall) and the -X side.
-	_panel(context, center + Vector3.UP * (size.y * 0.5 - WALL * 0.5), identity, Vector3(size.x, WALL, size.z), context.furnace)
-	_panel(context, center + Vector3(0.0, 0.0, -(size.z * 0.5 - WALL * 0.5)), identity, Vector3(size.x, size.y, WALL), context.furnace)
-	_panel(context, center + Vector3.RIGHT * -(size.x * 0.5 - WALL * 0.5), identity, Vector3(WALL, size.y, size.z), context.furnace)
+	_panel(context, center + Vector3.UP * (size.y * 0.5 - wall * 0.5), identity, Vector3(size.x, wall, size.z), context.furnace)
+	_panel(context, center + Vector3(0.0, 0.0, -(size.z * 0.5 - wall * 0.5)), identity, Vector3(size.x, size.y, wall), context.furnace)
+	_panel(context, center + Vector3.RIGHT * -(size.x * 0.5 - wall * 0.5), identity, Vector3(wall, size.y, size.z), context.furnace)
 	# +X side: the access panel is off, an opening at the dirt near the front. Back (+Z): the
 	# trunk outlet.
-	var access_width: float = WIDTH - 0.2
-	var access_height: float = HEIGHT + 0.4
-	var access_z: float = base.z - size.z * 0.5 + 0.6 + access_width * 0.5
-	var side_x: float = center.x + size.x * 0.5 - WALL * 0.5
+	var access_width: float = width - 0.02 * s
+	var access_height: float = height + 0.04 * s
+	var access_z: float = base.z - size.z * 0.5 + 0.06 * s + access_width * 0.5
+	var side_x: float = center.x + size.x * 0.5 - wall * 0.5
 	var side_pieces: Array = [
 		[base.z - size.z * 0.5, access_z - access_width * 0.5, base.y, base.y + size.y],
 		[access_z + access_width * 0.5, base.z + size.z * 0.5, base.y, base.y + size.y],
@@ -373,30 +411,31 @@ static func _build_furnace(context: Context, base: Vector3) -> void:
 			continue
 		_panel(
 			context, Vector3(side_x, (piece[2] + piece[3]) * 0.5, (piece[0] + piece[1]) * 0.5), identity,
-			Vector3(WALL, piece[3] - piece[2], piece[1] - piece[0]), context.furnace
+			Vector3(wall, piece[3] - piece[2], piece[1] - piece[0]), context.furnace
 		)
-	_wall_with_hole(context, center + Vector3(0.0, 0.0, size.z * 0.5 - WALL * 0.5), size.x, size.y, base.y, Vector2(0.0, context.duct_y), Vector2(WIDTH, HEIGHT), context.furnace)
+	_wall_with_hole(context, center + Vector3(0.0, 0.0, size.z * 0.5 - wall * 0.5), size.x, size.y, base.y, Vector2(0.0, context.duct_y), Vector2(width, height), context.furnace)
 	# Ramp from the access opening up to the trunk floor.
-	var ramp_start := Vector3(base.x, base.y + 0.1, base.z - size.z * 0.5 + 0.6)
-	var ramp_end := Vector3(base.x, context.duct_y - HEIGHT * 0.5 + 0.05, base.z + size.z * 0.5 - 0.6)
+	var ramp_start := Vector3(base.x, base.y + 0.1, base.z - size.z * 0.5 + 0.06 * s)
+	var ramp_end := Vector3(base.x, context.duct_y - height * 0.5 + 0.05, base.z + size.z * 0.5 - 0.06 * s)
 	context.furnace_ramp_bottom = Vector3(base.x, base.y + 0.1, access_z)
 	context.furnace_ramp_top = ramp_end
-	context.furnace_access_outside = Vector3(side_x + 2.5, base.y, access_z)
-	(context.root as DuctNetwork).obstacles.append(AABB(base - Vector3(size.x * 0.5, 0.0, size.z * 0.5), size))
+	var access_outside_x: float = side_x + 0.3 * s
+	context.furnace_access_outside = Vector3(access_outside_x, float(context.ground.call(access_outside_x, access_z)) + 0.1, access_z)
+	context.root.obstacles.append(AABB(base - Vector3(size.x * 0.5, 0.0, size.z * 0.5), size))
 	var ramp_forward: Vector3 = (ramp_end - ramp_start).normalized()
 	var ramp_right: Vector3 = _right_of(ramp_forward)
 	var ramp_basis := Basis(ramp_right, ramp_right.cross(ramp_forward).normalized(), ramp_forward)
-	_panel(context, (ramp_start + ramp_end) * 0.5, ramp_basis, Vector3(WIDTH - 0.3, 0.15, ramp_start.distance_to(ramp_end)), context.metal)
+	_panel(context, (ramp_start + ramp_end) * 0.5, ramp_basis, Vector3(width - 0.03 * s, 0.015 * s, ramp_start.distance_to(ramp_end)), context.metal)
 	# Flue up to the joists.
 	var flue := MeshInstance3D.new()
 	flue.name = "Flue"
 	var pipe := CylinderMesh.new()
-	pipe.top_radius = 0.45
-	pipe.bottom_radius = 0.45
+	pipe.top_radius = 0.05 * s
+	pipe.bottom_radius = 0.05 * s
 	pipe.height = maxf(context.ceiling_bottom - (base.y + size.y), 0.2)
 	flue.mesh = pipe
 	flue.material_override = context.metal
-	flue.position = Vector3(base.x + 1.5, base.y + size.y + pipe.height * 0.5, base.z - 1.5)
+	flue.position = Vector3(base.x + 0.15 * s, base.y + size.y + pipe.height * 0.5, base.z - 0.15 * s)
 	context.root.add_child(flue)
 
 
@@ -422,14 +461,14 @@ static func _wall_with_hole(context: Context, center: Vector3, width: float, hei
 			continue
 		_panel(
 			context, Vector3((piece[0] + piece[1]) * 0.5, (piece[2] + piece[3]) * 0.5, center.z), Basis.IDENTITY,
-			Vector3(piece_width, piece_height, WALL), material
+			Vector3(piece_width, piece_height, context.wall), material
 		)
 
 
 # --- AI data ----------------------------------------------------------------------------------
 
 ## World-space box a run occupies (its oriented box's bounds).
-static func _run_bounds(run: Run) -> AABB:
+static func _run_bounds(context: Context, run: Run) -> AABB:
 	var forward: Vector3 = (run.end - run.start).normalized()
 	var right: Vector3 = _right_of(forward)
 	var up: Vector3 = right.cross(forward).normalized()
@@ -439,30 +478,30 @@ static func _run_bounds(run: Run) -> AABB:
 	for sx: float in [-1.0, 1.0]:
 		for sy: float in [-1.0, 1.0]:
 			for sz: float in [-1.0, 1.0]:
-				bounds = bounds.expand(mid + right * (sx * WIDTH * 0.5) + up * (sy * HEIGHT * 0.5) + forward * (sz * half_length))
+				bounds = bounds.expand(mid + right * (sx * context.width * 0.5) + up * (sy * context.height * 0.5) + forward * (sz * half_length))
 	return bounds
 
 
 ## Waypoint at bug-feet height on a run's floor, under a centerline point.
-static func _feet(run: Run, point: Vector3) -> Vector3:
+static func _feet(context: Context, run: Run, point: Vector3) -> Vector3:
 	var forward: Vector3 = (run.end - run.start).normalized()
 	var up: Vector3 = _right_of(forward).cross(forward).normalized()
-	return point - up * (HEIGHT * 0.5 - 0.1)
+	return point - up * (context.height * 0.5 - 0.1)
 
 
 ## The interior waypoint graph: a point just inside each end of every walkable run, one at each
 ## junction, chained along the run and linked into the branch; plus the ways in.
 static func _build_graph(context: Context) -> void:
-	var network: DuctNetwork = context.root as DuctNetwork
-	var inset: float = 1.5
+	var network: DuctNetwork = context.root
+	var inset: float = 0.15 * context.s
 	var run_nodes: Dictionary = {}
 	for run: Run in context.runs:
 		if run.register_end:
 			continue
 		var forward: Vector3 = (run.end - run.start).normalized()
 		run_nodes[run] = {
-			"start": network.add_point(_feet(run, run.start + forward * inset)),
-			"end": network.add_point(_feet(run, run.end - forward * inset)),
+			"start": network.add_point(_feet(context, run, run.start + forward * inset)),
+			"end": network.add_point(_feet(context, run, run.end - forward * inset)),
 			"stations": [],
 		}
 	for junction: Dictionary in context.junctions:
@@ -471,7 +510,7 @@ static func _build_graph(context: Context) -> void:
 		if not run_nodes.has(parent) or not run_nodes.has(child):
 			continue
 		var forward: Vector3 = (parent.end - parent.start).normalized()
-		var station: int = network.add_point(_feet(parent, parent.start + forward * float(junction["at"])))
+		var station: int = network.add_point(_feet(context, parent, parent.start + forward * float(junction["at"])))
 		run_nodes[parent]["stations"].append([float(junction["at"]), station])
 		network.link(station, run_nodes[child]["start"])
 	for run: Run in run_nodes:
@@ -487,7 +526,7 @@ static func _build_graph(context: Context) -> void:
 		network.link(run_nodes[branch]["end"], run_nodes[boot]["start"])
 		var forward: Vector3 = (boot.end - boot.start).normalized()
 		var outward: Vector3 = Vector3(forward.x, 0.0, forward.z).normalized()
-		var outside: Vector3 = boot.end + outward * 2.5
+		var outside: Vector3 = boot.end + outward * 0.3 * context.s
 		outside.y = float(context.ground.call(outside.x, outside.z)) + 0.1
 		var entry: int = network.add_point(outside)
 		network.link(run_nodes[boot]["end"], entry)

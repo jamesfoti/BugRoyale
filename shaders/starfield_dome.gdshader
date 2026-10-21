@@ -18,28 +18,17 @@ float hash11(float n) {
 	return fract(sin(n) * 43758.5453);
 }
 
+// One star per cell at most, kept inside its cell, so each pixel needs a single cell lookup.
 float stars_at(vec3 dir, float scale, float size, float seed) {
 	vec3 p = dir * scale + vec3(seed);
 	vec3 cell = floor(p);
 	vec3 local = fract(p) - 0.5;
-	float brightest = 0.0;
-
-	for (int z = -1; z <= 1; z++) {
-		for (int y = -1; y <= 1; y++) {
-			for (int x = -1; x <= 1; x++) {
-				vec3 neighbor = vec3(float(x), float(y), float(z));
-				vec3 point = hash33(cell + neighbor) - 0.5;
-				float dist = length(neighbor + point - local);
-				float pick = hash11(dot(cell + neighbor, vec3(13.7, 27.3, 41.1)) + seed);
-				if (pick >= 0.7) {
-					float star = smoothstep(size, 0.0, dist) * pick;
-					brightest = max(brightest, star);
-				}
-			}
-		}
+	float pick = hash11(dot(cell, vec3(13.7, 27.3, 41.1)) + seed);
+	if (pick < 0.7) {
+		return 0.0;
 	}
-
-	return brightest;
+	vec3 point = (hash33(cell) - 0.5) * (1.0 - 2.2 * size);
+	return smoothstep(size, 0.0, length(point - local)) * pick;
 }
 
 void vertex() {

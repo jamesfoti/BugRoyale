@@ -11,3 +11,5 @@ builds/itch/*.zip
 
 # Blender auto-backups
 *.blend1
+builds/windows/*.zip
+builds/macos/*.zip

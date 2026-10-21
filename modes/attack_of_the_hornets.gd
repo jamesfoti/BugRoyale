@@ -57,7 +57,9 @@ func _start_match() -> void:
 	if map.ceiling_y < INF:
 		# Under a ceiling (the crawlspace): fly low enough to stay beneath the joists.
 		swarm.min_height = 2.0
-		swarm.max_height = clampf(map.ceiling_y - map.center().y - 3.0, 3.0, swarm.max_height)
+		var dirt: Dictionary = map.ground_hit(map.center())
+		var dirt_y: float = dirt.position.y if not dirt.is_empty() else map.bounds.position.y
+		swarm.max_height = clampf(map.ceiling_y - dirt_y - 3.0, 3.0, 40.0)
 	var network: DuctNetwork = get_tree().get_first_node_in_group("duct_network") as DuctNetwork
 	if network != null:
 		# Ducts, furnace and piers are solid to the swarm.

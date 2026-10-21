@@ -1,13 +1,14 @@
 extends Node
 ## Autoload: Low / High graphics toggle, saved to user:// and applied to every loaded scene.
-## Low renders 3D at half resolution (FSR upscaled), disables glow and SSAO-style post effects,
-## drops omni/spot shadows, shortens directional shadows, and sets the graphics_low_quality
-## global shader uniform (cheaper water / sky paths). High restores scene values.
+## Low renders 3D at reduced resolution with plain bilinear upscaling (FSR costs more than it
+## saves on integrated GPUs), disables glow and SSAO-style post effects, drops omni/spot
+## shadows, shortens directional shadows, and sets the graphics_low_quality global shader
+## uniform (cheaper water / sky paths). High restores scene values.
 
 signal low_quality_changed(enabled: bool)
 
 const SETTINGS_PATH: String = "user://graphics_settings.cfg"
-const LOW_3D_SCALE: float = 0.5
+const LOW_3D_SCALE: float = 0.65
 const LOW_DIRECTIONAL_SHADOW_DISTANCE: float = 60.0
 const LOW_DIRECTIONAL_ATLAS_SIZE: int = 2048
 const LOW_POSITIONAL_ATLAS_SIZE: int = 1024
@@ -53,7 +54,7 @@ func _apply_viewport() -> void:
 	RenderingServer.global_shader_parameter_set(&"graphics_low_quality", low_quality)
 	var root: Viewport = get_tree().root
 	if low_quality:
-		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
 		root.scaling_3d_scale = LOW_3D_SCALE
 		root.positional_shadow_atlas_size = LOW_POSITIONAL_ATLAS_SIZE
 		RenderingServer.directional_shadow_atlas_set_size(LOW_DIRECTIONAL_ATLAS_SIZE, true)

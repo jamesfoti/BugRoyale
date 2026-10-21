@@ -62,6 +62,12 @@ class SettingsSnapshot:
 	set(value):
 		chunk_resolution = maxi(value, 1)
 		_request_rebuild()
+## World metres per voxel. 1 m suits most maps; a big, flat map (the crawlspace's five-metre
+## patch of dirt at 1:100) uses 2 m so it builds and draws in a fraction of the time.
+@export_range(0.25, 8.0, 0.25) var voxel_size: float = 1.0:
+	set(value):
+		voxel_size = maxf(value, 0.05)
+		_request_rebuild()
 
 @export_group("Noise")
 @export var noise_enabled: bool = true:
@@ -321,7 +327,7 @@ func get_grid_dimensions() -> Vector3i:
 
 
 func get_base_cells_per_axis() -> int:
-	return maxi(1, int(round(chunk_size)))
+	return maxi(1, int(round(chunk_size / voxel_size)))
 
 
 func get_cells_per_axis() -> int:

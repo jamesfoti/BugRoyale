@@ -1,6 +1,6 @@
 class_name TerrariumVegetation
 extends Node3D
-## Procedural terrarium garden: moss cushions, ferns, red nerve plants, slate rocks, driftwood
+## Procedural terrarium garden: moss cushions, ferns, red nerve plants, mushrooms, slate rocks, driftwood
 ## and small branching trees, grown over the terrain the same way the terrain is grown from
 ## noise. Placement samples the terrain's analytic surface height (no physics needed) with a
 ## seeded RNG, so a terrarium always grows the same garden. Every plant kind draws through one
@@ -16,6 +16,7 @@ const RED_PLANTS_PER_100M2: float = 1.2
 const ROCKS_PER_100M2: float = 0.4
 const LOGS_PER_100M2: float = 0.13
 const TREES_PER_100M2: float = 0.25
+const MUSHROOM_CLUSTERS_PER_100M2: float = 1.4
 
 const MOSS_TINTS: Array[Color] = [
 	Color(0.36, 0.64, 0.2), Color(0.27, 0.5, 0.15), Color(0.52, 0.7, 0.22), Color(0.22, 0.42, 0.13),
@@ -107,6 +108,7 @@ func grow() -> void:
 	_grow_rocks(int(round(ROCKS_PER_100M2 * floor_100m2)))
 	_grow_logs(int(round(LOGS_PER_100M2 * floor_100m2)))
 	_grow_trees(int(round(TREES_PER_100M2 * floor_100m2)))
+	_grow_mushrooms(int(round(MUSHROOM_CLUSTERS_PER_100M2 * floor_100m2)))
 	var total: int = 0
 	for patch: Patch in _patches.values():
 		_commit_patch(patch)
@@ -320,6 +322,56 @@ func _grow_red_plants(count: int) -> void:
 		_place(patch, Transform3D(basis, spot.position), _vary(Color.WHITE, 0.1), size * 0.5)
 
 
+## Mushrooms: clusters of toadstools, buttons and ink caps on damp, level ground. Big ones get
+## a stem and a cap to collide with, so bugs can climb a stem and stand on a cap.
+func _grow_mushrooms(clusters: int) -> void:
+	var kinds: Array = [
+		[MushroomMeshBuilder.Species.TOADSTOOL, &"Toadstools", 1.2, 2.8, 0.3],
+		[MushroomMeshBuilder.Species.BUTTON, &"ButtonMushrooms", 0.6, 1.6, 0.4],
+		[MushroomMeshBuilder.Species.INKCAP, &"InkCaps", 0.8, 1.8, 0.3],
+	]
+	var builds: Dictionary = {}
+	for cluster: int in clusters:
+		var pick: float = _rng.randf()
+		var kind: Array = kinds[0] if pick < kinds[0][4] else (kinds[1] if pick < kinds[0][4] + kinds[1][4] else kinds[2])
+		var variant: int = _rng.randi() % 3
+		var key: StringName = StringName("%s%d" % [kind[1], variant])
+		if not builds.has(key):
+			builds[key] = MushroomMeshBuilder.build(hash(key) + _rng.seed, kind[0])
+		var built: Dictionary = builds[key]
+		var patch: Patch = _patch(key, built["mesh"], _make_material(false), true)
+		var center: Dictionary = _find_spot(0.55, 0.25)
+		if center.is_empty():
+			continue
+		var count: int = _rng.randi_range(1, 5)
+		for index: int in count:
+			var size: float = _rng.randf_range(kind[2], kind[3])
+			var spot: Dictionary = center if index == 0 else _find_spot(0.55, 0.25, center.position, 1.2 + size, 0.0)
+			if spot.is_empty():
+				continue
+			var up: Vector3 = Vector3.UP.slerp(spot.normal, 0.25).normalized()
+			var basis: Basis = _ground_basis(up, _rng.randf() * TAU, Vector3(size, size * _rng.randf_range(0.9, 1.15), size))
+			var cap_radius: float = float(built["cap_radius"]) * size
+			var transform := Transform3D(basis, spot.position - up * 0.04)
+			_place(patch, transform, _vary(Color.WHITE, 0.08), cap_radius)
+			if cap_radius >= 0.75:
+				_add_mushroom_collision(transform, built, basis.get_scale().y)
+
+
+## A cylinder for the stem and a flat one for the cap, both in the mushroom's own frame.
+func _add_mushroom_collision(transform: Transform3D, built: Dictionary, size: float) -> void:
+	var stem := CylinderShape3D.new()
+	stem.radius = maxf(float(built["stem_radius"]) * size, 0.15)
+	stem.height = float(built["cap_y"]) * size
+	var prop: Prop = _add_prop("Mushroom", transform, stem, Transform3D(Basis.IDENTITY, Vector3(0.0, float(built["cap_y"]) * 0.5, 0.0)))
+	var cap := CylinderShape3D.new()
+	cap.radius = float(built["cap_radius"]) * size * 0.9
+	cap.height = maxf(float(built["cap_height"]) * size * 0.6, 0.2)
+	var cap_shape := CollisionShape3D.new()
+	cap_shape.shape = cap
+	cap_shape.position = Vector3(0.0, float(built["cap_y"]) + float(built["cap_height"]) * 0.3, 0.0)
+	prop.node.get_child(0).add_child(cap_shape)
+	prop.radius = float(built["cap_radius"]) * size
 ## Slate rocks: noisy icospheres, flattened and half-buried, with convex collision.
 func _grow_rocks(count: int) -> void:
 	var rock: Dictionary = AsteroidMeshBuilder.build(_rng.randi(), 1.0, 2, 0.3)

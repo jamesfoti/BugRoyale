@@ -12,6 +12,16 @@ uniform vec4 emission : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float emission_energy = 0.0;
 uniform float roughness : hint_range(0.0, 1.0) = 1.0;
 
+#include "res://shaders/toon_detail.gdshaderinc"
+
+varying vec3 v_local;
+varying vec3 v_local_normal;
+
+void vertex() {
+	v_local = VERTEX;
+	v_local_normal = NORMAL;
+}
+
 void fragment() {
 	vec4 base = albedo;
 	if (use_albedo_texture) {
@@ -20,7 +30,11 @@ void fragment() {
 	if (use_vertex_color) {
 		base *= COLOR;
 	}
-	ALBEDO = base.rgb;
+	vec3 color = base.rgb;
+	if (detail != 0) {
+		color = apply_detail(color, v_local, normalize(v_local_normal));
+	}
+	ALBEDO = color;
 	ROUGHNESS = roughness;
 	METALLIC = 0.0;
 	SPECULAR = 0.5;

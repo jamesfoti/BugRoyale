@@ -249,6 +249,13 @@ func _get_movement_direction() -> Vector3:
 
 
 func _get_facing_direction(movement_direction: Vector3) -> Vector3:
+	# Shooter stance: aiming or firing squares the body up to the camera.
+	var shooter: Node = get_node_or_null("ShooterTest")
+	var firing: bool = shooter != null and shooter.has_method("is_firing") and shooter.call("is_firing")
+	if _orbit_camera.is_aiming() or firing:
+		var camera_forward: Vector3 = _get_camera_flat_forward()
+		if camera_forward != Vector3.ZERO:
+			return camera_forward
 	if movement_direction.length_squared() < _MIN_DIR_LEN_SQ:
 		return _get_flat_forward()
 	# Backpedal: keep facing camera forward so body rotation does not spin the camera.

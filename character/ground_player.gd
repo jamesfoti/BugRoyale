@@ -161,9 +161,21 @@ func _physics_process(delta: float) -> void:
 
 	if movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
 		_last_move_direction = movement_direction
+	if _is_aiming_or_firing():
+		# Shooter stance: the body squares up to the camera so the gun points where the
+		# crosshair does, whichever way the legs are going.
+		_align_visual_to_facing(delta, _get_camera_flat_forward())
+	elif movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
 		_align_visual_to_facing(delta, movement_direction)
 	_finish_physics_step(delta)
 	_update_animation(movement_direction)
+
+
+func _is_aiming_or_firing() -> bool:
+	if _orbit_camera.is_aiming():
+		return true
+	var shooter: Node = get_node_or_null("ShooterTest")
+	return shooter != null and shooter.has_method("is_firing") and shooter.call("is_firing")
 
 
 ## Turns the body toward the current surface up, then moves.

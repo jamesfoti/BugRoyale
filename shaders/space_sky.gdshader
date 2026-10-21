@@ -25,33 +25,25 @@ float hash11(float n) {
 	return fract(sin(n) * 43758.5453);
 }
 
+// One star per cell at most, kept far enough inside its cell that it never crosses the edge, so
+// each pixel needs a single cell lookup instead of its 27 neighbours (which cost 35 ms a frame
+// at 1080p on an integrated GPU).
 float star_layer(vec3 eye_dir, float scale, float size, float layer_seed) {
 	vec3 p = eye_dir * scale + vec3(layer_seed);
 	vec3 cell = floor(p);
 	vec3 local = fract(p) - 0.5;
-	float brightest = 0.0;
-
-	for (int z = -1; z <= 1; z++) {
-		for (int y = -1; y <= 1; y++) {
-			for (int x = -1; x <= 1; x++) {
-				vec3 neighbor = vec3(float(x), float(y), float(z));
-				vec3 point = hash33(cell + neighbor) - 0.5;
-				float dist = length(neighbor + point - local);
-				float pick = hash11(dot(cell + neighbor, vec3(13.7, 27.3, 41.1)) + layer_seed);
-				if (pick >= 0.72) {
-					float twinkle = 1.0;
-					if (star_twinkle > 0.0) {
-						twinkle = 0.75 + 0.25 * sin(TIME * (1.2 + pick * 2.5) + pick * 40.0);
-						twinkle = mix(1.0, twinkle, star_twinkle);
-					}
-					float star = smoothstep(size, 0.0, dist) * twinkle;
-					brightest = max(brightest, star * pick);
-				}
-			}
-		}
+	float pick = hash11(dot(cell, vec3(13.7, 27.3, 41.1)) + layer_seed);
+	if (pick < 0.72) {
+		return 0.0;
 	}
-
-	return brightest;
+	vec3 point = (hash33(cell) - 0.5) * (1.0 - 2.2 * size);
+	float dist = length(point - local);
+	float twinkle = 1.0;
+	if (star_twinkle > 0.0) {
+		twinkle = 0.75 + 0.25 * sin(TIME * (1.2 + pick * 2.5) + pick * 40.0);
+		twinkle = mix(1.0, twinkle, star_twinkle);
+	}
+	return smoothstep(size, 0.0, dist) * twinkle * pick;
 }
 
 vec3 star_color_for(float pick) {

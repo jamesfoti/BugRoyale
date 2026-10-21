@@ -132,11 +132,16 @@ func _add_panel_collider(panel_name: String, size: Vector3, position: Vector3) -
 		shape_node.owner = get_tree().edited_scene_root
 
 
-static func _create_glass_material() -> StandardMaterial3D:
+## Glass tint. Shaded per vertex and (for box panels, whose inner faces point inward) back-face
+## culled: a transparent panel is a full-screen layer from inside the terrarium, and per-pixel
+## lighting on several of them costs an integrated GPU 10 ms a frame. The bowl's single-sided
+## sphere keeps both faces so it is visible from inside.
+static func _create_glass_material(two_sided: bool = false) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color = Color(0.85, 0.95, 1.0, 0.2)
 	material.roughness = 0.04
 	material.metallic = 0.0
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED if two_sided else BaseMaterial3D.CULL_BACK
 	return material

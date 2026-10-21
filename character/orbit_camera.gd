@@ -1,24 +1,38 @@
 extends SpringArm3D
 class_name OrbitCamera
-## Camera pitch while playing; hold middle mouse to orbit; scroll to zoom; aim zoom with weapon.
+## Third-person shooter camera in the Fortnite mould: over the right shoulder whenever a weapon
+## is out, pitch from straight down to well above the horizon, the arm collides with terrain and
+## structure so the view never goes through a wall, scroll to zoom, hold middle mouse to orbit.
+## Right mouse aims: the camera tightens in and the field of view narrows; a scoped weapon
+## (see PlayerItems.scope_fov) instead goes to a first-person view through its scope.
 
 
 const AIM_ACTION: StringName = &"aim"
 const AIM_HOLD_THRESHOLD: float = 0.4
 
 @export_range(-90.0, 90.0, 0.1, "radians") var min_limit_x: float = -1.4
-@export_range(-90.0, 90.0, 0.1, "radians") var max_limit_x: float = 0.2
+@export_range(-90.0, 90.0, 0.1, "radians") var max_limit_x: float = 1.25
 @export var mouse_sensitivity: float = 0.0025
 @export var recenter_speed: float = 10.0
 @export var min_spring_length: float = 2.5
 @export var max_spring_length: float = 14.0
 @export var scroll_zoom_step: float = 0.65
+## Over-the-shoulder offset (right, up, forward in the character's frame) while a weapon is out,
+## so the bug stands left of the crosshair instead of under it.
+@export var shoulder_offset: Vector3 = Vector3(0.9, 0.3, 0.0)
+## When terrain or a wall pushes the camera in closer than this, the bug's body is hidden
+## rather than filling the screen.
+@export var hide_body_distance: float = 1.1
 @export var aim_spring_length: float = 3.0
 @export var aim_position_offset: Vector3 = Vector3(0.6, -0.3, 1.1)
 @export var aim_fov: float = 45.0
 @export var aim_transition_speed: float = 4.0
 @export_range(0.1, 1.0, 0.05) var aim_mouse_sensitivity_scale: float = 0.75
 @export var aim_crosshair_screen_ratio: Vector2 = Vector2(0.5, 0.5)
+## Where the eye sits for a scoped view (right, up, forward in the character's frame, from the
+## arm's rest position).
+@export var scope_eye_offset: Vector3 = Vector3(0.0, -0.15, 0.4)
+@export var scope_transition_speed: float = 6.0
 
 @onready var _camera: Camera3D = $Camera3D
 
@@ -27,9 +41,13 @@ var _aiming: bool = false
 var _toggled_aim: bool = false
 var _aiming_timer: float = 0.0
 var _aim_blend: float = 0.0
+var _shoulder_blend: float = 0.0
+var _scope_blend: float = 0.0
+var _scope_fov: float = 0.0
 var _user_spring_length: float = 6.0
 var _rest_position: Vector3 = Vector3.ZERO
 var _default_fov: float = 60.0
+var _body_hidden: bool = false
 
 
 func _ready() -> void:
@@ -42,6 +60,9 @@ func _ready() -> void:
 	_rest_position = position
 	_user_spring_length = clampf(spring_length, min_spring_length, max_spring_length)
 	spring_length = _user_spring_length
+	# The arm pulls the camera in when the ground or a wall is in the way.
+	collision_mask = MapInfo.TERRAIN_LAYER | MapInfo.STRUCTURE_LAYER
+	margin = 0.3
 	if _camera != null:
 		_default_fov = _camera.fov
 
@@ -98,6 +119,9 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event as InputEventMouseMotion
 		var sensitivity_scale: float = aim_mouse_sensitivity_scale if _aiming else 1.0
+		# A narrower view turns slower, so a scope feels steady.
+		if _camera != null and _default_fov > 0.0:
+			sensitivity_scale *= clampf(_camera.fov / _default_fov, 0.1, 1.0)
 		rotation.y -= motion.relative.x * mouse_sensitivity * sensitivity_scale
 		rotation.x = clampf(
 			rotation.x - motion.relative.y * mouse_sensitivity * sensitivity_scale,
@@ -116,6 +140,15 @@ func is_aiming() -> bool:
 
 func get_aim_blend() -> float:
 	return _aim_blend
+
+
+## 0..1: how far into the scoped (first-person) view the camera is.
+func get_scope_blend() -> float:
+	return _scope_blend
+
+
+func is_scoped() -> bool:
+	return _scope_blend > 0.5
 
 
 func get_crosshair_screen_position(viewport_size: Vector2) -> Vector2:
@@ -153,23 +186,51 @@ func _update_aim_state(delta: float) -> void:
 
 
 func _update_aim_camera(delta: float) -> void:
-	var target_blend: float = 1.0 if _aiming and _has_weapon_equipped() else 0.0
+	var weapon_out: bool = _has_weapon_equipped()
+	var scope_fov: float = PlayerItems.scope_fov(_get_equipped_weapon_item()) if weapon_out else 0.0
+	var scoped: bool = _aiming and scope_fov > 0.0
+	if scoped:
+		_scope_fov = scope_fov
+	_scope_blend = move_toward(_scope_blend, 1.0 if scoped else 0.0, scope_transition_speed * delta)
+	var target_blend: float = 1.0 if _aiming and weapon_out and not scoped else 0.0
 	_aim_blend = move_toward(_aim_blend, target_blend, aim_transition_speed * delta)
-	spring_length = lerpf(_user_spring_length, aim_spring_length, _aim_blend)
-	var aim_offset: Vector3 = _get_aim_offset_in_parent_space()
-	position = _rest_position.lerp(_rest_position + aim_offset, _aim_blend)
+	_shoulder_blend = move_toward(_shoulder_blend, 1.0 if weapon_out else 0.0, aim_transition_speed * delta)
+
+	var third_person_length: float = lerpf(_user_spring_length, aim_spring_length, _aim_blend)
+	spring_length = lerpf(third_person_length, 0.0, _scope_blend)
+	var offset: Vector3 = _offset_in_parent_space(shoulder_offset) * _shoulder_blend
+	offset += _offset_in_parent_space(aim_position_offset) * _aim_blend
+	var scope_eye: Vector3 = _offset_in_parent_space(scope_eye_offset)
+	position = (_rest_position + offset).lerp(_rest_position + scope_eye, _scope_blend)
 	if _camera != null:
-		_camera.fov = lerpf(_default_fov, aim_fov, _aim_blend)
+		var third_person_fov: float = lerpf(_default_fov, aim_fov, _aim_blend)
+		_camera.fov = lerpf(third_person_fov, _scope_fov if _scope_fov > 0.0 else aim_fov, _scope_blend)
+	_set_body_hidden(_scope_blend > 0.85 or (spring_length > 0.0 and get_hit_length() < hide_body_distance))
 
 
-func _get_aim_offset_in_parent_space() -> Vector3:
+## The bug's own body is hidden while looking through a scope, or when the camera is pushed in
+## against it (it would fill the view either way).
+func _set_body_hidden(hidden: bool) -> void:
+	if hidden == _body_hidden:
+		return
+	_body_hidden = hidden
+	var player_node: Node = get_parent()
+	if player_node == null:
+		return
+	var visual_root: Node3D = player_node.get_node_or_null("VisualRoot") as Node3D
+	if visual_root != null:
+		visual_root.visible = not hidden
+
+
+## A (right, up, forward) offset in the character's frame, as a vector in the player's space.
+func _offset_in_parent_space(offset: Vector3) -> Vector3:
 	var player_node: Node3D = get_parent() as Node3D
 	if player_node == null:
-		return aim_position_offset
+		return offset
 
 	var visual_root: Node3D = player_node.get_node_or_null("VisualRoot") as Node3D
 	if visual_root == null:
-		return aim_position_offset
+		return offset
 
 	var surface_up: Vector3 = _get_player_up()
 	var character_right: Vector3 = visual_root.global_basis.x.slide(surface_up)
@@ -178,7 +239,7 @@ func _get_aim_offset_in_parent_space() -> Vector3:
 	if character_right.length_squared() < 0.0001:
 		character_right = global_basis.x.slide(surface_up)
 	if character_right.length_squared() < 0.0001:
-		return aim_position_offset
+		return offset
 	character_right = character_right.normalized()
 
 	var character_forward: Vector3 = (-visual_root.global_basis.z).slide(surface_up)
@@ -189,9 +250,9 @@ func _get_aim_offset_in_parent_space() -> Vector3:
 	character_forward = character_forward.normalized()
 
 	var world_offset: Vector3 = (
-		-character_right * aim_position_offset.x
-		+ surface_up * aim_position_offset.y
-		+ character_forward * aim_position_offset.z
+		-character_right * offset.x
+		+ surface_up * offset.y
+		+ character_forward * offset.z
 	)
 	return player_node.global_transform.basis.inverse() * world_offset
 
@@ -220,17 +281,20 @@ func _can_use_aim() -> bool:
 
 
 func _has_weapon_equipped() -> bool:
+	return PlayerItems.is_weapon(_get_equipped_weapon_item())
+
+
+func _get_equipped_weapon_item() -> PlayerItems.Item:
 	var player_node: Node = get_parent()
 	if player_node == null:
-		return false
+		return PlayerItems.Item.NONE
 	var visual_root: Node = player_node.get_node_or_null("VisualRoot")
 	if visual_root == null or visual_root.get_child_count() == 0:
-		return false
+		return PlayerItems.Item.NONE
 	var skin_node: Node = visual_root.get_child(0)
 	if skin_node == null or not skin_node.has_method("get_equipped_weapon_item"):
-		return false
-	var equipped_weapon_item: PlayerItems.Item = skin_node.call("get_equipped_weapon_item")
-	return PlayerItems.is_weapon(equipped_weapon_item)
+		return PlayerItems.Item.NONE
+	return skin_node.call("get_equipped_weapon_item")
 
 
 func _apply_scroll_zoom(button_index: MouseButton) -> void:
@@ -247,7 +311,7 @@ func _apply_scroll_zoom(button_index: MouseButton) -> void:
 		min_spring_length,
 		max_spring_length
 	)
-	if _aim_blend <= 0.001:
+	if _aim_blend <= 0.001 and _scope_blend <= 0.001:
 		spring_length = _user_spring_length
 
 

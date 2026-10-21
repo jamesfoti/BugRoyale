@@ -40,7 +40,7 @@ func rebuild() -> void:
 	var glass := MeshInstance3D.new()
 	glass.name = "Glass"
 	glass.mesh = mesh
-	glass.material_override = GlassBox._create_glass_material()
+	glass.material_override = GlassBox._create_glass_material(true)
 	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(glass)
 

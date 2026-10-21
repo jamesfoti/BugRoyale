@@ -62,10 +62,12 @@ static func from_scene(scene_root: Node) -> MapInfo:
 	elif info.world != null and info.world.has_method("get_world_extents"):
 		var size: Vector3 = info.world.get_world_extents()
 		info.bounds = AABB(info.world.global_position - size * 0.5, size).grow(-1.0)
-		# A map with overhead structure (CrawlspaceBuilder) caps flight at the top of the bounds,
-		# which is where the builder hangs its joists.
-		if not scene_root.get_tree().get_nodes_in_group("map_ceiling").is_empty():
-			info.ceiling_y = info.bounds.end.y
+		# A map with overhead structure (CrawlspaceBuilder) caps flight at its ceiling, which may
+		# sit well above the dirt's voxel volume; the playable box grows up to meet it.
+		for ceiling_node: Node in scene_root.get_tree().get_nodes_in_group("map_ceiling"):
+			info.ceiling_y = float(ceiling_node.call("get_ceiling_y")) if ceiling_node.has_method("get_ceiling_y") else info.bounds.end.y
+			if info.ceiling_y > info.bounds.end.y:
+				info.bounds.size.y = info.ceiling_y - info.bounds.position.y
 	# Any map may carry a body of water (the terrariums' pools, the crawlspace's flood).
 	var waters: Array[Node] = scene_root.find_children("*", "TerrariumWater", true, false)
 	if not waters.is_empty():

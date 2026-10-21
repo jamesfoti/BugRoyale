@@ -104,6 +104,12 @@ func _toon_version(material: Material) -> Material:
 	if source.emission_enabled:
 		toon.set_shader_parameter("emission", source.emission)
 		toon.set_shader_parameter("emission_energy", source.emission_energy_multiplier)
+	# Procedural surface detail (wood grain, concrete, masonry), tagged on the source material
+	# by the builders: see toon_detail.gdshaderinc.
+	if source.has_meta(&"toon_detail"):
+		toon.set_shader_parameter("detail", int(source.get_meta(&"toon_detail")))
+		toon.set_shader_parameter("detail_scale", float(source.get_meta(&"toon_detail_scale", 1.0)))
+		toon.set_shader_parameter("grain_axis", int(source.get_meta(&"toon_grain_axis", 0)))
 	_converted[key] = toon
 	return toon
 

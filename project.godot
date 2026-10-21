@@ -130,6 +130,11 @@ aim={
 
 [rendering]
 
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+lights_and_shadows/directional_shadow/size=2048
+lights_and_shadows/positional_shadow/atlas_size=2048
+
 textures/vram_compression/import_etc2_astc=true
 environment/default_clear_color=Color(0, 0, 0, 1)
 environment/default_environment="res://materials/terrain_env.tres"

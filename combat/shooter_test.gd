@@ -1,6 +1,8 @@
 extends Node
 class_name ShooterTest
-## Weapon test fire: projectile visual with explosive terrain carving on impact.
+## Weapon fire: a projectile visual, direct and splash damage on impact, and a crater in the
+## terrain for the explosive weapons only ("digs" in the profile: grenade launcher, rocket
+## launcher, short cannon). Bullets, pellets and blades leave the ground alone.
 
 const SHOOT_ACTION: StringName = &"shoot"
 const ShootProjectileVisualScene: PackedScene = preload("res://combat/shoot_projectile_visual.tscn")
@@ -8,45 +10,59 @@ const ShootProjectileVisualScene: PackedScene = preload("res://combat/shoot_proj
 const WEAPON_FIRE_PROFILE: Dictionary = {
 	PlayerItems.Item.WEAPON_AK: {
 		"cooldown": 0.11, "damage": 8.0, "radius": 1.4, "projectile_speed": 180.0, "projectile_radius": 0.1,
+		"spread": 1.4, "bloom": 0.35, "auto": true,
 	},
 	PlayerItems.Item.WEAPON_GRENADE_LAUNCHER: {
 		"cooldown": 0.65, "damage": 20.0, "radius": 3.8, "projectile_speed": 70.0, "projectile_radius": 0.22,
+		"spread": 1.5, "bloom": 0.8, "digs": true,
 	},
 	PlayerItems.Item.WEAPON_KNIFE_1: {
 		"cooldown": 0.25, "damage": 4.0, "radius": 0.8, "projectile_speed": 120.0, "projectile_radius": 0.08,
+		"spread": 0.0, "bloom": 0.0,
 	},
 	PlayerItems.Item.WEAPON_KNIFE_2: {
 		"cooldown": 0.25, "damage": 4.0, "radius": 0.8, "projectile_speed": 120.0, "projectile_radius": 0.08,
+		"spread": 0.0, "bloom": 0.0,
 	},
 	PlayerItems.Item.WEAPON_PISTOL: {
 		"cooldown": 0.2, "damage": 10.0, "radius": 1.1, "projectile_speed": 165.0, "projectile_radius": 0.09,
+		"spread": 1.1, "bloom": 0.5,
 	},
 	PlayerItems.Item.WEAPON_REVOLVER: {
 		"cooldown": 0.3, "damage": 14.0, "radius": 1.6, "projectile_speed": 155.0, "projectile_radius": 0.1,
+		"spread": 0.9, "bloom": 0.9,
 	},
 	PlayerItems.Item.WEAPON_REVOLVER_SMALL: {
 		"cooldown": 0.26, "damage": 11.0, "radius": 1.3, "projectile_speed": 160.0, "projectile_radius": 0.09,
+		"spread": 1.2, "bloom": 0.6,
 	},
 	PlayerItems.Item.WEAPON_ROCKET_LAUNCHER: {
 		"cooldown": 0.9, "damage": 28.0, "radius": 4.6, "projectile_speed": 55.0, "projectile_radius": 0.28,
+		"spread": 0.8, "bloom": 1.0, "digs": true,
 	},
 	PlayerItems.Item.WEAPON_SHORT_CANNON: {
 		"cooldown": 0.75, "damage": 24.0, "radius": 3.4, "projectile_speed": 65.0, "projectile_radius": 0.24,
+		"spread": 2.0, "bloom": 1.2, "digs": true,
 	},
 	PlayerItems.Item.WEAPON_SHOTGUN: {
 		"cooldown": 0.45, "damage": 16.0, "radius": 2.3, "projectile_speed": 145.0, "projectile_radius": 0.12,
+		"spread": 4.5, "bloom": 1.5,
 	},
 	PlayerItems.Item.WEAPON_SHOVEL: {
 		"cooldown": 0.35, "damage": 6.0, "radius": 1.0, "projectile_speed": 95.0, "projectile_radius": 0.1,
+		"spread": 0.0, "bloom": 0.0,
 	},
 	PlayerItems.Item.WEAPON_SMG: {
 		"cooldown": 0.08, "damage": 6.0, "radius": 1.0, "projectile_speed": 190.0, "projectile_radius": 0.08,
+		"spread": 2.2, "bloom": 0.3, "auto": true,
 	},
 	PlayerItems.Item.WEAPON_SNIPER: {
 		"cooldown": 0.55, "damage": 22.0, "radius": 2.0, "projectile_speed": 220.0, "projectile_radius": 0.11,
+		"spread": 3.0, "bloom": 1.5,
 	},
 	PlayerItems.Item.WEAPON_SNIPER_2: {
 		"cooldown": 0.6, "damage": 24.0, "radius": 2.2, "projectile_speed": 225.0, "projectile_radius": 0.11,
+		"spread": 3.0, "bloom": 1.5,
 	},
 }
 
@@ -61,10 +77,19 @@ const WEAPON_FIRE_PROFILE: Dictionary = {
 ## Splash damage at the edge of the explosion radius, as a fraction of the shot's damage
 ## (full damage at the center, falling off linearly).
 @export_range(0.0, 1.0, 0.05) var splash_edge_damage_fraction: float = 0.25
+## Shot cone, in degrees: each weapon's base spread, plus bloom that every shot adds and that
+## fades at this rate, plus extra for running and for being off the ground. Aiming tightens the
+## whole cone; a scope removes it.
+@export var bloom_decay_per_second: float = 5.0
+@export var max_bloom_degrees: float = 4.0
+@export var move_spread_degrees: float = 1.2
+@export var airborne_spread_degrees: float = 2.0
+@export_range(0.0, 1.0, 0.05) var aim_spread_scale: float = 0.4
 
 var _camera: Camera3D
 var _cooldown_left_seconds: float = 0.0
 var _shoot_visual_timer_seconds: float = 0.0
+var _bloom_degrees: float = 0.0
 
 
 func _ready() -> void:
@@ -79,6 +104,12 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_cooldown_left_seconds = maxf(0.0, _cooldown_left_seconds - delta)
 	_shoot_visual_timer_seconds = maxf(0.0, _shoot_visual_timer_seconds - delta)
+	_bloom_degrees = maxf(0.0, _bloom_degrees - bloom_decay_per_second * delta)
+	# Automatic weapons keep firing while the button is held.
+	if Input.is_action_pressed(SHOOT_ACTION) and _can_accept_shoot_input():
+		var fire_profile: Dictionary = WEAPON_FIRE_PROFILE.get(_get_equipped_weapon_item(), {})
+		if fire_profile.get("auto", false):
+			_try_shoot()
 	_update_skin_shooting_state()
 
 
@@ -87,6 +118,61 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed(SHOOT_ACTION):
 		_try_shoot()
+
+
+## True for a moment after each shot (the skin plays its firing pose; the body faces the camera).
+func is_firing() -> bool:
+	return _shoot_visual_timer_seconds > 0.0 and PlayerItems.is_weapon(_get_equipped_weapon_item())
+
+
+## Half-angle of the cone the next shot can land in, in degrees (what the crosshair shows).
+func get_spread_degrees() -> float:
+	var equipped_weapon_item: PlayerItems.Item = _get_equipped_weapon_item()
+	if not PlayerItems.is_weapon(equipped_weapon_item):
+		return 0.0
+	var orbit_camera: OrbitCamera = get_node_or_null(orbit_camera_path) as OrbitCamera
+	if orbit_camera != null and orbit_camera.is_scoped():
+		return 0.0
+	var fire_profile: Dictionary = WEAPON_FIRE_PROFILE.get(equipped_weapon_item, {})
+	var spread: float = float(fire_profile.get("spread", 1.0)) + _bloom_degrees
+	var body: CharacterBody3D = get_parent() as CharacterBody3D
+	if body != null:
+		spread += move_spread_degrees * clampf(body.velocity.length() / 6.0, 0.0, 1.0)
+		if not body.is_on_floor():
+			spread += airborne_spread_degrees
+	if orbit_camera != null and orbit_camera.is_aiming():
+		spread *= aim_spread_scale
+	return spread
+
+
+## Scatters a direction within the current spread cone.
+func _apply_spread(direction: Vector3) -> Vector3:
+	var spread: float = get_spread_degrees()
+	if spread <= 0.0:
+		return direction
+	var side: Vector3 = direction.cross(Vector3.UP)
+	if side.length_squared() < 0.0001:
+		side = direction.cross(Vector3.RIGHT)
+	side = side.normalized()
+	var axis: Vector3 = side.rotated(direction, randf() * TAU)
+	# Even density over the cone's disc, not bunched at the center.
+	var angle: float = deg_to_rad(spread) * sqrt(randf())
+	return direction.rotated(axis, angle).normalized()
+
+
+## Where the shot visibly leaves from: the weapon in hand, or the camera when scoped (the body
+## is hidden then) or when no weapon mesh is around.
+func _get_muzzle_position(fallback: Vector3) -> Vector3:
+	var orbit_camera: OrbitCamera = get_node_or_null(orbit_camera_path) as OrbitCamera
+	if orbit_camera != null and orbit_camera.is_scoped():
+		return fallback
+	var skin_node: Node = _get_skin_node()
+	if skin_node == null:
+		return fallback
+	var weapon_mesh: Node3D = skin_node.find_child("WeaponMesh", true, false) as Node3D
+	if weapon_mesh == null or not weapon_mesh.visible:
+		return fallback
+	return weapon_mesh.global_position
 
 
 func _try_shoot() -> void:
@@ -102,6 +188,7 @@ func _try_shoot() -> void:
 	var explosion_radius: float = fire_profile.get("radius", default_explosion_radius)
 	var projectile_speed: float = fire_profile.get("projectile_speed", default_projectile_speed)
 	var projectile_radius: float = fire_profile.get("projectile_radius", default_projectile_radius)
+	var digs: bool = fire_profile.get("digs", false)
 
 	var ray_origin: Vector3
 	var ray_direction: Vector3
@@ -110,7 +197,8 @@ func _try_shoot() -> void:
 	ray_direction = aim_ray["direction"]
 	if ray_direction.length_squared() <= 0.0001:
 		return
-	ray_direction = ray_direction.normalized()
+	ray_direction = _apply_spread(ray_direction.normalized())
+	_bloom_degrees = minf(_bloom_degrees + float(fire_profile.get("bloom", 0.5)), max_bloom_degrees)
 
 	var ray_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
 		ray_origin,
@@ -124,13 +212,14 @@ func _try_shoot() -> void:
 
 	var hit_position: Vector3 = raycast_hit.position
 	_spawn_projectile_visual(
-		ray_origin,
+		_get_muzzle_position(ray_origin),
 		hit_position,
 		projectile_speed,
 		projectile_radius,
 		raycast_hit,
 		hit_damage,
-		explosion_radius
+		explosion_radius,
+		digs
 	)
 
 	_cooldown_left_seconds = cooldown_seconds
@@ -145,26 +234,27 @@ func _spawn_projectile_visual(
 	projectile_radius: float,
 	raycast_hit: Dictionary,
 	hit_damage: float,
-	explosion_radius: float
+	explosion_radius: float,
+	digs: bool
 ) -> void:
 	var projectile_visual: ShootProjectileVisual = (
 		ShootProjectileVisualScene.instantiate() as ShootProjectileVisual
 	)
 	if projectile_visual == null:
-		_apply_shot_impact(raycast_hit, hit_damage, target_position, explosion_radius)
+		_apply_shot_impact(raycast_hit, hit_damage, target_position, explosion_radius, digs)
 		return
 
 	var world_root: Node = get_tree().current_scene
 	if world_root == null:
 		projectile_visual.free()
-		_apply_shot_impact(raycast_hit, hit_damage, target_position, explosion_radius)
+		_apply_shot_impact(raycast_hit, hit_damage, target_position, explosion_radius, digs)
 		return
 
 	world_root.add_child(projectile_visual)
 	projectile_visual.travel_speed = projectile_speed
 	projectile_visual.launch(start_position, target_position, projectile_radius)
 	projectile_visual.arrived.connect(
-		_apply_shot_impact.bind(raycast_hit, hit_damage, target_position, explosion_radius)
+		_apply_shot_impact.bind(raycast_hit, hit_damage, target_position, explosion_radius, digs)
 	)
 
 
@@ -172,11 +262,13 @@ func _apply_shot_impact(
 	raycast_hit: Dictionary,
 	hit_damage: float,
 	hit_position: Vector3,
-	explosion_radius: float
+	explosion_radius: float,
+	digs: bool
 ) -> void:
 	var direct_hit: Damageable = _apply_damage_at_hit(raycast_hit, hit_damage)
 	_apply_splash_damage(hit_position, explosion_radius, hit_damage, direct_hit)
-	_apply_terrain_explosion(hit_position, explosion_radius)
+	if digs:
+		_apply_terrain_explosion(hit_position, explosion_radius)
 	_spawn_explosion_effect(hit_position, explosion_radius)
 
 

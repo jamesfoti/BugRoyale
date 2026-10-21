@@ -7,5 +7,5 @@ ambient_light_source = 2
 ambient_light_color = Color(0.55, 0.58, 0.65, 1)
 ambient_light_energy = 0.35
 tonemap_mode = 2
-ssao_enabled = true
-glow_enabled = true
+ssao_enabled = false
+glow_enabled = false

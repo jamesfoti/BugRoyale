@@ -64,6 +64,26 @@ static func is_weapon(item: Item) -> bool:
 	return item in WEAPON_ITEMS
 
 
+## Weapons that aim through a scope: the field of view (degrees) of the scoped view, and the
+## reticle drawn over it. Everything else aims over the shoulder.
+const WEAPON_SCOPES: Dictionary = {
+	Item.WEAPON_SNIPER: {"fov": 9.0, "style": "sniper"},
+	Item.WEAPON_SNIPER_2: {"fov": 13.0, "style": "sniper"},
+	# The AK carries a 2.5x optic: the scoped assault rifle.
+	Item.WEAPON_AK: {"fov": 28.0, "style": "holo"},
+}
+
+
+## Scoped field of view in degrees, or 0 for a weapon without a scope.
+static func scope_fov(item: Item) -> float:
+	return float(WEAPON_SCOPES.get(item, {}).get("fov", 0.0))
+
+
+## "sniper" (crosshair with range marks) or "holo" (ring and dot); "" without a scope.
+static func scope_style(item: Item) -> String:
+	return String(WEAPON_SCOPES.get(item, {}).get("style", ""))
+
+
 static func weapon_mesh_name(item: Item) -> String:
 	match item:
 		Item.WEAPON_AK:
