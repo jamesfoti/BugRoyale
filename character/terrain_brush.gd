@@ -13,6 +13,8 @@ enum EditMode {
 @export var brush_radius: float = 1.5
 ## Seconds between brush stamps while holding LMB.
 @export var stroke_interval: float = 0.05
+## What ADD builds with: the map's own ground, or a placed material such as stone or sand.
+@export var add_material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
 
 @onready var _cursor: TerrainEditCursor = $TerrainEditCursor
 
@@ -42,6 +44,14 @@ func get_edit_mode() -> EditMode:
 	return _mode
 
 
+func set_add_material(material: TerrainMaterials.Kind) -> void:
+	add_material = material
+
+
+func get_add_material() -> TerrainMaterials.Kind:
+	return add_material
+
+
 func _process(delta: float) -> void:
 	if get_tree().paused or _mode == EditMode.OFF:
 		_cursor.hide_cursor()
@@ -65,7 +75,8 @@ func _process(delta: float) -> void:
 		_cursor.show_at(
 			_hover_hit.position,
 			_hover_hit.normal,
-			_mode == EditMode.ADD
+			_mode == EditMode.ADD,
+			add_material
 		)
 		_process_paint_input(delta)
 		return
@@ -85,7 +96,8 @@ func _process(delta: float) -> void:
 	_cursor.show_at(
 		_hover_hit.position,
 		_hover_hit.normal,
-		_mode == EditMode.ADD
+		_mode == EditMode.ADD,
+		add_material
 	)
 
 	_process_paint_input(delta)
@@ -138,7 +150,7 @@ func _can_apply_edit() -> bool:
 
 func _apply_brush() -> void:
 	var hit_position: Vector3 = _hover_hit.position
-	_terrain.apply_brush(hit_position, brush_radius, _mode == EditMode.ADD)
+	_terrain.apply_brush(hit_position, brush_radius, _mode == EditMode.ADD, add_material)
 
 
 func _cache_terrain() -> void:

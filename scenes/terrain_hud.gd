@@ -23,6 +23,8 @@ const CrosshairHudScene: PackedScene = preload("res://gui/crosshair_hud.tscn")
 
 var _expanded: bool = false
 var _edit_mode: TerrainBrush.EditMode = TerrainBrush.EditMode.OFF
+## What the pickaxe builds with in ADD mode (chosen in the inventory).
+var _add_material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
 var _debug_refresh_remaining: float = 0.0
 ## Performance breakdown under the FPS line; built in code because the HUD is inlined in
 ## several level scenes.
@@ -46,6 +48,7 @@ func _ready() -> void:
 	_setup_crosshair_hud()
 	_toggle_button.focus_mode = Control.FOCUS_NONE
 	_toggle_button.pressed.connect(_on_toggle_pressed)
+	_item_menu.add_material_selected.connect(set_add_material)
 	# Layout-only containers: the full-width bar grows as tall as the debug panel, and must not
 	# count as hovered UI (that blocks terrain painting). Buttons and the panel still catch input.
 	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -101,6 +104,17 @@ func set_edit_mode(mode: TerrainBrush.EditMode) -> void:
 	terrain_edit_mode_changed.emit(_edit_mode)
 	_apply_edit_mode_to_brush()
 	sync_mouse_mode()
+
+
+func get_add_material() -> TerrainMaterials.Kind:
+	return _add_material
+
+
+func set_add_material(material: TerrainMaterials.Kind) -> void:
+	_add_material = material
+	_item_menu.set_add_material(material)
+	_update_edit_mode_ui()
+	_apply_edit_mode_to_brush()
 
 
 func sync_mouse_mode() -> void:
@@ -274,7 +288,9 @@ func _edit_mode_text() -> String:
 		TerrainBrush.EditMode.DESTROY:
 			return "Destroy (hold LMB)"
 		TerrainBrush.EditMode.ADD:
-			return "Add (hold LMB)"
+			if _add_material == TerrainMaterials.Kind.NATURAL:
+				return "Add (hold LMB)"
+			return "Add %s (hold LMB)" % TerrainMaterials.display_name(_add_material).to_lower()
 	return "Off"
 
 
@@ -283,6 +299,7 @@ func _apply_edit_mode_to_brush() -> void:
 		get_tree().get_first_node_in_group("terrain_brush") as TerrainBrush
 	)
 	if terrain_brush != null:
+		terrain_brush.set_add_material(_add_material)
 		terrain_brush.set_edit_mode(_edit_mode)
 
 

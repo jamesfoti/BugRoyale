@@ -385,12 +385,19 @@ func can_edit_at(world_position: Vector3) -> bool:
 	return edit_bounds.size == Vector3.ZERO or edit_bounds.has_point(world_position)
 
 
-func apply_brush(world_position: Vector3, radius: float, add_solid: bool) -> void:
+## Carves a sphere (add_solid false) or fills one, with the map's own ground or a placed
+## material (TerrainMaterials) that the terrain shader then shows instead of the ground.
+func apply_brush(
+	world_position: Vector3,
+	radius: float,
+	add_solid: bool,
+	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
+) -> void:
 	if not can_edit_at(world_position):
 		return
 	_edits.set_voxel_size(get_voxel_size())
 	var procedural_density: Callable = Callable(_get_bake_density(), "evaluate")
-	if not _edits.add_brush(world_position, radius, add_solid, procedural_density):
+	if not _edits.add_brush(world_position, radius, add_solid, procedural_density, material):
 		# Nothing changed (a shot that burst in mid-air, or re-carving an existing hole): the
 		# chunks would rebuild identical, so skip the mesh and collision rebuilds entirely.
 		return

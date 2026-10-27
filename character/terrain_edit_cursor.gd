@@ -26,7 +26,14 @@ func _ready() -> void:
 	visible = false
 
 
-func show_at(hit_position: Vector3, normal: Vector3, add_mode: bool) -> void:
+## In add mode the ring takes the colour of a placed material, so the player can see what the
+## pickaxe will build with before clicking.
+func show_at(
+	hit_position: Vector3,
+	normal: Vector3,
+	add_mode: bool,
+	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
+) -> void:
 	visible = true
 	var surface_up: Vector3 = normal.normalized()
 	var tangent: Vector3 = surface_up.cross(Vector3.UP)
@@ -41,7 +48,13 @@ func show_at(hit_position: Vector3, normal: Vector3, add_mode: bool) -> void:
 
 	if material_override is StandardMaterial3D:
 		var standard_material: StandardMaterial3D = material_override as StandardMaterial3D
-		standard_material.albedo_color = _add_color if add_mode else _destroy_color
+		var ring_color: Color = _destroy_color
+		if add_mode:
+			ring_color = _add_color
+			if material != TerrainMaterials.Kind.NATURAL:
+				ring_color = TerrainMaterials.color(material).lightened(0.25)
+				ring_color.a = _add_color.a
+		standard_material.albedo_color = ring_color
 
 
 func hide_cursor() -> void:

@@ -4,6 +4,8 @@ class_name PlayerItemMenu
 
 
 signal item_selected(item: PlayerItems.Item)
+## The player picked what the pickaxe builds with; emitted just before item_selected(PICKAXE_ADD).
+signal add_material_selected(material: TerrainMaterials.Kind)
 
 @onready var _toggle_button: Button = $ToggleButton
 @onready var _popup: PanelContainer = $Popup
@@ -15,7 +17,10 @@ signal item_selected(item: PlayerItems.Item)
 
 var _open: bool = false
 var _active_item: PlayerItems.Item = PlayerItems.Item.NONE
+var _add_material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
 var _weapon_buttons: Dictionary = {}
+## TerrainMaterials.Kind -> its "Pickaxe — add" button (NATURAL is the scene's PickaxeAddButton).
+var _material_buttons: Dictionary = {}
 
 
 func _ready() -> void:
@@ -32,7 +37,9 @@ func _ready() -> void:
 	_none_button.pressed.connect(_select.bind(PlayerItems.Item.NONE))
 	_torch_button.pressed.connect(_select.bind(PlayerItems.Item.TORCH))
 	_pickaxe_destroy_button.pressed.connect(_select.bind(PlayerItems.Item.PICKAXE_DESTROY))
-	_pickaxe_add_button.pressed.connect(_select.bind(PlayerItems.Item.PICKAXE_ADD))
+	_pickaxe_add_button.pressed.connect(_select_add_material.bind(TerrainMaterials.Kind.NATURAL))
+	_material_buttons[TerrainMaterials.Kind.NATURAL] = _pickaxe_add_button
+	_build_material_buttons()
 	_build_weapon_buttons()
 	_set_open(false)
 	_refresh_buttons()
@@ -53,6 +60,21 @@ func close_menu() -> void:
 func set_active_item(item: PlayerItems.Item) -> void:
 	_active_item = item
 	_refresh_buttons()
+
+
+func set_add_material(material: TerrainMaterials.Kind) -> void:
+	_add_material = material
+	_refresh_buttons()
+
+
+func get_add_material() -> TerrainMaterials.Kind:
+	return _add_material
+
+
+func _select_add_material(material: TerrainMaterials.Kind) -> void:
+	_add_material = material
+	add_material_selected.emit(material)
+	_select(PlayerItems.Item.PICKAXE_ADD)
 
 
 func _select(item: PlayerItems.Item) -> void:
@@ -83,10 +105,43 @@ func _refresh_buttons() -> void:
 		_pickaxe_destroy_button,
 		_active_item == PlayerItems.Item.PICKAXE_DESTROY
 	)
-	_reset_button_style(_pickaxe_add_button, _active_item == PlayerItems.Item.PICKAXE_ADD)
+	for material: TerrainMaterials.Kind in _material_buttons.keys():
+		var material_button: Button = _material_buttons[material] as Button
+		_reset_button_style(
+			material_button,
+			_active_item == PlayerItems.Item.PICKAXE_ADD and _add_material == material
+		)
 	for weapon_item: PlayerItems.Item in _weapon_buttons.keys():
 		var weapon_button: Button = _weapon_buttons[weapon_item] as Button
 		_reset_button_style(weapon_button, _active_item == weapon_item)
+
+
+## One "Pickaxe — add <material>" row per placed material, after the plain add-terrain button,
+## each with a swatch of the colour it builds in.
+func _build_material_buttons() -> void:
+	var buttons: Node = _pickaxe_add_button.get_parent()
+	var insert_index: int = _pickaxe_add_button.get_index() + 1
+	for material: TerrainMaterials.Kind in TerrainMaterials.PLACEABLE:
+		if material == TerrainMaterials.Kind.NATURAL:
+			continue
+		var row: HBoxContainer = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		var swatch: ColorRect = ColorRect.new()
+		swatch.color = TerrainMaterials.color(material)
+		swatch.custom_minimum_size = Vector2(18, 18)
+		swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(swatch)
+		var material_button: Button = Button.new()
+		material_button.text = "Pickaxe — add %s" % TerrainMaterials.display_name(material).to_lower()
+		material_button.focus_mode = Control.FOCUS_NONE
+		material_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		material_button.pressed.connect(_select_add_material.bind(material))
+		row.add_child(material_button)
+		buttons.add_child(row)
+		buttons.move_child(row, insert_index)
+		insert_index += 1
+		_material_buttons[material] = material_button
 
 
 func _build_weapon_buttons() -> void:

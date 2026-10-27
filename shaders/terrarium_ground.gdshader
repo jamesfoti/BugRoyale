@@ -62,6 +62,11 @@ void fragment() {
 	float rock = 1.0 - smoothstep(rock_slope_start, rock_slope_end, up);
 	base = mix(base, rock_color.rgb * (0.85 + 0.3 * grain), rock);
 
+	// Ground the player built from a placed material (dirt, stone, sand...) carries that
+	// material's colour in the vertex colour with alpha 0; natural ground (and a mesh with no
+	// vertex colours at all) is white with alpha 1.
+	base = mix(base, COLOR.rgb * (0.88 + 0.24 * grain), 1.0 - COLOR.a);
+
 	ALBEDO = base;
 	ROUGHNESS = 1.0;
 }

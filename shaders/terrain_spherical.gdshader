@@ -66,6 +66,11 @@ void fragment() {
 	float pole_snow = smoothstep(pole_snow_start, pole_snow_end, abs(sphere_dir.y));
 	base = mix(base, snow_color.rgb, pole_snow);
 
+	// Ground the player built from a placed material (dirt, stone, sand...) carries that
+	// material's colour in the vertex colour with alpha 0; natural ground (and a mesh with no
+	// vertex colours at all) is white with alpha 1.
+	base = mix(base, COLOR.rgb * (0.88 + 0.24 * noise), 1.0 - COLOR.a);
+
 	ALBEDO = base;
 }
 

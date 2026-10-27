@@ -31,7 +31,7 @@ const _CONTROLS_LINES: Array[String] = [
 	"Right click — Aim over the shoulder (any weapon; tap to toggle, hold to aim)",
 	"V / right stick click — Cycle zoom: shoulder, scope, closer scope, back out (scoped weapons)",
 	"Mouse wheel while scoped — Step the zoom in or out",
-	"Hold left click — Paint terrain (pickaxe equipped)",
+	"Hold left click — Paint terrain (pickaxe equipped; pick dirt, stone, sand, clay or gravel to build with under Inventory)",
 ]
 
 ## Dims whatever is behind the page. Off when the parent already has its own dimmer.

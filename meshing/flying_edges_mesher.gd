@@ -8,6 +8,9 @@ extends RefCounted
 class MeshResult:
 	var vertices: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
+	## Per vertex: the placed material on the solid side (TerrainMaterials.vertex_color, alpha 0),
+	## or plain white where the terrain shader draws its own ground.
+	var colors: PackedColorArray = PackedColorArray()
 	var indices: PackedInt32Array = PackedInt32Array()
 
 
@@ -83,6 +86,11 @@ static func build_mesh(
 	var stride_y: int = field.size.x
 	var stride_z: int = field.size.x * field.size.y
 
+	# Placed materials colour the surface; skipped (every vertex natural) while none are placed.
+	var material_edits: TerrainEdits = null
+	if density != null and density.terrain_edits != null and density.terrain_edits.has_materials():
+		material_edits = density.terrain_edits
+
 	var reader: _FieldReader = null
 	if density != null:
 		reader = _FieldReader.new()
@@ -146,7 +154,8 @@ static func build_mesh(
 						var lower_corner: Vector3i = Vector3i(x, y, z) + _EDGE_LOWER_CORNER[edge_id]
 						vertex_index = _create_edge_vertex(
 							values, lower_index, lower_corner, axis, stride_y, stride_z,
-							iso_level, grid_offset, world_step, center_offset, reader, result
+							iso_level, grid_offset, world_step, center_offset, reader,
+							material_edits, grid_world_origin, result
 						)
 						edge_vertex_index[key] = vertex_index
 					cell_edge_vertices[edge_id] = vertex_index
@@ -177,6 +186,8 @@ static func to_array_mesh(mesh_result: MeshResult) -> ArrayMesh:
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = mesh_result.vertices
 	arrays[Mesh.ARRAY_NORMAL] = mesh_result.normals
+	if mesh_result.colors.size() == mesh_result.vertices.size():
+		arrays[Mesh.ARRAY_COLOR] = mesh_result.colors
 	arrays[Mesh.ARRAY_INDEX] = mesh_result.indices
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
@@ -194,6 +205,8 @@ static func _create_edge_vertex(
 	world_step: float,
 	center_offset: Vector3,
 	reader: _FieldReader,
+	material_edits: TerrainEdits,
+	grid_world_origin: Vector3,
 	result: MeshResult
 ) -> int:
 	var axis_step: Vector3i = Vector3i.ZERO
@@ -220,6 +233,17 @@ static func _create_edge_vertex(
 	var grid_pos: Vector3 = global_lower + Vector3(axis_step) * t
 	var index: int = result.vertices.size()
 	result.vertices.append(grid_pos * world_step - center_offset)
+
+	# The vertex shows the material of the sample on its solid side.
+	var vertex_color: Color = TerrainMaterials.NATURAL_VERTEX_COLOR
+	if material_edits != null:
+		var solid_corner: Vector3 = global_lower
+		if lower_value >= iso:
+			solid_corner += Vector3(axis_step)
+		vertex_color = TerrainMaterials.vertex_color(
+			material_edits.material_at(grid_world_origin + solid_corner * world_step)
+		)
+	result.colors.append(vertex_color)
 
 	if reader != null:
 		var upper_corner: Vector3i = lower_corner + axis_step
