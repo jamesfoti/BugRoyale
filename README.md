@@ -28,7 +28,7 @@ Build
 powershell -ExecutionPolicy Bypass -File tools/export_desktop.ps1
 ```
 
-Exports `builds/windows/BugRoyale.exe` (plus a zip) and `builds/macos/BugRoyale.zip`,
+Exports `builds/windows/BugRoyale.exe` and `builds/macos/BugRoyale.zip` (the .app),
 downloading the Godot export templates on first run. Pass `-WindowsOnly` or `-MacOSOnly` for
 one platform. Windows and macOS are the only supported platforms; the builds folder is not
 committed.
@@ -44,7 +44,7 @@ powershell -ExecutionPolicy Bypass -File tools/release.ps1
 ```
 
 This builds both platforms, tags the commit `v<version>` and creates a GitHub release
-(via the `gh` CLI) with the Windows exe, the Windows zip and the macOS zip attached.
+(via the `gh` CLI) with the Windows exe and the macOS zip attached.
 
 Tools
 -----

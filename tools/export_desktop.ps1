@@ -23,16 +23,11 @@ Ensure-Godot -RequiredTemplates $requiredTemplates
 if ($exportWindows) {
 	$windowsDir = Join-Path $ProjectRoot "builds\windows"
 	$windowsExe = Join-Path $windowsDir "BugRoyale.exe"
-	$windowsZip = Join-Path $windowsDir "BugRoyale.zip"
+	# The game data is embedded, so the exe is the whole game.
 	Invoke-GodotExport `
 		-PresetName "Windows Desktop" `
 		-ExportPath $windowsExe
-	if (Test-Path $windowsZip) {
-		Remove-Item $windowsZip -Force
-	}
-	Compress-Archive -Path $windowsExe -DestinationPath $windowsZip -CompressionLevel Optimal
 	Write-Host "Windows build complete: builds\windows\BugRoyale.exe"
-	Write-Host "Windows zip for release: builds\windows\BugRoyale.zip"
 }
 
 if ($exportMacOS) {

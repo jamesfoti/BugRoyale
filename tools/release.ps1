@@ -1,8 +1,8 @@
 # Build both platforms and publish them as a GitHub release.
 #
 # The version comes from config/version in project.godot. The release is tagged v<version> on
-# the current commit, and the Windows exe, the Windows zip and the macOS zip are attached as
-# assets, so the game can be downloaded straight from the Releases page.
+# the current commit, and the Windows exe and the macOS app zip are attached as assets, so the
+# game can be downloaded straight from the Releases page.
 #
 # Needs the GitHub CLI (gh) signed in, and a clean, pushed working tree.
 param(
@@ -64,7 +64,6 @@ try {
 
 	$assets = @(
 		(Join-Path $ProjectRoot "builds\windows\BugRoyale.exe"),
-		(Join-Path $ProjectRoot "builds\windows\BugRoyale.zip"),
 		(Join-Path $ProjectRoot "builds\macos\BugRoyale.zip")
 	)
 	foreach ($asset in $assets) {
@@ -72,8 +71,7 @@ try {
 			throw "Missing build output: $asset"
 		}
 	}
-	# Asset filenames must be unique within a release and both zips are BugRoyale.zip, so the
-	# assets are staged under platform-specific names.
+	# Assets are staged under versioned, platform-specific filenames.
 	$staging = Join-Path $env:TEMP "BugRoyale-release-$version"
 	if (Test-Path $staging) {
 		Remove-Item -Path $staging -Recurse -Force
@@ -81,7 +79,6 @@ try {
 	New-Item -ItemType Directory -Force -Path $staging | Out-Null
 	$labelled = @(
 		(Join-Path $staging "BugRoyale-$version-windows.exe"),
-		(Join-Path $staging "BugRoyale-$version-windows.zip"),
 		(Join-Path $staging "BugRoyale-$version-macos.zip")
 	)
 	for ($index = 0; $index -lt $assets.Count; $index++) {
