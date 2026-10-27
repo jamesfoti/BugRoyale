@@ -17,6 +17,20 @@ param(
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
+# Windows PowerShell 5.1 turns anything a native command writes to stderr into a terminating
+# error under "Stop", even when the command succeeded (git warnings, gh's "not found"). Native
+# calls run through here and are judged by their exit code instead.
+function Invoke-Native {
+	param([scriptblock]$Command)
+	$previous = $ErrorActionPreference
+	$ErrorActionPreference = "Continue"
+	try {
+		& $Command 2>&1 | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }
+	} finally {
+		$ErrorActionPreference = $previous
+	}
+}
+
 $projectFile = Get-Content (Join-Path $ProjectRoot "project.godot")
 $versionLine = $projectFile | Where-Object { $_ -match '^config/version="(.+)"$' } | Select-Object -First 1
 if (-not $versionLine) {
@@ -28,18 +42,18 @@ $tag = "v$version"
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 	throw "The GitHub CLI (gh) is not installed: https://cli.github.com/"
 }
-gh auth status *> $null
-if ($LASTEXITCODE -ne 0) {
+$login = Invoke-Native { gh api user -q .login }
+if ($LASTEXITCODE -ne 0 -or -not $login) {
 	throw "gh is not signed in; run 'gh auth login' first."
 }
 
 Push-Location $ProjectRoot
 try {
-	$dirty = git status --porcelain
+	$dirty = Invoke-Native { git status --porcelain }
 	if ($dirty) {
 		throw "Commit or stash your changes first; the release tags the current commit."
 	}
-	$unpushed = git log --oneline "@{u}..HEAD" 2>$null
+	$unpushed = Invoke-Native { git log --oneline "@{u}..HEAD" }
 	if ($unpushed) {
 		throw "Push the current branch first; the release tags the current commit."
 	}
@@ -69,22 +83,23 @@ try {
 		$Notes = git log -1 --pretty=%s
 	}
 
-	gh release view $tag *> $null
-	$exists = ($LASTEXITCODE -eq 0)
+	$existingTags = @(Invoke-Native { gh release list --json tagName -q ".[].tagName" })
+	$exists = $existingTags -contains $tag
 	if ($exists -and -not $Overwrite) {
 		throw "Release $tag already exists. Bump config/version in project.godot, or pass -Overwrite to replace its assets."
 	}
 	if ($exists) {
 		Write-Host "Replacing assets on release $tag ..."
-		gh release upload $tag $labelled --clobber
+		Invoke-Native { gh release upload $tag $labelled --clobber }
 	} else {
 		Write-Host "Creating release $tag ..."
-		gh release create $tag $labelled --title "BugRoyale $version" --notes $Notes
+		Invoke-Native { gh release create $tag $labelled --title "BugRoyale $version" --notes $Notes }
 	}
 	if ($LASTEXITCODE -ne 0) {
 		throw "gh release failed."
 	}
-	Write-Host "Published: $(gh release view $tag --json url -q .url)"
+	$url = Invoke-Native { gh release view $tag --json url -q .url }
+	Write-Host "Published: $url"
 } finally {
 	Pop-Location
 }
