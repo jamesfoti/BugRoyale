@@ -72,12 +72,21 @@ try {
 			throw "Missing build output: $asset"
 		}
 	}
-	# Same base name on both platforms, so label the assets by platform.
+	# Asset filenames must be unique within a release and both zips are BugRoyale.zip, so the
+	# assets are staged under platform-specific names.
+	$staging = Join-Path $env:TEMP "BugRoyale-release-$version"
+	if (Test-Path $staging) {
+		Remove-Item -Path $staging -Recurse -Force
+	}
+	New-Item -ItemType Directory -Force -Path $staging | Out-Null
 	$labelled = @(
-		"$($assets[0])#BugRoyale-$version-windows.exe",
-		"$($assets[1])#BugRoyale-$version-windows.zip",
-		"$($assets[2])#BugRoyale-$version-macos.zip"
+		(Join-Path $staging "BugRoyale-$version-windows.exe"),
+		(Join-Path $staging "BugRoyale-$version-windows.zip"),
+		(Join-Path $staging "BugRoyale-$version-macos.zip")
 	)
+	for ($index = 0; $index -lt $assets.Count; $index++) {
+		Copy-Item -Path $assets[$index] -Destination $labelled[$index] -Force
+	}
 
 	if (-not $Notes) {
 		$Notes = git log -1 --pretty=%s
@@ -98,6 +107,7 @@ try {
 	if ($LASTEXITCODE -ne 0) {
 		throw "gh release failed."
 	}
+	Remove-Item -Path $staging -Recurse -Force
 	$url = Invoke-Native { gh release view $tag --json url -q .url }
 	Write-Host "Published: $url"
 } finally {
