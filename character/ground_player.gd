@@ -134,7 +134,6 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	if terrain == null or not _spawned:
 		return
-
 	if _terrain_focus:
 		_want_jump = false
 		_want_climb_toggle = false
@@ -482,10 +481,14 @@ func _apply_flight(_delta: float, movement_direction: Vector3) -> void:
 
 # --- Directions -------------------------------------------------------------------------------
 
+## Where the bug's model faces. VisualRoot carries a rest rotation (the skins face +Z, so the
+## scenes turn the root 180 degrees); undo it first, or this returns the direction behind the bug
+## and feeding it back into _align_visual_to_facing makes the model twitch every frame.
 func _get_flat_forward() -> Vector3:
-	var forward: Vector3 = (-_visual_root.global_basis.z).slide(_surface_up)
+	var facing_basis: Basis = _visual_root.global_basis * _visual_rest_basis.inverse()
+	var forward: Vector3 = (-facing_basis.z).slide(_surface_up)
 	if forward.length_squared() < _MIN_DIR_LEN_SQ:
-		forward = _visual_root.global_basis.x.slide(_surface_up)
+		forward = facing_basis.x.slide(_surface_up)
 	if forward.length_squared() < _MIN_DIR_LEN_SQ:
 		return Vector3.FORWARD
 	return forward.normalized()
