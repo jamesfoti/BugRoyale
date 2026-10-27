@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://dm3y304nef4ts" path="res://terrain/terrarium_room.gd" id="1"]
 [ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="2"]
 [ext_resource type="Environment" path="res://materials/interior_env.tres" id="3"]
-[ext_resource type="PackedScene" uid="uid://glassbox01" path="res://props/glass_box/glass_box.tscn" id="3_1mhv0"]
+[ext_resource type="PackedScene" uid="uid://cxwlkhosg4rhf" path="res://props/glass_box/glass_box.tscn" id="3_1mhv0"]
 [ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="4"]
 [ext_resource type="Script" uid="uid://drygdah0ax6cu" path="res://props/glass_box/glass_box.gd" id="4_cgglp"]
 [ext_resource type="PackedScene" uid="uid://dnitu1aqqnorc" path="res://gui/player_item_menu.tscn" id="5"]

@@ -1,68 +1,45 @@
 BugRoyale
-=======================
+=========
 
-A Godot 4.6 technical demo: walk on a procedurally generated spherical celestial body and paint terrain in real time. Terrain is pure GDScript (density field + Flying Edges mesher + chunked rebuilds) with no Voxel Tools dependency.
+Battle of the bugs: a third-person shooter where you are an inch tall. Every map is a slice
+of the human world at bug scale, built procedurally in GDScript on a voxel terrain you can dig
+and climb. Made with Godot 4.7.
 
-**Target platforms:** Desktop and console-style builds. This is the supported experience.
+Play
+----
 
-## Table of contents
+- **Bugs:** Ant Warrior, Termite Soldier, Wasp (flies), Trapdoor Spider.
+- **Maps:** Celestial Body, Terrarium, Fish Bowl, Crawlspace, Backyard Garden.
+- **Modes:** Attack of the Hornets (co-op waves), Ants vs Ants (team deathmatch),
+  Battle Royale (rising flood), Cordyceps Royale (a spore storm turns the fallen into husks
+  that hunt you), Explore.
 
-- [Features](#features)
-- [Requirements](#requirements)
-- [Running locally](#running-locally)
-- [Performance](#performance)
-- [Web export (experimental)](#web-export-experimental)
-- [Credits](#credits)
+Controls are listed under Settings in the main and pause menus.
 
-Features
------------
+Run
+---
 
-- Spherical procedural terrain with noise, ravines, and caves
-- Procedural grass, dirt, rock, and polar snow coloring (shader-based)
-- Chunked mesh generation with threaded rebuilds on desktop
-- Hold-to-paint terrain editing (destroy / add modes)
-- Procedural asteroids that impact celestial bodies and carve craters
-- Four playable bug classes (Ant Warrior, Termite Soldier, Wasp, Trapdoor Spider; models generated in Blender by `tools/blender/create_bugs.py`) with orbit camera, torch, pickaxe, and weapons
-- Debug HUD (FPS, position, edit mode)
-- Pause menu with controls reference
+Open the project in Godot 4.7 and press Play. The main scene is `scenes/main_menu.tscn`.
 
-Note: This is a demo project. Gameplay is minimal by design; the focus is terrain generation and editing. In-game controls are listed in the pause menu.
-
-Requirements
---------------
-
-- [Godot 4.6](https://godotengine.org/) (standard build; no custom modules)
-- Desktop: Forward+ renderer (default)
-
-Running locally
----------------
-
-1. Open the project in Godot 4.6.
-2. Run the main scene: `scenes/celestial_body_test.tscn` (or start from `scenes/main_menu.tscn`).
-
-Performance
--------------
-
-On desktop, terrain meshing runs on worker threads while you paint; expect ~60 FPS on a mid-range PC.
-
-Web export (experimental)
----------------------------
-
-Web and GitHub Pages builds are **not** maintained to the same standard as desktop. Shaders, threading, input, and rendering may differ or break in the browser. The game is intended for desktop and console distribution only.
-
-If you still want to try a browser build:
-
-- `builds/github/` — static site for GitHub Pages (may be outdated or broken)
-- `builds/itch/BugRoyale-web.zip` — browser build for itch.io upload
+Build
+-----
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/export_web.ps1
+powershell -ExecutionPolicy Bypass -File tools/export_desktop.ps1
 ```
 
-GitHub Pages workflow (`.github/workflows/deploy-pages.yml`) may still run on push, but there is no guarantee the result matches the desktop game.
+Exports `builds/windows/BugRoyale.exe` (plus a zip) and `builds/macos/BugRoyale.zip`,
+downloading the Godot export templates on first run. Pass `-WindowsOnly` or `-MacOSOnly` for
+one platform. Windows and macOS are the only supported platforms; the builds folder is not
+committed.
+
+Tools
+-----
+
+Bug models are generated in Blender by `tools/blender/create_bugs.py`.
 
 Credits
---------------
+-------
 
 Textures from https://ambientcg.com/  
-Sound effects partly from https://sonniss.com/gameaudiogdc  
+Sound effects partly from https://sonniss.com/gameaudiogdc

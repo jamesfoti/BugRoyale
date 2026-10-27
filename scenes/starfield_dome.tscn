@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://starfielddome01"]
+[gd_scene load_steps=4 format=3 uid="uid://b8my1v4fe7gfu"]
 
 [ext_resource type="Script" path="res://scenes/starfield_dome.gd" id="1"]
 [ext_resource type="Material" path="res://materials/starfield_dome.tres" id="2"]

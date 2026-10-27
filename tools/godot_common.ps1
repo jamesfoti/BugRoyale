@@ -1,15 +1,21 @@
-# Shared Godot editor + export template setup for build scripts.
+# Shared Godot editor + export template setup for the desktop build script.
 $script:ProjectRoot = Split-Path -Parent $PSScriptRoot
 $script:GodotDir = Join-Path $PSScriptRoot "godot"
-$script:GodotExe = Join-Path $GodotDir "Godot_v4.7.2-stable_win64.exe"
 $script:GodotVersion = "4.7.2-stable"
+$script:GodotExe = Join-Path $GodotDir "Godot_v$GodotVersion`_win64.exe"
+# An editor already installed beside the project (C:\Dev\Godot_v4.7.2-stable_win64) is used
+# before anything is downloaded.
+$script:SiblingGodotExe = Join-Path (Split-Path -Parent $ProjectRoot) "Godot_v$GodotVersion`_win64\Godot_v$GodotVersion`_win64.exe"
+if (-not (Test-Path $GodotExe) -and (Test-Path $SiblingGodotExe)) {
+	$script:GodotExe = $SiblingGodotExe
+}
 $script:TemplatesDir = Join-Path $env:APPDATA "Godot\export_templates\4.7.2.stable"
 # Invoke-WebRequest is many times slower in Windows PowerShell with its progress bar on.
 $ProgressPreference = "SilentlyContinue"
 
 function Ensure-Godot {
 	param(
-		[string[]]$RequiredTemplates = @("web_nothreads_release.zip")
+		[string[]]$RequiredTemplates = @("windows_release_x86_64.exe", "macos.zip")
 	)
 
 	if (-not (Test-Path $GodotExe)) {

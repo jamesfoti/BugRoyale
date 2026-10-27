@@ -1,4 +1,4 @@
-# Build Windows and macOS desktop exports.
+# Build the Windows and macOS exports into builds/ (the only supported platforms).
 param(
 	[switch]$WindowsOnly,
 	[switch]$MacOSOnly
@@ -32,7 +32,7 @@ if ($exportWindows) {
 	}
 	Compress-Archive -Path $windowsExe -DestinationPath $windowsZip -CompressionLevel Optimal
 	Write-Host "Windows build complete: builds\windows\BugRoyale.exe"
-	Write-Host "Windows zip for GitHub: builds\windows\BugRoyale.zip"
+	Write-Host "Windows zip for release: builds\windows\BugRoyale.zip"
 }
 
 if ($exportMacOS) {

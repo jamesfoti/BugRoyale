@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://gametorchprops01"]
+[gd_scene load_steps=13 format=3 uid="uid://bl8js7tcbfpid"]
 
 [ext_resource type="PackedScene" path="res://props/torch.glb" id="1"]
 [ext_resource type="Script" path="res://props/torch.gd" id="2"]

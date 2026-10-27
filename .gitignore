@@ -1,12 +1,10 @@
 .godot/
 _tmp_*/
-builds/github/*.import
 build/
 tools/godot/
 builds/windows/*.import
 builds/windows/*.exe
 builds/macos/*.import
-builds/itch/*.zip
 .cursor/
 
 # Blender auto-backups

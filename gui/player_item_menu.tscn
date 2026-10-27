@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://playeritemmenu01"]
+[gd_scene load_steps=2 format=3 uid="uid://e0bvlu5c7saa"]
 
 [ext_resource type="Script" path="res://gui/player_item_menu.gd" id="1"]
 

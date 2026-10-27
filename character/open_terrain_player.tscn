@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://y3xiicesos7"]
+[gd_scene format=3 uid="uid://dk7l86mrn5sy7"]
 
 [ext_resource type="Script" path="res://character/open_terrain_player.gd" id="1"]
 [ext_resource type="PackedScene" path="res://character/ant/skins/soldier_ant.tscn" id="2"]
