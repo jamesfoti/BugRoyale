@@ -5,6 +5,13 @@ Battle of the bugs: a third-person shooter where you are an inch tall. Every map
 of the human world at bug scale, built procedurally in GDScript on a voxel terrain you can dig
 and climb. Made with Godot 4.7.
 
+- [Play](#play)
+- [Run](#run)
+- [Build](#build)
+- [Release](#release)
+- [Tools](#tools)
+- [Credits](#credits)
+
 Play
 ----
 
