@@ -19,7 +19,19 @@ Controls are listed under Settings in the main and pause menus.
 Run
 ---
 
-Open the project in Godot 4.7 and press Play. The main scene is `scenes/main_menu.tscn`.
+To play without Godot, grab the Windows exe or the macOS zip from the
+[Releases page](https://github.com/jamesfoti/BugRoyale/releases).
+
+To run from source:
+
+1. Install [Godot 4.7](https://godotengine.org/download) (the standard build, not .NET).
+2. Clone this repository.
+3. Open Godot, click **Import**, choose the `project.godot` file in the clone, then
+   **Import & Edit**. The first open takes a minute while Godot imports the models and
+   textures.
+4. Press **F5** (or the Play button, top right) to start at the main menu. **F6** runs
+   whatever scene is open instead, which is handy for jumping straight into a map such as
+   `scenes/garden_test.tscn`.
 
 Build
 -----
