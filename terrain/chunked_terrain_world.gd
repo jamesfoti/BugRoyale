@@ -109,6 +109,8 @@ class SettingsSnapshot:
 		generate_collision = value
 		_request_rebuild()
 @export var terrain_material: Material
+## Brush edits are refused outside this box (world space). Zero size: editable anywhere.
+var edit_bounds: AABB = AABB()
 
 @export_group("Bounds")
 @export var bounds_falloff_enabled: bool = true:
@@ -377,7 +379,15 @@ func end_continuous_edit() -> void:
 		_dispatch_pending_rebuilds()
 
 
+## Can the brush (dig, build, explosion) change the terrain here? A builder may fence off part
+## of the map (the garden's chain-link) by setting edit_bounds; a zero-size box allows anywhere.
+func can_edit_at(world_position: Vector3) -> bool:
+	return edit_bounds.size == Vector3.ZERO or edit_bounds.has_point(world_position)
+
+
 func apply_brush(world_position: Vector3, radius: float, add_solid: bool) -> void:
+	if not can_edit_at(world_position):
+		return
 	_edits.set_voxel_size(get_voxel_size())
 	var procedural_density: Callable = Callable(_get_bake_density(), "evaluate")
 	if not _edits.add_brush(world_position, radius, add_solid, procedural_density):

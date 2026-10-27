@@ -28,7 +28,9 @@ const _CONTROLS_LINES: Array[String] = [
 	"F3 — Debug overlay",
 	"Ctrl — Toggle terrain focus while editing (stay put, aim with mouse)",
 	"Left click — Shoot (weapon equipped)",
-	"Right click — Aim / zoom (weapon equipped)",
+	"Right click — Aim over the shoulder (any weapon; tap to toggle, hold to aim)",
+	"V / right stick click — Cycle zoom: shoulder, scope, closer scope, back out (scoped weapons)",
+	"Mouse wheel while scoped — Step the zoom in or out",
 	"Hold left click — Paint terrain (pickaxe equipped)",
 ]
 
@@ -43,14 +45,17 @@ const _CONTROLS_LINES: Array[String] = [
 @onready var _graphics_description: Label = $Center/Panel/Margin/SettingsPage/GraphicsDescription
 @onready var _controls_button: Button = $Center/Panel/Margin/SettingsPage/ControlsButton
 @onready var _back_button: Button = $Center/Panel/Margin/SettingsPage/BackButton
-@onready var _controls_text: Label = $Center/Panel/Margin/ControlsPage/ControlsText
+@onready var _controls_scroll: ScrollContainer = $Center/Panel/Margin/ControlsPage/ControlsScroll
+@onready var _controls_text: RichTextLabel = $Center/Panel/Margin/ControlsPage/ControlsScroll/ControlsText
 @onready var _controls_back_button: Button = $Center/Panel/Margin/ControlsPage/BackButton
 
 
 func _ready() -> void:
 	visible = false
 	_backdrop.visible = show_backdrop
-	_controls_text.text = "\n".join(_CONTROLS_LINES)
+	# A bulleted list: a line that wraps indents under its own text, not under the bullet.
+	_controls_text.text = "[ul]%s[/ul]" % "\n".join(_CONTROLS_LINES)
+	_controls_text.minimum_size_changed.connect(_fit_controls)
 	_graphics_option.clear()
 	_graphics_option.add_item("High", GraphicsItem.HIGH)
 	_graphics_option.add_item("Low", GraphicsItem.LOW)
@@ -58,6 +63,7 @@ func _ready() -> void:
 	_controls_button.pressed.connect(_show_controls_page)
 	_back_button.pressed.connect(close)
 	_controls_back_button.pressed.connect(_show_settings_page)
+	get_viewport().size_changed.connect(_fit_controls)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -104,7 +110,20 @@ func _show_settings_page() -> void:
 	_panel.custom_minimum_size = Vector2(360, 0)
 
 
+## The controls list scrolls instead of pushing the panel off a short window: the scroll box
+## takes the list's full height when it fits, and the window's height minus room for the title,
+## the Back button and the margins when it does not.
+func _fit_controls() -> void:
+	if not _controls_page.visible:
+		return
+	var available: float = get_viewport_rect().size.y - 180.0
+	_controls_scroll.custom_minimum_size.y = clampf(_controls_text.get_combined_minimum_size().y, 0.0, maxf(available, 120.0))
+
+
 func _show_controls_page() -> void:
 	_settings_page.visible = false
 	_controls_page.visible = true
 	_panel.custom_minimum_size = Vector2(420, 0)
+	# The label wraps to the scroll box's width on the next layout pass, so measure it then.
+	_fit_controls.call_deferred()
+	_controls_back_button.grab_focus()

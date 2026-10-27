@@ -1,0 +1,17 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/terrarium_ground.gdshader" id="1"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1")
+shader_parameter/soil_color = Color(0.46, 0.36, 0.24, 1)
+shader_parameter/soil_dark_color = Color(0.3, 0.22, 0.14, 1)
+shader_parameter/moss_color = Color(0.34, 0.58, 0.22, 1)
+shader_parameter/moss_bright_color = Color(0.48, 0.72, 0.27, 1)
+shader_parameter/rock_color = Color(0.44, 0.4, 0.34, 1)
+shader_parameter/moss_patch_size = 40.0
+shader_parameter/soil_grain_size = 6.0
+shader_parameter/moss_coverage = 0.97
+shader_parameter/rock_slope_start = 0.2
+shader_parameter/rock_slope_end = 0.4

@@ -13,6 +13,10 @@ const _RETARGET_SECONDS: float = 0.4
 const _REACTION_SECONDS: float = 0.55
 const _PROJECTILE_SPEED: float = 130.0
 const _VISUAL_REST_BASIS: Basis = Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1))
+## A husk's bite: melee, so no projectile, just a short reach.
+const HUSK_WEAPON: Dictionary = {"damage": 9.0, "cooldown": 0.8, "range": 2.4, "spread_degrees": 0.0, "pellets": 1, "melee": true}
+## How far inside the spore cloud's edge a clean bot likes to stay.
+const _STORM_MARGIN: float = 6.0
 
 ## Group whose members this bot hunts: "fighter" (players and bots of other teams) or "bird".
 var target_group: StringName = &"fighter"
@@ -20,6 +24,12 @@ var target_group: StringName = &"fighter"
 var leader: Node3D
 ## Head for high ground when rising water gets close (Battle Royale).
 var avoid_water: bool = false
+## Spore cloud (Cordyceps Royale): a clean bot keeps inside this circle, planar. INF = no cloud.
+var storm_center: Vector3 = Vector3.INF
+var storm_radius: float = INF
+## Taken by the fungus: slow, unarmed, bites anything clean, and walks straight through the
+## spores and the water.
+var husk: bool = false
 var detection_range: float = 70.0
 var character: LoadingScreen.PlayerCharacter = LoadingScreen.PlayerCharacter.ANT_WARRIOR
 var map: MapInfo
@@ -137,6 +147,34 @@ func respawn_at(position_on_map: Vector3) -> void:
 	set_physics_process(true)
 
 
+## The fungus takes the bot (Cordyceps Royale): it rises again on the fungus team at a fraction of
+## its speed, drops its gun for a bite, forgets the storm and the water, and senses the clean
+## from far off. Works on a bot that just died as well as a live one.
+func become_husk(fungus_team: int, speed_scale: float) -> void:
+	husk = true
+	damageable.team = fungus_team
+	damageable.revive()
+	_weapon = HUSK_WEAPON
+	_weapon_item = PlayerItems.Item.NONE
+	skin.set_equipped_weapon_from_item(PlayerItems.Item.NONE)
+	_move_speed *= speed_scale
+	avoid_water = false
+	leader = null
+	storm_center = Vector3.INF
+	storm_radius = INF
+	detection_range = maxf(detection_range, 60.0)
+	_target = null
+	_wander_point = Vector3.INF
+	_clear_route()
+	# A moment of stillness as it gets back up.
+	_cooldown = maxf(_cooldown, 1.5)
+	add_to_group("husk")
+	visible = true
+	collision_layer = MapInfo.FIGHTER_LAYER
+	_active = true
+	set_physics_process(true)
+
+
 func _physics_process(delta: float) -> void:
 	if not _active or map == null:
 		return
@@ -227,13 +265,25 @@ func _choose_goal(up: Vector3) -> Vector3:
 	var position_now: Vector3 = global_position
 	if avoid_water and map.water != null and position_now.y < map.water_surface_y() + 3.0:
 		return _wander_goal(map.water_surface_y() + 4.0)
+	# In (or nearly in) the spore cloud: nothing matters but getting back inside the circle.
+	if _fears_storm() and _storm_depth(position_now) > -_STORM_MARGIN:
+		return _via_ducts(_storm_refuge(up))
 	var target_too_low: bool = avoid_water and _target != null and map.water != null and _target.global_position.y < map.water_surface_y() + 2.0
-	if _target != null and not target_too_low:
+	# No chasing a husk into the spores.
+	var target_in_storm: bool = _fears_storm() and _target != null and _storm_depth(_target.global_position) > 1.0
+	if _target != null and not target_too_low and not target_in_storm:
 		var to_target: Vector3 = (_target.global_position - position_now).slide(up)
 		var distance: float = to_target.length()
-		var preferred: float = clampf(float(_weapon.get("range", 40.0)) * 0.45, 6.0, 25.0)
+		var melee: bool = bool(_weapon.get("melee", false))
+		var preferred: float = (
+			float(_weapon.get("range", 2.0)) * 0.6 if melee
+			else clampf(float(_weapon.get("range", 40.0)) * 0.45, 6.0, 25.0)
+		)
 		if distance > preferred * 1.3 or not _target_in_sight:
 			return _via_ducts(_target.global_position)
+		if melee:
+			# Keep pressing in; a bite has no standoff range.
+			return _target.global_position
 		if distance < preferred * 0.6:
 			return position_now - to_target
 		if _strafe_timer <= 0.0:
@@ -247,6 +297,44 @@ func _choose_goal(up: Vector3) -> Vector3:
 			return _via_ducts(leader.global_position)
 		return position_now
 	return _wander_goal(-INF)
+
+
+## Clean bots mind the spore cloud; husks walk through it.
+func _fears_storm() -> bool:
+	return not husk and storm_radius < INF and storm_center != Vector3.INF
+
+
+## How far into the spores a point is: positive outside the safe circle, negative inside.
+func _storm_depth(point: Vector3) -> float:
+	return Vector2(point.x - storm_center.x, point.z - storm_center.z).length() - storm_radius
+
+
+## A spot well inside the safe circle, straight in from where the bot stands.
+func _storm_refuge(up: Vector3) -> Vector3:
+	var outward: Vector3 = (global_position - storm_center).slide(up)
+	if outward.length_squared() < 0.01:
+		outward = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
+	var inside: float = maxf(storm_radius - _STORM_MARGIN * 2.0, 0.0)
+	var refuge: Vector3 = storm_center + outward.normalized() * inside
+	refuge.y = global_position.y
+	return refuge
+
+
+## A random ground point, the best of several at staying inside the spore cloud's safe circle.
+func _random_point(min_height: float) -> Vector3:
+	if not _fears_storm():
+		return map.random_surface_point(0.0, 0.0, min_height)
+	var best: Vector3 = Vector3.INF
+	var best_depth: float = INF
+	for _attempt: int in 6:
+		var candidate: Vector3 = map.random_surface_point(0.0, 0.0, min_height)
+		var candidate_depth: float = _storm_depth(candidate)
+		if candidate_depth < best_depth:
+			best_depth = candidate_depth
+			best = candidate
+		if candidate_depth < -_STORM_MARGIN * 2.0:
+			break
+	return best
 
 
 ## True when the bot and a point are on different sides of the ductwork (one inside, one out).
@@ -314,14 +402,15 @@ func _wander_goal(min_height: float) -> Vector3:
 		# a flooded entry).
 		if network != null and min_height == -INF and _duct_cooldown <= 0.0 and randf() < 0.35:
 			var inside_spot: Vector3 = network.random_interior_point()
-			if inside_spot != Vector3.INF:
+			var in_storm: bool = inside_spot != Vector3.INF and _fears_storm() and _storm_depth(inside_spot) > -_STORM_MARGIN
+			if inside_spot != Vector3.INF and not in_storm:
 				var route: PackedVector3Array = network.route(global_position, inside_spot)
 				if not route.is_empty() and not map.is_underwater(route[0] + Vector3.UP * 0.5):
 					_wander_point = inside_spot
 					_wander_timer = randf_range(12.0, 20.0)
 					_start_route(route, inside_spot)
 					return _follow_route()
-		_wander_point = map.random_surface_point(0.0, 0.0, min_height)
+		_wander_point = _random_point(min_height)
 		_wander_timer = randf_range(6.0, 11.0)
 		# Leaving the ducts means walking out the way in, not through a wall.
 		if network != null and network.is_inside(global_position + Vector3.UP * 0.6):
@@ -388,6 +477,10 @@ func _try_shoot(up: Vector3) -> void:
 	if not sight.is_empty() and sight.collider != _target:
 		return
 	_cooldown = float(_weapon.get("cooldown", 0.3)) * randf_range(0.9, 1.25)
+	if bool(_weapon.get("melee", false)):
+		# A bite lands straight away, no projectile.
+		_apply_hit(_target, float(_weapon.get("damage", 6.0)))
+		return
 	var base_direction: Vector3 = (aim_point - eye).normalized()
 	for _pellet: int in int(_weapon.get("pellets", 1)):
 		var direction: Vector3 = _spread(base_direction, float(_weapon.get("spread_degrees", 3.0)))

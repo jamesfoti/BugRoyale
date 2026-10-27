@@ -73,6 +73,12 @@ var _last_move_direction: Vector3 = Vector3.ZERO
 var _flying: bool = false
 var _want_climb_toggle: bool = false
 var _wall_push_time: float = 0.0
+## Cordyceps Royale: an infected bug reels. 0 = steady, 1 = staggering drunkenly off course.
+var control_wobble: float = 0.0
+## Pushing but going nowhere for this long means wedged; the bug gets shoved free.
+const _STUCK_SECONDS: float = 0.75
+var _stuck_time: float = 0.0
+var _last_position: Vector3 = Vector3.INF
 
 
 func is_terrain_focus_active() -> bool:
@@ -168,6 +174,7 @@ func _physics_process(delta: float) -> void:
 	elif movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
 		_align_visual_to_facing(delta, movement_direction)
 	_finish_physics_step(delta)
+	_watch_for_stuck(delta, movement_direction)
 	_update_animation(movement_direction)
 
 
@@ -191,7 +198,7 @@ func _update_surface(delta: float, movement_direction: Vector3) -> void:
 	if not _climbing:
 		# Walking is always upright; steep slopes act as walls. Holding forward into one for a
 		# moment (no key needed) starts climbing it.
-		_surface_up = _ease_direction(_surface_up, Vector3.UP, surface_follow_speed * delta)
+		_surface_up = Vector3.UP
 		var pushed_wall: Vector3 = _find_wall_pushed_forward(movement_direction)
 		if pushed_wall == Vector3.ZERO:
 			_wall_push_time = 0.0
@@ -207,7 +214,9 @@ func _update_surface(delta: float, movement_direction: Vector3) -> void:
 		var ground_normal: Vector3 = _sample_surface_normal(get_floor_normal())
 		if _angle_degrees(ground_normal, Vector3.UP) <= upright_ground_angle_degrees:
 			# Reached walkable ground (e.g. crested the top of a wall): pull up and walk on.
+			# The climb's upward momentum ends at the edge; it must not become a hop.
 			_detach()
+			velocity.y = minf(velocity.y, 0.0)
 			target_up = Vector3.UP
 		else:
 			target_up = ground_normal
@@ -264,6 +273,10 @@ func _find_wall_pushed_forward(movement_direction: Vector3) -> Vector3:
 	for collision_index: int in get_slide_collision_count():
 		var normal: Vector3 = get_slide_collision(collision_index).get_normal()
 		if _angle_degrees(normal, Vector3.UP) < climb_min_angle_degrees:
+			continue
+		# Bumping a head into something overhead (a mushroom cap, a joist) is not a wish to
+		# climb along its underside; ceilings take the climb key.
+		if normal.y < -0.25:
 			continue
 		if movement_direction.dot(-normal) < 0.5:
 			continue
@@ -325,9 +338,39 @@ func _cast(from: Vector3, to: Vector3) -> Dictionary:
 	return get_world_3d().direct_space_state.intersect_ray(query)
 
 
+## A bug wedged between colliders (an inside corner, under a cap, between a log and the dirt)
+## pushes but goes nowhere. After a moment it lets go of any climb and gets a nudge out along
+## whatever it is pressed against, plus a small hop, so no pinch holds it for good.
+func _watch_for_stuck(delta: float, movement_direction: Vector3) -> void:
+	var moved: float = global_position.distance_to(_last_position) if _last_position != Vector3.INF else INF
+	_last_position = global_position
+	var pushing: bool = movement_direction.length_squared() > _MIN_DIR_LEN_SQ and not _flying
+	if not pushing or moved > 0.3 * delta or get_slide_collision_count() == 0:
+		_stuck_time = 0.0
+		return
+	_stuck_time += delta
+	if _stuck_time < _STUCK_SECONDS:
+		return
+	_stuck_time = 0.0
+	var push: Vector3 = Vector3.ZERO
+	for collision_index: int in get_slide_collision_count():
+		push += get_slide_collision(collision_index).get_normal()
+	push = push.normalized() if push.length_squared() > _MIN_DIR_LEN_SQ else Vector3.UP
+	if _climbing:
+		_detach()
+	_wall_push_time = 0.0
+	global_position += push * 0.05
+	velocity = push * 2.5 + Vector3.UP * 2.0
+
+
 func _detach() -> void:
 	_climbing = false
 	_detached_time = 0.0
+	# Back to the world frame at once. Movement, gravity and jumps are all measured against the
+	# surface up, so easing it toward world up would let a bug that just let go (or jumped) keep
+	# moving along the old wall plane and sail into the air. The body still turns upright
+	# smoothly in _align_body_to_surface.
+	_surface_up = Vector3.UP
 
 
 func _align_body_to_surface(delta: float) -> void:
@@ -366,8 +409,11 @@ func _apply_movement(delta: float, movement_direction: Vector3) -> void:
 	var up: Vector3 = _surface_up
 	var vertical_speed: float = velocity.dot(up)
 	var planar: Vector3 = Vector3.ZERO
-	if movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
-		planar = movement_direction * move_speed
+	# The input direction was read against the surface up from the start of the frame; keep it
+	# in the current surface plane so a wall that was just let go of cannot steer upward.
+	var along_surface: Vector3 = movement_direction.slide(up)
+	if along_surface.length_squared() > _MIN_DIR_LEN_SQ:
+		planar = along_surface.normalized() * move_speed
 	elif not is_on_floor():
 		planar = velocity - up * vertical_speed
 	if is_on_floor() and vertical_speed < 0.0:
@@ -474,6 +520,11 @@ func _get_movement_direction() -> Vector3:
 	var direction: Vector3 = forward * forward_backward_input + right * left_right_input
 	if direction.length_squared() < _MIN_DIR_LEN_SQ:
 		return Vector3.ZERO
+	if control_wobble > 0.0:
+		# The fungus has the legs: the heading sways with two overlapping rhythms.
+		var seconds: float = Time.get_ticks_msec() * 0.001
+		var reel: float = (sin(seconds * 2.9) * 0.7 + sin(seconds * 7.3) * 0.3) * control_wobble * 1.1
+		direction = direction.rotated(_surface_up.normalized(), reel)
 	return direction.normalized()
 
 
@@ -512,7 +563,11 @@ func _is_terrain_collider(collider: Variant) -> bool:
 	if terrain == null or not (collider is Node):
 		return false
 	var node: Node = collider as Node
-	return terrain == node or terrain.is_ancestor_of(node)
+	if terrain == node or terrain.is_ancestor_of(node):
+		return true
+	# Built ground on the terrain layer (a raised bed's soil, a big mushroom's cap) counts too,
+	# or a spawn over it would fall back to the dirt height and land inside it.
+	return node is CollisionObject3D and ((node as CollisionObject3D).collision_layer & MapInfo.TERRAIN_LAYER) != 0
 
 
 ## Random spawn on a surface node that provides get_world_extents() and get_surface_height_at():
@@ -543,6 +598,21 @@ func _raycast_spawn_over(surface: Node3D) -> Dictionary:
 func respawn_random() -> void:
 	_cache_terrain_refs()
 	_apply_spawn(_find_random_surface_spawn())
+
+
+## "Stuck?" from the pause menu: drops the bug at a clear spot nearby, upright and still, with
+## any climb or flight forgotten. Health, items and the match carry on as they were.
+func unstick(spot: Vector3) -> void:
+	_climbing = false
+	_flying = false
+	_surface_up = Vector3.UP
+	_detached_time = 0.0
+	_wall_push_time = 0.0
+	_stuck_time = 0.0
+	_last_position = Vector3.INF
+	global_position = spot
+	global_basis = Basis.IDENTITY
+	velocity = Vector3.ZERO
 
 
 func _spawn_on_terrain() -> void:

@@ -4,7 +4,7 @@ class_name ModeCatalog
 ## and the loading screen adds the chosen mode's script to the loaded map.
 
 const MAPS: Dictionary = {
-	"battlefield": {"name": "Open Battlefield", "scene": "res://scenes/battlefield_terrain_test.tscn"},
+	"battlefield": {"name": "Backyard Garden", "scene": "res://scenes/garden_test.tscn"},
 	"celestial_body": {"name": "Celestial Body", "scene": "res://scenes/celestial_body_test.tscn"},
 	"terrarium": {"name": "Terrarium", "scene": "res://scenes/terrarium_test.tscn"},
 	"fishbowl": {"name": "Fish Bowl", "scene": "res://scenes/fishbowl_test.tscn"},
@@ -31,6 +31,12 @@ const MODES: Dictionary = {
 		"description": "12 bugs, one survivor. The map floods in stages, so keep to high ground. No respawns.",
 		"script": "res://modes/battle_royale.gd",
 		"maps": ["terrarium", "fishbowl", "crawlspace"],
+	},
+	"cordyceps_royale": {
+		"name": "Cordyceps Royale",
+		"description": "Battle Royale, but the storm is a cloud of Cordyceps spores. Bugs it takes come back as husks and hunt the clean. Last clean bug wins.",
+		"script": "res://modes/cordyceps_royale.gd",
+		"maps": ["battlefield", "terrarium", "fishbowl", "crawlspace"],
 	},
 	"explore": {
 		"name": "Explore",

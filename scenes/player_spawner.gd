@@ -34,6 +34,8 @@ func _spawn_player() -> void:
 	_attach_breath(player)
 	CharacterSkin.apply_class_stats(player, player.get_node_or_null("Damageable") as Damageable)
 	get_parent().add_child(player)
+	# Every playable map gets the minimap; it renders the real scene, so it needs no map data.
+	Minimap.attach(player as Node3D, get_parent())
 
 
 func _pick_player_scene() -> PackedScene:

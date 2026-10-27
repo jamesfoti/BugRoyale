@@ -64,19 +64,28 @@ static func is_weapon(item: Item) -> bool:
 	return item in WEAPON_ITEMS
 
 
-## Weapons that aim through a scope: the field of view (degrees) of the scoped view, and the
-## reticle drawn over it. Everything else aims over the shoulder.
+## Weapons that aim through a scope: the zoom ladder (fields of view in degrees, widest first;
+## the scope key and the wheel step through them) and the reticle drawn over the view.
+## Everything else aims over the shoulder only.
 const WEAPON_SCOPES: Dictionary = {
-	Item.WEAPON_SNIPER: {"fov": 9.0, "style": "sniper"},
-	Item.WEAPON_SNIPER_2: {"fov": 13.0, "style": "sniper"},
-	# The AK carries a 2.5x optic: the scoped assault rifle.
-	Item.WEAPON_AK: {"fov": 28.0, "style": "holo"},
+	Item.WEAPON_SNIPER: {"fovs": [18.0, 9.0], "style": "sniper"},
+	Item.WEAPON_SNIPER_2: {"fovs": [24.0, 13.0], "style": "sniper"},
+	# The AK carries a 2.5x optic: the scoped assault rifle, one step only.
+	Item.WEAPON_AK: {"fovs": [28.0], "style": "holo"},
 }
 
 
-## Scoped field of view in degrees, or 0 for a weapon without a scope.
-static func scope_fov(item: Item) -> float:
-	return float(WEAPON_SCOPES.get(item, {}).get("fov", 0.0))
+## Scoped fields of view in degrees, widest first; empty for a weapon without a scope.
+static func scope_fovs(item: Item) -> PackedFloat32Array:
+	return PackedFloat32Array(WEAPON_SCOPES.get(item, {}).get("fovs", []))
+
+
+## Field of view of one zoom step (1 = first), or 0 for a weapon without a scope.
+static func scope_fov(item: Item, level: int = 1) -> float:
+	var fovs: PackedFloat32Array = scope_fovs(item)
+	if fovs.is_empty():
+		return 0.0
+	return fovs[clampi(level, 1, fovs.size()) - 1]
 
 
 ## "sniper" (crosshair with range marks) or "holo" (ring and dot); "" without a scope.

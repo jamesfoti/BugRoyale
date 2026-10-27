@@ -85,10 +85,15 @@ const WEAPON_FIRE_PROFILE: Dictionary = {
 @export var move_spread_degrees: float = 1.2
 @export var airborne_spread_degrees: float = 2.0
 @export_range(0.0, 1.0, 0.05) var aim_spread_scale: float = 0.4
+## How long after the last shot the body keeps squaring up to the camera. Longer than any
+## weapon's cooldown, so the stance holds steady through a burst instead of flickering between
+## shots (which twists the body, and the camera with it, when strafing).
+@export var stance_hold_seconds: float = 1.0
 
 var _camera: Camera3D
 var _cooldown_left_seconds: float = 0.0
 var _shoot_visual_timer_seconds: float = 0.0
+var _stance_timer_seconds: float = 0.0
 var _bloom_degrees: float = 0.0
 
 
@@ -104,6 +109,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_cooldown_left_seconds = maxf(0.0, _cooldown_left_seconds - delta)
 	_shoot_visual_timer_seconds = maxf(0.0, _shoot_visual_timer_seconds - delta)
+	_stance_timer_seconds = maxf(0.0, _stance_timer_seconds - delta)
 	_bloom_degrees = maxf(0.0, _bloom_degrees - bloom_decay_per_second * delta)
 	# Automatic weapons keep firing while the button is held.
 	if Input.is_action_pressed(SHOOT_ACTION) and _can_accept_shoot_input():
@@ -120,9 +126,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		_try_shoot()
 
 
-## True for a moment after each shot (the skin plays its firing pose; the body faces the camera).
+## True while the trigger is held and for a while after the last shot: the body faces the camera.
+## Deliberately sticky, not per shot, so it never drops out between shots of a burst.
 func is_firing() -> bool:
-	return _shoot_visual_timer_seconds > 0.0 and PlayerItems.is_weapon(_get_equipped_weapon_item())
+	if not PlayerItems.is_weapon(_get_equipped_weapon_item()):
+		return false
+	if _stance_timer_seconds > 0.0:
+		return true
+	return Input.is_action_pressed(SHOOT_ACTION) and _can_accept_shoot_input()
 
 
 ## Half-angle of the cone the next shot can land in, in degrees (what the crosshair shows).
@@ -224,6 +235,7 @@ func _try_shoot() -> void:
 
 	_cooldown_left_seconds = cooldown_seconds
 	_shoot_visual_timer_seconds = maxf(cooldown_seconds * 0.8, 0.06)
+	_stance_timer_seconds = maxf(stance_hold_seconds, cooldown_seconds + 0.1)
 	_update_skin_shooting_state()
 
 

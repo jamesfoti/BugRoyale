@@ -62,6 +62,15 @@ static func from_scene(scene_root: Node) -> MapInfo:
 	elif info.world != null and info.world.has_method("get_world_extents"):
 		var size: Vector3 = info.world.get_world_extents()
 		info.bounds = AABB(info.world.global_position - size * 0.5, size).grow(-1.0)
+		# A builder may fence off part of the dirt (the garden's chain-link): play stays inside
+		# its footprint, keeping the terrain's own vertical range.
+		for bounds_node: Node in scene_root.get_tree().get_nodes_in_group("map_bounds"):
+			if bounds_node.has_method("get_play_bounds"):
+				var play: AABB = bounds_node.call("get_play_bounds")
+				info.bounds = AABB(
+					Vector3(play.position.x, info.bounds.position.y, play.position.z),
+					Vector3(play.size.x, info.bounds.size.y, play.size.z)
+				)
 		# A map with overhead structure (CrawlspaceBuilder) caps flight at its ceiling, which may
 		# sit well above the dirt's voxel volume; the playable box grows up to meet it.
 		for ceiling_node: Node in scene_root.get_tree().get_nodes_in_group("map_ceiling"):

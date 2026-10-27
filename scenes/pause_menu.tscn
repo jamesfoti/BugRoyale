@@ -59,6 +59,11 @@ horizontal_alignment = 1
 layout_mode = 2
 text = "Resume"
 
+[node name="StuckButton" type="Button" parent="Panel/Margin/MainMenu"]
+layout_mode = 2
+tooltip_text = "Wedged in something? Moves you to clear ground a few steps away."
+text = "Stuck?"
+
 [node name="SettingsButton" type="Button" parent="Panel/Margin/MainMenu"]
 layout_mode = 2
 text = "Settings"

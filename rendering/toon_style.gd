@@ -10,6 +10,9 @@ extends Node
 const TOON_SHADER: Shader = preload("res://shaders/toon_surface.gdshader")
 const TOON_TWO_SIDED_SHADER: Shader = preload("res://shaders/toon_surface_two_sided.gdshader")
 const OUTLINE_SHADER: Shader = preload("res://shaders/toon_outline.gdshader")
+## Render layer (bit 20) the outline quad lives on, so secondary cameras (the minimap) can
+## leave it out of their cull mask.
+const OUTLINE_RENDER_LAYER: int = 1 << 19
 
 var enabled: bool = true
 var outlines_enabled: bool = true
@@ -145,6 +148,7 @@ func _attach_outline(scene: Node) -> void:
 	# The vertex shader pins the quad to the screen, so it must never be culled.
 	quad.custom_aabb = AABB(Vector3.ONE * -1.0e6, Vector3.ONE * 2.0e6)
 	quad.ignore_occlusion_culling = true
+	quad.layers = OUTLINE_RENDER_LAYER
 	quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	scene.add_child(quad)
 	_outline_quad = quad

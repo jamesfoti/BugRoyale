@@ -3,11 +3,14 @@ class_name OrbitCamera
 ## Third-person shooter camera in the Fortnite mould: over the right shoulder whenever a weapon
 ## is out, pitch from straight down to well above the horizon, the arm collides with terrain and
 ## structure so the view never goes through a wall, scroll to zoom, hold middle mouse to orbit.
-## Right mouse aims: the camera tightens in and the field of view narrows; a scoped weapon
-## (see PlayerItems.scope_fov) instead goes to a first-person view through its scope.
+## Right mouse aims with any weapon: the camera tightens in over the shoulder and the field of
+## view narrows. A scoped weapon (see PlayerItems.scope_fovs) has a zoom ladder on top: the
+## scope key (V, or clicking the right stick) cycles shoulder view, each scope step, and back
+## out, the way a console right-stick click does; the wheel steps the zoom while scoped.
 
 
 const AIM_ACTION: StringName = &"aim"
+const SCOPE_ACTION: StringName = &"scope"
 const AIM_HOLD_THRESHOLD: float = 0.4
 
 @export_range(-90.0, 90.0, 0.1, "radians") var min_limit_x: float = -1.4
@@ -39,6 +42,8 @@ const AIM_HOLD_THRESHOLD: float = 0.4
 var _orbiting: bool = false
 var _aiming: bool = false
 var _toggled_aim: bool = false
+## Scoped weapons only: 0 = over the shoulder, 1.. = that step of the weapon's zoom ladder.
+var _scope_level: int = 0
 var _aiming_timer: float = 0.0
 var _aim_blend: float = 0.0
 var _shoulder_blend: float = 0.0
@@ -151,6 +156,16 @@ func is_scoped() -> bool:
 	return _scope_blend > 0.5
 
 
+## Current step of the weapon's zoom ladder: 0 over the shoulder, 1.. through the scope.
+func get_scope_level() -> int:
+	return _scope_level
+
+
+## Steps on the equipped weapon's zoom ladder (0 without a scope).
+func get_scope_level_count() -> int:
+	return PlayerItems.scope_fovs(_get_equipped_weapon_item()).size()
+
+
 func get_crosshair_screen_position(viewport_size: Vector2) -> Vector2:
 	var screen_center: Vector2 = viewport_size * 0.5
 	if _aim_blend <= 0.001:
@@ -166,6 +181,7 @@ func _update_aim_state(delta: float) -> void:
 	if not _can_use_aim():
 		_aiming = false
 		_toggled_aim = false
+		_scope_level = 0
 		_aiming_timer = 0.0
 		return
 
@@ -178,6 +194,21 @@ func _update_aim_state(delta: float) -> void:
 		if Input.is_action_just_pressed(AIM_ACTION):
 			_toggled_aim = false
 
+	# The scope key, on a scoped weapon, cycles the zoom ladder: shoulder, each scope step, and
+	# back to the shoulder. From the hip it goes straight to the first step (and stays, like a
+	# tapped aim).
+	var steps: int = get_scope_level_count()
+	if steps > 0 and InputMap.has_action(SCOPE_ACTION) and Input.is_action_just_pressed(SCOPE_ACTION):
+		if current_aim:
+			_scope_level = (_scope_level + 1) % (steps + 1)
+		else:
+			current_aim = true
+			_toggled_aim = true
+			_scope_level = 1
+	if not current_aim or steps == 0:
+		_scope_level = 0
+	_scope_level = mini(_scope_level, steps)
+
 	if current_aim:
 		_aiming_timer += delta
 	else:
@@ -187,10 +218,11 @@ func _update_aim_state(delta: float) -> void:
 
 func _update_aim_camera(delta: float) -> void:
 	var weapon_out: bool = _has_weapon_equipped()
-	var scope_fov: float = PlayerItems.scope_fov(_get_equipped_weapon_item()) if weapon_out else 0.0
-	var scoped: bool = _aiming and scope_fov > 0.0
+	var scope_fov: float = PlayerItems.scope_fov(_get_equipped_weapon_item(), _scope_level) if weapon_out else 0.0
+	var scoped: bool = _aiming and scope_fov > 0.0 and _scope_level > 0
 	if scoped:
-		_scope_fov = scope_fov
+		# Stepping the ladder eases between magnifications instead of snapping.
+		_scope_fov = scope_fov if _scope_fov <= 0.0 or _scope_blend < 0.5 else lerpf(_scope_fov, scope_fov, minf(1.0, 12.0 * delta))
 	_scope_blend = move_toward(_scope_blend, 1.0 if scoped else 0.0, scope_transition_speed * delta)
 	var target_blend: float = 1.0 if _aiming and weapon_out and not scoped else 0.0
 	_aim_blend = move_toward(_aim_blend, target_blend, aim_transition_speed * delta)
@@ -269,7 +301,8 @@ func _get_player_up() -> Vector3:
 func _can_use_aim() -> bool:
 	if get_tree().paused:
 		return false
-	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
+	# A headless server (automated runs) has no mouse to capture.
+	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 		return false
 	if _is_item_menu_open():
 		return false
@@ -306,6 +339,11 @@ func _apply_scroll_zoom(button_index: MouseButton) -> void:
 			direction = 1.0
 		_:
 			return
+	# Through a scope the wheel steps the magnification: up to zoom in, down to zoom out (and
+	# out of the scope at the bottom), instead of moving the third-person camera.
+	if _scope_level > 0:
+		_scope_level = clampi(_scope_level - int(direction), 0, get_scope_level_count())
+		return
 	_user_spring_length = clampf(
 		_user_spring_length + direction * scroll_zoom_step,
 		min_spring_length,

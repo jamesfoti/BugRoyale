@@ -89,9 +89,17 @@ layout_mode = 2
 text = "Controls"
 horizontal_alignment = 1
 
-[node name="ControlsText" type="Label" parent="Center/Panel/Margin/ControlsPage"]
+[node name="ControlsScroll" type="ScrollContainer" parent="Center/Panel/Margin/ControlsPage"]
 layout_mode = 2
-autowrap_mode = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ControlsText" type="RichTextLabel" parent="Center/Panel/Margin/ControlsPage/ControlsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
 
 [node name="BackButton" type="Button" parent="Center/Panel/Margin/ControlsPage"]
 layout_mode = 2

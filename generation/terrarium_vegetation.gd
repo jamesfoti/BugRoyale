@@ -355,23 +355,29 @@ func _grow_mushrooms(clusters: int) -> void:
 			var transform := Transform3D(basis, spot.position - up * 0.04)
 			_place(patch, transform, _vary(Color.WHITE, 0.08), cap_radius)
 			if cap_radius >= 0.75:
-				_add_mushroom_collision(transform, built, basis.get_scale().y)
+				_add_mushroom_collision(transform, built, basis.get_scale())
 
 
-## A cylinder for the stem and a flat one for the cap, both in the mushroom's own frame.
-func _add_mushroom_collision(transform: Transform3D, built: Dictionary, size: float) -> void:
+## A cylinder for the stem and a flat one for the cap, sized in world units under an unscaled
+## node. (Shapes under the mushroom's scaled transform were scaled a second time, which gave
+## every big mushroom an invisible stem and cap far wider than the one on screen: bugs walked
+## into walls they could not see and got wedged under them.)
+func _add_mushroom_collision(transform: Transform3D, built: Dictionary, scale: Vector3) -> void:
+	var width: float = maxf(scale.x, scale.z)
+	var height: float = scale.y
 	var stem := CylinderShape3D.new()
-	stem.radius = maxf(float(built["stem_radius"]) * size, 0.15)
-	stem.height = float(built["cap_y"]) * size
-	var prop: Prop = _add_prop("Mushroom", transform, stem, Transform3D(Basis.IDENTITY, Vector3(0.0, float(built["cap_y"]) * 0.5, 0.0)))
+	stem.radius = maxf(float(built["stem_radius"]) * width, 0.15)
+	stem.height = float(built["cap_y"]) * height
+	var unscaled := Transform3D(Basis(transform.basis.get_rotation_quaternion()), transform.origin)
+	var prop: Prop = _add_prop("Mushroom", unscaled, stem, Transform3D(Basis.IDENTITY, Vector3(0.0, stem.height * 0.5, 0.0)))
 	var cap := CylinderShape3D.new()
-	cap.radius = float(built["cap_radius"]) * size * 0.9
-	cap.height = maxf(float(built["cap_height"]) * size * 0.6, 0.2)
+	cap.radius = float(built["cap_radius"]) * width * 0.9
+	cap.height = maxf(float(built["cap_height"]) * height * 0.6, 0.2)
 	var cap_shape := CollisionShape3D.new()
 	cap_shape.shape = cap
-	cap_shape.position = Vector3(0.0, float(built["cap_y"]) + float(built["cap_height"]) * 0.3, 0.0)
+	cap_shape.position = Vector3(0.0, (float(built["cap_y"]) + float(built["cap_height"]) * 0.3) * height, 0.0)
 	prop.node.get_child(0).add_child(cap_shape)
-	prop.radius = float(built["cap_radius"]) * size
+	prop.radius = float(built["cap_radius"]) * width
 ## Slate rocks: noisy icospheres, flattened and half-buried, with convex collision.
 func _grow_rocks(count: int) -> void:
 	var rock: Dictionary = AsteroidMeshBuilder.build(_rng.randi(), 1.0, 2, 0.3)
