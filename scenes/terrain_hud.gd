@@ -25,6 +25,10 @@ var _expanded: bool = false
 var _edit_mode: TerrainBrush.EditMode = TerrainBrush.EditMode.OFF
 ## What the pickaxe builds with in ADD mode (chosen in the inventory).
 var _add_material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
+## Sculpting ball or grid-snapped block (inventory toggle, or the brush_shape key).
+var _brush_shape: TerrainBrush.Shape = TerrainBrush.Shape.SPHERE
+## Voxels per side of the placed block (the block_size_up / block_size_down keys).
+var _block_size: int = 2
 var _debug_refresh_remaining: float = 0.0
 ## Performance breakdown under the FPS line; built in code because the HUD is inlined in
 ## several level scenes.
@@ -49,6 +53,7 @@ func _ready() -> void:
 	_toggle_button.focus_mode = Control.FOCUS_NONE
 	_toggle_button.pressed.connect(_on_toggle_pressed)
 	_item_menu.add_material_selected.connect(set_add_material)
+	_item_menu.brush_shape_selected.connect(set_brush_shape)
 	# Layout-only containers: the full-width bar grows as tall as the debug panel, and must not
 	# count as hovered UI (that blocks terrain painting). Buttons and the panel still catch input.
 	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -83,6 +88,23 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F3:
 		_set_expanded(not _expanded)
 		get_viewport().set_input_as_handled()
+		return
+	if (
+		_edit_mode != TerrainBrush.EditMode.OFF
+		and InputMap.has_action("brush_shape")
+		and event.is_action_pressed("brush_shape")
+	):
+		toggle_brush_shape()
+		get_viewport().set_input_as_handled()
+		return
+	if _edit_mode == TerrainBrush.EditMode.OFF or _brush_shape != TerrainBrush.Shape.BLOCK:
+		return
+	if InputMap.has_action("block_size_up") and event.is_action_pressed("block_size_up"):
+		set_block_size(_block_size + 1)
+		get_viewport().set_input_as_handled()
+	elif InputMap.has_action("block_size_down") and event.is_action_pressed("block_size_down"):
+		set_block_size(_block_size - 1)
+		get_viewport().set_input_as_handled()
 
 
 func get_item_menu() -> PlayerItemMenu:
@@ -108,6 +130,35 @@ func set_edit_mode(mode: TerrainBrush.EditMode) -> void:
 
 func get_add_material() -> TerrainMaterials.Kind:
 	return _add_material
+
+
+func get_brush_shape() -> TerrainBrush.Shape:
+	return _brush_shape
+
+
+func set_brush_shape(brush_shape: TerrainBrush.Shape) -> void:
+	_brush_shape = brush_shape
+	_item_menu.set_brush_shape(brush_shape)
+	_update_edit_mode_ui()
+	_apply_edit_mode_to_brush()
+
+
+func toggle_brush_shape() -> void:
+	if _brush_shape == TerrainBrush.Shape.SPHERE:
+		set_brush_shape(TerrainBrush.Shape.BLOCK)
+	else:
+		set_brush_shape(TerrainBrush.Shape.SPHERE)
+
+
+func get_block_size() -> int:
+	return _block_size
+
+
+func set_block_size(size: int) -> void:
+	_block_size = clampi(size, TerrainBrush.MIN_BLOCK_SIZE, TerrainBrush.MAX_BLOCK_SIZE)
+	_item_menu.set_block_size(_block_size)
+	_update_edit_mode_ui()
+	_apply_edit_mode_to_brush()
 
 
 func set_add_material(material: TerrainMaterials.Kind) -> void:
@@ -284,13 +335,17 @@ func _edit_mode_display_text() -> String:
 
 
 func _edit_mode_text() -> String:
+	var block: bool = _brush_shape == TerrainBrush.Shape.BLOCK
+	var how: String = "click; [ ] size" if block else "hold LMB"
+	var block_text: String = "%d-voxel block" % _block_size
 	match _edit_mode:
 		TerrainBrush.EditMode.DESTROY:
-			return "Destroy (hold LMB)"
+			return "Destroy %s(%s)" % [block_text + " " if block else "", how]
 		TerrainBrush.EditMode.ADD:
-			if _add_material == TerrainMaterials.Kind.NATURAL:
-				return "Add (hold LMB)"
-			return "Add %s (hold LMB)" % TerrainMaterials.display_name(_add_material).to_lower()
+			var what: String = block_text if block else ""
+			if _add_material != TerrainMaterials.Kind.NATURAL:
+				what = TerrainMaterials.display_name(_add_material).to_lower() + (" " + block_text if block else "")
+			return ("Add %s (%s)" % [what, how]).replace("  ", " ")
 	return "Off"
 
 
@@ -300,6 +355,8 @@ func _apply_edit_mode_to_brush() -> void:
 	)
 	if terrain_brush != null:
 		terrain_brush.set_add_material(_add_material)
+		terrain_brush.set_shape(_brush_shape)
+		terrain_brush.set_block_size(_block_size)
 		terrain_brush.set_edit_mode(_edit_mode)
 
 

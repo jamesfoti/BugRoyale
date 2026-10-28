@@ -10,6 +10,7 @@ class_name TerrainEditCursor
 
 var _destroy_color: Color = Color(1.0, 0.45, 0.15, 0.92)
 var _add_color: Color = Color(0.25, 0.85, 1.0, 0.92)
+var _blocked_color: Color = Color(0.6, 0.6, 0.6, 0.92)
 
 
 func _ready() -> void:
@@ -27,12 +28,13 @@ func _ready() -> void:
 
 
 ## In add mode the ring takes the colour of a placed material, so the player can see what the
-## pickaxe will build with before clicking.
+## pickaxe will build with before clicking. Blocked (the stamp would bury the player) is grey.
 func show_at(
 	hit_position: Vector3,
 	normal: Vector3,
 	add_mode: bool,
-	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
+	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL,
+	blocked: bool = false
 ) -> void:
 	visible = true
 	var surface_up: Vector3 = normal.normalized()
@@ -49,7 +51,9 @@ func show_at(
 	if material_override is StandardMaterial3D:
 		var standard_material: StandardMaterial3D = material_override as StandardMaterial3D
 		var ring_color: Color = _destroy_color
-		if add_mode:
+		if blocked:
+			ring_color = _blocked_color
+		elif add_mode:
 			ring_color = _add_color
 			if material != TerrainMaterials.Kind.NATURAL:
 				ring_color = TerrainMaterials.color(material).lightened(0.25)

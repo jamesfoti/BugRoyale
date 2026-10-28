@@ -6,6 +6,8 @@ class_name PlayerItemMenu
 signal item_selected(item: PlayerItems.Item)
 ## The player picked what the pickaxe builds with; emitted just before item_selected(PICKAXE_ADD).
 signal add_material_selected(material: TerrainMaterials.Kind)
+## The player toggled between the sculpting ball and the grid-snapped block.
+signal brush_shape_selected(shape: TerrainBrush.Shape)
 
 @onready var _toggle_button: Button = $ToggleButton
 @onready var _popup: PanelContainer = $Popup
@@ -18,6 +20,9 @@ signal add_material_selected(material: TerrainMaterials.Kind)
 var _open: bool = false
 var _active_item: PlayerItems.Item = PlayerItems.Item.NONE
 var _add_material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
+var _brush_shape: TerrainBrush.Shape = TerrainBrush.Shape.SPHERE
+var _block_size: int = 2
+var _shape_button: Button
 var _weapon_buttons: Dictionary = {}
 ## TerrainMaterials.Kind -> its "Pickaxe — add" button (NATURAL is the scene's PickaxeAddButton).
 var _material_buttons: Dictionary = {}
@@ -69,6 +74,34 @@ func set_add_material(material: TerrainMaterials.Kind) -> void:
 
 func get_add_material() -> TerrainMaterials.Kind:
 	return _add_material
+
+
+func set_brush_shape(shape: TerrainBrush.Shape) -> void:
+	_brush_shape = shape
+	_refresh_shape_button()
+
+
+func set_block_size(size: int) -> void:
+	_block_size = size
+	_refresh_shape_button()
+
+
+func _on_shape_pressed() -> void:
+	if _brush_shape == TerrainBrush.Shape.SPHERE:
+		_brush_shape = TerrainBrush.Shape.BLOCK
+	else:
+		_brush_shape = TerrainBrush.Shape.SPHERE
+	_refresh_shape_button()
+	brush_shape_selected.emit(_brush_shape)
+
+
+func _refresh_shape_button() -> void:
+	if _shape_button == null:
+		return
+	if _brush_shape == TerrainBrush.Shape.BLOCK:
+		_shape_button.text = "Brush shape — %d-voxel block (build by clicking; B; [ ] size)" % _block_size
+	else:
+		_shape_button.text = "Brush shape — ball (sculpt by holding; B)"
 
 
 func _select_add_material(material: TerrainMaterials.Kind) -> void:
@@ -142,6 +175,13 @@ func _build_material_buttons() -> void:
 		buttons.move_child(row, insert_index)
 		insert_index += 1
 		_material_buttons[material] = material_button
+	# The shape toggle stays open so the player can flip it and pick a material in one visit.
+	_shape_button = Button.new()
+	_shape_button.focus_mode = Control.FOCUS_NONE
+	_shape_button.pressed.connect(_on_shape_pressed)
+	buttons.add_child(_shape_button)
+	buttons.move_child(_shape_button, insert_index)
+	_refresh_shape_button()
 
 
 func _build_weapon_buttons() -> void:

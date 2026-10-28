@@ -395,13 +395,53 @@ func apply_brush(
 ) -> void:
 	if not can_edit_at(world_position):
 		return
-	_edits.set_voxel_size(get_voxel_size())
+	_prepare_edits()
 	var procedural_density: Callable = Callable(_get_bake_density(), "evaluate")
 	if not _edits.add_brush(world_position, radius, add_solid, procedural_density, material):
 		# Nothing changed (a shot that burst in mid-air, or re-carving an existing hole): the
 		# chunks would rebuild identical, so skip the mesh and collision rebuilds entirely.
 		return
-	# Only the chunks holding changed voxels, not every chunk the brush sphere grazed.
+	_rebuild_changed_chunks()
+	brush_applied.emit(world_position, radius)
+
+
+## The block tool: fills (or carves) an axis-aligned box. Snap its centre with snap_to_sample and
+## give it half extents of one voxel (plus a hair) for a crisp cube two voxels on a side.
+func apply_box(
+	center: Vector3,
+	half_extents: Vector3,
+	add_solid: bool,
+	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
+) -> void:
+	if not can_edit_at(center):
+		return
+	_prepare_edits()
+	var procedural_density: Callable = Callable(_get_bake_density(), "evaluate")
+	if not _edits.add_box(center, half_extents, add_solid, procedural_density, material):
+		return
+	_rebuild_changed_chunks()
+	brush_applied.emit(center, half_extents.length())
+
+
+## World position of the origin of the sample lattice: samples sit at origin + integer * voxel size.
+func get_grid_world_origin() -> Vector3:
+	return global_position + get_grid_origin_local()
+
+
+## Nearest sample position to a world position.
+func snap_to_sample(world_position: Vector3) -> Vector3:
+	var origin: Vector3 = get_grid_world_origin()
+	var step: float = get_voxel_size()
+	return origin + ((world_position - origin) / step).round() * step
+
+
+func _prepare_edits() -> void:
+	_edits.set_voxel_size(get_voxel_size())
+	_edits.set_grid_origin(get_grid_world_origin())
+
+
+## Rebuilds only the chunks holding voxels the last edit changed, not every chunk it grazed.
+func _rebuild_changed_chunks() -> void:
 	var chunk_coordinates: Array[Vector3i] = _get_chunk_coordinates_intersecting_aabb(
 		_edits.get_last_changed_bounds()
 	)
@@ -409,7 +449,6 @@ func apply_brush(
 		_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
 	_pending_rebuild_collision = true
 	_dispatch_pending_rebuilds()
-	brush_applied.emit(world_position, radius)
 
 
 func get_grid_origin_local() -> Vector3:

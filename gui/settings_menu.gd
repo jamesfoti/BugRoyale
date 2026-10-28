@@ -32,6 +32,9 @@ const _CONTROLS_LINES: Array[String] = [
 	"V / right stick click — Cycle zoom: shoulder, scope, closer scope, back out (scoped weapons)",
 	"Mouse wheel while scoped — Step the zoom in or out",
 	"Hold left click — Paint terrain (pickaxe equipped; pick dirt, stone, sand, clay or gravel to build with under Inventory)",
+	"B — Brush shape: ball (sculpt by holding) or block (build by clicking); pickaxe equipped",
+	"Left click — Place or remove one grid-snapped block on the face you aim at (block shape)",
+	"[ / ] — Shrink / grow the block, 1 to 6 voxels per side (block shape)",
 ]
 
 ## Dims whatever is behind the page. Off when the parent already has its own dimmer.
