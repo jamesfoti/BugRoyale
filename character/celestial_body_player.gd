@@ -1,8 +1,8 @@
-extends CharacterBody3D
+extends FighterBody
 class_name CelestialBodyPlayer
-## Walks on spherical terrain: mouse yaw, W/S move relative to camera view.
+## Walks on spherical terrain: mouse yaw turns the body, forward/back moves along the view.
+## Every intent comes from the FighterController (keyboard, bot or network).
 
-const _MIN_DIR_LEN_SQ: float = 0.0001
 const _INPUT_DEADZONE: float = 0.01
 const _SPAWN_ATTEMPTS: int = 12
 const _SPAWN_RAY_MARGIN: float = 40.0
@@ -32,61 +32,34 @@ class SpawnData:
 @export var fly_run_speed: float = 11.0
 @export var fly_vertical_speed: float = 5.0
 
-## The selected character is installed under VisualRoot on ready.
-@onready var _skin: CharacterSkin = CharacterSkin.install_selected($VisualRoot)
-@onready var _orbit_camera: OrbitCamera = $OrbitCamera
-@onready var _camera: Camera3D = $OrbitCamera/Camera3D
+@onready var _orbit_camera: OrbitCamera = get_node_or_null("OrbitCamera") as OrbitCamera
 
 var _gravity_direction: Vector3 = Vector3.DOWN
 var _celestial_body: CelestialBody
-var _anim_state: String = ""
-var _want_jump: bool = false
-var _spawned: bool = false
-var _terrain_focus: bool = false
 var _flying: bool = false
 
 
-func is_terrain_focus_active() -> bool:
-	return _terrain_focus
+func is_flying() -> bool:
+	return _flying
 
 
-func exit_terrain_focus() -> void:
-	_set_terrain_focus(false)
+func get_surface_up() -> Vector3:
+	return _get_up()
 
 
 func _ready() -> void:
+	super()
 	_cache_body_refs()
-	call_deferred("_spawn_on_body")
-	call_deferred("_connect_terrain_hud")
+	if auto_spawn:
+		call_deferred("_spawn_on_body")
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if get_tree().paused:
-		return
-	if _is_item_menu_open():
-		if event.is_action_pressed("item_menu"):
-			_toggle_item_menu()
-			get_viewport().set_input_as_handled()
-		return
-	if _terrain_focus and event.is_action_pressed("ui_cancel"):
-		_set_terrain_focus(false)
-		get_viewport().set_input_as_handled()
-		return
-	if event.is_action_pressed("terrain_focus"):
-		if not _terrain_focus and not _is_terrain_edit_active():
-			return
-		_set_terrain_focus(not _terrain_focus)
-		get_viewport().set_input_as_handled()
-		return
-	if event.is_action_pressed("jump"):
-		_want_jump = true
-	if event.is_action_pressed("item_menu"):
-		_toggle_item_menu()
-		get_viewport().set_input_as_handled()
+	_handle_ui_input(event)
 
 
 func _input(event: InputEvent) -> void:
-	if not _spawned or _terrain_focus or _is_item_menu_open():
+	if not is_local or not _spawned or _terrain_focus or _is_item_menu_open():
 		return
 	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
 		return
@@ -98,24 +71,17 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if celestial_body == null or not _spawned:
+	if celestial_body == null or not _spawned or not _in_play:
 		return
+	sample_input(delta)
 
 	_update_gravity_direction()
 	up_direction = _get_up()
 
-	if _terrain_focus:
-		_want_jump = false
+	if _terrain_focus or is_ui_blocking():
 		_apply_focus_physics(delta)
-		var focus_facing: Vector3 = _get_flat_forward()
-		_align_up_to_body(delta, focus_facing)
-		move_and_slide()
-		_update_animation(Vector3.ZERO)
-		return
-
-	if _is_item_menu_open():
-		_want_jump = false
-		_apply_focus_physics(delta)
+		if _terrain_focus:
+			_align_up_to_body(delta, _get_flat_forward())
 		move_and_slide()
 		_update_animation(Vector3.ZERO)
 		return
@@ -128,8 +94,7 @@ func _physics_process(delta: float) -> void:
 
 	var facing_direction: Vector3 = _get_facing_direction(movement_direction)
 	if movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
-		var forward_backward_input: float = Input.get_axis("move_backward", "move_forward")
-		if forward_backward_input > _INPUT_DEADZONE:
+		if _intent.move.y > _INPUT_DEADZONE and _orbit_camera != null:
 			_orbit_camera.recenter_yaw(delta)
 		_align_up_to_body(delta, facing_direction)
 	elif not _is_camera_orbiting():
@@ -139,7 +104,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _apply_movement(delta: float, movement_direction: Vector3) -> void:
-	var move_speed: float = run_speed if Input.is_action_pressed("run") else speed
+	var move_speed: float = run_speed if _intent.run else speed
 	var radial_speed: float = velocity.dot(_gravity_direction)
 
 	if movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
@@ -150,26 +115,24 @@ func _apply_movement(delta: float, movement_direction: Vector3) -> void:
 	if not is_on_floor():
 		velocity += _gravity_direction * gravity_strength * delta
 
-	if _want_jump and is_on_floor() and not _get_skin().is_waving():
+	if _intent.jump_pressed and is_on_floor() and not _skin.is_waving():
 		velocity += _get_up() * jump_velocity
-	elif _want_jump and can_fly and not is_on_floor():
+	elif _intent.jump_pressed and can_fly and not is_on_floor():
 		# Take off: keep horizontal speed, cancel any falling speed.
 		_flying = true
 		velocity -= _gravity_direction * maxf(velocity.dot(_gravity_direction), 0.0)
-	_want_jump = false
 
 
-## Flight: no gravity; W/S move along the surface, hold Jump to rise, Descend to sink. Touching
-## down without rising lands.
+## Flight: no gravity; forward/back move along the surface, hold Jump to rise, Descend to sink.
+## Touching down without rising lands.
 func _apply_flight(movement_direction: Vector3) -> void:
-	var horizontal_speed: float = fly_run_speed if Input.is_action_pressed("run") else fly_speed
+	var horizontal_speed: float = fly_run_speed if _intent.run else fly_speed
 	var vertical: float = 0.0
-	if Input.is_action_pressed("jump"):
+	if _intent.jump_held:
 		vertical += fly_vertical_speed
-	if InputMap.has_action(&"descend") and Input.is_action_pressed(&"descend"):
+	if _intent.descend_held:
 		vertical -= fly_vertical_speed
 	velocity = movement_direction * horizontal_speed + _get_up() * vertical
-	_want_jump = false
 	if is_on_floor() and vertical <= 0.0:
 		_flying = false
 
@@ -192,7 +155,7 @@ func _apply_mouse_yaw(mouse_delta_x: float) -> void:
 
 
 func _is_camera_orbiting() -> bool:
-	return _orbit_camera.is_orbiting()
+	return _intent.orbiting
 
 
 func _update_gravity_direction() -> void:
@@ -230,40 +193,30 @@ func _get_flat_forward() -> Vector3:
 	return forward.normalized()
 
 
-func _get_camera_flat_forward() -> Vector3:
-	var surface_up: Vector3 = _get_up()
-	var forward: Vector3 = (-_camera.global_basis.z).slide(surface_up)
-	if forward.length_squared() < _MIN_DIR_LEN_SQ:
-		return _get_flat_forward()
-	return forward.normalized()
-
-
 func _get_movement_direction() -> Vector3:
-	var forward_backward_input: float = Input.get_axis("move_backward", "move_forward")
+	var forward_backward_input: float = _intent.move.y
 	if absf(forward_backward_input) < _INPUT_DEADZONE:
 		return Vector3.ZERO
-	var forward: Vector3 = _get_camera_flat_forward()
+	var forward: Vector3 = get_view_flat_forward()
 	if forward == Vector3.ZERO:
 		return Vector3.ZERO
 	return forward * forward_backward_input
 
 
 func _get_facing_direction(movement_direction: Vector3) -> Vector3:
-	# Shooter stance: aiming or firing squares the body up to the camera.
-	var shooter: Node = get_node_or_null("ShooterTest")
-	var firing: bool = shooter != null and shooter.has_method("is_firing") and shooter.call("is_firing")
-	if _orbit_camera.is_aiming() or firing:
-		var camera_forward: Vector3 = _get_camera_flat_forward()
-		if camera_forward != Vector3.ZERO:
-			return camera_forward
+	# Shooter stance: aiming or firing squares the body up to the view.
+	var firing: bool = _shooter != null and _shooter.has_method("is_firing") and _shooter.call("is_firing")
+	if _intent.aiming or firing:
+		var view_forward: Vector3 = get_view_flat_forward()
+		if view_forward != Vector3.ZERO:
+			return view_forward
 	if movement_direction.length_squared() < _MIN_DIR_LEN_SQ:
 		return _get_flat_forward()
-	# Backpedal: keep facing camera forward so body rotation does not spin the camera.
-	var forward_backward_input: float = Input.get_axis("move_backward", "move_forward")
-	if forward_backward_input < -_INPUT_DEADZONE:
-		var camera_forward: Vector3 = _get_camera_flat_forward()
-		if camera_forward != Vector3.ZERO:
-			return camera_forward
+	# Backpedal: keep facing the view so body rotation does not spin the camera.
+	if _intent.move.y < -_INPUT_DEADZONE:
+		var view_forward: Vector3 = get_view_flat_forward()
+		if view_forward != Vector3.ZERO:
+			return view_forward
 	return movement_direction.normalized()
 
 
@@ -297,6 +250,18 @@ func respawn_random() -> void:
 	_apply_spawn(_find_random_surface_spawn())
 
 
+## Stands the bug on the sphere at a spot: its up is the radial through the spot.
+func _place_at(position_on_map: Vector3) -> void:
+	_cache_body_refs()
+	var spawn_data: SpawnData = SpawnData.new()
+	spawn_data.position = position_on_map
+	var radial: Vector3 = position_on_map - _get_body_center()
+	spawn_data.surface_up = radial.normalized() if radial.length_squared() > _MIN_DIR_LEN_SQ else Vector3.UP
+	spawn_data.forward = _tangent_forward_on_plane(spawn_data.surface_up)
+	spawn_data.from_raycast_hit = true
+	_apply_spawn(spawn_data)
+
+
 func _spawn_on_body() -> void:
 	_cache_body_refs()
 	if celestial_body == null:
@@ -319,13 +284,13 @@ func _apply_spawn(spawn_data: SpawnData) -> void:
 		spawn_data.position
 	)
 	velocity = Vector3.ZERO
-	_want_jump = false
 	_terrain_focus = false
 	_flying = false
 	_anim_state = ""
 	_update_gravity_direction()
-	_orbit_camera.rotation = Vector3(_orbit_camera.rotation.x, 0.0, _orbit_camera.rotation.z)
-	_get_skin().set_state("idle")
+	if _orbit_camera != null:
+		_orbit_camera.rotation = Vector3(_orbit_camera.rotation.x, 0.0, _orbit_camera.rotation.z)
+	_skin.set_state("idle")
 	_spawned = true
 
 
@@ -378,19 +343,8 @@ func _tangent_forward_on_plane(surface_up: Vector3) -> Vector3:
 	return forward.normalized()
 
 
-func _get_skin() -> CharacterSkin:
-	return _skin
-
-
-func _set_anim_state(skin: CharacterSkin, state_name: String) -> void:
-	if _anim_state == state_name:
-		return
-	_anim_state = state_name
-	skin.set_state(state_name)
-
-
 func _update_animation(movement_direction: Vector3) -> void:
-	var skin: CharacterSkin = _get_skin()
+	var skin: CharacterSkin = _skin
 	if skin.is_waving():
 		return
 
@@ -400,128 +354,6 @@ func _update_animation(movement_direction: Vector3) -> void:
 	elif not is_on_floor():
 		_set_anim_state(skin, "jump" if vertical_speed > 0.05 else "fall")
 	elif movement_direction.length_squared() > _MIN_DIR_LEN_SQ:
-		_set_anim_state(skin, "run" if Input.is_action_pressed("run") else "walk")
+		_set_anim_state(skin, "run" if _intent.run else "walk")
 	else:
 		_set_anim_state(skin, "idle")
-
-
-func _set_terrain_focus(enabled: bool) -> void:
-	if _terrain_focus == enabled:
-		return
-	_terrain_focus = enabled
-	velocity = Vector3.ZERO
-	_want_jump = false
-	if _terrain_focus:
-		Input.set_mouse_mode(Input.MOUSE_MODE_CONFINED_HIDDEN)
-	else:
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-
-
-func _is_terrain_edit_active() -> bool:
-	var terrain_brush: TerrainBrush = (
-		get_tree().get_first_node_in_group("terrain_brush") as TerrainBrush
-	)
-	return terrain_brush != null and terrain_brush.get_edit_mode() != TerrainBrush.EditMode.OFF
-
-
-func _is_item_menu_open() -> bool:
-	var player_item_menu: PlayerItemMenu = (
-		get_tree().get_first_node_in_group("player_item_menu") as PlayerItemMenu
-	)
-	return player_item_menu != null and player_item_menu.is_open()
-
-
-func _connect_terrain_hud() -> void:
-	var terrain_hud_layer: CanvasLayer = (
-		get_tree().get_first_node_in_group("terrain_hud") as CanvasLayer
-	)
-	if terrain_hud_layer == null:
-		return
-	if terrain_hud_layer.has_signal("terrain_edit_mode_changed"):
-		terrain_hud_layer.terrain_edit_mode_changed.connect(_on_terrain_edit_mode_changed)
-	if terrain_hud_layer.has_method("get_item_menu"):
-		var player_item_menu: PlayerItemMenu = terrain_hud_layer.get_item_menu()
-		if player_item_menu != null:
-			player_item_menu.item_selected.connect(apply_hand_item)
-	var terrain_brush: TerrainBrush = (
-		get_tree().get_first_node_in_group("terrain_brush") as TerrainBrush
-	)
-	if terrain_brush != null:
-		_on_terrain_edit_mode_changed(terrain_brush.get_edit_mode())
-	var skin: CharacterSkin = _get_skin()
-	if skin != null:
-		skin.torch_equipped_changed.connect(_on_torch_equipped_changed)
-
-
-func apply_hand_item(item: PlayerItems.Item) -> void:
-	if not _spawned:
-		return
-	var skin: CharacterSkin = _get_skin()
-	if skin.is_torch_busy() or skin.is_pickaxe_busy():
-		return
-	var terrain_hud_layer: CanvasLayer = (
-		get_tree().get_first_node_in_group("terrain_hud") as CanvasLayer
-	)
-	match item:
-		PlayerItems.Item.NONE:
-			if skin.is_torch_equipped():
-				skin.stow_torch()
-			if terrain_hud_layer != null and terrain_hud_layer.has_method("set_edit_mode"):
-				terrain_hud_layer.set_edit_mode(TerrainBrush.EditMode.OFF)
-		PlayerItems.Item.TORCH:
-			if terrain_hud_layer != null and terrain_hud_layer.has_method("set_edit_mode"):
-				terrain_hud_layer.set_edit_mode(TerrainBrush.EditMode.OFF)
-			if not skin.is_torch_equipped():
-				skin.equip_torch()
-		PlayerItems.Item.PICKAXE_DESTROY, PlayerItems.Item.PICKAXE_ADD:
-			if skin.is_torch_equipped():
-				skin.stow_torch()
-			if terrain_hud_layer != null and terrain_hud_layer.has_method("set_edit_mode"):
-				terrain_hud_layer.set_edit_mode(PlayerItems.edit_mode_from_item(item))
-		_:
-			if PlayerItems.is_weapon(item):
-				if skin.is_torch_equipped():
-					skin.stow_torch()
-				if terrain_hud_layer != null and terrain_hud_layer.has_method("set_edit_mode"):
-					terrain_hud_layer.set_edit_mode(TerrainBrush.EditMode.OFF)
-	PlayerItems.apply_weapon_visual(skin, item)
-	_sync_item_menu(item)
-
-
-func _toggle_item_menu() -> void:
-	if get_tree().paused:
-		return
-	var terrain_hud_layer: CanvasLayer = (
-		get_tree().get_first_node_in_group("terrain_hud") as CanvasLayer
-	)
-	if terrain_hud_layer == null or not terrain_hud_layer.has_method("get_item_menu"):
-		return
-	var player_item_menu: PlayerItemMenu = terrain_hud_layer.get_item_menu()
-	if player_item_menu != null:
-		player_item_menu.toggle_menu()
-
-
-func _sync_item_menu(item: PlayerItems.Item) -> void:
-	var terrain_hud_layer: CanvasLayer = (
-		get_tree().get_first_node_in_group("terrain_hud") as CanvasLayer
-	)
-	if terrain_hud_layer == null or not terrain_hud_layer.has_method("get_item_menu"):
-		return
-	var player_item_menu: PlayerItemMenu = terrain_hud_layer.get_item_menu()
-	if player_item_menu != null:
-		player_item_menu.set_active_item(item)
-
-
-func _on_torch_equipped_changed(equipped: bool) -> void:
-	if equipped:
-		_sync_item_menu(PlayerItems.Item.TORCH)
-	elif not _is_terrain_edit_active():
-		_sync_item_menu(PlayerItems.Item.NONE)
-
-
-func _on_terrain_edit_mode_changed(mode: TerrainBrush.EditMode) -> void:
-	_get_skin().set_terrain_edit_equipped(mode != TerrainBrush.EditMode.OFF)
-	if mode != TerrainBrush.EditMode.OFF:
-		_sync_item_menu(PlayerItems.item_from_edit_mode(mode))
-	elif not _get_skin().is_torch_equipped():
-		_sync_item_menu(PlayerItems.Item.NONE)

@@ -6,8 +6,9 @@ extends GameMode
 
 const RESPAWN_SECONDS: float = 2.0
 
-var _respawn_timer: float = -1.0
 var _map_name: String = ""
+## Fighter -> seconds until it is back on its feet.
+var _respawn_timers: Dictionary = {}
 
 
 func _start_match() -> void:
@@ -16,18 +17,21 @@ func _start_match() -> void:
 
 
 func _update_match(delta: float) -> void:
-	if _respawn_timer < 0.0:
-		return
-	_respawn_timer -= delta
-	if _respawn_timer < 0.0:
-		respawn_player()
+	for fighter: Fighter in _respawn_timers.keys():
+		var remaining: float = float(_respawn_timers[fighter]) - delta
+		if remaining > 0.0:
+			_respawn_timers[fighter] = remaining
+			continue
+		_respawn_timers.erase(fighter)
+		fighter.respawn_at()
 
 
 func _status_text() -> String:
 	return "Explore  ·  %s" % _map_name
 
 
-func _on_player_died() -> void:
-	kill_player()
-	hud.show_message("Back on your feet in a moment...", RESPAWN_SECONDS)
-	_respawn_timer = RESPAWN_SECONDS
+func _on_fighter_died(fighter: Fighter) -> void:
+	fighter.kill()
+	if fighter.is_local:
+		hud.show_message("Back on your feet in a moment...", RESPAWN_SECONDS)
+	_respawn_timers[fighter] = RESPAWN_SECONDS

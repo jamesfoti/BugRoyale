@@ -105,9 +105,14 @@ static func description_for(character: LoadingScreen.PlayerCharacter) -> String:
 	return _entry(character).get("description", "")
 
 
-## Applies the selected class's health, speed and jump to a freshly spawned player.
-static func apply_class_stats(player: Node, damageable: Damageable) -> void:
-	var entry: Dictionary = _entry(LoadingScreen.selected_player_character)
+## Applies a class's health, speed and jump to a freshly spawned body (the selected class by
+## default).
+static func apply_class_stats(
+	player: Node,
+	damageable: Damageable,
+	character: LoadingScreen.PlayerCharacter = LoadingScreen.selected_player_character
+) -> void:
+	var entry: Dictionary = _entry(character)
 	if damageable != null and entry.has("max_health"):
 		damageable.max_health = entry["max_health"]
 		damageable.health = damageable.max_health
@@ -125,10 +130,23 @@ static func apply_class_stats(player: Node, damageable: Damageable) -> void:
 ## Makes the selected character the skin under visual_root (replacing the scene's default skin
 ## when another character is chosen) and returns it.
 static func install_selected(visual_root: Node3D) -> CharacterSkin:
+	return install(visual_root, LoadingScreen.selected_player_character)
+
+
+## Makes a character the skin under visual_root and returns it: the class's full skin, its
+## lighter bot skin, or an explicit scene (e.g. the black ant colony).
+static func install(
+	visual_root: Node3D,
+	character: LoadingScreen.PlayerCharacter,
+	bot_variant: bool = false,
+	override_path: String = ""
+) -> CharacterSkin:
 	var current: CharacterSkin = null
 	if visual_root.get_child_count() > 0:
 		current = visual_root.get_child(0) as CharacterSkin
-	var wanted_path: String = scene_path_for(LoadingScreen.selected_player_character)
+	var wanted_path: String = override_path
+	if wanted_path.is_empty():
+		wanted_path = bot_scene_path_for(character) if bot_variant else scene_path_for(character)
 	if current != null and current.scene_file_path == wanted_path:
 		return current
 	var skin_scene: PackedScene = load(wanted_path) as PackedScene

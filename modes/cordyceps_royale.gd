@@ -1,6 +1,6 @@
 extends GameMode
-## Cordyceps Royale: Battle Royale with a Cordyceps cloud for a storm. The player and 11 bots of
-## mixed classes, every bug for itself, no respawns. Spores fill everything outside a safe
+## Cordyceps Royale: Battle Royale with a Cordyceps cloud for a storm. 12 bugs of mixed classes
+## (humans plus bots), every bug for itself, no respawns. Spores fill everything outside a safe
 ## circle that closes in stages; a few seconds in them and a bug turns: it rises again as a husk
 ## on the fungus team, slow and unarmed but biting, immune to the spores, and it walks out of the
 ## cloud to hunt the clean. A bug a husk kills turns too. A husk that dies fruits where it fell,
@@ -54,30 +54,37 @@ var _full_radius: float = 100.0
 var _radius_from: float = 100.0
 var _center_from: Vector3 = Vector3.ZERO
 var _center_to: Vector3 = Vector3.ZERO
-## Infection per clean bot, 0..1 (a bug turns at 1).
+## Infection per clean fighter, 0..1 (a bug turns at 1).
 var _infection: Dictionary = {}
-var _player_infection: float = 0.0
-var _player_in_spores: bool = false
-var _player_turned: bool = false
+## Humans the fungus has taken: their body is out, a husk walks in its place.
+var _turned_humans: Dictionary = {}
+var _local_in_spores: bool = false
 var _overlay: ShaderMaterial
 var _turned_count: int = 0
 var _fruited_count: int = 0
 
 
 func _start_match() -> void:
-	player_health.team = 0
 	_build_storm()
 	_build_overlay()
 
 	var taken: Array[Vector3] = []
-	respawn_player(_spread_spawn_point(taken))
+	var team: int = 0
+	for human: Fighter in humans():
+		human.set_team(team)
+		team += 1
+		human.respawn_at(_spread_spawn_point(taken))
+		_infection[human] = 0.0
 	var classes: Array = LoadingScreen.PlayerCharacter.values()
-	for index: int in FIGHTERS - 1:
+	for index: int in FIGHTERS - humans().size():
 		var character: LoadingScreen.PlayerCharacter = classes[randi() % classes.size()]
-		var bot: BotFighter = spawn_bot(character, index + 1, _spread_spawn_point(taken))
-		bot.target_group = &"fighter"
-		bot.avoid_water = true
-		bot.detection_range = 45.0
+		var bot: Fighter = spawn_bot(character, team, _spread_spawn_point(taken))
+		team += 1
+		if bot == null:
+			continue
+		bot.brain.target_group = &"fighter"
+		bot.brain.avoid_water = true
+		bot.brain.detection_range = 45.0
 		bot.hold_fire(GRACE_SECONDS)
 		_infection[bot] = 0.0
 	for index: int in SEED_PATCHES:
@@ -94,9 +101,9 @@ func _update_match(delta: float) -> void:
 		return
 	_update_storm(delta)
 	_tick_infection(delta)
-	for bot: BotFighter in bots:
-		bot.storm_center = storm.center
-		bot.storm_radius = storm.radius
+	for bot: Fighter in bots():
+		bot.brain.storm_center = storm.center
+		bot.brain.storm_radius = storm.radius
 
 
 func _status_text() -> String:
@@ -109,25 +116,20 @@ func _status_text() -> String:
 	return counts + "  ·  The spores are closing in!"
 
 
-func _on_player_died() -> void:
-	if match_over or _player_turned:
+func _on_fighter_died(fighter: Fighter) -> void:
+	if match_over or _turned_humans.has(fighter):
 		return
-	if killer_team(player_health) == HUSK_TEAM or storm.is_in_spores(player.global_position):
-		_turn_player()
-		return
-	kill_player()
-	# Everyone still clean finished ahead of the player.
-	end_match("Eliminated", "You placed #%d of %d." % [_clean_count() + 1, FIGHTERS])
-
-
-func _on_bot_died(bot: BotFighter) -> void:
-	if bot.husk:
-		_fruit(bot)
-	elif killer_team(bot.damageable) == HUSK_TEAM or storm.is_in_spores(bot.global_position):
-		_turn_bot(bot)
+	if fighter.is_husk():
+		_fruit(fighter)
+	elif killer_team(fighter.health) == HUSK_TEAM or storm.is_in_spores(fighter.get_position()):
+		_turn(fighter)
 	else:
-		bot.deactivate()
-		_infection.erase(bot)
+		fighter.kill()
+		_infection.erase(fighter)
+		if fighter.is_human and _clean_humans() == 0:
+			# Everyone still clean finished ahead of the last human.
+			end_match("Eliminated", "You placed #%d of %d." % [_clean_count() + 1, FIGHTERS])
+			return
 	_check_victory()
 
 
@@ -201,23 +203,19 @@ func _pick_center(next_radius: float) -> Vector3:
 # --- Infection --------------------------------------------------------------------------------
 
 func _tick_infection(delta: float) -> void:
-	if is_player_alive() and not _player_turned:
-		var in_spores: bool = storm.is_in_spores(player.global_position)
-		if in_spores and not _player_in_spores:
-			hud.show_message("You're in the spores! Get out!", 2.0)
-		_player_in_spores = in_spores
-		_player_infection = _advance(_player_infection, in_spores, delta)
-		_set_player_infection_look(_player_infection)
-		if _player_infection >= 1.0:
-			_turn_player()
-			return
-	for bot: BotFighter in _infection.keys():
-		if not bot.is_active() or bot.husk:
+	for fighter: Fighter in _infection.keys():
+		if not fighter.is_alive() or fighter.is_husk():
 			continue
-		var level: float = _advance(_infection[bot], storm.is_in_spores(bot.global_position), delta)
-		_infection[bot] = level
+		var in_spores: bool = storm.is_in_spores(fighter.get_position())
+		var level: float = _advance(_infection[fighter], in_spores, delta)
+		_infection[fighter] = level
+		if fighter.is_local:
+			if in_spores and not _local_in_spores:
+				hud.show_message("You're in the spores! Get out!", 2.0)
+			_local_in_spores = in_spores
+			_set_local_infection_look(level)
 		if level >= 1.0:
-			_turn_bot(bot)
+			_turn(fighter)
 			_check_victory()
 
 
@@ -227,77 +225,98 @@ func _advance(level: float, in_spores: bool, delta: float) -> float:
 	return maxf(level - RECOVER_PER_SECOND * delta, 0.0)
 
 
-func _set_player_infection_look(level: float) -> void:
+func _set_local_infection_look(level: float) -> void:
 	if _overlay != null:
 		_overlay.set_shader_parameter("intensity", level)
-	if "control_wobble" in player:
-		player.set("control_wobble", level)
+	if local_fighter != null and local_fighter.is_valid() and "control_wobble" in local_fighter.body:
+		local_fighter.body.set("control_wobble", level)
 
 
-## A bot rises as a husk where it stands (or fell).
-func _turn_bot(bot: BotFighter) -> void:
-	_infection.erase(bot)
-	bot.become_husk(HUSK_TEAM, HUSK_SPEED)
-	storm.dress_husk(bot.get_node("VisualRoot") as Node3D, hash(bot.get_instance_id()))
+## The fungus takes a fighter: a bot rises as a husk where it stands (or fell); a human's body
+## is done and a husk of their class gets up in its place.
+func _turn(fighter: Fighter) -> void:
+	if fighter.is_human:
+		_turn_human(fighter)
+		return
+	_infection.erase(fighter)
+	fighter.brain.become_husk(HUSK_TEAM, HUSK_SPEED)
+	storm.dress_husk(fighter.body.get_visual_root(), hash(fighter.body.get_instance_id()))
 	_turned_count += 1
-	if is_player_alive() and bot.global_position.distance_to(player.global_position) < 30.0:
+	if is_local_alive() and fighter.get_position().distance_to(local_fighter.get_position()) < 30.0:
 		hud.show_message("A bug nearby has turned!", 2.0)
 
 
+func _turn_human(fighter: Fighter) -> void:
+	if _turned_humans.has(fighter):
+		return
+	_turned_humans[fighter] = true
+	_infection.erase(fighter)
+	var spot: Vector3 = fighter.get_position()
+	var placement: int = _clean_count()  # the turned bug no longer counts as clean
+	fighter.kill()
+	var husk: Fighter = spawn_bot(fighter.character, HUSK_TEAM, spot)
+	if husk != null:
+		husk.brain.become_husk(HUSK_TEAM, HUSK_SPEED)
+		storm.dress_husk(husk.body.get_visual_root(), hash(spot))
+	_turned_count += 1
+	if fighter.is_local:
+		_set_local_infection_look(1.0)
+		hud.show_message("Summit Disease takes you...", 2.5)
+	if _clean_humans() == 0:
+		get_tree().create_timer(2.5).timeout.connect(
+			end_match.bind("You turned", "The spores took you. You placed #%d of %d." % [placement, FIGHTERS])
+		)
+
+
 ## A dead husk fruits: a stalk and a spore patch grow where it fell.
-func _fruit(bot: BotFighter) -> void:
-	var spot: Vector3 = bot.global_position
-	bot.deactivate()
+func _fruit(fighter: Fighter) -> void:
+	var spot: Vector3 = fighter.get_position()
+	fighter.kill()
 	var ground: Dictionary = map.ground_hit(spot)
 	if not ground.is_empty():
 		spot = ground.position
 	storm.add_patch(spot, PATCH_RADIUS, hash(spot) + _fruited_count)
 	_fruited_count += 1
-	if is_player_alive() and spot.distance_to(player.global_position) < 30.0:
+	if is_local_alive() and spot.distance_to(local_fighter.get_position()) < 30.0:
 		hud.show_message("A husk has fruited. Keep clear of the stalk!", 2.5)
 
 
-## The spores take the player: their body gets up as a husk, and the match is over for them.
-func _turn_player() -> void:
-	if _player_turned:
-		return
-	_player_turned = true
-	var spot: Vector3 = player.global_position
-	var placement: int = _clean_count()  # the player no longer counts as clean
-	kill_player()
-	_set_player_infection_look(1.0)
-	var husk: BotFighter = spawn_bot(LoadingScreen.selected_player_character, HUSK_TEAM, spot)
-	husk.become_husk(HUSK_TEAM, HUSK_SPEED)
-	storm.dress_husk(husk.get_node("VisualRoot") as Node3D, hash(spot))
-	hud.show_message("Summit Disease takes you...", 2.5)
-	get_tree().create_timer(2.5).timeout.connect(
-		end_match.bind("You turned", "The spores took you. You placed #%d of %d." % [placement + 1, FIGHTERS])
-	)
-
-
 func _check_victory() -> void:
-	if not match_over and is_player_alive() and not _player_turned and _clean_bot_count() == 0:
+	if match_over or _clean_count() != 1:
+		return
+	var survivor: Fighter = _clean_fighters()[0]
+	if survivor.is_local:
 		end_match("Victory Royale!", "Last clean bug of %d. %d turned, and none of them got you." % [FIGHTERS, _turned_count])
+	elif _clean_humans() == 0:
+		end_match("%s wins" % survivor.display_name(), "Last clean bug of %d. %d turned." % [FIGHTERS, _turned_count])
 
 
 # --- Counting and spawning --------------------------------------------------------------------
 
-func _clean_bot_count() -> int:
-	var clean: int = 0
-	for bot: BotFighter in bots:
-		if bot.is_active() and not bot.husk:
-			clean += 1
+func _clean_fighters() -> Array[Fighter]:
+	var clean: Array[Fighter] = []
+	for fighter: Fighter in fighters:
+		if fighter.is_alive() and not fighter.is_husk() and not _turned_humans.has(fighter):
+			clean.append(fighter)
 	return clean
 
 
 func _clean_count() -> int:
-	return _clean_bot_count() + (1 if is_player_alive() and not _player_turned else 0)
+	return _clean_fighters().size()
+
+
+func _clean_humans() -> int:
+	var count: int = 0
+	for fighter: Fighter in _clean_fighters():
+		if fighter.is_human:
+			count += 1
+	return count
 
 
 func _husk_count() -> int:
 	var husks: int = 0
-	for bot: BotFighter in bots:
-		if bot.is_active() and bot.husk:
+	for fighter: Fighter in fighters:
+		if fighter.is_alive() and fighter.is_husk():
 			husks += 1
 	return husks
 

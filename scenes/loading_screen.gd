@@ -19,6 +19,9 @@ static var current_scene_path: String = ""
 static var selected_player_character: PlayerCharacter = PlayerCharacter.ANT_WARRIOR
 ## Noise seed rolled for the match being loaded (shown in the debug HUD); 0 before any match.
 static var last_terrain_seed: int = 0
+## Seed to use for the next match instead of rolling one (a host hands its seed to every peer so
+## they all build the same map); 0 rolls. Consumed by the next load.
+static var pending_terrain_seed: int = 0
 
 @onready var _title: Label = $UI/Margin/VBox/Title
 @onready var _status: Label = $UI/Margin/VBox/Status
@@ -168,7 +171,11 @@ func _resolve_pending_scene_path() -> String:
 ## garden derives its own seed from it). Set before the scene enters the tree, so the terrain's
 ## single rebuild on ready already uses it. Rooms keep their seed so the furniture stays put.
 func _randomize_terrain_seeds(game_root: Node) -> void:
-	last_terrain_seed = randi() % 1000000
+	if pending_terrain_seed != 0:
+		last_terrain_seed = pending_terrain_seed
+		pending_terrain_seed = 0
+	else:
+		last_terrain_seed = randi() % 1000000
 	for terrain: Node in game_root.find_children("*", "ChunkedTerrainWorld", true, false):
 		terrain.set("noise_seed", last_terrain_seed)
 	for room: Node in game_root.find_children("*", "TerrariumRoom", true, false):

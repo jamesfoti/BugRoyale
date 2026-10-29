@@ -1,9 +1,9 @@
 extends GameMode
-## Battle Royale: the player and 11 bots of mixed classes, every bug for itself, no respawns. The
-## map's water rises in stages (like Fortnite's storm) and hurts anything under it, squeezing
-## everyone onto the high ground. In the terrariums that is the pool; in the crawlspace a storm
-## floods the foundation, and once the water is well up the drains back up with sewage. Last bug
-## standing wins.
+## Battle Royale: 12 bugs of mixed classes (humans plus bots), every bug for itself, no respawns.
+## The map's water rises in stages (like Fortnite's storm) and hurts anything under it,
+## squeezing everyone onto the high ground. In the terrariums that is the pool; in the crawlspace
+## a storm floods the foundation, and once the water is well up the drains back up with sewage.
+## Last bug standing wins.
 
 const FIGHTERS: int = 12
 const WATER_DAMAGE_PER_SECOND: float = 12.0
@@ -35,18 +35,22 @@ func _start_match() -> void:
 		_water_floor_y = map.water.global_position.y
 		_water_height = map.water._world_size.y
 		_rise_from_y = map.water_surface_y()
-	player_health.team = 0
 	var taken: Array[Vector3] = []
-	respawn_player(_spread_spawn_point(taken))
+	var team: int = 0
+	for human: Fighter in humans():
+		human.set_team(team)
+		team += 1
+		human.respawn_at(_spread_spawn_point(taken))
 	var classes: Array = LoadingScreen.PlayerCharacter.values()
-	for index: int in FIGHTERS - 1:
+	for index: int in FIGHTERS - humans().size():
 		var character: LoadingScreen.PlayerCharacter = classes[randi() % classes.size()]
-		var bot: BotFighter = spawn_bot(
-			character, index + 1, _spread_spawn_point(taken)
-		)
-		bot.target_group = &"fighter"
-		bot.avoid_water = true
-		bot.detection_range = 45.0
+		var bot: Fighter = spawn_bot(character, team, _spread_spawn_point(taken))
+		team += 1
+		if bot == null:
+			continue
+		bot.brain.target_group = &"fighter"
+		bot.brain.avoid_water = true
+		bot.brain.detection_range = 45.0
 		bot.hold_fire(GRACE_SECONDS)
 	hud.show_message("Battle Royale\nScatter! Weapons free in %d seconds." % GRACE_SECONDS, 4.0)
 
@@ -59,7 +63,7 @@ func _update_match(delta: float) -> void:
 
 
 func _status_text() -> String:
-	var alive: String = "Alive %d" % _alive_count()
+	var alive: String = "Alive %d" % alive_count()
 	if map.water == null:
 		return alive
 	if _stage >= WATER_STAGES.size():
@@ -70,16 +74,20 @@ func _status_text() -> String:
 	return alive + "  ·  The water is rising!"
 
 
-func _on_player_died() -> void:
-	kill_player()
-	# Everyone still standing finished ahead of the player.
-	end_match("Eliminated", "You placed #%d of %d." % [_alive_count() + 1, FIGHTERS])
-
-
-func _on_bot_died(bot: BotFighter) -> void:
-	bot.deactivate()
-	if is_player_alive() and _alive_count() == 1:
-		end_match("Victory Royale!", "Last bug standing out of %d." % FIGHTERS)
+func _on_fighter_died(fighter: Fighter) -> void:
+	fighter.kill()
+	if match_over:
+		return
+	if fighter.is_human and humans_alive() == 0:
+		# Everyone still standing finished ahead of the last human.
+		end_match("Eliminated", "You placed #%d of %d." % [alive_count() + 1, FIGHTERS])
+		return
+	if alive_count() == 1:
+		var winner: Fighter = alive_fighters()[0]
+		if winner.is_local:
+			end_match("Victory Royale!", "Last bug standing out of %d." % FIGHTERS)
+		else:
+			end_match("%s wins" % winner.display_name(), "Last bug standing out of %d." % FIGHTERS)
 
 
 func _update_water(delta: float) -> void:
@@ -109,19 +117,9 @@ func _update_water(delta: float) -> void:
 func _apply_water_damage(delta: float) -> void:
 	if map.water == null:
 		return
-	if is_player_alive() and map.is_underwater(player.global_position + Vector3.UP * 0.6):
-		player_health.apply_damage(WATER_DAMAGE_PER_SECOND * delta)
-	for bot: BotFighter in bots:
-		if bot.is_active() and map.is_underwater(bot.global_position + Vector3.UP * 0.6):
-			bot.damageable.apply_damage(WATER_DAMAGE_PER_SECOND * delta)
-
-
-func _alive_count() -> int:
-	var alive: int = 1 if is_player_alive() else 0
-	for bot: BotFighter in bots:
-		if bot.is_active():
-			alive += 1
-	return alive
+	for fighter: Fighter in alive_fighters():
+		if map.is_underwater(fighter.get_position() + Vector3.UP * 0.6):
+			fighter.health.apply_damage(WATER_DAMAGE_PER_SECOND * delta)
 
 
 ## Drop point far from everyone already placed: the best of several random high-ground spots.

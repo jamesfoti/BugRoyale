@@ -1,7 +1,7 @@
 extends GameMode
-## Attack of the Hornets: the player and 3 AI squadmates survive ever-bigger hornet waves, like
-## COD Zombies. Fallen squadmates (player included) return at the start of the next wave; the
-## match ends when the whole squad is down at once.
+## Attack of the Hornets: a squad of four (humans plus AI squadmates) survives ever-bigger hornet
+## waves, like COD Zombies. Fallen squad members return at the start of the next wave; the match
+## ends when the whole squad is down at once.
 
 const SQUAD_TEAM: int = 0
 const HORNET_TEAM: int = 99
@@ -14,25 +14,28 @@ var wave: int = 0
 var hornets_killed: int = 0
 var _break_time_left: float = 0.0
 var _in_break: bool = true
-var _squad_bots: Array[BotFighter] = []
 
 
 func _start_match() -> void:
-	player_health.team = SQUAD_TEAM
-	player.add_to_group(PREY_GROUP)
+	for human: Fighter in humans():
+		human.set_team(SQUAD_TEAM)
+		human.body.add_to_group(PREY_GROUP)
 
+	var leader: Node3D = local_fighter.body if local_fighter != null else null
 	var player_class: LoadingScreen.PlayerCharacter = LoadingScreen.selected_player_character
 	var squad_classes: Array = LoadingScreen.PlayerCharacter.values().filter(
 		func(character: int) -> bool: return character != player_class
 	)
-	for index: int in SQUAD_SIZE - 1:
+	var anchor: Vector3 = local_fighter.get_position() if local_fighter != null else map.center()
+	for index: int in SQUAD_SIZE - humans().size():
 		var character: LoadingScreen.PlayerCharacter = squad_classes[index % squad_classes.size()]
-		var bot: BotFighter = spawn_bot(character, SQUAD_TEAM, _near(player.global_position))
-		bot.target_group = &"bird"
-		bot.leader = player
-		bot.detection_range = 45.0
-		bot.add_to_group(PREY_GROUP)
-		_squad_bots.append(bot)
+		var bot: Fighter = spawn_bot(character, SQUAD_TEAM, _near(anchor))
+		if bot == null:
+			continue
+		bot.brain.target_group = &"bird"
+		bot.brain.leader = leader
+		bot.brain.detection_range = 45.0
+		bot.body.add_to_group(PREY_GROUP)
 
 	swarm = BirdFlock.new()
 	swarm.name = "HornetSwarm"
@@ -72,7 +75,7 @@ func _start_match() -> void:
 func _update_match(delta: float) -> void:
 	if match_over:
 		return
-	if _squad_alive() == 0:
+	if alive_count() == 0:
 		end_match(
 			"Overrun!",
 			"Your squad survived %d wave%s and swatted %d hornets." % [maxi(wave - 1, 0), "" if wave == 2 else "s", hornets_killed]
@@ -88,15 +91,15 @@ func _update_match(delta: float) -> void:
 
 
 func _status_text() -> String:
-	var squad: String = "Squad %d/%d" % [_squad_alive(), SQUAD_SIZE]
+	var squad: String = "Squad %d/%d" % [alive_count(), SQUAD_SIZE]
 	if _in_break:
 		return "Wave %d in %ds  ·  %s  ·  Hornets swatted %d" % [wave + 1, ceili(_break_time_left), squad, hornets_killed]
 	return "Wave %d  ·  Hornets left %d  ·  %s  ·  Swatted %d" % [wave, swarm.alive_count(), squad, hornets_killed]
 
 
-func _on_player_died() -> void:
-	kill_player()
-	if _squad_alive() > 0:
+func _on_fighter_died(fighter: Fighter) -> void:
+	fighter.kill()
+	if fighter.is_local and alive_count() > 0:
 		hud.show_message("You're down! Back next wave.", 3.0)
 
 
@@ -119,28 +122,17 @@ func _start_wave() -> void:
 	hud.show_message("Wave %d" % wave, 2.5)
 
 
-## Fallen squad members (player included) return next to someone still standing.
+## Fallen squad members (humans included) return next to someone still standing, the local
+## player for preference.
 func _revive_fallen() -> void:
-	var anchor: Vector3 = player.global_position
-	for bot: BotFighter in _squad_bots:
-		if bot.is_active():
-			anchor = bot.global_position
+	var anchor: Vector3 = local_fighter.get_position() if local_fighter != null else map.center()
+	if not is_local_alive():
+		for fighter: Fighter in alive_fighters():
+			anchor = fighter.get_position()
 			break
-	if is_player_alive():
-		anchor = player.global_position
-	if not is_player_alive():
-		respawn_player(_near(anchor))
-	for bot: BotFighter in _squad_bots:
-		if not bot.is_active():
-			bot.respawn_at(_near(anchor))
-
-
-func _squad_alive() -> int:
-	var alive: int = 1 if is_player_alive() else 0
-	for bot: BotFighter in _squad_bots:
-		if bot.is_active():
-			alive += 1
-	return alive
+	for fighter: Fighter in fighters:
+		if not fighter.is_alive():
+			fighter.respawn_at(_near(anchor))
 
 
 ## A spot on the ground a few meters from a point.

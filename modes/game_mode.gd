@@ -1,16 +1,19 @@
 extends Node
 class_name GameMode
-## Base for game modes. Added to a loaded map by the loading screen; waits for the player to spawn,
-## then sets up the match (_start_match) and keeps the HUD status current (_status_text).
-## Provides bot spawning, player death/respawn, out-of-bounds kills and the end-of-match screen.
+## Base for game modes. Added to a loaded map by the loading screen; waits for the local player
+## to spawn, then sets up the match (_start_match) and keeps the HUD status current
+## (_status_text). The match is a list of fighters: humans and bots alike, with the local human
+## singled out only for what this screen shows. Provides bot spawning, deaths and respawns,
+## out-of-bounds kills and the end-of-match screen.
 
 const MAIN_MENU_SCENE_PATH: String = "res://scenes/main_menu.tscn"
 
 var map: MapInfo
-var player: CharacterBody3D
-var player_health: Damageable
 var hud: ModeHud
-var bots: Array[BotFighter] = []
+## Everyone in the match, humans first.
+var fighters: Array[Fighter] = []
+## The human at this keyboard.
+var local_fighter: Fighter
 var match_over: bool = false
 var _started: bool = false
 
@@ -20,9 +23,10 @@ func _ready() -> void:
 
 
 func _begin() -> void:
+	var player_body: FighterBody
 	while true:
-		player = get_tree().get_first_node_in_group("player") as CharacterBody3D
-		if player != null and player.get("_spawned") == true:
+		player_body = get_tree().get_first_node_in_group("player") as FighterBody
+		if player_body != null and player_body.is_spawned():
 			break
 		await get_tree().process_frame
 	map = MapInfo.from_scene(get_parent())
@@ -30,12 +34,7 @@ func _begin() -> void:
 	for flock: Node in get_tree().get_nodes_in_group("bird_flock"):
 		flock.queue_free()
 
-	player.collision_layer = MapInfo.FIGHTER_LAYER
-	player.collision_mask = MapInfo.TERRAIN_LAYER | MapInfo.FIGHTER_LAYER | MapInfo.STRUCTURE_LAYER
-	player.add_to_group("fighter")
-	player_health = player.get_node_or_null("Damageable") as Damageable
-	player_health.died.connect(_on_player_died)
-	_equip_class_weapon()
+	local_fighter = _register(player_body)
 
 	hud = ModeHud.new()
 	hud.name = "ModeHud"
@@ -49,8 +48,10 @@ func _begin() -> void:
 func _process(delta: float) -> void:
 	if not _started:
 		return
-	if not match_over and player_health.is_alive() and map.is_out_of_bounds(player.global_position):
-		player_health.apply_damage(player_health.max_health * 10.0)
+	if not match_over:
+		for fighter: Fighter in fighters:
+			if fighter.is_alive() and map.is_out_of_bounds(fighter.get_position()):
+				fighter.health.apply_damage(fighter.health.max_health * 10.0)
 	_update_match(delta)
 	hud.set_status(_status_text())
 
@@ -69,12 +70,9 @@ func _status_text() -> String:
 	return ""
 
 
-func _on_player_died() -> void:
-	kill_player()
-
-
-func _on_bot_died(bot: BotFighter) -> void:
-	bot.deactivate()
+## A fighter's health hit zero. Default: out of play for good.
+func _on_fighter_died(fighter: Fighter) -> void:
+	fighter.kill()
 
 
 # --- Helpers ----------------------------------------------------------------------------------
@@ -82,57 +80,95 @@ func _on_bot_died(bot: BotFighter) -> void:
 ## Adds a bot of a class to a team at a position. skin_path overrides the class's bot skin.
 func spawn_bot(
 	character: LoadingScreen.PlayerCharacter, team: int, position: Vector3, skin_path: String = ""
-) -> BotFighter:
-	var bot: BotFighter = BotFighter.create(character, team, map, skin_path)
-	get_parent().add_child(bot)
-	bot.respawn_at(position)
-	bot.damageable.died.connect(_on_bot_died.bind(bot))
-	bots.append(bot)
-	return bot
+) -> Fighter:
+	var spawner: PlayerSpawner = _find_spawner()
+	if spawner == null:
+		push_error("[GameMode] No PlayerSpawner in the map; cannot spawn a bot.")
+		return null
+	var brain := BotBrain.new()
+	brain.name = "BotBrain"
+	brain.map = map
+	brain.weapon = CharacterSkin.bot_weapon_for(character)
+	var body: FighterBody = spawner.create_fighter_body(character, brain, skin_path)
+	body.name = "Bot"
+	get_parent().add_child(body)
+	var fighter: Fighter = _register(body)
+	fighter.set_team(team)
+	fighter.respawn_at(position)
+	body.apply_hand_item(CharacterSkin.weapon_for(character))
+	return fighter
 
 
-## Takes the player out of play (dead): frozen, hidden, not targetable.
-func kill_player() -> void:
-	player.process_mode = Node.PROCESS_MODE_DISABLED
-	player.get_node("VisualRoot").visible = false
-	player.collision_layer = 0
+## Puts a body on the fighter list: collision layers, the fighter group, death handling, and the
+## class's gun in hand.
+func _register(body: FighterBody) -> Fighter:
+	body.collision_layer = MapInfo.FIGHTER_LAYER
+	body.collision_mask = MapInfo.TERRAIN_LAYER | MapInfo.FIGHTER_LAYER | MapInfo.STRUCTURE_LAYER
+	body.add_to_group("fighter")
+	var fighter: Fighter = Fighter.for_body(body)
+	fighter.health.died.connect(_on_fighter_died.bind(fighter))
+	fighters.append(fighter)
+	if fighter.is_human:
+		body.apply_hand_item(CharacterSkin.weapon_for(fighter.character))
+	return fighter
 
 
-## Brings the player back with full health, at a position (or a random spot when INF).
-func respawn_player(position: Vector3 = Vector3.INF) -> void:
-	player.process_mode = Node.PROCESS_MODE_INHERIT
-	player.get_node("VisualRoot").visible = true
-	player.collision_layer = MapInfo.FIGHTER_LAYER
-	if player.has_method("respawn_random"):
-		player.call("respawn_random")
-	if position != Vector3.INF and map.kind != MapInfo.Kind.CELESTIAL_BODY:
-		player.global_position = position
-	player.velocity = Vector3.ZERO
-	player_health.revive()
+func _find_spawner() -> PlayerSpawner:
+	var found: Array[Node] = get_parent().find_children("*", "PlayerSpawner", true, false)
+	return found.front() as PlayerSpawner if not found.is_empty() else null
 
 
-func is_player_alive() -> bool:
-	return player_health != null and player_health.is_alive()
+func humans() -> Array[Fighter]:
+	var result: Array[Fighter] = []
+	for fighter: Fighter in fighters:
+		if fighter.is_human:
+			result.append(fighter)
+	return result
 
 
-## Ends the match: shows the result panel and stops the bots.
+func bots() -> Array[Fighter]:
+	var result: Array[Fighter] = []
+	for fighter: Fighter in fighters:
+		if fighter.is_bot():
+			result.append(fighter)
+	return result
+
+
+func alive_fighters() -> Array[Fighter]:
+	var result: Array[Fighter] = []
+	for fighter: Fighter in fighters:
+		if fighter.is_alive():
+			result.append(fighter)
+	return result
+
+
+func alive_count() -> int:
+	return alive_fighters().size()
+
+
+func humans_alive() -> int:
+	var count: int = 0
+	for fighter: Fighter in fighters:
+		if fighter.is_human and fighter.is_alive():
+			count += 1
+	return count
+
+
+func is_local_alive() -> bool:
+	return local_fighter != null and local_fighter.is_alive()
+
+
+## Ends the match: shows the result panel and stops the bots thinking.
 func end_match(title: String, subtitle: String) -> void:
 	if match_over:
 		return
 	match_over = true
-	for bot: BotFighter in bots:
-		if is_instance_valid(bot):
-			bot.set_physics_process(false)
+	for fighter: Fighter in fighters:
+		if fighter.brain != null and is_instance_valid(fighter.brain):
+			fighter.brain.enabled = false
 	hud.show_end(title, subtitle)
 
 
 ## Team that dealt the killing blow to a Damageable (NO_TEAM if it fell or drowned).
 static func killer_team(victim: Damageable) -> int:
 	return Damageable.team_of(victim.last_damage_source)
-
-
-## Gives the player their class's gun so every mode starts armed.
-func _equip_class_weapon() -> void:
-	var weapon: PlayerItems.Item = CharacterSkin.weapon_for(LoadingScreen.selected_player_character)
-	if player.has_method("apply_hand_item"):
-		player.call("apply_hand_item", weapon)

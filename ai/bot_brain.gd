@@ -1,20 +1,17 @@
-extends CharacterBody3D
-class_name BotFighter
-## AI stand-in for another player. Walks the map like a player (any map: uses MapInfo's up, so the
-## celestial body's gravity works too), hunts the nearest enemy, keeps to its weapon's preferred range,
-## strafes, and shoots with spread. Modes can make it follow a squad leader or flee rising water.
-## Bot shots never dig into the terrain (dozens of bots would wreck the map and the frame rate).
+extends FighterController
+class_name BotBrain
+## AI pilot for a FighterBody: the bot stands in for another player on the same body a human
+## would use, so it walks, climbs, animates and shoots exactly as a player does. It hunts the
+## nearest enemy, keeps to its weapon's preferred range, strafes, and fires with its own cadence
+## and spread. Modes can make it follow a squad leader, flee rising water or fear a spore cloud.
+## Bot shots never dig terrain or spawn impact effects (dozens of bots would wreck the map and
+## the frame rate); the body's weapon is set up that way by the spawner.
 
-const ShootProjectileVisualScene: PackedScene = preload("res://combat/shoot_projectile_visual.tscn")
 const _EYE_HEIGHT: float = 0.9
-const _CAPSULE_RADIUS: float = 0.35
-const _CAPSULE_HEIGHT: float = 1.2
 const _RETARGET_SECONDS: float = 0.4
 const _REACTION_SECONDS: float = 0.55
-const _PROJECTILE_SPEED: float = 130.0
-const _VISUAL_REST_BASIS: Basis = Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1))
 ## A husk's bite: melee, so no projectile, just a short reach.
-const HUSK_WEAPON: Dictionary = {"damage": 9.0, "cooldown": 0.8, "range": 2.4, "spread_degrees": 0.0, "pellets": 1, "melee": true}
+const HUSK_WEAPON: Dictionary = {"damage": 9.0, "cooldown": 0.8, "range": 2.4, "spread_degrees": 0.0, "melee": true}
 ## How far inside the spore cloud's edge a clean bot likes to stay.
 const _STORM_MARGIN: float = 6.0
 
@@ -31,18 +28,16 @@ var storm_radius: float = INF
 ## spores and the water.
 var husk: bool = false
 var detection_range: float = 70.0
-var character: LoadingScreen.PlayerCharacter = LoadingScreen.PlayerCharacter.ANT_WARRIOR
 var map: MapInfo
-var damageable: Damageable
-var skin: CharacterSkin
+## Cadence, range and spread of the class's gun as a bot fires it (CharacterSkin.bot_weapon_for);
+## the damage comes from the body's weapon like a player's shot.
+var weapon: Dictionary = {}
 
-var _visual_root: Node3D
-var _move_speed: float = 5.0
-var _jump_velocity: float = 4.5
-var _weapon: Dictionary = {}
-var _weapon_item: PlayerItems.Item = PlayerItems.Item.WEAPON_AK
-var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
-var _active: bool = true
+var _body: FighterBody
+var _damageable: Damageable
+## The celestial body's controller only moves along its view, so a bot there cannot strafe
+## while facing a target; it turns toward wherever it is going instead.
+var _can_strafe: bool = true
 var _target: Node3D
 ## Whether the current target was visible at the last check (hills, or the celestial body's curve, hide it).
 var _target_in_sight: bool = false
@@ -64,53 +59,12 @@ var _duct_network: DuctNetwork
 var _duct_network_checked: bool = false
 var _strafe_sign: float = 1.0
 var _strafe_timer: float = 0.0
-var _anim_state: String = ""
-
-
-## Builds a ready-to-add bot for a class and team. skin_path overrides the class's bot skin.
-static func create(
-	bot_character: LoadingScreen.PlayerCharacter, bot_team: int, map_info: MapInfo, skin_path: String = ""
-) -> BotFighter:
-	var bot := BotFighter.new()
-	bot.name = "Bot"
-	bot.character = bot_character
-	bot.map = map_info
-	bot.collision_layer = MapInfo.FIGHTER_LAYER
-	bot.collision_mask = MapInfo.TERRAIN_LAYER | MapInfo.FIGHTER_LAYER | MapInfo.STRUCTURE_LAYER
-	bot.floor_snap_length = 0.3
-
-	var shape := CollisionShape3D.new()
-	var capsule := CapsuleShape3D.new()
-	capsule.radius = _CAPSULE_RADIUS
-	capsule.height = _CAPSULE_HEIGHT
-	shape.shape = capsule
-	shape.position = Vector3(0.0, _CAPSULE_HEIGHT * 0.5, 0.0)
-	bot.add_child(shape)
-
-	bot._visual_root = Node3D.new()
-	bot._visual_root.name = "VisualRoot"
-	bot._visual_root.basis = _VISUAL_REST_BASIS
-	bot.add_child(bot._visual_root)
-	var scene: PackedScene = load(skin_path if not skin_path.is_empty() else CharacterSkin.bot_scene_path_for(bot_character)) as PackedScene
-	bot.skin = scene.instantiate() as CharacterSkin
-	bot._visual_root.add_child(bot.skin)
-
-	var stats: Dictionary = CharacterSkin.stats_for(bot_character)
-	bot.damageable = Damageable.new()
-	bot.damageable.name = "Damageable"
-	bot.damageable.max_health = stats.get("max_health", 100.0)
-	bot.damageable.team = bot_team
-	bot.add_child(bot.damageable)
-	bot._move_speed = 5.0 * float(stats.get("speed", 1.0))
-	bot._jump_velocity = 4.5 * float(stats.get("jump", 1.0))
-	bot._weapon = CharacterSkin.bot_weapon_for(bot_character)
-	bot._weapon_item = CharacterSkin.weapon_for(bot_character)
-	bot.add_to_group("fighter")
-	return bot
 
 
 func _ready() -> void:
-	skin.set_equipped_weapon_from_item(_weapon_item)
+	_body = get_parent() as FighterBody
+	_damageable = get_parent().get_node_or_null("Damageable") as Damageable
+	_can_strafe = not (_body is CelestialBodyPlayer)
 	_strafe_sign = 1.0 if randf() < 0.5 else -1.0
 
 
@@ -119,32 +73,11 @@ func hold_fire(seconds: float) -> void:
 	_cooldown = maxf(_cooldown, seconds)
 
 
-func is_active() -> bool:
-	return _active
-
-
-## Removes the bot from play (dead): hidden, not collidable, not thinking.
-func deactivate() -> void:
-	_active = false
-	visible = false
-	collision_layer = 0
-	velocity = Vector3.ZERO
-	_target = null
-	set_physics_process(false)
-
-
-## Puts the bot back into play at a position with full health.
-func respawn_at(position_on_map: Vector3) -> void:
-	global_position = position_on_map
-	velocity = Vector3.ZERO
-	_align_to_up(map.up_at(position_on_map), 1.0)
-	visible = true
-	collision_layer = MapInfo.FIGHTER_LAYER
-	damageable.revive()
+## Forgets the last life's target and wander point.
+func on_respawn() -> void:
 	_target = null
 	_wander_point = Vector3.INF
-	_active = true
-	set_physics_process(true)
+	_clear_route()
 
 
 ## The fungus takes the bot (Cordyceps Royale): it rises again on the fungus team at a fraction of
@@ -152,12 +85,12 @@ func respawn_at(position_on_map: Vector3) -> void:
 ## from far off. Works on a bot that just died as well as a live one.
 func become_husk(fungus_team: int, speed_scale: float) -> void:
 	husk = true
-	damageable.team = fungus_team
-	damageable.revive()
-	_weapon = HUSK_WEAPON
-	_weapon_item = PlayerItems.Item.NONE
-	skin.set_equipped_weapon_from_item(PlayerItems.Item.NONE)
-	_move_speed *= speed_scale
+	_damageable.team = fungus_team
+	_body.set_in_play(true)
+	_damageable.revive()
+	weapon = HUSK_WEAPON
+	_body.apply_hand_item(PlayerItems.Item.NONE)
+	_body.scale_speed(speed_scale)
 	avoid_water = false
 	leader = null
 	storm_center = Vector3.INF
@@ -168,22 +101,16 @@ func become_husk(fungus_team: int, speed_scale: float) -> void:
 	_clear_route()
 	# A moment of stillness as it gets back up.
 	_cooldown = maxf(_cooldown, 1.5)
-	add_to_group("husk")
-	visible = true
-	collision_layer = MapInfo.FIGHTER_LAYER
-	_active = true
-	set_physics_process(true)
+	_body.add_to_group("husk")
 
 
-func _physics_process(delta: float) -> void:
-	if not _active or map == null:
-		return
-	var up: Vector3 = map.up_at(global_position)
-	up_direction = up
-	_align_to_up(up, minf(1.0, 8.0 * delta))
-	if map.is_out_of_bounds(global_position):
-		damageable.apply_damage(damageable.max_health * 10.0)
-		return
+func sample(body: CharacterBody3D, delta: float) -> FighterInput:
+	var input: FighterInput = FighterInput.new()
+	if not enabled or map == null or _body == null or not _body.is_in_play():
+		return input
+	var position_now: Vector3 = body.global_position
+	var up: Vector3 = map.up_at(position_now)
+	input.view_up = up
 
 	_retarget_timer -= delta
 	_reaction_timer -= delta
@@ -203,7 +130,7 @@ func _physics_process(delta: float) -> void:
 		_target = null
 
 	var goal: Vector3 = _choose_goal(up)
-	var to_goal: Vector3 = goal - global_position
+	var to_goal: Vector3 = goal - position_now
 	var planar: Vector3 = to_goal.slide(up)
 	var move_direction: Vector3 = Vector3.ZERO
 	if to_goal.length() > 0.6:
@@ -214,22 +141,29 @@ func _physics_process(delta: float) -> void:
 		move_direction = planar.normalized()
 	if avoid_water and move_direction != Vector3.ZERO and _step_leads_into_water(move_direction):
 		move_direction = Vector3.ZERO
-	var vertical_speed: float = velocity.dot(up)
-	if is_on_floor() and vertical_speed < 0.0:
-		vertical_speed = 0.0
-	velocity = move_direction * _move_speed + up * vertical_speed
-	if not is_on_floor():
-		velocity -= up * _gravity * delta
-	elif move_direction != Vector3.ZERO and is_on_wall():
-		velocity += up * _jump_velocity
 
+	# Facing: the target when there is one, else the way the legs go. With a target the body
+	# squares up to it (aiming) and the legs strafe relative to that view.
 	var facing: Vector3 = move_direction
-	if _target != null:
-		facing = (_target.global_position - global_position).slide(up)
-	_face(facing, delta)
-	move_and_slide()
-	_try_shoot(up)
-	_update_animation(move_direction, up)
+	if _target != null and _can_strafe:
+		facing = (_target.global_position - position_now).slide(up)
+	if facing.length_squared() < 0.0001:
+		facing = (-body.global_basis.z).slide(up)
+	if facing.length_squared() < 0.0001:
+		facing = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
+	facing = facing.normalized()
+	input.view_forward = facing
+	if move_direction != Vector3.ZERO:
+		var right: Vector3 = facing.cross(up).normalized()
+		input.move = Vector2(move_direction.dot(right), move_direction.dot(facing))
+		if not _can_strafe:
+			input.move = Vector2(0.0, 1.0)
+	input.aiming = _target != null and _can_strafe
+	# A wall in the way: hop. Only from the ground, so a flyer never takes off by accident.
+	input.jump_pressed = move_direction != Vector3.ZERO and body.is_on_floor() and body.is_on_wall()
+
+	_try_shoot(input, up)
+	return input
 
 
 # --- Targeting --------------------------------------------------------------------------------
@@ -241,7 +175,7 @@ func _find_target() -> Node3D:
 		var candidate: Node3D = node as Node3D
 		if candidate == null or not _is_valid_target(candidate):
 			continue
-		var distance: float = global_position.distance_to(candidate.global_position)
+		var distance: float = _body.global_position.distance_to(candidate.global_position)
 		if distance < best_distance:
 			best_distance = distance
 			best = candidate
@@ -249,20 +183,20 @@ func _find_target() -> Node3D:
 
 
 func _is_valid_target(candidate: Node3D) -> bool:
-	if candidate == self or not is_instance_valid(candidate) or not candidate.is_inside_tree():
+	if candidate == _body or not is_instance_valid(candidate) or not candidate.is_inside_tree():
 		return false
-	if candidate is BotFighter and not (candidate as BotFighter).is_active():
+	if candidate is FighterBody and not (candidate as FighterBody).is_in_play():
 		return false
 	var health: Damageable = candidate.get_node_or_null("Damageable") as Damageable
 	if health == null or not health.is_alive():
 		return false
-	return damageable.team == Damageable.NO_TEAM or health.team != damageable.team
+	return _damageable.team == Damageable.NO_TEAM or health.team != _damageable.team
 
 
 # --- Movement ---------------------------------------------------------------------------------
 
 func _choose_goal(up: Vector3) -> Vector3:
-	var position_now: Vector3 = global_position
+	var position_now: Vector3 = _body.global_position
 	if avoid_water and map.water != null and position_now.y < map.water_surface_y() + 3.0:
 		return _wander_goal(map.water_surface_y() + 4.0)
 	# In (or nearly in) the spore cloud: nothing matters but getting back inside the circle.
@@ -274,10 +208,10 @@ func _choose_goal(up: Vector3) -> Vector3:
 	if _target != null and not target_too_low and not target_in_storm:
 		var to_target: Vector3 = (_target.global_position - position_now).slide(up)
 		var distance: float = to_target.length()
-		var melee: bool = bool(_weapon.get("melee", false))
+		var melee: bool = bool(weapon.get("melee", false))
 		var preferred: float = (
-			float(_weapon.get("range", 2.0)) * 0.6 if melee
-			else clampf(float(_weapon.get("range", 40.0)) * 0.45, 6.0, 25.0)
+			float(weapon.get("range", 2.0)) * 0.6 if melee
+			else clampf(float(weapon.get("range", 40.0)) * 0.45, 6.0, 25.0)
 		)
 		if distance > preferred * 1.3 or not _target_in_sight:
 			return _via_ducts(_target.global_position)
@@ -311,12 +245,12 @@ func _storm_depth(point: Vector3) -> float:
 
 ## A spot well inside the safe circle, straight in from where the bot stands.
 func _storm_refuge(up: Vector3) -> Vector3:
-	var outward: Vector3 = (global_position - storm_center).slide(up)
+	var outward: Vector3 = (_body.global_position - storm_center).slide(up)
 	if outward.length_squared() < 0.01:
 		outward = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
 	var inside: float = maxf(storm_radius - _STORM_MARGIN * 2.0, 0.0)
 	var refuge: Vector3 = storm_center + outward.normalized() * inside
-	refuge.y = global_position.y
+	refuge.y = _body.global_position.y
 	return refuge
 
 
@@ -343,7 +277,7 @@ func _separated_by_ducts(point: Vector3) -> bool:
 	if network == null:
 		return false
 	var probe: Vector3 = Vector3.UP * 0.6
-	return network.is_inside(global_position + probe) != network.is_inside(point + probe)
+	return network.is_inside(_body.global_position + probe) != network.is_inside(point + probe)
 
 
 ## The way to a destination: straight at it when neither end is inside the ductwork, otherwise
@@ -353,11 +287,11 @@ func _via_ducts(destination: Vector3) -> Vector3:
 	if network == null:
 		return destination
 	var probe: Vector3 = Vector3.UP * 0.6
-	if not network.is_inside(global_position + probe) and not network.is_inside(destination + probe):
+	if not network.is_inside(_body.global_position + probe) and not network.is_inside(destination + probe):
 		_clear_route()
 		return destination
 	if _route.is_empty() or _route_destination.distance_to(destination) > 4.0:
-		_start_route(network.route(global_position, destination), destination)
+		_start_route(network.route(_body.global_position, destination), destination)
 		if _route.is_empty():
 			return destination
 	return _follow_route()
@@ -368,7 +302,7 @@ func _start_route(route: PackedVector3Array, destination: Vector3) -> void:
 	_route_index = 0
 	_route_destination = destination
 	_route_check_timer = 0.0
-	_route_check_position = global_position
+	_route_check_position = _body.global_position
 
 
 func _clear_route() -> void:
@@ -384,17 +318,18 @@ func _watch_route_progress(delta: float) -> void:
 	if _route_check_timer < 2.5:
 		return
 	_route_check_timer = 0.0
-	if global_position.distance_to(_route_check_position) < 1.0:
+	if _body.global_position.distance_to(_route_check_position) < 1.0:
 		_clear_route()
 		_wander_point = Vector3.INF
 		_duct_cooldown = 12.0
-	_route_check_position = global_position
+	_route_check_position = _body.global_position
 
 
 func _wander_goal(min_height: float) -> Vector3:
 	if not _route.is_empty():
 		return _follow_route()
-	var reached: bool = _wander_point != Vector3.INF and global_position.distance_to(_wander_point) < 2.0
+	var position_now: Vector3 = _body.global_position
+	var reached: bool = _wander_point != Vector3.INF and position_now.distance_to(_wander_point) < 2.0
 	var too_low: bool = _wander_point != Vector3.INF and _wander_point.y < min_height
 	if _wander_point == Vector3.INF or reached or too_low or _wander_timer <= 0.0:
 		var network: DuctNetwork = _find_duct_network()
@@ -404,7 +339,7 @@ func _wander_goal(min_height: float) -> Vector3:
 			var inside_spot: Vector3 = network.random_interior_point()
 			var in_storm: bool = inside_spot != Vector3.INF and _fears_storm() and _storm_depth(inside_spot) > -_STORM_MARGIN
 			if inside_spot != Vector3.INF and not in_storm:
-				var route: PackedVector3Array = network.route(global_position, inside_spot)
+				var route: PackedVector3Array = network.route(position_now, inside_spot)
 				if not route.is_empty() and not map.is_underwater(route[0] + Vector3.UP * 0.5):
 					_wander_point = inside_spot
 					_wander_timer = randf_range(12.0, 20.0)
@@ -413,8 +348,8 @@ func _wander_goal(min_height: float) -> Vector3:
 		_wander_point = _random_point(min_height)
 		_wander_timer = randf_range(6.0, 11.0)
 		# Leaving the ducts means walking out the way in, not through a wall.
-		if network != null and network.is_inside(global_position + Vector3.UP * 0.6):
-			_start_route(network.route(global_position, _wander_point), _wander_point)
+		if network != null and network.is_inside(position_now + Vector3.UP * 0.6):
+			_start_route(network.route(position_now, _wander_point), _wander_point)
 	if not _route.is_empty():
 		return _follow_route()
 	return _wander_point
@@ -423,14 +358,15 @@ func _wander_goal(min_height: float) -> Vector3:
 ## The next route point, advancing when the bot gets close (measured flat, since waypoints sit
 ## at feet height on floors the bot may be above or below while climbing a ramp).
 func _follow_route() -> Vector3:
+	var position_now: Vector3 = _body.global_position
 	var point: Vector3 = _route[_route_index]
-	if Vector2(point.x - global_position.x, point.z - global_position.z).length() < 1.3:
+	if Vector2(point.x - position_now.x, point.z - position_now.z).length() < 1.3:
 		_route_index += 1
 		if _route_index >= _route.size():
 			# Off the graph: head straight for wherever the route was taking us.
 			var destination: Vector3 = _route_destination
 			_clear_route()
-			return destination if destination != Vector3.INF else global_position
+			return destination if destination != Vector3.INF else position_now
 		point = _route[_route_index]
 	return point
 
@@ -442,94 +378,54 @@ func _find_duct_network() -> DuctNetwork:
 	return _duct_network if _duct_network != null and is_instance_valid(_duct_network) else null
 
 
-func _align_to_up(up: Vector3, weight: float) -> void:
-	var current_up: Vector3 = global_basis.y.normalized()
-	if current_up.dot(up) > 0.9999:
-		return
-	var turn := Quaternion(current_up, up)
-	global_basis = (Basis(Quaternion.IDENTITY.slerp(turn, weight)) * global_basis).orthonormalized()
-
-
-func _face(direction: Vector3, delta: float) -> void:
-	var local_direction: Vector3 = (global_basis.inverse() * direction).slide(Vector3.UP)
-	if local_direction.length_squared() < 0.0001:
-		return
-	var target_rotation: Quaternion = (
-		Basis.looking_at(local_direction.normalized(), Vector3.UP) * _VISUAL_REST_BASIS
-	).get_rotation_quaternion()
-	var current_rotation: Quaternion = _visual_root.basis.get_rotation_quaternion()
-	if current_rotation.dot(target_rotation) < 0.0:
-		target_rotation = -target_rotation
-	_visual_root.basis = Basis(current_rotation.slerp(target_rotation, minf(1.0, 10.0 * delta)))
-
-
 # --- Shooting ---------------------------------------------------------------------------------
 
-func _try_shoot(up: Vector3) -> void:
-	if _target == null or _cooldown > 0.0 or _reaction_timer > 0.0 or _weapon.is_empty():
+## Decides whether to pull the trigger this frame and, if so, where the shot goes. A gun fires
+## through the body's weapon (damage from its profile); a husk's bite lands straight away.
+func _try_shoot(input: FighterInput, up: Vector3) -> void:
+	if _target == null or _cooldown > 0.0 or _reaction_timer > 0.0 or weapon.is_empty():
 		return
-	var eye: Vector3 = global_position + up * _EYE_HEIGHT
+	var eye: Vector3 = _body.global_position + up * _EYE_HEIGHT
 	var aim_point: Vector3 = _aim_point(_target)
-	var weapon_range: float = _weapon.get("range", 40.0)
+	var weapon_range: float = weapon.get("range", 40.0)
 	if eye.distance_to(aim_point) > weapon_range:
 		return
 	var sight: Dictionary = _cast(eye, aim_point)
 	if not sight.is_empty() and sight.collider != _target:
 		return
-	_cooldown = float(_weapon.get("cooldown", 0.3)) * randf_range(0.9, 1.25)
-	if bool(_weapon.get("melee", false)):
-		# A bite lands straight away, no projectile.
-		_apply_hit(_target, float(_weapon.get("damage", 6.0)))
+	_cooldown = float(weapon.get("cooldown", 0.3)) * randf_range(0.9, 1.25)
+	if bool(weapon.get("melee", false)):
+		_apply_bite(_target, float(weapon.get("damage", 6.0)))
 		return
-	var base_direction: Vector3 = (aim_point - eye).normalized()
-	for _pellet: int in int(_weapon.get("pellets", 1)):
-		var direction: Vector3 = _spread(base_direction, float(_weapon.get("spread_degrees", 3.0)))
-		var hit: Dictionary = _cast(eye, eye + direction * weapon_range)
-		var impact: Vector3 = hit.position if not hit.is_empty() else eye + direction * weapon_range
-		_spawn_shot(eye + direction * 0.5, impact, hit.get("collider"))
+	var direction: Vector3 = _spread((aim_point - eye).normalized(), float(weapon.get("spread_degrees", 3.0)))
+	input.shoot_pressed = true
+	input.shoot_held = true
+	input.has_aim = true
+	input.aim_origin = eye
+	input.aim_direction = direction
 
 
 func _spread(direction: Vector3, degrees: float) -> Vector3:
+	if degrees <= 0.0:
+		return direction
 	var side: Vector3 = direction.cross(Vector3.UP if absf(direction.y) < 0.95 else Vector3.RIGHT).normalized()
 	var spun: Vector3 = side.rotated(direction, randf() * TAU)
 	return direction.rotated(spun, deg_to_rad(randf() * degrees)).normalized()
 
 
-func _spawn_shot(from: Vector3, to: Vector3, collider: Variant) -> void:
-	var world_root: Node = get_tree().current_scene
-	var visual: ShootProjectileVisual = ShootProjectileVisualScene.instantiate() as ShootProjectileVisual
-	world_root.add_child(visual)
-	visual.travel_speed = _PROJECTILE_SPEED
-	visual.launch(from, to, 0.07)
-	visual.arrived.connect(_apply_hit.bind(collider, float(_weapon.get("damage", 6.0))))
-
-
-func _apply_hit(collider: Variant, damage: float) -> void:
-	if not is_instance_valid(collider) or not (collider is Node):
+func _apply_bite(target: Node3D, damage: float) -> void:
+	if not is_instance_valid(target):
 		return
-	var health: Damageable = (collider as Node).get_node_or_null("Damageable") as Damageable
+	var health: Damageable = target.get_node_or_null("Damageable") as Damageable
 	if health != null:
-		health.apply_damage(damage, self)
+		health.apply_damage(damage, _body)
 
 
 func _cast(from: Vector3, to: Vector3) -> Dictionary:
 	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.exclude = [get_rid()]
+	query.exclude = [_body.get_rid()]
 	query.collide_with_areas = false
-	return get_world_3d().direct_space_state.intersect_ray(query)
-
-
-# --- Animation --------------------------------------------------------------------------------
-
-func _update_animation(move_direction: Vector3, up: Vector3) -> void:
-	var state: String = "idle"
-	if not is_on_floor():
-		state = "jump" if velocity.dot(up) > 0.05 else "fall"
-	elif move_direction != Vector3.ZERO:
-		state = "run" if _move_speed > 5.5 else "walk"
-	if state != _anim_state:
-		_anim_state = state
-		skin.set_state(state)
+	return _body.get_world_3d().direct_space_state.intersect_ray(query)
 
 
 func _aim_point(target: Node3D) -> Vector3:
@@ -538,7 +434,7 @@ func _aim_point(target: Node3D) -> Vector3:
 
 
 func _can_see(target: Node3D) -> bool:
-	var eye: Vector3 = global_position + map.up_at(global_position) * _EYE_HEIGHT
+	var eye: Vector3 = _body.global_position + map.up_at(_body.global_position) * _EYE_HEIGHT
 	var sight: Dictionary = _cast(eye, _aim_point(target))
 	return sight.is_empty() or sight.collider == target
 
@@ -547,6 +443,6 @@ func _can_see(target: Node3D) -> bool:
 func _step_leads_into_water(direction: Vector3) -> bool:
 	if map.water == null:
 		return false
-	var ahead: Dictionary = map.ground_hit(global_position + direction * 1.5)
+	var ahead: Dictionary = map.ground_hit(_body.global_position + direction * 1.5)
 	var safe_height: float = map.water_surface_y() + 1.5
-	return ahead.is_empty() or (ahead.position.y < safe_height and global_position.y >= safe_height)
+	return ahead.is_empty() or (ahead.position.y < safe_height and _body.global_position.y >= safe_height)

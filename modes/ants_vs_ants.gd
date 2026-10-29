@@ -1,7 +1,7 @@
 extends GameMode
-## Ants vs Ants: 10 vs 10 team deathmatch. The player's Red colony (soldier ants) against the Black
-## colony (glossy black ants), all AI except the player. Each colony starts and respawns on its own
-## half of the map. First colony to KILL_LIMIT kills wins.
+## Ants vs Ants: 10 vs 10 team deathmatch. The Red colony (soldier ants) against the Black colony
+## (glossy black ants). Humans join the Red colony and bots fill the rest. Each colony starts and
+## respawns on its own half of the map. First colony to KILL_LIMIT kills wins.
 
 const RED_TEAM: int = 0
 const BLACK_TEAM: int = 1
@@ -16,9 +16,10 @@ var scores: Array[int] = [0, 0]
 
 
 func _start_match() -> void:
-	player_health.team = RED_TEAM
-	respawn_player(_team_spawn(RED_TEAM))
-	for index: int in TEAM_SIZE - 1:
+	for human: Fighter in humans():
+		human.set_team(RED_TEAM)
+		human.respawn_at(_team_spawn(RED_TEAM))
+	for index: int in TEAM_SIZE - humans().size():
 		_spawn_colony_bot(RED_TEAM)
 	for index: int in TEAM_SIZE:
 		_spawn_colony_bot(BLACK_TEAM)
@@ -29,45 +30,38 @@ func _status_text() -> String:
 	return "Red %d  —  %d Black   ·   First to %d" % [scores[RED_TEAM], scores[BLACK_TEAM], KILL_LIMIT]
 
 
-func _on_player_died() -> void:
-	_score_kill(RED_TEAM, player_health)
-	kill_player()
+func _on_fighter_died(fighter: Fighter) -> void:
+	var team: int = fighter.get_team()
+	_score_kill(team)
+	fighter.kill()
 	if match_over:
 		return
-	hud.show_message("You were squished! Respawning...", RESPAWN_SECONDS - 0.5)
+	if fighter.is_local:
+		hud.show_message("You were squished! Respawning...", RESPAWN_SECONDS - 0.5)
 	get_tree().create_timer(RESPAWN_SECONDS).timeout.connect(func() -> void:
-		if not match_over:
-			respawn_player(_team_spawn(RED_TEAM))
-	)
-
-
-func _on_bot_died(bot: BotFighter) -> void:
-	var team: int = bot.damageable.team
-	_score_kill(team, bot.damageable)
-	bot.deactivate()
-	get_tree().create_timer(RESPAWN_SECONDS).timeout.connect(func() -> void:
-		if not match_over and is_instance_valid(bot):
-			bot.respawn_at(_team_spawn(team))
+		if not match_over and fighter.is_valid():
+			fighter.respawn_at(_team_spawn(team))
 	)
 
 
 func _spawn_colony_bot(team: int) -> void:
 	var skin: String = CharacterSkin.BLACK_ANT_BOT_SCENE_PATH if team == BLACK_TEAM else ""
-	var bot: BotFighter = spawn_bot(LoadingScreen.PlayerCharacter.ANT_WARRIOR, team, _team_spawn(team), skin)
-	bot.target_group = &"fighter"
+	var bot: Fighter = spawn_bot(LoadingScreen.PlayerCharacter.ANT_WARRIOR, team, _team_spawn(team), skin)
+	if bot != null:
+		bot.brain.target_group = &"fighter"
 
 
 ## A death on victim_team scores for the other colony (falls and other accidents count too).
-func _score_kill(victim_team: int, _victim: Damageable) -> void:
+func _score_kill(victim_team: int) -> void:
 	if match_over:
 		return
 	var scoring_team: int = BLACK_TEAM if victim_team == RED_TEAM else RED_TEAM
 	scores[scoring_team] += 1
 	if scores[scoring_team] >= KILL_LIMIT:
-		var player_won: bool = scoring_team == RED_TEAM
+		var local_won: bool = local_fighter != null and scoring_team == local_fighter.get_team()
 		end_match(
 			"%s colony wins!" % TEAM_NAMES[scoring_team],
-			("Victory! " if player_won else "Defeat. ") + "Final score: Red %d — %d Black" % [scores[RED_TEAM], scores[BLACK_TEAM]]
+			("Victory! " if local_won else "Defeat. ") + "Final score: Red %d — %d Black" % [scores[RED_TEAM], scores[BLACK_TEAM]]
 		)
 
 

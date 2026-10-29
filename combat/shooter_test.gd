@@ -3,6 +3,10 @@ class_name ShooterTest
 ## Weapon fire: a projectile visual, direct and splash damage on impact, and a crater in the
 ## terrain for the explosive weapons only ("digs" in the profile: grenade launcher, rocket
 ## launcher, short cannon). Bullets, pellets and blades leave the ground alone.
+##
+## The local player's trigger and aim come from the mouse and the camera. Any other pilot (a
+## bot's brain, later a network peer) hands its FighterInput to handle_input each physics frame:
+## the trigger edge or hold, and the ray the shot follows.
 
 const SHOOT_ACTION: StringName = &"shoot"
 const ShootProjectileVisualScene: PackedScene = preload("res://combat/shoot_projectile_visual.tscn")
@@ -89,6 +93,12 @@ const WEAPON_FIRE_PROFILE: Dictionary = {
 ## weapon's cooldown, so the stance holds steady through a burst instead of flickering between
 ## shots (which twists the body, and the camera with it, when strafing).
 @export var stance_hold_seconds: float = 1.0
+## Bots: no craters and no impact effects (dozens of bots would wreck the map and the frame
+## rate); their spread is their brain's, not the gun's.
+@export var lightweight_impacts: bool = false
+
+## Shots fired since the body spawned (the smoke test reads it).
+var shots_fired: int = 0
 
 var _camera: Camera3D
 var _cooldown_left_seconds: float = 0.0
@@ -112,7 +122,7 @@ func _process(delta: float) -> void:
 	_stance_timer_seconds = maxf(0.0, _stance_timer_seconds - delta)
 	_bloom_degrees = maxf(0.0, _bloom_degrees - bloom_decay_per_second * delta)
 	# Automatic weapons keep firing while the button is held.
-	if Input.is_action_pressed(SHOOT_ACTION) and _can_accept_shoot_input():
+	if _is_local_pilot() and Input.is_action_pressed(SHOOT_ACTION) and _can_accept_shoot_input():
 		var fire_profile: Dictionary = WEAPON_FIRE_PROFILE.get(_get_equipped_weapon_item(), {})
 		if fire_profile.get("auto", false):
 			_try_shoot()
@@ -120,10 +130,27 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not _can_accept_shoot_input():
+	if not _is_local_pilot() or not _can_accept_shoot_input():
 		return
 	if event.is_action_pressed(SHOOT_ACTION):
 		_try_shoot()
+
+
+## A non-local pilot's trigger for this physics frame (the body calls this after sampling).
+func handle_input(input: FighterInput) -> void:
+	if _is_local_pilot() or not _can_accept_shoot_input():
+		return
+	if input.shoot_pressed:
+		_try_shoot()
+	elif input.shoot_held:
+		var fire_profile: Dictionary = WEAPON_FIRE_PROFILE.get(_get_equipped_weapon_item(), {})
+		if fire_profile.get("auto", false):
+			_try_shoot()
+
+
+func _is_local_pilot() -> bool:
+	var body: FighterBody = get_parent() as FighterBody
+	return body == null or body.is_local
 
 
 ## True while the trigger is held and for a while after the last shot: the body faces the camera.
@@ -133,6 +160,9 @@ func is_firing() -> bool:
 		return false
 	if _stance_timer_seconds > 0.0:
 		return true
+	if not _is_local_pilot():
+		var body: FighterBody = get_parent() as FighterBody
+		return body.get_input().shoot_held
 	return Input.is_action_pressed(SHOOT_ACTION) and _can_accept_shoot_input()
 
 
@@ -158,6 +188,8 @@ func get_spread_degrees() -> float:
 
 ## Scatters a direction within the current spread cone.
 func _apply_spread(direction: Vector3) -> Vector3:
+	if lightweight_impacts:
+		return direction
 	var spread: float = get_spread_degrees()
 	if spread <= 0.0:
 		return direction
@@ -187,7 +219,7 @@ func _get_muzzle_position(fallback: Vector3) -> Vector3:
 
 
 func _try_shoot() -> void:
-	if _camera == null or _cooldown_left_seconds > 0.0:
+	if _cooldown_left_seconds > 0.0:
 		return
 	var equipped_weapon_item = _get_equipped_weapon_item()
 	if not PlayerItems.is_weapon(equipped_weapon_item):
@@ -199,7 +231,7 @@ func _try_shoot() -> void:
 	var explosion_radius: float = fire_profile.get("radius", default_explosion_radius)
 	var projectile_speed: float = fire_profile.get("projectile_speed", default_projectile_speed)
 	var projectile_radius: float = fire_profile.get("projectile_radius", default_projectile_radius)
-	var digs: bool = fire_profile.get("digs", false)
+	var digs: bool = fire_profile.get("digs", false) and not lightweight_impacts
 
 	var ray_origin: Vector3
 	var ray_direction: Vector3
@@ -215,11 +247,14 @@ func _try_shoot() -> void:
 		ray_origin,
 		ray_origin + ray_direction * max_shoot_distance
 	)
-	ray_query.exclude = [get_parent()]
+	var shooter_body: CollisionObject3D = get_parent() as CollisionObject3D
+	if shooter_body != null:
+		ray_query.exclude = [shooter_body.get_rid()]
 	var space: PhysicsDirectSpaceState3D = get_viewport().get_world_3d().direct_space_state
 	var raycast_hit: Dictionary = space.intersect_ray(ray_query)
 	if raycast_hit.is_empty():
 		return
+	shots_fired += 1
 
 	var hit_position: Vector3 = raycast_hit.position
 	_spawn_projectile_visual(
@@ -281,7 +316,8 @@ func _apply_shot_impact(
 	_apply_splash_damage(hit_position, explosion_radius, hit_damage, direct_hit)
 	if digs:
 		_apply_terrain_explosion(hit_position, explosion_radius)
-	_spawn_explosion_effect(hit_position, explosion_radius)
+	if not lightweight_impacts:
+		_spawn_explosion_effect(hit_position, explosion_radius)
 
 
 ## Damages whatever the shot hit directly and returns its Damageable (null if none).
@@ -369,10 +405,12 @@ func _resolve_damageable(target: Node) -> Damageable:
 func _can_accept_shoot_input() -> bool:
 	if get_tree().paused:
 		return false
-	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
-		return false
 	var player_node: Node = get_parent()
 	if player_node == null:
+		return false
+	if not _is_local_pilot():
+		return true
+	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
 		return false
 	if player_node.has_method("is_terrain_focus_active") and player_node.call("is_terrain_focus_active"):
 		return false
@@ -407,6 +445,11 @@ func _get_skin_node() -> Node:
 
 
 func _get_aim_ray() -> Dictionary:
+	if not _is_local_pilot():
+		var input: FighterInput = (get_parent() as FighterBody).get_input()
+		if input.has_aim:
+			return {"origin": input.aim_origin, "direction": input.aim_direction}
+		return {"origin": Vector3.ZERO, "direction": Vector3.ZERO}
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var screen_position: Vector2 = viewport_size * 0.5
 	var orbit_camera: OrbitCamera = get_node_or_null(orbit_camera_path) as OrbitCamera
