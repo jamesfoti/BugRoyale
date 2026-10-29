@@ -97,17 +97,67 @@ committed.
 Tests
 -----
 
-Unit tests use [GUT](https://github.com/bitwes/Gut) (in `addons/gut`, excluded from exports)
-and live under `test/unit`. Run them headless with the console binary:
+Two layers: unit tests for the rules and arithmetic, and a headless smoke test that plays a
+whole bot match per mode. Both run without a window and exit non-zero on failure, so they can
+gate a release.
+
+### Unit tests
+
+Written with [GUT](https://github.com/bitwes/Gut) 9.6.1, vendored in `addons/gut` and enabled
+as an editor plugin. Suites live in `test/unit`:
+
+| Suite | Covers |
+|---|---|
+| `test_terrain_edits.gd` | The voxel edit layer: sphere and box stamps, the one-voxel shell, placed materials, carving, no-change detection, the lattice origin, export/import, bounds |
+| `test_block_snapping.gd` | Where the block tool lands a block for a hit: ground, stacked faces, side faces, odd and one-voxel sizes, 2 m voxels with an offset origin |
+| `test_mode_state.gd` | Every mode's state snapshot survives a round trip onto a fresh mode (what a client will show the match from) |
+| `test_damageable.gd` | Health rules: team immunity, the no-team case, dying once, kill credit, the host-only authority gate, revive |
+
+GUT and `test/` are excluded from both export presets, so nothing test-related ships.
+
+**From the command line** (the usual way, and what CI or the release script would run):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1
 ```
 
-Set `GODOT` to the path of a Godot console executable if `godot` is not on your PATH. Pass
-`-Smoke` to also play one bot match per mode without a window (`tools/smoke_test.tscn`) and
-check that fighters move, shoot and die. Both exit non-zero on failure, so they can gate a
-release.
+The script looks for a Godot console executable in `-Godot <path>`, then the `GODOT`
+environment variable, then `godot` on the PATH. Underneath it runs GUT's own runner, which you
+can also call directly, for example to run one suite:
+
+```powershell
+godot --headless --path . -s res://addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json -gexit -gselect=test_block_snapping
+```
+
+`.gutconfig.json` holds the defaults (test folder, `test_` prefix, exit when done).
+
+**From the editor** (Godot 4.6 or newer): the GUT panel sits in the bottom dock once the
+project is open. Run All runs every suite; the script and inner-class pickers run one. The
+panel needs Godot 4.6+ for its dock API; on an older editor the command line still works.
+
+**Writing a test:** add `test_<thing>.gd` under `test/unit`, `extends GutTest`, and give it
+functions named `test_...` using `assert_eq`, `assert_true`, `assert_almost_eq` and friends.
+`before_each` runs before every test. Nodes created in a test go through `autofree` or
+`add_child_autofree` so they are cleaned up. Do not give test scripts a `class_name`: that
+would put them in the exported class cache. Keep tests to logic that needs no running match;
+anything that needs a map belongs in the smoke test.
+
+### Smoke test
+
+`tools/smoke_test.tscn` loads a map with a mode exactly as the main menu would, lets it run for
+a number of physics frames, and reports how far each fighter moved, how many shots it fired,
+who died, whether the mode's state survives a snapshot round trip, and whether the terrain edit
+log refuses an edit that would bury a fighter. Pass `-Smoke` to `tools/run_tests.ps1` to run
+one match per mode, or run a single combination yourself:
+
+```powershell
+godot --headless --path . res://tools/smoke_test.tscn -- map=crawlspace mode=cordyceps_royale frames=1800
+```
+
+Map ids: `battlefield`, `celestial_body`, `terrarium`, `fishbowl`, `crawlspace`. Mode ids:
+`hornets`, `ants_vs_ants`, `battle_royale`, `cordyceps_royale`, `explore`. Add `drive=1` to
+work the local player's controls as well. The result line starts with `SMOKE RESULT`. Headless
+Godot cannot capture the mouse, so the local player's trigger is the one thing it never fires.
 
 Release
 -------
