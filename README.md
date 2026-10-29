@@ -8,6 +8,7 @@ and climb. Made with Godot 4.7.
 - [Play](#play)
 - [Run](#run)
 - [Build](#build)
+- [Tests](#tests)
 - [Release](#release)
 - [Tools](#tools)
 - [Credits](#credits)
@@ -92,6 +93,21 @@ Exports `builds/windows/BugRoyale.exe` and `builds/macos/BugRoyale.zip` (the .ap
 downloading the Godot export templates on first run. Pass `-WindowsOnly` or `-MacOSOnly` for
 one platform. Windows and macOS are the only supported platforms; the builds folder is not
 committed.
+
+Tests
+-----
+
+Unit tests use [GUT](https://github.com/bitwes/Gut) (in `addons/gut`, excluded from exports)
+and live under `test/unit`. Run them headless with the console binary:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1
+```
+
+Set `GODOT` to the path of a Godot console executable if `godot` is not on your PATH. Pass
+`-Smoke` to also play one bot match per mode without a window (`tools/smoke_test.tscn`) and
+check that fighters move, shoot and die. Both exit non-zero on failure, so they can gate a
+release.
 
 Release
 -------

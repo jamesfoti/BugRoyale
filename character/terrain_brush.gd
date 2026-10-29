@@ -267,21 +267,39 @@ func _block_half_extent() -> float:
 ## (ADD) or just inside (DESTROY) the plane the ray hit, like placing against a face in a block
 ## game; a hit on natural ground buries the block up to a voxel rather than floating it.
 func _block_center_for_hit() -> Vector3:
-	var step: float = _terrain.get_voxel_size()
-	var origin: Vector3 = _terrain.get_grid_world_origin()
-	var normal: Vector3 = _hover_hit.normal as Vector3
-	var axis: int = normal.abs().max_axis_index()
-	var side: float = 1.0 if normal[axis] >= 0.0 else -1.0
-	var local: Vector3 = ((_hover_hit.position as Vector3) - origin) / step
-	var half: float = float(block_size) * 0.5
+	return snap_block_center(
+		_hover_hit.position as Vector3,
+		_hover_hit.normal as Vector3,
+		_terrain.get_voxel_size(),
+		_terrain.get_grid_world_origin(),
+		block_size,
+		_mode == EditMode.ADD
+	)
+
+
+## The grid maths behind _block_center_for_hit, with the terrain's lattice passed in so it can
+## be tested on its own: voxel_size and grid_origin describe the sample lattice, size_voxels is
+## the block's side, add places the block outside the hit face (false: takes the block inside).
+static func snap_block_center(
+	hit_position: Vector3,
+	hit_normal: Vector3,
+	voxel_size: float,
+	grid_origin: Vector3,
+	size_voxels: int,
+	add: bool
+) -> Vector3:
+	var axis: int = hit_normal.abs().max_axis_index()
+	var side: float = 1.0 if hit_normal[axis] >= 0.0 else -1.0
+	var local: Vector3 = (hit_position - grid_origin) / voxel_size
+	var half: float = float(size_voxels) * 0.5
 	var center: Vector3 = (local - Vector3.ONE * half).round() + Vector3.ONE * half
 	var plane: float
 	if side > 0.0:
 		plane = floorf(local[axis] + BLOCK_SNAP_SLACK)
 	else:
 		plane = ceilf(local[axis] - BLOCK_SNAP_SLACK)
-	center[axis] = plane + side * (half if _mode == EditMode.ADD else -half)
-	return origin + center * step
+	center[axis] = plane + side * (half if add else -half)
+	return grid_origin + center * voxel_size
 
 
 func _build_ghost() -> void:
