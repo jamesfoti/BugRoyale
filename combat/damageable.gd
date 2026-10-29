@@ -3,6 +3,9 @@ class_name Damageable
 ## Health container for players and other entities that can take damage.
 ## Teams: damage from a source on the same team is ignored (no friendly fire). team -1 means
 ## "no team", which everyone may damage.
+## Only the authority (this machine offline, the host online) changes health: every caller,
+## from shots to drowning to falling off the map, passes through here, so none of them has to
+## know. A client's copy only ever receives health from the host.
 
 
 signal health_changed(current: float, maximum: float)
@@ -31,6 +34,8 @@ func is_alive() -> bool:
 
 
 func apply_damage(amount: float, source: Node = null) -> bool:
+	if not Authority.is_host():
+		return false
 	if amount <= 0.0 or not is_alive():
 		return false
 	if team != NO_TEAM and team_of(source) == team:
@@ -45,6 +50,8 @@ func apply_damage(amount: float, source: Node = null) -> bool:
 
 
 func heal(amount: float) -> void:
+	if not Authority.is_host():
+		return
 	if amount <= 0.0 or not is_alive():
 		return
 	health = minf(health + amount, max_health)

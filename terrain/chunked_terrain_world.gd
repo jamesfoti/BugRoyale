@@ -136,9 +136,21 @@ var edit_bounds: AABB = AABB()
 var _chunks: Dictionary = {}
 ## A brush changed the terrain at a world position (only emitted when voxels actually changed).
 signal brush_applied(world_position: Vector3, radius: float)
+## An edit went through: the dictionary apply_edit took, with its "sequence" filled in. A host
+## broadcasts these; a client applies them in sequence order.
+signal edit_applied(edit: Dictionary)
+
+## Metres of air an ADD edit must leave around a fighter's capsule to be allowed. Terrain
+## collision is one-sided, so a fighter sealed inside new rock falls out of the world.
+const FIGHTER_CLEARANCE: float = 0.1
+## Points tested along a capsule's axis when checking an edit against it.
+const CAPSULE_SAMPLES: int = 6
 
 var _rebuild_queued: bool = false
 var _edits: TerrainEdits = TerrainEdits.new()
+## Every edit applied this session, in order (see apply_edit).
+var _edit_log: Array[Dictionary] = []
+var _next_edit_sequence: int = 1
 var _dirty_chunks: Dictionary = {}
 var _chunk_flush_pending: bool = false
 var _continuous_edit_depth: int = 0
@@ -393,16 +405,7 @@ func apply_brush(
 	add_solid: bool,
 	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
 ) -> void:
-	if not can_edit_at(world_position):
-		return
-	_prepare_edits()
-	var procedural_density: Callable = Callable(_get_bake_density(), "evaluate")
-	if not _edits.add_brush(world_position, radius, add_solid, procedural_density, material):
-		# Nothing changed (a shot that burst in mid-air, or re-carving an existing hole): the
-		# chunks would rebuild identical, so skip the mesh and collision rebuilds entirely.
-		return
-	_rebuild_changed_chunks()
-	brush_applied.emit(world_position, radius)
+	apply_edit(sphere_edit(world_position, radius, add_solid, material))
 
 
 ## The block tool: fills (or carves) an axis-aligned box. Snap its centre with snap_to_sample and
@@ -413,14 +416,134 @@ func apply_box(
 	add_solid: bool,
 	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
 ) -> void:
-	if not can_edit_at(center):
-		return
+	apply_edit(box_edit(center, half_extents, add_solid, material))
+
+
+static func sphere_edit(
+	world_position: Vector3, radius: float, add_solid: bool, material: TerrainMaterials.Kind
+) -> Dictionary:
+	return {"kind": "sphere", "position": world_position, "radius": radius, "add": add_solid, "material": material}
+
+
+static func box_edit(
+	center: Vector3, half_extents: Vector3, add_solid: bool, material: TerrainMaterials.Kind
+) -> Dictionary:
+	return {"kind": "box", "position": center, "half_extents": half_extents, "add": add_solid, "material": material}
+
+
+## The one way terrain changes: the brush, the block tool, explosive shots and (later) edits
+## from other peers all come through here. An edit is a small dictionary (see sphere_edit and
+## box_edit) that the host can validate, number and broadcast. Returns false when the edit was
+## refused (outside the editable bounds, or it would bury a fighter) or changed nothing (a shot
+## that burst in mid-air, re-carving an existing hole), so the chunks need no rebuild.
+func apply_edit(edit: Dictionary) -> bool:
+	var position: Vector3 = edit.get("position", Vector3.ZERO)
+	var add_solid: bool = bool(edit.get("add", false))
+	var material: TerrainMaterials.Kind = int(edit.get("material", TerrainMaterials.Kind.NATURAL)) as TerrainMaterials.Kind
+	if not can_edit_at(position):
+		return false
+	if add_solid and buries_fighter(edit):
+		return false
 	_prepare_edits()
 	var procedural_density: Callable = Callable(_get_bake_density(), "evaluate")
-	if not _edits.add_box(center, half_extents, add_solid, procedural_density, material):
-		return
+	var changed: bool
+	var reach: float
+	if str(edit.get("kind", "sphere")) == "box":
+		var half_extents: Vector3 = edit.get("half_extents", Vector3.ONE)
+		changed = _edits.add_box(position, half_extents, add_solid, procedural_density, material)
+		reach = half_extents.length()
+	else:
+		var radius: float = float(edit.get("radius", 1.0))
+		changed = _edits.add_brush(position, radius, add_solid, procedural_density, material)
+		reach = radius
+	if not changed:
+		return false
+	if not edit.has("sequence"):
+		edit["sequence"] = _next_edit_sequence
+	_next_edit_sequence = maxi(_next_edit_sequence, int(edit["sequence"]) + 1)
+	_edit_log.append(edit)
 	_rebuild_changed_chunks()
-	brush_applied.emit(center, half_extents.length())
+	brush_applied.emit(position, reach)
+	edit_applied.emit(edit)
+	return true
+
+
+## Every edit applied so far, in sequence order.
+func get_edit_log() -> Array[Dictionary]:
+	return _edit_log
+
+
+## The edited voxels as one package for a late joiner (import_edit_state on the other side).
+func export_edit_state() -> Dictionary:
+	return {"next_sequence": _next_edit_sequence, "edits": _edits.export_state()}
+
+
+func import_edit_state(state: Dictionary) -> void:
+	_prepare_edits()
+	_edits.import_state(state.get("edits", {}))
+	_next_edit_sequence = int(state.get("next_sequence", 1))
+	_edit_log.clear()
+	var bounds: AABB = _edits.get_all_bounds()
+	if bounds.size == Vector3.ZERO:
+		return
+	for chunk_coordinate: Vector3i in _get_chunk_coordinates_intersecting_aabb(bounds):
+		_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
+	_pending_rebuild_collision = true
+	_dispatch_pending_rebuilds()
+
+
+## Would this ADD edit overlap a fighter's capsule? The brush greys its preview on this, and
+## apply_edit refuses such edits whoever sent them.
+func buries_fighter(edit: Dictionary) -> bool:
+	for node: Node in get_tree().get_nodes_in_group("fighter"):
+		var body: Node3D = node as Node3D
+		if body == null or not body.is_inside_tree():
+			continue
+		if body is FighterBody and not (body as FighterBody).is_in_play():
+			continue
+		if _edit_overlaps_body(edit, body):
+			return true
+	return false
+
+
+## Points along a body's capsule axis, from the bottom sphere centre to the top one, plus the
+## capsule radius. Without a capsule the body is a 0.6 m sphere at its origin.
+func _capsule_points(body: Node3D) -> Dictionary:
+	var points: PackedVector3Array = PackedVector3Array()
+	var collider: CollisionShape3D = null
+	for child: Node in body.get_children():
+		if child is CollisionShape3D and (child as CollisionShape3D).shape is CapsuleShape3D:
+			collider = child as CollisionShape3D
+			break
+	if collider == null:
+		points.append(body.global_position + Vector3.UP * 0.6)
+		return {"points": points, "radius": 0.6}
+	var capsule: CapsuleShape3D = collider.shape as CapsuleShape3D
+	var axis: Vector3 = collider.global_basis.y.normalized()
+	var half_segment: float = maxf(capsule.height * 0.5 - capsule.radius, 0.0)
+	var center: Vector3 = collider.global_position
+	for index: int in CAPSULE_SAMPLES:
+		var t: float = float(index) / float(CAPSULE_SAMPLES - 1) * 2.0 - 1.0
+		points.append(center + axis * (half_segment * t))
+	return {"points": points, "radius": capsule.radius}
+
+
+func _edit_overlaps_body(edit: Dictionary, body: Node3D) -> bool:
+	var capsule: Dictionary = _capsule_points(body)
+	var center: Vector3 = edit.get("position", Vector3.ZERO)
+	var limit: float = (capsule.radius as float) + FIGHTER_CLEARANCE
+	if str(edit.get("kind", "sphere")) == "box":
+		var half_extents: Vector3 = edit.get("half_extents", Vector3.ONE)
+		for point: Vector3 in capsule.points as PackedVector3Array:
+			var outside: Vector3 = ((point - center).abs() - half_extents).max(Vector3.ZERO)
+			if outside.length() < limit:
+				return true
+		return false
+	var radius: float = float(edit.get("radius", 1.0))
+	for point: Vector3 in capsule.points as PackedVector3Array:
+		if point.distance_to(center) < radius + limit:
+			return true
+	return false
 
 
 ## World position of the origin of the sample lattice: samples sit at origin + integer * voxel size.

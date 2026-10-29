@@ -11,9 +11,13 @@ var _map_name: String = ""
 var _respawn_timers: Dictionary = {}
 
 
+# --- Deciding ---------------------------------------------------------------------------------
+
 func _start_match() -> void:
 	_map_name = ModeCatalog.map_name(ModeCatalog.map_id_for_scene(LoadingScreen.current_scene_path))
-	hud.show_message("Explore: %s\nNo enemies. P pauses, Esc frees the mouse." % _map_name, 4.0)
+	for human: Fighter in humans():
+		human.respawn_at()
+	announce("Explore: %s\nNo enemies. P pauses, Esc frees the mouse." % _map_name, 4.0)
 
 
 func _update_match(delta: float) -> void:
@@ -26,12 +30,21 @@ func _update_match(delta: float) -> void:
 		fighter.respawn_at()
 
 
+func _on_fighter_died(fighter: Fighter) -> void:
+	fighter.kill()
+	announce_to(fighter, "Back on your feet in a moment...", RESPAWN_SECONDS)
+	_respawn_timers[fighter] = RESPAWN_SECONDS
+
+
+# --- Showing ----------------------------------------------------------------------------------
+
 func _status_text() -> String:
 	return "Explore  ·  %s" % _map_name
 
 
-func _on_fighter_died(fighter: Fighter) -> void:
-	fighter.kill()
-	if fighter.is_local:
-		hud.show_message("Back on your feet in a moment...", RESPAWN_SECONDS)
-	_respawn_timers[fighter] = RESPAWN_SECONDS
+func _snapshot_state() -> Dictionary:
+	return {"map_name": _map_name}
+
+
+func _apply_state(state: Dictionary) -> void:
+	_map_name = str(state.get("map_name", _map_name))

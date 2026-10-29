@@ -444,12 +444,17 @@ func _get_skin_node() -> Node:
 	return visual_root.get_child(0)
 
 
+## The ray a shot follows: whatever the pilot put in this frame's snapshot (the local
+## controller writes the camera's crosshair ray, a bot writes eye to target). The camera is only
+## a fallback for a local body before its first sample.
 func _get_aim_ray() -> Dictionary:
-	if not _is_local_pilot():
-		var input: FighterInput = (get_parent() as FighterBody).get_input()
+	var body: FighterBody = get_parent() as FighterBody
+	if body != null:
+		var input: FighterInput = body.get_input()
 		if input.has_aim:
 			return {"origin": input.aim_origin, "direction": input.aim_direction}
-		return {"origin": Vector3.ZERO, "direction": Vector3.ZERO}
+		if not body.is_local:
+			return {"origin": Vector3.ZERO, "direction": Vector3.ZERO}
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var screen_position: Vector2 = viewport_size * 0.5
 	var orbit_camera: OrbitCamera = get_node_or_null(orbit_camera_path) as OrbitCamera

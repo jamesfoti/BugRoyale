@@ -20,6 +20,8 @@ var auto_spawn: bool = true
 ## The pilot. Found among the children on ready; a body without one gets the local controller.
 var controller: FighterController
 var is_local: bool = false
+## The match's number for this fighter (Fighter.id); 0 outside a match.
+var fighter_id: int = 0
 
 var _intent: FighterInput = FighterInput.new()
 var _in_play: bool = true
@@ -32,6 +34,7 @@ var _shooter: Node
 
 
 func _ready() -> void:
+	add_to_group("fighter")
 	_visual_root = get_node_or_null("VisualRoot") as Node3D
 	_skin = CharacterSkin.install(_visual_root, character, use_bot_skin, skin_override_path)
 	for child: Node in get_children():

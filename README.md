@@ -40,6 +40,11 @@ single-player game, and the bots stay as backfill for lobbies that do not fill.
   (`LoadingScreen.pending_terrain_seed`), so every peer gets identical ground and props.
 - [x] Headless smoke test (`tools/smoke_test.tscn`) that runs any map and mode without a window
   and reports whether the bots move, shoot and die.
+- [x] Host-ready plumbing: the human's aim and yaw travel in the input snapshot with a tick
+  number; one authority gate (`Authority`) on all damage; terrain edits go through one logged
+  entry point with export/import for late joiners and clearance checked against every fighter;
+  fighters have stable ids and the mode places every spawn; modes split deciding (host only)
+  from showing (a state snapshot plus announcements).
 - [ ] Listen server with Godot's high-level multiplayer (ENet): one player hosts, others join.
   A lobby screen with the mode, map, class and a join code or address.
 - [ ] Replicate fighters: spawn remote bodies with a network pilot, send each peer's

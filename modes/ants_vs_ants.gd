@@ -15,6 +15,8 @@ const TEAM_SIDES: Array[float] = [-1.0, 1.0]
 var scores: Array[int] = [0, 0]
 
 
+# --- Deciding ---------------------------------------------------------------------------------
+
 func _start_match() -> void:
 	for human: Fighter in humans():
 		human.set_team(RED_TEAM)
@@ -23,11 +25,7 @@ func _start_match() -> void:
 		_spawn_colony_bot(RED_TEAM)
 	for index: int in TEAM_SIZE:
 		_spawn_colony_bot(BLACK_TEAM)
-	hud.show_message("Ants vs Ants\nRed colony, first to %d kills!" % KILL_LIMIT, 4.0)
-
-
-func _status_text() -> String:
-	return "Red %d  —  %d Black   ·   First to %d" % [scores[RED_TEAM], scores[BLACK_TEAM], KILL_LIMIT]
+	announce("Ants vs Ants\nRed colony, first to %d kills!" % KILL_LIMIT, 4.0)
 
 
 func _on_fighter_died(fighter: Fighter) -> void:
@@ -36,8 +34,7 @@ func _on_fighter_died(fighter: Fighter) -> void:
 	fighter.kill()
 	if match_over:
 		return
-	if fighter.is_local:
-		hud.show_message("You were squished! Respawning...", RESPAWN_SECONDS - 0.5)
+	announce_to(fighter, "You were squished! Respawning...", RESPAWN_SECONDS - 0.5)
 	get_tree().create_timer(RESPAWN_SECONDS).timeout.connect(func() -> void:
 		if not match_over and fighter.is_valid():
 			fighter.respawn_at(_team_spawn(team))
@@ -67,3 +64,18 @@ func _score_kill(victim_team: int) -> void:
 
 func _team_spawn(team: int) -> Vector3:
 	return map.random_surface_point(1.2, TEAM_SIDES[team])
+
+
+# --- Showing ----------------------------------------------------------------------------------
+
+func _status_text() -> String:
+	return "Red %d  —  %d Black   ·   First to %d" % [scores[RED_TEAM], scores[BLACK_TEAM], KILL_LIMIT]
+
+
+func _snapshot_state() -> Dictionary:
+	return {"scores": scores.duplicate()}
+
+
+func _apply_state(state: Dictionary) -> void:
+	if state.has("scores"):
+		scores.assign(state["scores"])

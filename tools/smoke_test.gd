@@ -46,6 +46,8 @@ class Runner:
 		_frames_run += 1
 		if drive_local:
 			_drive_local_player()
+		if _frames_run == 120:
+			_test_terrain_edits()
 		if _frames_run % 300 == 0:
 			print("[SmokeTest] %d frames: %s" % [_frames_run, _mode._status_text()])
 		if _frames_run >= frames_to_run:
@@ -70,6 +72,39 @@ class Runner:
 			Input.action_release("move_forward")
 			Input.action_release("run")
 			Input.action_release("shoot")
+
+	## Exercises the terrain edit log once the match is running: an ADD at a bot's feet must be
+	## refused (it would bury the bot), a carve well away from everyone must go through with a
+	## sequence number, and exporting then importing the edit state must keep every override.
+	func _test_terrain_edits() -> void:
+		var terrain: ChunkedTerrainWorld = get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
+		if terrain == null:
+			print("SMOKE TERRAIN: no ChunkedTerrainWorld on this map")
+			return
+		var victim: Fighter = null
+		for fighter: Fighter in _mode.fighters:
+			if fighter.is_alive():
+				victim = fighter
+				break
+		if victim == null:
+			print("SMOKE TERRAIN: nobody alive to test against")
+			return
+		var feet: Vector3 = victim.get_position()
+		var refused: bool = not terrain.apply_edit(ChunkedTerrainWorld.sphere_edit(feet, 1.5, true, TerrainMaterials.Kind.NATURAL))
+		var far: Vector3 = feet + Vector3(0.0, -0.5, 0.0)
+		var ground: Dictionary = _mode.map.ground_hit(feet + Vector3(8.0, 0.0, 0.0))
+		if not ground.is_empty():
+			far = ground.position
+		var applied: bool = terrain.apply_edit(ChunkedTerrainWorld.sphere_edit(far, 1.5, false, TerrainMaterials.Kind.NATURAL))
+		var log_size: int = terrain.get_edit_log().size()
+		var sequence: int = int(terrain.get_edit_log().back().get("sequence", -1)) if log_size > 0 else -1
+		var before: int = terrain.get_edited_voxel_count()
+		var state: Dictionary = terrain.export_edit_state()
+		terrain.import_edit_state(state)
+		var after: int = terrain.get_edited_voxel_count()
+		print("SMOKE TERRAIN: refused_burying_add=%s applied_far_carve=%s log=%d last_sequence=%d overrides_before=%d after_roundtrip=%d" % [
+			str(refused), str(applied), log_size, sequence, before, after
+		])
 
 	func _hook_fighters() -> void:
 		for fighter: Fighter in _mode.fighters:
@@ -116,8 +151,14 @@ class Runner:
 		print("[SmokeTest] Fighters:")
 		for line: String in lines:
 			print(line)
-		print("SMOKE RESULT: fighters=%d alive=%d moved=%d shooters=%d shots=%d deaths=%d over=%s status='%s'" % [
-			_mode.fighters.size(), alive, moved, shooters, total_shots, total_deaths, str(_mode.match_over), _mode._status_text()
+		# A client shows the match from the host's state snapshot alone: applying this mode's own
+		# snapshot back onto itself must leave what it shows unchanged.
+		var status_before: String = _mode._status_text()
+		var state: Dictionary = _mode.snapshot_state()
+		_mode.apply_state(state)
+		var roundtrip: String = "ok" if _mode._status_text() == status_before else "MISMATCH"
+		print("SMOKE RESULT: fighters=%d alive=%d moved=%d shooters=%d shots=%d deaths=%d over=%s state_roundtrip=%s status='%s'" % [
+			_mode.fighters.size(), alive, moved, shooters, total_shots, total_deaths, str(_mode.match_over), roundtrip, _mode._status_text()
 		])
 
 

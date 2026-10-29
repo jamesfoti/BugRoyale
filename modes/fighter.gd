@@ -4,6 +4,9 @@ class_name Fighter
 ## A human at this keyboard, a bot, and later a remote player all look the same here, so a mode
 ## never has to ask which one it is dealing with except to decide what to show on this screen.
 
+## Stable number for the match, assigned by the mode in spawn order; the body is named after it
+## so every machine finds the same node for the same fighter.
+var id: int = 0
 var body: FighterBody
 var health: Damageable
 ## The AI piloting a bot; null for a human.
@@ -14,8 +17,9 @@ var is_local: bool = false
 var character: LoadingScreen.PlayerCharacter = LoadingScreen.PlayerCharacter.ANT_WARRIOR
 
 
-static func for_body(fighter_body: FighterBody) -> Fighter:
+static func for_body(fighter_body: FighterBody, fighter_id: int) -> Fighter:
 	var fighter := Fighter.new()
+	fighter.id = fighter_id
 	fighter.body = fighter_body
 	fighter.health = fighter_body.get_node_or_null("Damageable") as Damageable
 	fighter.character = fighter_body.character
@@ -25,7 +29,13 @@ static func for_body(fighter_body: FighterBody) -> Fighter:
 			break
 	fighter.is_human = fighter.brain == null
 	fighter.is_local = fighter_body.is_local
+	fighter_body.fighter_id = fighter_id
+	fighter_body.name = node_name_for(fighter_id)
 	return fighter
+
+
+static func node_name_for(fighter_id: int) -> String:
+	return "Fighter%d" % fighter_id
 
 
 func is_valid() -> bool:

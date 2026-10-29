@@ -1,13 +1,13 @@
 extends FighterBody
 class_name CelestialBodyPlayer
-## Walks on spherical terrain: mouse yaw turns the body, forward/back moves along the view.
-## Every intent comes from the FighterController (keyboard, bot or network).
+## Walks on spherical terrain: the pilot's yaw turns the body, forward/back moves along the
+## view. Every intent comes from the FighterController (keyboard, bot or network); the mouse
+## reaches the body only as the snapshot's yaw_delta.
 
 const _INPUT_DEADZONE: float = 0.01
 const _SPAWN_ATTEMPTS: int = 12
 const _SPAWN_RAY_MARGIN: float = 40.0
 const _FALLBACK_BODY_RADIUS: float = 18.0
-const _MAX_MOUSE_DELTA: float = 80.0
 
 class SpawnData:
 	var position: Vector3 = Vector3.ZERO
@@ -58,18 +58,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	_handle_ui_input(event)
 
 
-func _input(event: InputEvent) -> void:
-	if not is_local or not _spawned or _terrain_focus or _is_item_menu_open():
-		return
-	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
-		return
-	if _is_camera_orbiting():
-		return
-	if event is InputEventMouseMotion:
-		var motion: InputEventMouseMotion = event as InputEventMouseMotion
-		_apply_mouse_yaw(motion.relative.x)
-
-
 func _physics_process(delta: float) -> void:
 	if celestial_body == null or not _spawned or not _in_play:
 		return
@@ -77,6 +65,8 @@ func _physics_process(delta: float) -> void:
 
 	_update_gravity_direction()
 	up_direction = _get_up()
+	if _intent.yaw_delta != 0.0:
+		_apply_yaw(_intent.yaw_delta)
 
 	if _terrain_focus or is_ui_blocking():
 		_apply_focus_physics(delta)
@@ -146,12 +136,11 @@ func _apply_focus_physics(delta: float) -> void:
 		velocity += _gravity_direction * gravity_strength * delta
 
 
-func _apply_mouse_yaw(mouse_delta_x: float) -> void:
-	if absf(mouse_delta_x) > _MAX_MOUSE_DELTA:
-		return
+## Turns the body about its up by the pilot's yaw for this frame.
+func _apply_yaw(radians: float) -> void:
 	var surface_up: Vector3 = _get_up()
 	if surface_up.length_squared() > _MIN_DIR_LEN_SQ:
-		global_basis = Basis(surface_up, -mouse_delta_x * mouse_sensitivity) * global_basis
+		global_basis = Basis(surface_up, radians) * global_basis
 
 
 func _is_camera_orbiting() -> bool:

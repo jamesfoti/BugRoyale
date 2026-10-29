@@ -28,6 +28,8 @@ var _water_floor_y: float = 0.0
 var _water_height: float = 48.0
 
 
+# --- Deciding ---------------------------------------------------------------------------------
+
 func _start_match() -> void:
 	if map.water == null:
 		push_warning("[BattleRoyale] This map has no terrarium water; playing without the flood.")
@@ -52,7 +54,7 @@ func _start_match() -> void:
 		bot.brain.avoid_water = true
 		bot.brain.detection_range = 45.0
 		bot.hold_fire(GRACE_SECONDS)
-	hud.show_message("Battle Royale\nScatter! Weapons free in %d seconds." % GRACE_SECONDS, 4.0)
+	announce("Battle Royale\nScatter! Weapons free in %d seconds." % GRACE_SECONDS, 4.0)
 
 
 func _update_match(delta: float) -> void:
@@ -60,18 +62,6 @@ func _update_match(delta: float) -> void:
 		return
 	_update_water(delta)
 	_apply_water_damage(delta)
-
-
-func _status_text() -> String:
-	var alive: String = "Alive %d" % alive_count()
-	if map.water == null:
-		return alive
-	if _stage >= WATER_STAGES.size():
-		return alive + "  ·  Flooded!"
-	var stage: Dictionary = WATER_STAGES[_stage]
-	if _stage_time < stage["hold"]:
-		return alive + "  ·  Water rises in %ds" % ceili(stage["hold"] - _stage_time)
-	return alive + "  ·  The water is rising!"
 
 
 func _on_fighter_died(fighter: Fighter) -> void:
@@ -100,7 +90,7 @@ func _update_water(delta: float) -> void:
 	if _stage_time < hold:
 		return
 	if _stage_time - delta < hold:
-		hud.show_message("The water is rising!", 2.5)
+		announce("The water is rising!", 2.5)
 	var target_y: float = _water_floor_y + _water_height * float(stage["level"])
 	var progress: float = clampf((_stage_time - hold) / rise, 0.0, 1.0)
 	map.water.set_water_surface_y(lerpf(_rise_from_y, target_y, progress))
@@ -111,7 +101,7 @@ func _update_water(delta: float) -> void:
 		if _stage == SEWAGE_STAGE:
 			for crawlspace: Node in get_tree().get_nodes_in_group("crawlspace"):
 				crawlspace.start_sewage_backup()
-				hud.show_message("The drains are backing up!", 3.0)
+				announce("The drains are backing up!", 3.0)
 
 
 func _apply_water_damage(delta: float) -> void:
@@ -136,3 +126,26 @@ func _spread_spawn_point(taken: Array[Vector3]) -> Vector3:
 			best = candidate
 	taken.append(best)
 	return best
+
+
+# --- Showing ----------------------------------------------------------------------------------
+
+func _status_text() -> String:
+	var alive: String = "Alive %d" % alive_count()
+	if map.water == null:
+		return alive
+	if _stage >= WATER_STAGES.size():
+		return alive + "  ·  Flooded!"
+	var stage: Dictionary = WATER_STAGES[_stage]
+	if _stage_time < stage["hold"]:
+		return alive + "  ·  Water rises in %ds" % ceili(stage["hold"] - _stage_time)
+	return alive + "  ·  The water is rising!"
+
+
+func _snapshot_state() -> Dictionary:
+	return {"stage": _stage, "stage_time": _stage_time}
+
+
+func _apply_state(state: Dictionary) -> void:
+	_stage = int(state.get("stage", _stage))
+	_stage_time = float(state.get("stage_time", _stage_time))

@@ -31,11 +31,6 @@ const MAX_BLOCK_SIZE: int = 6
 ## A ray hitting a block lands a hair outside its face; this much slack (fraction of a voxel)
 ## snaps such hits to that face rather than the next plane out.
 const BLOCK_SNAP_SLACK: float = 0.1
-## Metres of air an ADD stamp must leave around the player's capsule to be allowed.
-const PLAYER_CLEARANCE: float = 0.1
-## Points tested along the capsule's axis when checking a stamp against it.
-const PLAYER_CAPSULE_SAMPLES: int = 6
-
 @export var edit_distance: float = 20.0
 @export var brush_radius: float = 1.5
 ## Seconds between brush stamps while holding LMB.
@@ -65,17 +60,15 @@ var _ghost_outline_material: StandardMaterial3D
 var _destroy_color: Color = Color(1.0, 0.45, 0.15)
 var _add_color: Color = Color(0.25, 0.85, 1.0)
 var _blocked_color: Color = Color(0.6, 0.6, 0.6)
-## True while the previewed ADD stamp would overlap the player, so the click is refused.
+## True while the previewed ADD stamp would bury a fighter (the terrain refuses such edits), so
+## the click is skipped and the preview greys.
 var _blocked: bool = false
-## The player's capsule collider, found once; null falls back to a sphere around the player.
-var _player_collider: CollisionShape3D
 
 
 func _ready() -> void:
 	add_to_group("terrain_brush")
 	_cursor.edit_radius = brush_radius
 	_build_ghost()
-	_player_collider = _find_player_capsule()
 	call_deferred("_cache_terrain")
 
 
@@ -219,16 +212,22 @@ func _can_apply_edit() -> bool:
 func _apply_brush() -> void:
 	if _blocked:
 		return
-	var hit_position: Vector3 = _hover_hit.position
-	_terrain.apply_brush(hit_position, brush_radius, _mode == EditMode.ADD, add_material)
+	_terrain.apply_edit(_sphere_edit())
 
 
 func _apply_block() -> void:
-	_terrain.apply_box(
-		_block_center,
-		Vector3.ONE * _block_half_extent(),
-		_mode == EditMode.ADD,
-		add_material
+	_terrain.apply_edit(_block_edit())
+
+
+## The sphere stamp the next stroke would apply, as the terrain's edit dictionary.
+func _sphere_edit() -> Dictionary:
+	return ChunkedTerrainWorld.sphere_edit(_hover_hit.position, brush_radius, _mode == EditMode.ADD, add_material)
+
+
+## The block the next click would place or remove, as the terrain's edit dictionary.
+func _block_edit() -> Dictionary:
+	return ChunkedTerrainWorld.box_edit(
+		_block_center, Vector3.ONE * _block_half_extent(), _mode == EditMode.ADD, add_material
 	)
 
 
@@ -238,13 +237,11 @@ func _show_preview() -> void:
 	if shape == Shape.BLOCK and _terrain != null:
 		_cursor.hide_cursor()
 		_block_center = _block_center_for_hit()
-		_blocked = _mode == EditMode.ADD and _box_overlaps_player(
-			_block_center, Vector3.ONE * _block_half_extent()
-		)
+		_blocked = _mode == EditMode.ADD and _terrain.buries_fighter(_block_edit())
 		_show_ghost(_block_center, _terrain.get_voxel_size() * float(block_size))
 		return
 	_hide_ghost()
-	_blocked = _mode == EditMode.ADD and _sphere_overlaps_player(_hover_hit.position, brush_radius)
+	_blocked = _mode == EditMode.ADD and _terrain != null and _terrain.buries_fighter(_sphere_edit())
 	_cursor.show_at(
 		_hover_hit.position,
 		_hover_hit.normal,
@@ -366,57 +363,6 @@ func _hide_ghost() -> void:
 		_ghost.visible = false
 	if _ghost_outline != null:
 		_ghost_outline.visible = false
-
-
-# --- Player clearance -----------------------------------------------------------------------
-
-func _find_player_capsule() -> CollisionShape3D:
-	var player: Node = get_parent()
-	if player == null:
-		return null
-	for child: Node in player.get_children():
-		if child is CollisionShape3D and (child as CollisionShape3D).shape is CapsuleShape3D:
-			return child as CollisionShape3D
-	return null
-
-
-## Points along the player's capsule axis, from the bottom sphere centre to the top one, plus
-## the capsule radius. Without a capsule the player is a 0.6 m sphere at their origin.
-func _player_axis_points() -> Dictionary:
-	var points: PackedVector3Array = PackedVector3Array()
-	if _player_collider == null:
-		var player: Node3D = get_parent() as Node3D
-		if player == null:
-			return {"points": points, "radius": 0.0}
-		points.append(player.global_position + Vector3.UP * 0.6)
-		return {"points": points, "radius": 0.6}
-	var capsule: CapsuleShape3D = _player_collider.shape as CapsuleShape3D
-	var axis: Vector3 = _player_collider.global_basis.y.normalized()
-	var half_segment: float = maxf(capsule.height * 0.5 - capsule.radius, 0.0)
-	var center: Vector3 = _player_collider.global_position
-	for index: int in PLAYER_CAPSULE_SAMPLES:
-		var t: float = float(index) / float(PLAYER_CAPSULE_SAMPLES - 1) * 2.0 - 1.0
-		points.append(center + axis * (half_segment * t))
-	return {"points": points, "radius": capsule.radius}
-
-
-func _sphere_overlaps_player(center: Vector3, radius: float) -> bool:
-	var capsule: Dictionary = _player_axis_points()
-	var limit: float = radius + (capsule.radius as float) + PLAYER_CLEARANCE
-	for point: Vector3 in capsule.points as PackedVector3Array:
-		if point.distance_to(center) < limit:
-			return true
-	return false
-
-
-func _box_overlaps_player(center: Vector3, half_extents: Vector3) -> bool:
-	var capsule: Dictionary = _player_axis_points()
-	var limit: float = (capsule.radius as float) + PLAYER_CLEARANCE
-	for point: Vector3 in capsule.points as PackedVector3Array:
-		var outside: Vector3 = ((point - center).abs() - half_extents).max(Vector3.ZERO)
-		if outside.length() < limit:
-			return true
-	return false
 
 
 # --- Terrain lookup -------------------------------------------------------------------------

@@ -12,14 +12,19 @@ const PREY_GROUP: StringName = &"hornet_prey"
 var swarm: BirdFlock
 var wave: int = 0
 var hornets_killed: int = 0
+## Hornets still flying, as last counted by the host (the swarm itself lives on the host).
+var hornets_left: int = 0
 var _break_time_left: float = 0.0
 var _in_break: bool = true
 
+
+# --- Deciding ---------------------------------------------------------------------------------
 
 func _start_match() -> void:
 	for human: Fighter in humans():
 		human.set_team(SQUAD_TEAM)
 		human.body.add_to_group(PREY_GROUP)
+		human.respawn_at(map.random_surface_point(1.2))
 
 	var leader: Node3D = local_fighter.body if local_fighter != null else null
 	var player_class: LoadingScreen.PlayerCharacter = LoadingScreen.selected_player_character
@@ -75,6 +80,7 @@ func _start_match() -> void:
 func _update_match(delta: float) -> void:
 	if match_over:
 		return
+	hornets_left = swarm.alive_count()
 	if alive_count() == 0:
 		end_match(
 			"Overrun!",
@@ -85,29 +91,22 @@ func _update_match(delta: float) -> void:
 		_break_time_left -= delta
 		if _break_time_left <= 0.0:
 			_start_wave()
-	elif swarm.alive_count() == 0:
-		hud.show_message("Wave %d cleared!" % wave, 3.0)
+	elif hornets_left == 0:
+		announce("Wave %d cleared!" % wave, 3.0)
 		_start_break()
-
-
-func _status_text() -> String:
-	var squad: String = "Squad %d/%d" % [alive_count(), SQUAD_SIZE]
-	if _in_break:
-		return "Wave %d in %ds  ·  %s  ·  Hornets swatted %d" % [wave + 1, ceili(_break_time_left), squad, hornets_killed]
-	return "Wave %d  ·  Hornets left %d  ·  %s  ·  Swatted %d" % [wave, swarm.alive_count(), squad, hornets_killed]
 
 
 func _on_fighter_died(fighter: Fighter) -> void:
 	fighter.kill()
-	if fighter.is_local and alive_count() > 0:
-		hud.show_message("You're down! Back next wave.", 3.0)
+	if alive_count() > 0:
+		announce_to(fighter, "You're down! Back next wave.", 3.0)
 
 
 func _start_break() -> void:
 	_in_break = true
 	_break_time_left = BREAK_SECONDS
 	if wave == 0:
-		hud.show_message("Attack of the Hornets\nWave 1 incoming...", BREAK_SECONDS - 1.0)
+		announce("Attack of the Hornets\nWave 1 incoming...", BREAK_SECONDS - 1.0)
 
 
 func _start_wave() -> void:
@@ -119,7 +118,8 @@ func _start_wave() -> void:
 	swarm.max_attack_speed = minf(14.0 + wave * 0.7, 22.0)
 	swarm.attack_damage = 6.0 + wave * 1.0
 	swarm.spawn_wave(mini(6 + (wave - 1) * 4, 70))
-	hud.show_message("Wave %d" % wave, 2.5)
+	hornets_left = swarm.alive_count()
+	announce("Wave %d" % wave, 2.5)
 
 
 ## Fallen squad members (humans included) return next to someone still standing, the local
@@ -143,3 +143,30 @@ func _near(point: Vector3) -> Vector3:
 	var probe: Vector3 = point + offset
 	var ground: Dictionary = map.ground_hit(probe)
 	return (ground.position + map.up_at(ground.position) * 1.2) if not ground.is_empty() else point + up * 1.2
+
+
+# --- Showing ----------------------------------------------------------------------------------
+
+func _status_text() -> String:
+	var squad: String = "Squad %d/%d" % [alive_count(), SQUAD_SIZE]
+	if _in_break:
+		return "Wave %d in %ds  ·  %s  ·  Hornets swatted %d" % [wave + 1, ceili(_break_time_left), squad, hornets_killed]
+	return "Wave %d  ·  Hornets left %d  ·  %s  ·  Swatted %d" % [wave, hornets_left, squad, hornets_killed]
+
+
+func _snapshot_state() -> Dictionary:
+	return {
+		"wave": wave,
+		"hornets_killed": hornets_killed,
+		"hornets_left": hornets_left,
+		"in_break": _in_break,
+		"break_time_left": _break_time_left,
+	}
+
+
+func _apply_state(state: Dictionary) -> void:
+	wave = int(state.get("wave", wave))
+	hornets_killed = int(state.get("hornets_killed", hornets_killed))
+	hornets_left = int(state.get("hornets_left", hornets_left))
+	_in_break = bool(state.get("in_break", _in_break))
+	_break_time_left = float(state.get("break_time_left", _break_time_left))

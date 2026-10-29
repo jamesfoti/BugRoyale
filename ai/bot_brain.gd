@@ -106,6 +106,7 @@ func become_husk(fungus_team: int, speed_scale: float) -> void:
 
 func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 	var input: FighterInput = FighterInput.new()
+	input.tick = Engine.get_physics_frames()
 	if not enabled or map == null or _body == null or not _body.is_in_play():
 		return input
 	var position_now: Vector3 = body.global_position

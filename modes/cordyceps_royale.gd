@@ -54,15 +54,18 @@ var _full_radius: float = 100.0
 var _radius_from: float = 100.0
 var _center_from: Vector3 = Vector3.ZERO
 var _center_to: Vector3 = Vector3.ZERO
-## Infection per clean fighter, 0..1 (a bug turns at 1).
+## Infection per clean fighter by id, 0..1 (a bug turns at 1). Part of the state snapshot, so a
+## client can show its own infection without running the spores.
 var _infection: Dictionary = {}
-## Humans the fungus has taken: their body is out, a husk walks in its place.
+## Ids of humans the fungus has taken: their body is out, a husk walks in its place.
 var _turned_humans: Dictionary = {}
 var _local_in_spores: bool = false
 var _overlay: ShaderMaterial
 var _turned_count: int = 0
 var _fruited_count: int = 0
 
+
+# --- Deciding ---------------------------------------------------------------------------------
 
 func _start_match() -> void:
 	_build_storm()
@@ -74,7 +77,7 @@ func _start_match() -> void:
 		human.set_team(team)
 		team += 1
 		human.respawn_at(_spread_spawn_point(taken))
-		_infection[human] = 0.0
+		_infection[human.id] = 0.0
 	var classes: Array = LoadingScreen.PlayerCharacter.values()
 	for index: int in FIGHTERS - humans().size():
 		var character: LoadingScreen.PlayerCharacter = classes[randi() % classes.size()]
@@ -86,11 +89,11 @@ func _start_match() -> void:
 		bot.brain.avoid_water = true
 		bot.brain.detection_range = 45.0
 		bot.hold_fire(GRACE_SECONDS)
-		_infection[bot] = 0.0
+		_infection[bot.id] = 0.0
 	for index: int in SEED_PATCHES:
 		var spot: Vector3 = _patch_spot(taken)
 		storm.add_patch(spot, PATCH_RADIUS, hash(spot) + index)
-	hud.show_message(
+	announce(
 		"Cordyceps Royale\nStay out of the spores. Whatever they take comes back for you.\nWeapons free in %d seconds." % GRACE_SECONDS,
 		5.0
 	)
@@ -106,18 +109,8 @@ func _update_match(delta: float) -> void:
 		bot.brain.storm_radius = storm.radius
 
 
-func _status_text() -> String:
-	var counts: String = "Clean %d  ·  Husks %d" % [_clean_count(), _husk_count()]
-	if _stage >= STAGES.size():
-		return counts + "  ·  Everything is spores!"
-	var stage: Dictionary = STAGES[_stage]
-	if _stage_time < stage["hold"]:
-		return counts + "  ·  Spores close in %ds" % ceili(stage["hold"] - _stage_time)
-	return counts + "  ·  The spores are closing in!"
-
-
 func _on_fighter_died(fighter: Fighter) -> void:
-	if match_over or _turned_humans.has(fighter):
+	if match_over or _turned_humans.has(fighter.id):
 		return
 	if fighter.is_husk():
 		_fruit(fighter)
@@ -125,7 +118,7 @@ func _on_fighter_died(fighter: Fighter) -> void:
 		_turn(fighter)
 	else:
 		fighter.kill()
-		_infection.erase(fighter)
+		_infection.erase(fighter.id)
 		if fighter.is_human and _clean_humans() == 0:
 			# Everyone still clean finished ahead of the last human.
 			end_match("Eliminated", "You placed #%d of %d." % [_clean_count() + 1, FIGHTERS])
@@ -164,7 +157,7 @@ func _update_storm(delta: float) -> void:
 		return
 	if _stage_time - delta < hold:
 		_center_to = _pick_center(target_radius)
-		hud.show_message("The spores are closing in!", 2.5)
+		announce("The spores are closing in!", 2.5)
 	var progress: float = clampf((_stage_time - hold) / shrink, 0.0, 1.0)
 	storm.set_zone(_center_from.lerp(_center_to, progress), lerpf(_radius_from, target_radius, progress))
 	if progress >= 1.0:
@@ -173,7 +166,7 @@ func _update_storm(delta: float) -> void:
 		_radius_from = target_radius
 		_center_from = _center_to
 		if _stage >= STAGES.size():
-			hud.show_message("Summit Disease: the spores have taken everything!", 3.0)
+			announce("Summit Disease: the spores have taken everything!", 3.0)
 
 
 ## The next circle's centre: inside the current one, over dry ground where possible.
@@ -203,17 +196,17 @@ func _pick_center(next_radius: float) -> Vector3:
 # --- Infection --------------------------------------------------------------------------------
 
 func _tick_infection(delta: float) -> void:
-	for fighter: Fighter in _infection.keys():
-		if not fighter.is_alive() or fighter.is_husk():
+	for fighter_id: int in _infection.keys():
+		var fighter: Fighter = fighter_by_id(fighter_id)
+		if fighter == null or not fighter.is_alive() or fighter.is_husk():
 			continue
 		var in_spores: bool = storm.is_in_spores(fighter.get_position())
-		var level: float = _advance(_infection[fighter], in_spores, delta)
-		_infection[fighter] = level
+		var level: float = _advance(_infection[fighter_id], in_spores, delta)
+		_infection[fighter_id] = level
+		if in_spores and not _local_in_spores and fighter.is_local:
+			announce_to(fighter, "You're in the spores! Get out!", 2.0)
 		if fighter.is_local:
-			if in_spores and not _local_in_spores:
-				hud.show_message("You're in the spores! Get out!", 2.0)
 			_local_in_spores = in_spores
-			_set_local_infection_look(level)
 		if level >= 1.0:
 			_turn(fighter)
 			_check_victory()
@@ -225,32 +218,25 @@ func _advance(level: float, in_spores: bool, delta: float) -> float:
 	return maxf(level - RECOVER_PER_SECOND * delta, 0.0)
 
 
-func _set_local_infection_look(level: float) -> void:
-	if _overlay != null:
-		_overlay.set_shader_parameter("intensity", level)
-	if local_fighter != null and local_fighter.is_valid() and "control_wobble" in local_fighter.body:
-		local_fighter.body.set("control_wobble", level)
-
-
 ## The fungus takes a fighter: a bot rises as a husk where it stands (or fell); a human's body
 ## is done and a husk of their class gets up in its place.
 func _turn(fighter: Fighter) -> void:
 	if fighter.is_human:
 		_turn_human(fighter)
 		return
-	_infection.erase(fighter)
+	_infection.erase(fighter.id)
 	fighter.brain.become_husk(HUSK_TEAM, HUSK_SPEED)
 	storm.dress_husk(fighter.body.get_visual_root(), hash(fighter.body.get_instance_id()))
 	_turned_count += 1
 	if is_local_alive() and fighter.get_position().distance_to(local_fighter.get_position()) < 30.0:
-		hud.show_message("A bug nearby has turned!", 2.0)
+		announce_to(local_fighter, "A bug nearby has turned!", 2.0)
 
 
 func _turn_human(fighter: Fighter) -> void:
-	if _turned_humans.has(fighter):
+	if _turned_humans.has(fighter.id):
 		return
-	_turned_humans[fighter] = true
-	_infection.erase(fighter)
+	_turned_humans[fighter.id] = true
+	_infection[fighter.id] = 1.0
 	var spot: Vector3 = fighter.get_position()
 	var placement: int = _clean_count()  # the turned bug no longer counts as clean
 	fighter.kill()
@@ -259,9 +245,7 @@ func _turn_human(fighter: Fighter) -> void:
 		husk.brain.become_husk(HUSK_TEAM, HUSK_SPEED)
 		storm.dress_husk(husk.body.get_visual_root(), hash(spot))
 	_turned_count += 1
-	if fighter.is_local:
-		_set_local_infection_look(1.0)
-		hud.show_message("Summit Disease takes you...", 2.5)
+	announce_to(fighter, "Summit Disease takes you...", 2.5)
 	if _clean_humans() == 0:
 		get_tree().create_timer(2.5).timeout.connect(
 			end_match.bind("You turned", "The spores took you. You placed #%d of %d." % [placement, FIGHTERS])
@@ -278,7 +262,7 @@ func _fruit(fighter: Fighter) -> void:
 	storm.add_patch(spot, PATCH_RADIUS, hash(spot) + _fruited_count)
 	_fruited_count += 1
 	if is_local_alive() and spot.distance_to(local_fighter.get_position()) < 30.0:
-		hud.show_message("A husk has fruited. Keep clear of the stalk!", 2.5)
+		announce_to(local_fighter, "A husk has fruited. Keep clear of the stalk!", 2.5)
 
 
 func _check_victory() -> void:
@@ -296,7 +280,7 @@ func _check_victory() -> void:
 func _clean_fighters() -> Array[Fighter]:
 	var clean: Array[Fighter] = []
 	for fighter: Fighter in fighters:
-		if fighter.is_alive() and not fighter.is_husk() and not _turned_humans.has(fighter):
+		if fighter.is_alive() and not fighter.is_husk() and not _turned_humans.has(fighter.id):
 			clean.append(fighter)
 	return clean
 
@@ -350,6 +334,50 @@ func _patch_spot(taken: Array[Vector3]) -> Vector3:
 			best_gap = gap
 			best = candidate
 	return best
+
+
+# --- Showing ----------------------------------------------------------------------------------
+
+func _status_text() -> String:
+	var counts: String = "Clean %d  ·  Husks %d" % [_clean_count(), _husk_count()]
+	if _stage >= STAGES.size():
+		return counts + "  ·  Everything is spores!"
+	var stage: Dictionary = STAGES[_stage]
+	if _stage_time < stage["hold"]:
+		return counts + "  ·  Spores close in %ds" % ceili(stage["hold"] - _stage_time)
+	return counts + "  ·  The spores are closing in!"
+
+
+## The hyphae overlay and the reeling walk follow the local fighter's infection from the state.
+func _present() -> void:
+	super()
+	if local_fighter == null:
+		return
+	var level: float = float(_infection.get(local_fighter.id, 0.0))
+	if _overlay != null:
+		_overlay.set_shader_parameter("intensity", level)
+	if local_fighter.is_valid() and "control_wobble" in local_fighter.body:
+		local_fighter.body.set("control_wobble", level)
+
+
+func _snapshot_state() -> Dictionary:
+	return {
+		"stage": _stage,
+		"stage_time": _stage_time,
+		"infection": _infection.duplicate(),
+		"turned_humans": _turned_humans.duplicate(),
+		"turned_count": _turned_count,
+	}
+
+
+func _apply_state(state: Dictionary) -> void:
+	_stage = int(state.get("stage", _stage))
+	_stage_time = float(state.get("stage_time", _stage_time))
+	if state.has("infection"):
+		_infection = (state["infection"] as Dictionary).duplicate()
+	if state.has("turned_humans"):
+		_turned_humans = (state["turned_humans"] as Dictionary).duplicate()
+	_turned_count = int(state.get("turned_count", _turned_count))
 
 
 # --- Overlay ----------------------------------------------------------------------------------

@@ -174,6 +174,41 @@ func get_override_count() -> int:
 	return _overrides.size()
 
 
+## Everything a late joiner needs to rebuild this terrain's edits: the overridden voxels and
+## their placed materials. Plain dictionaries keyed by voxel, so it serialises as is.
+func export_state() -> Dictionary:
+	return {"overrides": _overrides.duplicate(), "materials": _materials.duplicate()}
+
+
+func import_state(state: Dictionary) -> void:
+	_overrides = (state.get("overrides", {}) as Dictionary).duplicate()
+	_materials = (state.get("materials", {}) as Dictionary).duplicate()
+	_thread_snapshot = null
+	_last_changed_bounds = get_all_bounds()
+
+
+## World-space bounds of every overridden voxel (zero-size when there are none).
+func get_all_bounds() -> AABB:
+	if _overrides.is_empty():
+		return AABB()
+	var key_min: Vector3i = Vector3i.ZERO
+	var key_max: Vector3i = Vector3i.ZERO
+	var first: bool = true
+	for voxel_key_variant: Variant in _overrides.keys():
+		var voxel_key: Vector3i = voxel_key_variant as Vector3i
+		if first:
+			key_min = voxel_key
+			key_max = voxel_key
+			first = false
+		else:
+			key_min = key_min.min(voxel_key)
+			key_max = key_max.max(voxel_key)
+	var padding: Vector3i = Vector3i.ONE
+	var bounds_min: Vector3 = _key_to_world(key_min - padding)
+	var bounds_max: Vector3 = _key_to_world(key_max + padding)
+	return AABB(bounds_min, bounds_max - bounds_min)
+
+
 ## Returns a copy that worker threads may read while the main thread keeps editing. The copy is
 ## reused across rebuild jobs until the next brush change, so it must not be modified.
 func duplicate_for_thread() -> TerrainEdits:
