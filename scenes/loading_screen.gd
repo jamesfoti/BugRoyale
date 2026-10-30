@@ -1,15 +1,16 @@
-extends Control
 class_name LoadingScreen
+extends Control
 ## Shows the game sky while the main scene loads in the background.
 
-
-const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/celestial_body_test.tscn"
 enum PlayerCharacter {
 	ANT_WARRIOR,
 	TERMITE_SOLDIER,
 	WASP,
 	TRAPDOOR_SPIDER,
 }
+
+const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/celestial_body_test.tscn"
+
 static var pending_scene_path: String = ""
 ## Game mode to start on the next loaded map (see ModeCatalog); empty = free roam.
 static var pending_mode_id: String = ""
@@ -22,6 +23,10 @@ static var last_terrain_seed: int = 0
 ## Seed to use for the next match instead of rolling one (a host hands its seed to every peer so
 ## they all build the same map); 0 rolls. Consumed by the next load.
 static var pending_terrain_seed: int = 0
+
+## Resolved once per load: the synchronous fallback must get the same map the threaded load
+## was given, not the default scene (pending_scene_path is consumed on first use).
+var _resolved_scene_path: String = ""
 
 @onready var _title: Label = $UI/Margin/VBox/Title
 @onready var _status: Label = $UI/Margin/VBox/Status
@@ -51,8 +56,7 @@ func _begin_load() -> void:
 	while true:
 		var progress_status: Array = []
 		var status: ResourceLoader.ThreadLoadStatus = ResourceLoader.load_threaded_get_status(
-			game_scene_path,
-			progress_status
+			game_scene_path, progress_status
 		)
 
 		match status:
@@ -70,8 +74,10 @@ func _begin_load() -> void:
 					last_progress = progress
 				if stalled_frames >= STALL_FRAME_LIMIT:
 					push_warning(
-						"[LoadingScreen] Threaded load stalled at %d%%, loading synchronously."
-						% int(round(progress * 100.0))
+						(
+							"[LoadingScreen] Threaded load stalled at %d%%, loading synchronously."
+							% int(round(progress * 100.0))
+						)
 					)
 					await _load_sync()
 					return
@@ -143,11 +149,6 @@ static func restart_current(tree: SceneTree) -> void:
 	pending_scene_path = current_scene_path
 	pending_mode_id = current_mode_id
 	tree.change_scene_to_file("res://scenes/loading_screen.tscn")
-
-
-## Resolved once per load: the synchronous fallback must get the same map the threaded load
-## was given, not the default scene (pending_scene_path is consumed on first use).
-var _resolved_scene_path: String = ""
 
 
 func _resolve_scene_path() -> String:

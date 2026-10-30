@@ -48,6 +48,7 @@ void fragment() {
 """
 
 var storm: SporeStorm
+
 var _stage: int = 0
 var _stage_time: float = 0.0
 var _full_radius: float = 100.0
@@ -64,8 +65,8 @@ var _overlay: ShaderMaterial
 var _turned_count: int = 0
 var _fruited_count: int = 0
 
-
 # --- Deciding ---------------------------------------------------------------------------------
+
 
 func _start_match() -> void:
 	_build_storm()
@@ -94,7 +95,13 @@ func _start_match() -> void:
 		var spot: Vector3 = _patch_spot(taken)
 		storm.add_patch(spot, PATCH_RADIUS, hash(spot) + index)
 	announce(
-		"Cordyceps Royale\nStay out of the spores. Whatever they take comes back for you.\nWeapons free in %d seconds." % GRACE_SECONDS,
+		(
+			(
+				"Cordyceps Royale\nStay out of the spores. Whatever they take comes back for you."
+				+ "\nWeapons free in %d seconds."
+			)
+			% GRACE_SECONDS
+		),
 		5.0
 	)
 
@@ -128,6 +135,7 @@ func _on_fighter_died(fighter: Fighter) -> void:
 
 # --- The cloud --------------------------------------------------------------------------------
 
+
 func _build_storm() -> void:
 	var center: Vector3 = map.center()
 	if map.bowl_radius > 0.0:
@@ -159,7 +167,9 @@ func _update_storm(delta: float) -> void:
 		_center_to = _pick_center(target_radius)
 		announce("The spores are closing in!", 2.5)
 	var progress: float = clampf((_stage_time - hold) / shrink, 0.0, 1.0)
-	storm.set_zone(_center_from.lerp(_center_to, progress), lerpf(_radius_from, target_radius, progress))
+	storm.set_zone(
+		_center_from.lerp(_center_to, progress), lerpf(_radius_from, target_radius, progress)
+	)
 	if progress >= 1.0:
 		_stage += 1
 		_stage_time = 0.0
@@ -178,14 +188,23 @@ func _pick_center(next_radius: float) -> Vector3:
 		var offset := Vector3(cos(angle), 0.0, sin(angle)) * randf_range(0.0, slack)
 		var candidate: Vector3 = storm.center + offset
 		if map.bowl_radius > 0.0:
-			var from_bowl: Vector3 = candidate - Vector3(map.bowl_center.x, candidate.y, map.bowl_center.z)
+			var from_bowl: Vector3 = (
+				candidate - Vector3(map.bowl_center.x, candidate.y, map.bowl_center.z)
+			)
 			var limit: float = maxf(map.bowl_radius - next_radius, 0.0)
 			if from_bowl.length() > limit:
-				candidate = Vector3(map.bowl_center.x, candidate.y, map.bowl_center.z) + from_bowl.normalized() * limit
+				candidate = (
+					Vector3(map.bowl_center.x, candidate.y, map.bowl_center.z)
+					+ from_bowl.normalized() * limit
+				)
 		else:
 			var inset: float = next_radius * 0.5
-			candidate.x = clampf(candidate.x, map.bounds.position.x + inset, map.bounds.end.x - inset)
-			candidate.z = clampf(candidate.z, map.bounds.position.z + inset, map.bounds.end.z - inset)
+			candidate.x = clampf(
+				candidate.x, map.bounds.position.x + inset, map.bounds.end.x - inset
+			)
+			candidate.z = clampf(
+				candidate.z, map.bounds.position.z + inset, map.bounds.end.z - inset
+			)
 		best = candidate
 		var ground: Dictionary = map.ground_hit(candidate)
 		if not ground.is_empty() and ground.position.y > map.water_surface_y() + 1.0:
@@ -194,6 +213,7 @@ func _pick_center(next_radius: float) -> Vector3:
 
 
 # --- Infection --------------------------------------------------------------------------------
+
 
 func _tick_infection(delta: float) -> void:
 	for fighter_id: int in _infection.keys():
@@ -248,7 +268,9 @@ func _turn_human(fighter: Fighter) -> void:
 	announce_to(fighter, "Summit Disease takes you...", 2.5)
 	if _clean_humans() == 0:
 		get_tree().create_timer(2.5).timeout.connect(
-			end_match.bind("You turned", "The spores took you. You placed #%d of %d." % [placement, FIGHTERS])
+			end_match.bind(
+				"You turned", "The spores took you. You placed #%d of %d." % [placement, FIGHTERS]
+			)
 		)
 
 
@@ -270,12 +292,19 @@ func _check_victory() -> void:
 		return
 	var survivor: Fighter = _clean_fighters()[0]
 	if survivor.is_local:
-		end_match("Victory Royale!", "Last clean bug of %d. %d turned, and none of them got you." % [FIGHTERS, _turned_count])
+		end_match(
+			"Victory Royale!",
+			"Last clean bug of %d. %d turned, and none of them got you." % [FIGHTERS, _turned_count]
+		)
 	elif _clean_humans() == 0:
-		end_match("%s wins" % survivor.display_name(), "Last clean bug of %d. %d turned." % [FIGHTERS, _turned_count])
+		end_match(
+			"%s wins" % survivor.display_name(),
+			"Last clean bug of %d. %d turned." % [FIGHTERS, _turned_count]
+		)
 
 
 # --- Counting and spawning --------------------------------------------------------------------
+
 
 func _clean_fighters() -> Array[Fighter]:
 	var clean: Array[Fighter] = []
@@ -338,6 +367,7 @@ func _patch_spot(taken: Array[Vector3]) -> Vector3:
 
 # --- Showing ----------------------------------------------------------------------------------
 
+
 func _status_text() -> String:
 	var counts: String = "Clean %d  ·  Husks %d" % [_clean_count(), _husk_count()]
 	if _stage >= STAGES.size():
@@ -381,6 +411,7 @@ func _apply_state(state: Dictionary) -> void:
 
 
 # --- Overlay ----------------------------------------------------------------------------------
+
 
 ## Hyphae creep in from the screen edges as the infection climbs.
 func _build_overlay() -> void:

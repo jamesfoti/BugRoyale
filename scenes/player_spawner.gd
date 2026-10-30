@@ -1,24 +1,24 @@
-extends Node
 class_name PlayerSpawner
+extends Node
 ## Spawns the local player (with the selected class's stats) for a playable world scene, and
 ## builds bodies for everyone else (bots now, remote players later) from the same player scene,
 ## so every fighter on the map is the same kind of body.
 
-
 enum WorldKind { CELESTIAL_BODY, OPEN_TERRAIN, BOXED_IN_TERRAIN }
+
+## Nodes only the local player needs: the camera rig and the terrain editing tools.
+const _LOCAL_ONLY_NODES: Array[String] = ["OrbitCamera", "TerrainBrush"]
 
 @export var world_kind: WorldKind = WorldKind.OPEN_TERRAIN
 @export var celestial_body_path: NodePath = ^"../TerrainWorld"
 @export var terrain_path: NodePath = ^"../TerrainWorld"
 
 @export var celestial_body_player_scene: PackedScene = preload("res://character/player.tscn")
-@export var open_terrain_player_scene: PackedScene = preload("res://character/open_terrain_player.tscn")
+@export
+var open_terrain_player_scene: PackedScene = preload("res://character/open_terrain_player.tscn")
 @export var boxed_in_terrain_player_scene: PackedScene = preload(
 	"res://character/boxed_in_terrain_player.tscn"
 )
-
-## Nodes only the local player needs: the camera rig and the terrain editing tools.
-const _LOCAL_ONLY_NODES: Array[String] = ["OrbitCamera", "TerrainBrush"]
 
 
 func _ready() -> void:
@@ -70,7 +70,9 @@ func create_fighter_body(
 	_attach_damageable(body)
 	if is_local:
 		_attach_breath(body)
-	CharacterSkin.apply_class_stats(body, body.get_node_or_null("Damageable") as Damageable, character)
+	CharacterSkin.apply_class_stats(
+		body, body.get_node_or_null("Damageable") as Damageable, character
+	)
 	return body
 
 

@@ -1,5 +1,5 @@
-extends RefCounted
 class_name Fighter
+extends RefCounted
 ## One combatant in a match as the modes see it: a body, its health, and (for a bot) its brain.
 ## A human at this keyboard, a bot, and later a remote player all look the same here, so a mode
 ## never has to ask which one it is dealing with except to decide what to show on this screen.

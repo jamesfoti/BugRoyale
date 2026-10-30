@@ -14,8 +14,8 @@ const TEAM_SIDES: Array[float] = [-1.0, 1.0]
 
 var scores: Array[int] = [0, 0]
 
-
 # --- Deciding ---------------------------------------------------------------------------------
+
 
 func _start_match() -> void:
 	for human: Fighter in humans():
@@ -35,15 +35,18 @@ func _on_fighter_died(fighter: Fighter) -> void:
 	if match_over:
 		return
 	announce_to(fighter, "You were squished! Respawning...", RESPAWN_SECONDS - 0.5)
-	get_tree().create_timer(RESPAWN_SECONDS).timeout.connect(func() -> void:
-		if not match_over and fighter.is_valid():
-			fighter.respawn_at(_team_spawn(team))
+	get_tree().create_timer(RESPAWN_SECONDS).timeout.connect(
+		func() -> void:
+			if not match_over and fighter.is_valid():
+				fighter.respawn_at(_team_spawn(team))
 	)
 
 
 func _spawn_colony_bot(team: int) -> void:
 	var skin: String = CharacterSkin.BLACK_ANT_BOT_SCENE_PATH if team == BLACK_TEAM else ""
-	var bot: Fighter = spawn_bot(LoadingScreen.PlayerCharacter.ANT_WARRIOR, team, _team_spawn(team), skin)
+	var bot: Fighter = spawn_bot(
+		LoadingScreen.PlayerCharacter.ANT_WARRIOR, team, _team_spawn(team), skin
+	)
 	if bot != null:
 		bot.brain.target_group = &"fighter"
 
@@ -58,7 +61,10 @@ func _score_kill(victim_team: int) -> void:
 		var local_won: bool = local_fighter != null and scoring_team == local_fighter.get_team()
 		end_match(
 			"%s colony wins!" % TEAM_NAMES[scoring_team],
-			("Victory! " if local_won else "Defeat. ") + "Final score: Red %d — %d Black" % [scores[RED_TEAM], scores[BLACK_TEAM]]
+			(
+				("Victory! " if local_won else "Defeat. ")
+				+ "Final score: Red %d — %d Black" % [scores[RED_TEAM], scores[BLACK_TEAM]]
+			)
 		)
 
 
@@ -68,8 +74,11 @@ func _team_spawn(team: int) -> Vector3:
 
 # --- Showing ----------------------------------------------------------------------------------
 
+
 func _status_text() -> String:
-	return "Red %d  —  %d Black   ·   First to %d" % [scores[RED_TEAM], scores[BLACK_TEAM], KILL_LIMIT]
+	return (
+		"Red %d  —  %d Black   ·   First to %d" % [scores[RED_TEAM], scores[BLACK_TEAM], KILL_LIMIT]
+	)
 
 
 func _snapshot_state() -> Dictionary:

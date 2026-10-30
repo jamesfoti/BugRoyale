@@ -3,55 +3,19 @@ class_name ChunkedTerrainWorld
 extends Node3D
 ## Shared chunked voxel terrain orchestration for celestial bodies and flat worlds.
 
+## A brush changed the terrain at a world position (only emitted when voxels actually changed).
+signal brush_applied(world_position: Vector3, radius: float)
+## An edit went through: the dictionary apply_edit took, with its "sequence" filled in. A host
+## broadcasts these; a client applies them in sequence order.
+signal edit_applied(edit: Dictionary)
 
 const _CHUNK_SCRIPT = preload("res://terrain/terrain_chunk.gd")
 
-
-class SettingsSnapshot:
-	var chunks_x: int = 3
-	var chunks_y: int = 3
-	var chunks_z: int = 3
-	var cells_per_axis: int = 12
-	var voxel_size: float = 1.0
-	var iso_level: float = 0.0
-	var world_origin: Vector3 = Vector3.ZERO
-	var sphere_enabled: bool = true
-	var sphere_center: Vector3 = Vector3.ZERO
-	var sphere_radius: float = 18.0
-	var body_radius_chunks: float = 1.5
-	var chunk_world_size: float = 12.0
-	var chunk_resolution: int = 1
-	var noise_enabled: bool = true
-	var noise_seed: int = 42
-	var noise_frequency: float = 0.08
-	var noise_amplitude: float = 3.0
-	var noise_octaves: int = 3
-	var noise_lacunarity: float = 2.0
-	var noise_gain: float = 0.5
-	var generate_collision: bool = true
-	var material: Material = null
-	var bounds_center: Vector3 = Vector3.ZERO
-	var bounds_half: Vector3 = Vector3.ZERO
-	var bounds_falloff_enabled: bool = true
-	var bounds_falloff_distance: float = 8.0
-	var bounds_falloff_strength: float = 5.0
-	var bounds_clip_inset: float = 0.5
-	var body_features_enabled: bool = false
-	var body_ravines_enabled: bool = true
-	var body_caves_enabled: bool = true
-	var body_ravine_depth: float = 12.0
-	var body_ravine_width: float = 0.08
-	var boxed_in_terrain_enabled: bool = false
-	var boxed_in_edges_enabled: bool = true
-	var open_terrain_enabled: bool = false
-	var open_terrain_edges_enabled: bool = true
-	var open_terrain_solid_fill: bool = false
-	var open_terrain_heightmap_image: Image = null
-	var open_terrain_surface_offset: float = 0.0
-	var open_terrain_bowl_radius: float = 0.0
-	var terrain_edits: TerrainEdits = null
-	var rebuild_collision: bool = true
-
+## Metres of air an ADD edit must leave around a fighter's capsule to be allowed. Terrain
+## collision is one-sided, so a fighter sealed inside new rock falls out of the world.
+const FIGHTER_CLEARANCE: float = 0.1
+## Points tested along a capsule's axis when checking an edit against it.
+const CAPSULE_SAMPLES: int = 6
 
 @export_group("Terrain Grid")
 @export_range(1.0, 128.0, 0.5, "or_greater") var chunk_size: float = 12.0:
@@ -109,8 +73,6 @@ class SettingsSnapshot:
 		generate_collision = value
 		_request_rebuild()
 @export var terrain_material: Material
-## Brush edits are refused outside this box (world space). Zero size: editable anywhere.
-var edit_bounds: AABB = AABB()
 
 @export_group("Bounds")
 @export var bounds_falloff_enabled: bool = true:
@@ -133,18 +95,10 @@ var edit_bounds: AABB = AABB()
 @export var use_threaded_rebuild: bool = true
 @export_range(1, 8, 1) var max_concurrent_rebuild_tasks: int = 4
 
-var _chunks: Dictionary = {}
-## A brush changed the terrain at a world position (only emitted when voxels actually changed).
-signal brush_applied(world_position: Vector3, radius: float)
-## An edit went through: the dictionary apply_edit took, with its "sequence" filled in. A host
-## broadcasts these; a client applies them in sequence order.
-signal edit_applied(edit: Dictionary)
+## Brush edits are refused outside this box (world space). Zero size: editable anywhere.
+var edit_bounds: AABB = AABB()
 
-## Metres of air an ADD edit must leave around a fighter's capsule to be allowed. Terrain
-## collision is one-sided, so a fighter sealed inside new rock falls out of the world.
-const FIGHTER_CLEARANCE: float = 0.1
-## Points tested along a capsule's axis when checking an edit against it.
-const CAPSULE_SAMPLES: int = 6
+var _chunks: Dictionary = {}
 
 var _rebuild_queued: bool = false
 var _edits: TerrainEdits = TerrainEdits.new()
@@ -263,9 +217,7 @@ func _build_chunk_at(
 	settings: SettingsSnapshot
 ) -> void:
 	var chunk: TerrainChunk = _CHUNK_SCRIPT.new()
-	chunk.name = "Chunk_%d_%d_%d" % [
-		chunk_coordinate.x, chunk_coordinate.y, chunk_coordinate.z
-	]
+	chunk.name = "Chunk_%d_%d_%d" % [chunk_coordinate.x, chunk_coordinate.y, chunk_coordinate.z]
 	chunk.chunk_coordinate = chunk_coordinate
 	if not is_playable_world:
 		chunk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -278,10 +230,7 @@ func _build_chunk_at(
 
 
 func _log_rebuild_complete(
-	chunk_count: int,
-	settings: SettingsSnapshot,
-	grid_dimensions: Vector3i,
-	elapsed_ms: int
+	chunk_count: int, settings: SettingsSnapshot, grid_dimensions: Vector3i, elapsed_ms: int
 ) -> void:
 	print(
 		"[%s] Rebuilt " % _get_world_log_name(),
@@ -422,13 +371,25 @@ func apply_box(
 static func sphere_edit(
 	world_position: Vector3, radius: float, add_solid: bool, material: TerrainMaterials.Kind
 ) -> Dictionary:
-	return {"kind": "sphere", "position": world_position, "radius": radius, "add": add_solid, "material": material}
+	return {
+		"kind": "sphere",
+		"position": world_position,
+		"radius": radius,
+		"add": add_solid,
+		"material": material
+	}
 
 
 static func box_edit(
 	center: Vector3, half_extents: Vector3, add_solid: bool, material: TerrainMaterials.Kind
 ) -> Dictionary:
-	return {"kind": "box", "position": center, "half_extents": half_extents, "add": add_solid, "material": material}
+	return {
+		"kind": "box",
+		"position": center,
+		"half_extents": half_extents,
+		"add": add_solid,
+		"material": material
+	}
 
 
 ## The one way terrain changes: the brush, the block tool, explosive shots and (later) edits
@@ -439,7 +400,9 @@ static func box_edit(
 func apply_edit(edit: Dictionary) -> bool:
 	var position: Vector3 = edit.get("position", Vector3.ZERO)
 	var add_solid: bool = bool(edit.get("add", false))
-	var material: TerrainMaterials.Kind = int(edit.get("material", TerrainMaterials.Kind.NATURAL)) as TerrainMaterials.Kind
+	var material: TerrainMaterials.Kind = (
+		int(edit.get("material", TerrainMaterials.Kind.NATURAL)) as TerrainMaterials.Kind
+	)
 	if not can_edit_at(position):
 		return false
 	if add_solid and buries_fighter(edit):
@@ -684,9 +647,7 @@ func _schedule_chunk_coordinate_rebuilds(
 		_rebuild_chunk_coordinates(chunk_coordinates, settings)
 
 
-func _start_single_chunk_async_rebuild(
-	chunk_coordinate: Vector3i, rebuild_collision: bool
-) -> void:
+func _start_single_chunk_async_rebuild(chunk_coordinate: Vector3i, rebuild_collision: bool) -> void:
 	_inflight_chunk_coordinates[chunk_coordinate] = true
 	var async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob = ChunkMeshBuilder.AsyncRebuildJob.new()
 	async_rebuild_job.chunk_coordinates = [chunk_coordinate]
@@ -777,8 +738,7 @@ func _get_bake_density() -> DensitySampler.WorldDensity:
 
 
 func _rebuild_chunk_coordinates(
-	chunk_coordinates: Array[Vector3i],
-	settings: SettingsSnapshot = null
+	chunk_coordinates: Array[Vector3i], settings: SettingsSnapshot = null
 ) -> void:
 	if chunk_coordinates.is_empty():
 		return
@@ -823,9 +783,7 @@ func _get_chunk_world_aabb(chunk_coordinate: Vector3i, settings: SettingsSnapsho
 func _chunk_corner_local(chunk_coordinate: Vector3i, settings: SettingsSnapshot) -> Vector3:
 	var extent: float = settings.chunk_world_size
 	var grid_origin: Vector3 = (
-		-Vector3(settings.chunks_x, settings.chunks_y, settings.chunks_z)
-		* extent
-		* 0.5
+		-Vector3(settings.chunks_x, settings.chunks_y, settings.chunks_z) * extent * 0.5
 	)
 	return grid_origin + Vector3(chunk_coordinate) * extent
 
@@ -866,3 +824,49 @@ func _assign_scene_owner(node: Node, scene_root: Node) -> void:
 		node.owner = scene_root
 	for child in node.get_children():
 		_assign_scene_owner(child, scene_root)
+
+
+class SettingsSnapshot:
+	var chunks_x: int = 3
+	var chunks_y: int = 3
+	var chunks_z: int = 3
+	var cells_per_axis: int = 12
+	var voxel_size: float = 1.0
+	var iso_level: float = 0.0
+	var world_origin: Vector3 = Vector3.ZERO
+	var sphere_enabled: bool = true
+	var sphere_center: Vector3 = Vector3.ZERO
+	var sphere_radius: float = 18.0
+	var body_radius_chunks: float = 1.5
+	var chunk_world_size: float = 12.0
+	var chunk_resolution: int = 1
+	var noise_enabled: bool = true
+	var noise_seed: int = 42
+	var noise_frequency: float = 0.08
+	var noise_amplitude: float = 3.0
+	var noise_octaves: int = 3
+	var noise_lacunarity: float = 2.0
+	var noise_gain: float = 0.5
+	var generate_collision: bool = true
+	var material: Material = null
+	var bounds_center: Vector3 = Vector3.ZERO
+	var bounds_half: Vector3 = Vector3.ZERO
+	var bounds_falloff_enabled: bool = true
+	var bounds_falloff_distance: float = 8.0
+	var bounds_falloff_strength: float = 5.0
+	var bounds_clip_inset: float = 0.5
+	var body_features_enabled: bool = false
+	var body_ravines_enabled: bool = true
+	var body_caves_enabled: bool = true
+	var body_ravine_depth: float = 12.0
+	var body_ravine_width: float = 0.08
+	var boxed_in_terrain_enabled: bool = false
+	var boxed_in_edges_enabled: bool = true
+	var open_terrain_enabled: bool = false
+	var open_terrain_edges_enabled: bool = true
+	var open_terrain_solid_fill: bool = false
+	var open_terrain_heightmap_image: Image = null
+	var open_terrain_surface_offset: float = 0.0
+	var open_terrain_bowl_radius: float = 0.0
+	var terrain_edits: TerrainEdits = null
+	var rebuild_collision: bool = true

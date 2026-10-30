@@ -2,7 +2,6 @@ class_name TerrariumBudget
 extends RefCounted
 ## Derives terrarium terrain and glass box dimensions from chunk grid settings.
 
-
 const MIN_CHUNKS_PER_AXIS: int = 1
 const MAX_CHUNKS_PER_AXIS: int = 16
 const MIN_CHUNK_SIZE: float = 1.0
@@ -11,14 +10,6 @@ const GLASS_WALL_INSET: float = 0.05
 const GLASS_HEADROOM: float = 0.3
 const DEFAULT_CHUNKS: Vector3i = Vector3i(1, 1, 1)
 const DEFAULT_CHUNK_SIZE: float = 5.0
-
-
-class GridConfig:
-	var chunks: Vector3i = DEFAULT_CHUNKS
-	var chunk_size: float = DEFAULT_CHUNK_SIZE
-	var world_size: Vector3 = Vector3.ONE * DEFAULT_CHUNK_SIZE
-	var total_chunks: int = 1
-	var total_voxels: int = 0
 
 
 static func derive_grid_from_chunks(chunks: Vector3i, chunk_size_requested: float) -> GridConfig:
@@ -52,3 +43,11 @@ static func derive_glass_box_size(terrarium_world_size: Vector3) -> Vector3:
 
 static func get_terrain_floor_offset(world_size: Vector3) -> float:
 	return world_size.y * 0.5
+
+
+class GridConfig:
+	var chunks: Vector3i = DEFAULT_CHUNKS
+	var chunk_size: float = DEFAULT_CHUNK_SIZE
+	var world_size: Vector3 = Vector3.ONE * DEFAULT_CHUNK_SIZE
+	var total_chunks: int = 1
+	var total_voxels: int = 0

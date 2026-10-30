@@ -1,5 +1,5 @@
-extends CharacterBody3D
 class_name FighterBody
+extends CharacterBody3D
 ## A bug on the map: the player at this keyboard, a bot, or (later) a remote player. The body
 ## moves, climbs, shoots and animates; what it does each physics frame comes from its
 ## FighterController child as a FighterInput, so one body serves every kind of pilot. The
@@ -53,6 +53,7 @@ func _ready() -> void:
 
 # --- Pilot ------------------------------------------------------------------------------------
 
+
 ## Asks the controller what to do this frame and hands the shot part to the weapon. Called once
 ## per physics step by the subclass, before it moves.
 func sample_input(delta: float) -> void:
@@ -96,6 +97,7 @@ func _get_flat_forward() -> Vector3:
 
 # --- In and out of play -----------------------------------------------------------------------
 
+
 func is_in_play() -> bool:
 	return _in_play
 
@@ -136,12 +138,15 @@ func _place_at(_position_on_map: Vector3) -> void:
 
 ## Multiplies every movement speed the subclass exposes (a husk's shamble).
 func scale_speed(factor: float) -> void:
-	for property: String in ["speed", "run_speed", "climb_speed", "climb_run_speed", "fly_speed", "fly_run_speed"]:
+	for property: String in [
+		"speed", "run_speed", "climb_speed", "climb_run_speed", "fly_speed", "fly_run_speed"
+	]:
 		if property in self:
 			set(property, float(get(property)) * factor)
 
 
 # --- Skin and animation -----------------------------------------------------------------------
+
 
 func get_skin() -> CharacterSkin:
 	return _skin
@@ -163,6 +168,7 @@ func _set_anim_state(skin: CharacterSkin, state_name: String) -> void:
 
 
 # --- Terrain editing, inventory and the HUD (the local player only) ---------------------------
+
 
 func is_terrain_focus_active() -> bool:
 	return _terrain_focus

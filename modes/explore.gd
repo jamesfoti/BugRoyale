@@ -10,8 +10,8 @@ var _map_name: String = ""
 ## Fighter -> seconds until it is back on its feet.
 var _respawn_timers: Dictionary = {}
 
-
 # --- Deciding ---------------------------------------------------------------------------------
+
 
 func _start_match() -> void:
 	_map_name = ModeCatalog.map_name(ModeCatalog.map_id_for_scene(LoadingScreen.current_scene_path))
@@ -37,6 +37,7 @@ func _on_fighter_died(fighter: Fighter) -> void:
 
 
 # --- Showing ----------------------------------------------------------------------------------
+
 
 func _status_text() -> String:
 	return "Explore  ·  %s" % _map_name

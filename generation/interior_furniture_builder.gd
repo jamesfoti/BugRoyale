@@ -3,7 +3,9 @@ extends RefCounted
 ## Builds recognizable furniture from simple box primitives.
 
 
-static func build(placement: InteriorRoomFurniture.Placement, furniture_scale: float = 1.0) -> StaticBody3D:
+static func build(
+	placement: InteriorRoomFurniture.Placement, furniture_scale: float = 1.0
+) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	body.collision_mask = 1
@@ -53,11 +55,7 @@ static func build(placement: InteriorRoomFurniture.Placement, furniture_scale: f
 
 
 static func _add_box(
-	parent: Node3D,
-	size: Vector3,
-	position: Vector3,
-	color: Color,
-	add_collision: bool = true
+	parent: Node3D, size: Vector3, position: Vector3, color: Color, add_collision: bool = true
 ) -> void:
 	var mesh_instance := MeshInstance3D.new()
 	var box := BoxMesh.new()
@@ -115,15 +113,7 @@ static func _build_table_with_legs(
 	_add_box(parent, top_size, Vector3(0.0, top_center_y, 0.0), color)
 	var leg_height: float = top_center_y - top_size.y * 0.5
 	var leg_color := color.darkened(0.08)
-	_add_four_legs(
-		parent,
-		top_size.x,
-		top_size.z,
-		leg_height,
-		leg_inset,
-		leg_size,
-		leg_color
-	)
+	_add_four_legs(parent, top_size.x, top_size.z, leg_height, leg_inset, leg_size, leg_color)
 
 
 static func _build_couch(parent: Node3D) -> void:
@@ -138,23 +128,13 @@ static func _build_armchair(parent: Node3D) -> void:
 
 static func _build_coffee_table(parent: Node3D) -> void:
 	_build_table_with_legs(
-		parent,
-		Vector3(1.1, 0.08, 0.7),
-		0.35,
-		Color(0.35, 0.25, 0.15),
-		0.12,
-		0.05
+		parent, Vector3(1.1, 0.08, 0.7), 0.35, Color(0.35, 0.25, 0.15), 0.12, 0.05
 	)
 
 
 static func _build_dining_table(parent: Node3D) -> void:
 	_build_table_with_legs(
-		parent,
-		Vector3(1.6, 0.08, 0.9),
-		0.75,
-		Color(0.4, 0.28, 0.18),
-		0.14,
-		0.07
+		parent, Vector3(1.6, 0.08, 0.9), 0.75, Color(0.4, 0.28, 0.18), 0.14, 0.07
 	)
 
 
@@ -163,7 +143,15 @@ static func _build_chair(parent: Node3D) -> void:
 	var seat_size := Vector3(0.45, 0.05, 0.45)
 	var seat_y: float = 0.45
 	_add_box(parent, seat_size, Vector3(0.0, seat_y, 0.0), color)
-	_add_four_legs(parent, seat_size.x, seat_size.z, seat_y - seat_size.y * 0.5, 0.05, 0.04, color.darkened(0.08))
+	_add_four_legs(
+		parent,
+		seat_size.x,
+		seat_size.z,
+		seat_y - seat_size.y * 0.5,
+		0.05,
+		0.04,
+		color.darkened(0.08)
+	)
 	_add_box(parent, Vector3(0.45, 0.5, 0.08), Vector3(0.0, 0.7, -0.2), color)
 
 
@@ -175,23 +163,11 @@ static func _build_bed(parent: Node3D) -> void:
 	var leg_size: float = 0.08
 	var base_thickness: float = 0.08
 	var mattress_size := Vector3(1.6, 0.35, 2.1)
-	var frame_size := Vector3(
-		mattress_size.x - 0.12,
-		base_thickness,
-		mattress_size.z - 0.12
-	)
+	var frame_size := Vector3(mattress_size.x - 0.12, base_thickness, mattress_size.z - 0.12)
 	var frame_y: float = leg_height + base_thickness * 0.5
 	var mattress_y: float = leg_height + base_thickness + mattress_size.y * 0.5
 
-	_add_four_legs(
-		parent,
-		frame_size.x,
-		frame_size.z,
-		leg_height,
-		0.04,
-		leg_size,
-		leg_color
-	)
+	_add_four_legs(parent, frame_size.x, frame_size.z, leg_height, 0.04, leg_size, leg_color)
 	_add_box(parent, frame_size, Vector3(0.0, frame_y, 0.0), frame_color)
 	_add_box(parent, mattress_size, Vector3(0.0, mattress_y, 0.0), mattress_color)
 	_add_box(
@@ -204,12 +180,7 @@ static func _build_bed(parent: Node3D) -> void:
 
 static func _build_desk(parent: Node3D) -> void:
 	_build_table_with_legs(
-		parent,
-		Vector3(1.3, 0.08, 0.65),
-		0.75,
-		Color(0.42, 0.3, 0.2),
-		0.12,
-		0.06
+		parent, Vector3(1.3, 0.08, 0.65), 0.75, Color(0.42, 0.3, 0.2), 0.12, 0.06
 	)
 
 
@@ -243,21 +214,22 @@ static func _build_tub(parent: Node3D) -> void:
 
 static func _build_tv_stand(parent: Node3D) -> void:
 	var color := Color(0.2, 0.2, 0.22)
-	_build_table_with_legs(
-		parent,
-		Vector3(1.4, 0.06, 0.4),
-		0.45,
-		color,
-		0.12,
-		0.05
+	_build_table_with_legs(parent, Vector3(1.4, 0.06, 0.4), 0.45, color, 0.12, 0.05)
+	_add_box(
+		parent, Vector3(1.2, 0.7, 0.06), Vector3(0.0, 0.75, -0.05), Color(0.08, 0.08, 0.1), false
 	)
-	_add_box(parent, Vector3(1.2, 0.7, 0.06), Vector3(0.0, 0.75, -0.05), Color(0.08, 0.08, 0.1), false)
 
 
 static func _build_floor_lamp(parent: Node3D) -> void:
-	_add_box(parent, Vector3(0.08, 1.6, 0.08), Vector3(0.0, 0.8, 0.0), Color(0.25, 0.25, 0.28), false)
-	_add_box(parent, Vector3(0.35, 0.2, 0.35), Vector3(0.0, 1.5, 0.0), Color(0.95, 0.9, 0.75), false)
+	_add_box(
+		parent, Vector3(0.08, 1.6, 0.08), Vector3(0.0, 0.8, 0.0), Color(0.25, 0.25, 0.28), false
+	)
+	_add_box(
+		parent, Vector3(0.35, 0.2, 0.35), Vector3(0.0, 1.5, 0.0), Color(0.95, 0.9, 0.75), false
+	)
 
 
 static func _build_rug(parent: Node3D) -> void:
-	_add_box(parent, Vector3(2.0, 0.02, 1.4), Vector3(0.0, 0.01, 0.0), Color(0.55, 0.35, 0.3), false)
+	_add_box(
+		parent, Vector3(2.0, 0.02, 1.4), Vector3(0.0, 0.01, 0.0), Color(0.55, 0.35, 0.3), false
+	)

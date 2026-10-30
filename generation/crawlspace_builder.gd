@@ -20,6 +20,25 @@ extends Node3D
 ## (Battle Royale) raises it; as it climbs, bulbs it reaches short out with a shock, and
 ## start_sewage_backup() makes the drains vent sewage onto the surface.
 
+## Surface detail the toon shader paints on: see toon_detail.gdshaderinc.
+enum Detail { NONE, WOOD, CONCRETE, BLOCK, BRICK, POURED }
+enum Masonry { RANDOM, BLOCK, POURED }
+
+const LUMBER_COLOR := Color(0.6, 0.47, 0.3)
+const PLYWOOD_COLOR := Color(0.68, 0.56, 0.37)
+const CONCRETE_COLOR := Color(0.56, 0.56, 0.53)
+const BRICK_COLOR := Color(0.55, 0.27, 0.2)
+const ROCK_COLOR := Color(0.36, 0.34, 0.32)
+## Pipe radii in real metres: 4 inch ABS drain, 3/4 inch PEX, 1 inch gas.
+const DRAIN_RADIUS: float = 0.05
+const PEX_RADIUS: float = 0.01
+const GAS_RADIUS: float = 0.0125
+
+## Masonry rolled by the matches so far this session, so the style never repeats more than
+## twice in a row: a fair coin alone can run the same way four or five matches straight.
+static var _last_block_roll: int = -1
+static var _block_roll_streak: int = 0
+
 @export var terrain_path: NodePath = ^"../TerrainWorld"
 ## World metres per real metre. 100 matches the terrarium rooms' 1:100.
 @export_range(1.0, 200.0, 1.0) var structure_scale: float = 100.0
@@ -62,16 +81,6 @@ extends Node3D
 @export var scrap_count: int = 20
 ## Clusters of mushrooms on the damp dirt (fungi grow where plants can't).
 @export var mushroom_clusters: int = 16
-
-const LUMBER_COLOR := Color(0.6, 0.47, 0.3)
-const PLYWOOD_COLOR := Color(0.68, 0.56, 0.37)
-const CONCRETE_COLOR := Color(0.56, 0.56, 0.53)
-const BRICK_COLOR := Color(0.55, 0.27, 0.2)
-const ROCK_COLOR := Color(0.36, 0.34, 0.32)
-## Pipe radii in real metres: 4 inch ABS drain, 3/4 inch PEX, 1 inch gas.
-const DRAIN_RADIUS: float = 0.05
-const PEX_RADIUS: float = 0.01
-const GAS_RADIUS: float = 0.0125
 
 var _terrain: OpenTerrain
 var _center: Vector3
@@ -118,17 +127,19 @@ var _flash_left: float = 0.0
 var _flashes_queued: int = 0
 var _sewage_started: bool = false
 
+## The next column for a fixture branch; the columns are reused (on different mains) once
+## every one has been taken.
+var _branch_x_pool: Array = []
+var _branch_x_all: Array = []
+
+## Which way a branch leaves its main, alternating so fixtures spread across the space.
+var _next_branch_side: float = 1.0
+
 
 func _ready() -> void:
 	add_to_group("map_ceiling")
 	add_to_group("crawlspace")
 	call_deferred("build")
-
-
-## Masonry rolled by the matches so far this session, so the style never repeats more than
-## twice in a row: a fair coin alone can run the same way four or five matches straight.
-static var _last_block_roll: int = -1
-static var _block_roll_streak: int = 0
 
 
 func _roll_masonry() -> bool:
@@ -228,17 +239,42 @@ func build() -> void:
 	_build_mushrooms()
 	_build_flood_water(extents)
 	_build_storm()
-	print("[Crawlspace] Built %.0fx%.0f m crawlspace at 1:%.0f, joists %.0f m up, %s masonry, %d beam rows, piers every %.1f m, joists every %.1f m, vents every %.0f m, hatch on wall %d" % [extents.x, extents.z, _s, _ceiling - _joist_depth - _center.y, "block" if _block_masonry else "poured", _girder_rows, _pier_spacing, _joist_spacing, _vent_spacing * _s, _hatch_wall])
+	print(
+		(
+			(
+				"[Crawlspace] Built %.0fx%.0f m crawlspace at 1:%.0f, joists %.0f m up, %s masonry, "
+				+ "%d beam rows, piers every %.1f m, joists every %.1f m, vents every %.0f m, "
+				+ "hatch on wall %d"
+			)
+			% [
+				extents.x,
+				extents.z,
+				_s,
+				_ceiling - _joist_depth - _center.y,
+				"block" if _block_masonry else "poured",
+				_girder_rows,
+				_pier_spacing,
+				_joist_spacing,
+				_vent_spacing * _s,
+				_hatch_wall
+			]
+		)
+	)
 
 
 # --- Flood and storm --------------------------------------------------------------------------
+
 
 ## Flood water filling the foundation box, parked under the lowest dirt until a mode raises it.
 ## Its height range runs from under the dirt to just below the joists, so Battle Royale's level
 ## fractions mean the same thing here as in the terrarium. Tinted to murky storm runoff.
 func _build_flood_water(extents: Vector3) -> void:
 	var floor_y: float = _center.y - 0.15 * _s
-	var size := Vector3(extents.x - _wall * 2.0, (_ceiling - _joist_depth - 0.06 * _s) - floor_y, extents.z - _wall * 2.0)
+	var size := Vector3(
+		extents.x - _wall * 2.0,
+		(_ceiling - _joist_depth - 0.06 * _s) - floor_y,
+		extents.z - _wall * 2.0
+	)
 	_water = TerrariumWater.create(size, 0.05)
 	_water.position = Vector3(_center.x, floor_y, _center.z)
 	add_child(_water)
@@ -263,17 +299,27 @@ func _build_storm() -> void:
 	for opening: Dictionary in _openings:
 		var rain: GPUParticles3D = _make_rain(opening["width"], opening["height"])
 		# Outside the wall, in front of the daylight panel, so it reads as rain beyond the vent.
-		rain.position = opening["position"] + opening["outward"] * (_wall * 0.5 + 0.05 * _s) + Vector3.UP * (opening["height"] * 0.5 + 0.1 * _s)
+		rain.position = (
+			opening["position"]
+			+ opening["outward"] * (_wall * 0.5 + 0.05 * _s)
+			+ Vector3.UP * (opening["height"] * 0.5 + 0.1 * _s)
+		)
 		storm.add_child(rain)
 		# Drips run down the inside face of the opening, in its plane, from the lintel to the
 		# dirt below the sill.
 		# Water blown in over the sill runs off its inner edge and down the inside face of the
 		# wall to the dirt. (The hatch's sill is at the dirt, so it gets no drips.)
-		var drip_top: Vector3 = opening["position"] - opening["outward"] * (_wall * 0.5 + 0.01 * _s) - Vector3.UP * (opening["height"] * 0.5)
+		var drip_top: Vector3 = (
+			opening["position"]
+			- opening["outward"] * (_wall * 0.5 + 0.01 * _s)
+			- Vector3.UP * (opening["height"] * 0.5)
+		)
 		var dirt_below: float = _terrain.get_surface_height_at(drip_top)
 		if drip_top.y - dirt_below < 1.0:
 			continue
-		var stream: GPUParticles3D = _make_stream(opening["width"], opening["outward"], drip_top.y - dirt_below)
+		var stream: GPUParticles3D = _make_stream(
+			opening["width"], opening["outward"], drip_top.y - dirt_below
+		)
 		stream.position = drip_top
 		storm.add_child(stream)
 
@@ -286,7 +332,10 @@ func _make_rain(width: float, height: float) -> GPUParticles3D:
 	var fall_speed: float = 0.45 * _s
 	particles.lifetime = maxf((height + 0.2 * _s) / fall_speed, 0.15)
 	particles.local_coords = false
-	particles.visibility_aabb = AABB(Vector3(-width, -height - 0.1 * _s, -0.2 * _s), Vector3(width * 2.0, height + 0.2 * _s, 0.4 * _s))
+	particles.visibility_aabb = AABB(
+		Vector3(-width, -height - 0.1 * _s, -0.2 * _s),
+		Vector3(width * 2.0, height + 0.2 * _s, 0.4 * _s)
+	)
 	var process := ParticleProcessMaterial.new()
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	process.emission_box_extents = Vector3(width * 0.5, 0.05, 0.02 * _s)
@@ -312,12 +361,18 @@ func _make_stream(width: float, outward: Vector3, fall: float) -> GPUParticles3D
 	particles.amount = int(clampf(width * fall * 0.05, 32.0, 160.0))
 	particles.lifetime = sqrt(2.0 * maxf(fall, 1.0) / 9.8) + 0.3
 	particles.local_coords = false
-	particles.visibility_aabb = AABB(Vector3(-width, -fall - 1.0, -width), Vector3(width * 2.0, fall + 2.0, width * 2.0))
+	particles.visibility_aabb = AABB(
+		Vector3(-width, -fall - 1.0, -width), Vector3(width * 2.0, fall + 2.0, width * 2.0)
+	)
 	var process := ParticleProcessMaterial.new()
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	# Thin along the wall's normal, wide across the opening.
 	var across: Vector3 = Vector3(absf(outward.z), 0.0, absf(outward.x))
-	process.emission_box_extents = across * width * 0.48 + Vector3(absf(outward.x), 0.0, absf(outward.z)) * 0.01 * _s + Vector3(0.0, 0.05, 0.0)
+	process.emission_box_extents = (
+		across * width * 0.48
+		+ Vector3(absf(outward.x), 0.0, absf(outward.z)) * 0.01 * _s
+		+ Vector3(0.0, 0.05, 0.0)
+	)
 	process.direction = Vector3.DOWN
 	process.spread = 1.5
 	process.initial_velocity_min = 0.01 * _s
@@ -368,7 +423,9 @@ func _short_bulb(bulb: Dictionary) -> void:
 	shock.grow_seconds = 0.2
 	shock.surface_water = _water
 	add_child(shock)
-	shock.global_position = Vector3(bulb["position"].x, _water.get_water_surface_y(), bulb["position"].z)
+	shock.global_position = Vector3(
+		bulb["position"].x, _water.get_water_surface_y(), bulb["position"].z
+	)
 
 
 ## The drains back up: sewage spreads over the flood surface along each drain line, hurting
@@ -380,7 +437,12 @@ func start_sewage_backup() -> void:
 	var span: float = _half.x * 2.0 - _wall * 2.0
 	for line: Dictionary in _drain_lines:
 		for index: int in 4:
-			var x: float = _center.x - span * 0.5 + span * (index + 0.5) / 4.0 + _rng.randf_range(-0.3, 0.3) * _s
+			var x: float = (
+				_center.x
+				- span * 0.5
+				+ span * (index + 0.5) / 4.0
+				+ _rng.randf_range(-0.3, 0.3) * _s
+			)
 			var pool: FluidPool = FluidPool.create(0.55 * _s, 5.0, 600.0, Color(0.27, 0.3, 0.12))
 			pool.grow_seconds = 12.0
 			pool.surface_water = _water
@@ -390,13 +452,20 @@ func start_sewage_backup() -> void:
 
 # --- Framing ----------------------------------------------------------------------------------
 
+
 func _build_subfloor_and_joists(extents: Vector3) -> void:
 	var framing := Node3D.new()
 	framing.name = "Framing"
 	add_child(framing)
 	var subfloor: float = 0.02 * _s
 	# Plywood subfloor on top of the joists.
-	_box(framing, "Subfloor", Vector3(extents.x, subfloor, extents.z), Vector3(_center.x, _ceiling + subfloor * 0.5, _center.z), _material(PLYWOOD_COLOR, 0.95, Detail.WOOD, 0))
+	_box(
+		framing,
+		"Subfloor",
+		Vector3(extents.x, subfloor, extents.z),
+		Vector3(_center.x, _ceiling + subfloor * 0.5, _center.z),
+		_material(PLYWOOD_COLOR, 0.95, Detail.WOOD, 0)
+	)
 	# Joists run the full depth, drawn as one MultiMesh.
 	var joist_mesh := BoxMesh.new()
 	joist_mesh.size = Vector3(_joist_width, _joist_depth, extents.z)
@@ -408,7 +477,11 @@ func _build_subfloor_and_joists(extents: Vector3) -> void:
 	var first_x: float = _center.x - (count - 1) * _joist_spacing * 0.5
 	for index: int in count:
 		multimesh.set_instance_transform(
-			index, Transform3D(Basis.IDENTITY, Vector3(first_x + index * _joist_spacing, _ceiling - _joist_depth * 0.5, _center.z))
+			index,
+			Transform3D(
+				Basis.IDENTITY,
+				Vector3(first_x + index * _joist_spacing, _ceiling - _joist_depth * 0.5, _center.z)
+			)
 		)
 	var joists := MultiMeshInstance3D.new()
 	joists.name = "Joists"
@@ -418,12 +491,24 @@ func _build_subfloor_and_joists(extents: Vector3) -> void:
 	# Rim joists along the two long edges.
 	for sign: float in [-1.0, 1.0]:
 		_box(
-			framing, "RimJoist", Vector3(extents.x, _joist_depth, _joist_width),
-			Vector3(_center.x, _ceiling - _joist_depth * 0.5, _center.z + sign * (_half.z - _wall - _joist_width * 0.5)),
+			framing,
+			"RimJoist",
+			Vector3(extents.x, _joist_depth, _joist_width),
+			Vector3(
+				_center.x,
+				_ceiling - _joist_depth * 0.5,
+				_center.z + sign * (_half.z - _wall - _joist_width * 0.5)
+			),
 			_wood(0)
 		)
 	# One slab collider for the whole joist zone and subfloor, on the structure layer.
-	_collider(framing, "CeilingCollider", Vector3(extents.x, _joist_depth + subfloor, extents.z), Vector3(_center.x, _ceiling - _joist_depth * 0.5 + subfloor * 0.5, _center.z), MapInfo.STRUCTURE_LAYER)
+	_collider(
+		framing,
+		"CeilingCollider",
+		Vector3(extents.x, _joist_depth + subfloor, extents.z),
+		Vector3(_center.x, _ceiling - _joist_depth * 0.5 + subfloor * 0.5, _center.z),
+		MapInfo.STRUCTURE_LAYER
+	)
 
 
 ## Girders flush with the joists (the joists hang on them), each on a row of block piers.
@@ -451,10 +536,16 @@ func _build_girders_and_piers(extents: Vector3) -> void:
 	for row: int in _girder_rows:
 		var z: float = _center.z - _half.z + extents.z * (row + 1) / (_girder_rows + 1)
 		_box(
-			support, "Girder", Vector3(extents.x - _wall * 2.0, girder_depth * _s, girder_width * _s),
-			Vector3(_center.x, (girder_top + girder_bottom) * 0.5, z), _wood(0), MapInfo.STRUCTURE_LAYER
+			support,
+			"Girder",
+			Vector3(extents.x - _wall * 2.0, girder_depth * _s, girder_width * _s),
+			Vector3(_center.x, (girder_top + girder_bottom) * 0.5, z),
+			_wood(0),
+			MapInfo.STRUCTURE_LAYER
 		)
-		var pier_count: int = maxi(int(floor((extents.x - _wall * 2.0 - _pier_spacing) / _pier_spacing)) + 1, 2)
+		var pier_count: int = maxi(
+			int(floor((extents.x - _wall * 2.0 - _pier_spacing) / _pier_spacing)) + 1, 2
+		)
 		var first_x: float = _center.x - (pier_count - 1) * _pier_spacing * 0.5
 		_pier_rows.append(z)
 		if _pier_xs.is_empty():
@@ -469,7 +560,16 @@ func _build_girders_and_piers(extents: Vector3) -> void:
 			var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
 			for corner_x: float in [-1.0, 1.0]:
 				for corner_z: float in [-1.0, 1.0]:
-					ground = minf(ground, _terrain.get_surface_height_at(Vector3(x + corner_x * block_base * 0.5, 0.0, z + corner_z * block_base * 0.5)))
+					ground = minf(
+						ground,
+						_terrain.get_surface_height_at(
+							Vector3(
+								x + corner_x * block_base * 0.5,
+								0.0,
+								z + corner_z * block_base * 0.5
+							)
+						)
+					)
 			ground -= 0.03 * _s
 			var block := MeshInstance3D.new()
 			block.name = "PierBlock"
@@ -488,11 +588,25 @@ func _build_girders_and_piers(extents: Vector3) -> void:
 			var block_top_y: float = ground + block_height
 			var post_height: float = maxf(girder_bottom - block_top_y, 0.02 * _s)
 			_box(
-				support, "PierPost", Vector3(post, post_height, post), Vector3(x, block_top_y + post_height * 0.5, z),
-				_wood(1), MapInfo.STRUCTURE_LAYER
+				support,
+				"PierPost",
+				Vector3(post, post_height, post),
+				Vector3(x, block_top_y + post_height * 0.5, z),
+				_wood(1),
+				MapInfo.STRUCTURE_LAYER
 			)
-			_pier_boxes.append(AABB(Vector3(x - block_base * 0.5, ground, z - block_base * 0.5), Vector3(block_base, block_height, block_base)))
-			_pier_boxes.append(AABB(Vector3(x - post * 0.5, block_top_y, z - post * 0.5), Vector3(post, post_height, post)))
+			_pier_boxes.append(
+				AABB(
+					Vector3(x - block_base * 0.5, ground, z - block_base * 0.5),
+					Vector3(block_base, block_height, block_base)
+				)
+			)
+			_pier_boxes.append(
+				AABB(
+					Vector3(x - post * 0.5, block_top_y, z - post * 0.5),
+					Vector3(post, post_height, post)
+				)
+			)
 
 
 ## A stacked-block pier: one 8x8x16 block per course, laid alternately, with a solid cap
@@ -502,19 +616,44 @@ func _build_block_pier(support: Node3D, x: float, z: float, girder_bottom: float
 	var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
 	for corner_x: float in [-1.0, 1.0]:
 		for corner_z: float in [-1.0, 1.0]:
-			ground = minf(ground, _terrain.get_surface_height_at(Vector3(x + corner_x * footprint * 0.5, 0.0, z + corner_z * footprint * 0.5)))
+			ground = minf(
+				ground,
+				_terrain.get_surface_height_at(
+					Vector3(x + corner_x * footprint * 0.5, 0.0, z + corner_z * footprint * 0.5)
+				)
+			)
 	ground -= 0.03 * _s
 	var cap: float = 0.05 * _s
 	# Whole courses, so the joints line up with the cap.
 	var course: float = 0.2 * _s
 	var height: float = floor((girder_bottom - cap - ground) / course) * course
 	var cap_height: float = girder_bottom - (ground + height)
-	_box(support, "PierBlocks", Vector3(footprint, height, footprint), Vector3(x, ground + height * 0.5, z), _material(CONCRETE_COLOR, 0.95, Detail.BLOCK), MapInfo.STRUCTURE_LAYER)
-	_box(support, "PierCap", Vector3(footprint + 0.02 * _s, cap_height, footprint + 0.02 * _s), Vector3(x, ground + height + cap_height * 0.5, z), _material(CONCRETE_COLOR, 0.95, Detail.CONCRETE), MapInfo.STRUCTURE_LAYER)
-	_pier_boxes.append(AABB(Vector3(x - footprint * 0.5, ground, z - footprint * 0.5), Vector3(footprint, height + cap_height, footprint)))
+	_box(
+		support,
+		"PierBlocks",
+		Vector3(footprint, height, footprint),
+		Vector3(x, ground + height * 0.5, z),
+		_material(CONCRETE_COLOR, 0.95, Detail.BLOCK),
+		MapInfo.STRUCTURE_LAYER
+	)
+	_box(
+		support,
+		"PierCap",
+		Vector3(footprint + 0.02 * _s, cap_height, footprint + 0.02 * _s),
+		Vector3(x, ground + height + cap_height * 0.5, z),
+		_material(CONCRETE_COLOR, 0.95, Detail.CONCRETE),
+		MapInfo.STRUCTURE_LAYER
+	)
+	_pier_boxes.append(
+		AABB(
+			Vector3(x - footprint * 0.5, ground, z - footprint * 0.5),
+			Vector3(footprint, height + cap_height, footprint)
+		)
+	)
 
 
 # --- Foundation -------------------------------------------------------------------------------
+
 
 ## Four walls from below the dirt up to the subfloor, each with vents, plus one access hatch.
 func _build_foundation_walls(extents: Vector3) -> void:
@@ -540,7 +679,18 @@ func _build_foundation_walls(extents: Vector3) -> void:
 			openings.append([first + index * spacing, vent_width, vent_bottom, vent_top, false])
 		if wall == _hatch_wall:
 			# Access hatch in the +Z wall: dirt level up to the joists.
-			openings.append([0.0, 0.6 * _s, _terrain.get_surface_height_at(Vector3(_center.x, 0.0, _center.z + _half.z)) - 0.03 * _s, wall_top, true])
+			openings.append(
+				[
+					0.0,
+					0.6 * _s,
+					(
+						_terrain.get_surface_height_at(Vector3(_center.x, 0.0, _center.z + _half.z))
+						- 0.03 * _s
+					),
+					wall_top,
+					true
+				]
+			)
 		openings.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 		var offset: float = side * (_half.x if not along_x else _half.z) - side * _wall * 0.5
 		var cursor: float = -length * 0.5
@@ -556,20 +706,49 @@ func _build_foundation_walls(extents: Vector3) -> void:
 			_wall_piece(foundation, along_x, offset, left, right, bottom, opening[2])
 			_wall_piece(foundation, along_x, offset, left, right, opening[3], wall_top)
 			var lit: bool = opening[4] or index == lit_vent
-			_opening_light(foundation, along_x, offset, (left + right) * 0.5, opening[2], opening[3], opening[1], side, opening[4], lit)
+			_opening_light(
+				foundation,
+				along_x,
+				offset,
+				(left + right) * 0.5,
+				opening[2],
+				opening[3],
+				opening[1],
+				side,
+				opening[4],
+				lit
+			)
 			cursor = right
 		_wall_piece(foundation, along_x, offset, cursor, length * 0.5, bottom, wall_top)
 		# Sill plate along the top of the wall, with the joists resting on it.
 		var sill: float = sill_thickness * _s
-		var plate_size: Vector3 = Vector3(length, sill, _wall) if along_x else Vector3(_wall, sill, length)
+		var plate_size: Vector3 = (
+			Vector3(length, sill, _wall) if along_x else Vector3(_wall, sill, length)
+		)
 		var plate_position: Vector3 = (
-			Vector3(_center.x, wall_top + sill * 0.5, _center.z + offset) if along_x
+			Vector3(_center.x, wall_top + sill * 0.5, _center.z + offset)
+			if along_x
 			else Vector3(_center.x + offset, wall_top + sill * 0.5, _center.z)
 		)
-		_box(foundation, "SillPlate", plate_size, plate_position, _wood(0 if along_x else 2), MapInfo.STRUCTURE_LAYER)
+		_box(
+			foundation,
+			"SillPlate",
+			plate_size,
+			plate_position,
+			_wood(0 if along_x else 2),
+			MapInfo.STRUCTURE_LAYER
+		)
 
 
-func _wall_piece(parent: Node3D, along_x: bool, offset: float, from: float, to: float, y_bottom: float, y_top: float) -> void:
+func _wall_piece(
+	parent: Node3D,
+	along_x: bool,
+	offset: float,
+	from: float,
+	to: float,
+	y_bottom: float,
+	y_top: float
+) -> void:
 	if to - from < 0.01 or y_top - y_bottom < 0.01:
 		return
 	var mid: float = (from + to) * 0.5
@@ -581,24 +760,45 @@ func _wall_piece(parent: Node3D, along_x: bool, offset: float, from: float, to: 
 	else:
 		size = Vector3(_wall, y_top - y_bottom, to - from)
 		position = Vector3(_center.x + offset, (y_top + y_bottom) * 0.5, _center.z + mid)
-	_box(parent, "Wall", size, position, _material(CONCRETE_COLOR, 0.95, Detail.BLOCK if _block_masonry else Detail.POURED), MapInfo.STRUCTURE_LAYER)
+	_box(
+		parent,
+		"Wall",
+		size,
+		position,
+		_material(CONCRETE_COLOR, 0.95, Detail.BLOCK if _block_masonry else Detail.POURED),
+		MapInfo.STRUCTURE_LAYER
+	)
 
 
 ## Daylight through an opening: a glowing panel in the wall plane and, when `lit`, a spotlight
 ## shining in.
-func _opening_light(parent: Node3D, along_x: bool, offset: float, along: float, y_bottom: float, y_top: float, width: float, side: float, hatch: bool, lit: bool) -> void:
+func _opening_light(
+	parent: Node3D,
+	along_x: bool,
+	offset: float,
+	along: float,
+	y_bottom: float,
+	y_top: float,
+	width: float,
+	side: float,
+	hatch: bool,
+	lit: bool
+) -> void:
 	var height: float = y_top - y_bottom
 	var center_y: float = (y_bottom + y_top) * 0.5
 	var outward: Vector3 = Vector3(0.0, 0.0, side) if along_x else Vector3(side, 0.0, 0.0)
 	var position: Vector3 = (
-		Vector3(_center.x + along, center_y, _center.z + offset) if along_x
+		Vector3(_center.x + along, center_y, _center.z + offset)
+		if along_x
 		else Vector3(_center.x + offset, center_y, _center.z + along)
 	)
 	var glow := MeshInstance3D.new()
 	glow.name = "HatchGlow" if hatch else "VentGlow"
 	var panel := BoxMesh.new()
 	var panel_depth: float = 0.02 * _s
-	panel.size = Vector3(width, height, panel_depth) if along_x else Vector3(panel_depth, height, width)
+	panel.size = (
+		Vector3(width, height, panel_depth) if along_x else Vector3(panel_depth, height, width)
+	)
 	glow.mesh = panel
 	var glow_material := StandardMaterial3D.new()
 	glow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -621,14 +821,25 @@ func _opening_light(parent: Node3D, along_x: bool, offset: float, along: float, 
 		light.position = position - outward * (_wall * 0.5 + 0.05 * _s)
 		parent.add_child(light)
 		light.look_at(light.position - outward + Vector3.DOWN * 0.35, Vector3.UP)
-	_openings.append({
-		"position": position, "outward": outward, "width": width, "height": height,
-		"glow_material": glow_material, "glow_color": glow_material.albedo_color,
-		"light": light, "light_energy": light.light_energy if light != null else 0.0,
-	})
+	(
+		_openings
+		. append(
+			{
+				"position": position,
+				"outward": outward,
+				"width": width,
+				"height": height,
+				"glow_material": glow_material,
+				"glow_color": glow_material.albedo_color,
+				"light": light,
+				"light_energy": light.light_energy if light != null else 0.0,
+			}
+		)
+	)
 
 
 # --- Services and lights ----------------------------------------------------------------------
+
 
 ## Plumbing hangs just under the joists, above the ductwork: a black ABS drain main (two when
 ## there is room) with the bath, kitchen and laundry drains coming down to it, red/blue PEX
@@ -664,18 +875,35 @@ func _build_services(extents: Vector3) -> void:
 
 	# Ductwork first; its trunk takes one of the pier gaps.
 	var duct_x: float = gaps[_rng.randi() % gaps.size()]
-	var network: DuctNetwork = DuctBuilder.build(
-		self, _center, _half, _wall,
-		func(x: float, z: float) -> float: return _terrain.get_surface_height_at(Vector3(x, 0.0, z)),
-		duct_x, _pier_rows, _pier_xs, _pier_size, branch_xs.duplicate(), joist_bottom, joist_bottom - girder_depth * s, s, _rng
-	) as DuctNetwork
+	var network: DuctNetwork = (
+		DuctBuilder.build(
+			self,
+			_center,
+			_half,
+			_wall,
+			func(x: float, z: float) -> float:
+				return _terrain.get_surface_height_at(Vector3(x, 0.0, z)),
+			duct_x,
+			_pier_rows,
+			_pier_xs,
+			_pier_size,
+			branch_xs.duplicate(),
+			joist_bottom,
+			joist_bottom - girder_depth * s,
+			s,
+			_rng
+		)
+		as DuctNetwork
+	)
 	network.obstacles.append_array(_pier_boxes)
 	_network = network
 	var riser_zs: Array = network.get_meta("riser_zs")
 	var furnace_top: Vector3 = network.get_meta("furnace_top")
 	var furnace_size: Vector3 = network.get_meta("furnace_size")
 	# The drain hangs low enough to clip the furnace cabinet, so it keeps off its footprint.
-	var furnace_band: Array = [furnace_top.z - furnace_size.z * 0.5, furnace_top.z + furnace_size.z * 0.5]
+	var furnace_band: Array = [
+		furnace_top.z - furnace_size.z * 0.5, furnace_top.z + furnace_size.z * 0.5
+	]
 	# The gaps between the walls and the pier rows, where the mains run.
 	var edges: Array = [_center.z - _half.z + _wall]
 	edges.append_array(_pier_rows)
@@ -708,19 +936,45 @@ func _build_services(extents: Vector3) -> void:
 	var drain_fixtures: Array = ["BathDrain", "KitchenDrain", "LaundryDrain"]
 	var drain_count: int = 2 if gap_count >= 3 else 1
 	for index: int in drain_count:
-		var z: float = _pick_main_z(edges, 0 if index == 0 else gap_count - 1, DRAIN_RADIUS * s, riser_zs, [furnace_band])
+		var z: float = _pick_main_z(
+			edges, 0 if index == 0 else gap_count - 1, DRAIN_RADIUS * s, riser_zs, [furnace_band]
+		)
 		_drain_lines.append({"z": z, "y": drain_y})
-		_run_line(services, UtilityPipe.Fluid.SEWAGE, DRAIN_RADIUS * s, drain_y, z, span, "Drain%d" % index)
+		_run_line(
+			services,
+			UtilityPipe.Fluid.SEWAGE,
+			DRAIN_RADIUS * s,
+			drain_y,
+			z,
+			span,
+			"Drain%d" % index
+		)
 		var count: int = 2 if index == 0 else 1
 		if drain_count == 1:
 			count = 3
 		for fixture: int in count:
 			var fixture_name: String = drain_fixtures.pop_front()
 			var x: float = _next_branch_x()
-			var end_z: float = _clear_riser(_clamp_to_bay(z + _branch_side() * _rng.randf_range(reach_min, reach_max), z, edges, DRAIN_RADIUS * s), DRAIN_RADIUS * 0.8 * s, small_mains)
+			var end_z: float = _clear_riser(
+				_clamp_to_bay(
+					z + _branch_side() * _rng.randf_range(reach_min, reach_max),
+					z,
+					edges,
+					DRAIN_RADIUS * s
+				),
+				DRAIN_RADIUS * 0.8 * s,
+				small_mains
+			)
 			_build_polyline(
-				services, UtilityPipe.Fluid.SEWAGE, DRAIN_RADIUS * 0.8 * s,
-				[Vector3(x, drain_y, z), Vector3(x, drain_y, end_z), Vector3(x, joist_bottom, end_z)], fixture_name
+				services,
+				UtilityPipe.Fluid.SEWAGE,
+				DRAIN_RADIUS * 0.8 * s,
+				[
+					Vector3(x, drain_y, z),
+					Vector3(x, drain_y, end_z),
+					Vector3(x, joist_bottom, end_z)
+				],
+				fixture_name
 			)
 		if index == 0:
 			# A drop line down into the dirt (the cleanout), somewhere the ducts aren't.
@@ -728,7 +982,13 @@ func _build_services(extents: Vector3) -> void:
 				var x: float = _center.x + _rng.randf_range(-_half.x * 0.6, _half.x * 0.6)
 				var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
 				if _column_clear(network, x, z, ground, drain_y):
-					var drop: UtilityPipe = UtilityPipe.create(UtilityPipe.Fluid.SEWAGE, drain_y - ground + 0.05 * s, DRAIN_RADIUS * s, ground, _effect_scale())
+					var drop: UtilityPipe = UtilityPipe.create(
+						UtilityPipe.Fluid.SEWAGE,
+						drain_y - ground + 0.05 * s,
+						DRAIN_RADIUS * s,
+						ground,
+						_effect_scale()
+					)
 					drop.name = "Cleanout"
 					drop.position = Vector3(x, (drain_y + ground - 0.05 * s) * 0.5, z)
 					services.add_child(drop)
@@ -736,32 +996,84 @@ func _build_services(extents: Vector3) -> void:
 
 	# Water: hot and cold mains side by side with paired branches up to the fixtures. The small
 	# lines all hang at one height, so a branch crossing another line dips under it.
-	_run_line(services, UtilityPipe.Fluid.HOT_WATER, PEX_RADIUS * s, small_y, water_z - pair_gap, span, "HotWater")
-	_run_line(services, UtilityPipe.Fluid.COLD_WATER, PEX_RADIUS * s, small_y, water_z + pair_gap, span, "ColdWater")
+	_run_line(
+		services,
+		UtilityPipe.Fluid.HOT_WATER,
+		PEX_RADIUS * s,
+		small_y,
+		water_z - pair_gap,
+		span,
+		"HotWater"
+	)
+	_run_line(
+		services,
+		UtilityPipe.Fluid.COLD_WATER,
+		PEX_RADIUS * s,
+		small_y,
+		water_z + pair_gap,
+		span,
+		"ColdWater"
+	)
 	for fixture_name: String in ["Bathroom", "Kitchen", "Laundry"]:
 		var x: float = _next_branch_x()
 		var side: float = _branch_side()
-		var end_z: float = _clear_riser(_clamp_to_bay(water_z + side * _rng.randf_range(reach_min, reach_max), water_z, edges, pair_gap * 3.0), PEX_RADIUS * s, small_mains)
-		var hot_points: Array = _z_leg(x + hot_lane, small_y, water_z - pair_gap, end_z, PEX_RADIUS * s, small_mains)
+		var end_z: float = _clear_riser(
+			_clamp_to_bay(
+				water_z + side * _rng.randf_range(reach_min, reach_max),
+				water_z,
+				edges,
+				pair_gap * 3.0
+			),
+			PEX_RADIUS * s,
+			small_mains
+		)
+		var hot_points: Array = _z_leg(
+			x + hot_lane, small_y, water_z - pair_gap, end_z, PEX_RADIUS * s, small_mains
+		)
 		hot_points.append(Vector3(x + hot_lane, joist_bottom, end_z))
-		_build_polyline(services, UtilityPipe.Fluid.HOT_WATER, PEX_RADIUS * s, hot_points, fixture_name + "Hot")
-		var cold_end_z: float = _clear_riser(_clamp_to_bay(end_z + 2.0 * pair_gap * side, water_z, edges, pair_gap), PEX_RADIUS * s, small_mains)
-		var cold_points: Array = _z_leg(x + cold_lane, small_y, water_z + pair_gap, cold_end_z, PEX_RADIUS * s, small_mains)
+		_build_polyline(
+			services, UtilityPipe.Fluid.HOT_WATER, PEX_RADIUS * s, hot_points, fixture_name + "Hot"
+		)
+		var cold_end_z: float = _clear_riser(
+			_clamp_to_bay(end_z + 2.0 * pair_gap * side, water_z, edges, pair_gap),
+			PEX_RADIUS * s,
+			small_mains
+		)
+		var cold_points: Array = _z_leg(
+			x + cold_lane, small_y, water_z + pair_gap, cold_end_z, PEX_RADIUS * s, small_mains
+		)
 		cold_points.append(Vector3(x + cold_lane, joist_bottom, cold_end_z))
-		_build_polyline(services, UtilityPipe.Fluid.COLD_WATER, PEX_RADIUS * s, cold_points, fixture_name + "Cold")
+		_build_polyline(
+			services,
+			UtilityPipe.Fluid.COLD_WATER,
+			PEX_RADIUS * s,
+			cold_points,
+			fixture_name + "Cold"
+		)
 
 	# Gas: one main with its own branches, and a drop onto the furnace.
 	_run_line(services, UtilityPipe.Fluid.GAS, GAS_RADIUS * s, small_y, gas_z, span, "Gas")
 	for fixture_name: String in ["WaterHeaterGas", "Stove", "Dryer"]:
 		var x: float = _next_branch_x()
-		var end_z: float = _clear_riser(_clamp_to_bay(gas_z + _branch_side() * _rng.randf_range(reach_min, reach_max), gas_z, edges, GAS_RADIUS * s), GAS_RADIUS * s, small_mains)
+		var end_z: float = _clear_riser(
+			_clamp_to_bay(
+				gas_z + _branch_side() * _rng.randf_range(reach_min, reach_max),
+				gas_z,
+				edges,
+				GAS_RADIUS * s
+			),
+			GAS_RADIUS * s,
+			small_mains
+		)
 		var points: Array = _z_leg(x + gas_lane, small_y, gas_z, end_z, GAS_RADIUS * s, small_mains)
 		points.append(Vector3(x + gas_lane, joist_bottom, end_z))
 		_build_polyline(services, UtilityPipe.Fluid.GAS, GAS_RADIUS * s, points, fixture_name)
 	# The furnace feed runs along the cabinet's +X face, dipping under the water mains and the
 	# beams on the way, and drops to its gas valve.
 	var feed_x: float = furnace_top.x + furnace_size.x * 0.5 + 0.05 * s
-	var feed_points: Array = _z_leg(feed_x, small_y, gas_z, furnace_top.z, GAS_RADIUS * s, small_mains + girders)
+	var feed_points: Array = _z_leg(
+		feed_x, small_y, gas_z, furnace_top.z, GAS_RADIUS * s, small_mains + girders
+	)
 	feed_points.append(Vector3(feed_x, furnace_top.y + 0.01 * s, furnace_top.z))
 	_build_polyline(services, UtilityPipe.Fluid.GAS, GAS_RADIUS * s, feed_points, "FurnaceGas")
 
@@ -792,13 +1104,18 @@ func _clear_riser(z: float, pipe_radius: float, mains: Array) -> float:
 ## A run along Z at one height, from one main out to z_to, with a dip under everything in the
 ## way: other lines hanging at that height, and beams, whose "bottom" sets how deep the dip
 ## goes (the leg's own main at z_from is not counted).
-func _z_leg(x: float, y: float, z_from: float, z_to: float, pipe_radius: float, obstacles: Array) -> Array:
+func _z_leg(
+	x: float, y: float, z_from: float, z_to: float, pipe_radius: float, obstacles: Array
+) -> Array:
 	var direction: float = signf(z_to - z_from)
 	var crossings: Array = []
 	for obstacle: Dictionary in obstacles:
 		var obstacle_z: float = float(obstacle["z"])
 		var clearance: float = pipe_radius + float(obstacle["radius"]) + 0.02 * _s
-		if (obstacle_z - z_from) * direction > clearance and (z_to - obstacle_z) * direction > clearance:
+		if (
+			(obstacle_z - z_from) * direction > clearance
+			and (z_to - obstacle_z) * direction > clearance
+		):
 			var underside: float = float(obstacle.get("bottom", y - float(obstacle["radius"])))
 			var dip_y: float = minf(y - 0.035 * _s, underside - pipe_radius - 0.02 * _s)
 			crossings.append([absf(obstacle_z - z_from), obstacle_z, clearance, dip_y])
@@ -815,10 +1132,13 @@ func _z_leg(x: float, y: float, z_from: float, z_to: float, pipe_radius: float, 
 	points.append(Vector3(x, y, z_to))
 	return points
 
+
 ## A z for a main in the given gap between pier rows (or walls), clear of the piers, the duct
 ## risers, the mains already laid and any extra [min, max] bands. Falls back to the gap's
 ## middle.
-func _pick_main_z(edges: Array, gap_index: int, pipe_radius: float, riser_zs: Array, blocked_bands: Array = []) -> float:
+func _pick_main_z(
+	edges: Array, gap_index: int, pipe_radius: float, riser_zs: Array, blocked_bands: Array = []
+) -> float:
 	var low: float = edges[gap_index]
 	var high: float = edges[gap_index + 1]
 	var best: float = (low + high) * 0.5
@@ -835,7 +1155,10 @@ func _pick_main_z(edges: Array, gap_index: int, pipe_radius: float, riser_zs: Ar
 			if absf(z - other_z) < 0.12 * _s + pipe_radius:
 				clear = false
 		for band: Array in blocked_bands:
-			if z > float(band[0]) - pipe_radius - 0.03 * _s and z < float(band[1]) + pipe_radius + 0.03 * _s:
+			if (
+				z > float(band[0]) - pipe_radius - 0.03 * _s
+				and z < float(band[1]) + pipe_radius + 0.03 * _s
+			):
 				clear = false
 		if clear:
 			best = z
@@ -853,10 +1176,6 @@ func _column_clear(network: DuctNetwork, x: float, z: float, y_from: float, y_to
 	return true
 
 
-## The next column for a fixture branch; the columns are reused (on different mains) once
-## every one has been taken.
-var _branch_x_pool: Array = []
-var _branch_x_all: Array = []
 func _next_branch_x() -> float:
 	if _branch_x_pool.is_empty():
 		_branch_x_pool = _branch_x_all.duplicate()
@@ -864,8 +1183,6 @@ func _next_branch_x() -> float:
 	return float(_branch_x_pool.pop_front())
 
 
-## Which way a branch leaves its main, alternating so fixtures spread across the space.
-var _next_branch_side: float = 1.0
 func _branch_side() -> float:
 	_next_branch_side = -_next_branch_side
 	return _next_branch_side
@@ -879,7 +1196,15 @@ func _effect_scale() -> float:
 
 ## A line along X made of destructible sections, with a hanger strap up to the joists at each
 ## joint.
-func _run_line(parent: Node3D, fluid: UtilityPipe.Fluid, pipe_radius: float, y: float, z: float, span: float, line_name: String) -> void:
+func _run_line(
+	parent: Node3D,
+	fluid: UtilityPipe.Fluid,
+	pipe_radius: float,
+	y: float,
+	z: float,
+	span: float,
+	line_name: String
+) -> void:
 	var strap_material: Material = _material(Color(0.3, 0.3, 0.32), 0.5)
 	var joist_bottom: float = _ceiling - _joist_depth
 	var section_count: int = maxi(int(round(span / (0.8 * _s))), 1)
@@ -887,17 +1212,27 @@ func _run_line(parent: Node3D, fluid: UtilityPipe.Fluid, pipe_radius: float, y: 
 	for section: int in section_count:
 		var x: float = _center.x - span * 0.5 + section_length * (section + 0.5)
 		var dirt: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
-		var pipe: UtilityPipe = UtilityPipe.create(fluid, section_length, pipe_radius, dirt, _effect_scale())
+		var pipe: UtilityPipe = UtilityPipe.create(
+			fluid, section_length, pipe_radius, dirt, _effect_scale()
+		)
 		pipe.name = "%s_%d" % [line_name, section]
 		pipe.position = Vector3(x, y, z)
 		pipe.rotation = Vector3(0.0, 0.0, PI * 0.5)
 		parent.add_child(pipe)
-		_box(parent, "Hanger", Vector3(0.01 * _s, joist_bottom - y, pipe_radius * 2.0 + 0.02 * _s), Vector3(x - section_length * 0.5, (joist_bottom + y) * 0.5, z), strap_material)
+		_box(
+			parent,
+			"Hanger",
+			Vector3(0.01 * _s, joist_bottom - y, pipe_radius * 2.0 + 0.02 * _s),
+			Vector3(x - section_length * 0.5, (joist_bottom + y) * 0.5, z),
+			strap_material
+		)
 
 
 ## A run of pipe through a list of corners: each leg in destructible sections, a round fitting
 ## at every corner, and a plate where a riser meets the floor above.
-func _build_polyline(parent: Node3D, fluid: UtilityPipe.Fluid, pipe_radius: float, points: Array, line_name: String) -> void:
+func _build_polyline(
+	parent: Node3D, fluid: UtilityPipe.Fluid, pipe_radius: float, points: Array, line_name: String
+) -> void:
 	var fitting_material: Material = UtilityPipe.pipe_material(fluid)
 	for leg: int in points.size() - 1:
 		var from: Vector3 = points[leg]
@@ -911,7 +1246,9 @@ func _build_polyline(parent: Node3D, fluid: UtilityPipe.Fluid, pipe_radius: floa
 		for section: int in section_count:
 			var mid: Vector3 = from + direction * section_length * (section + 0.5)
 			var dirt: float = _terrain.get_surface_height_at(Vector3(mid.x, 0.0, mid.z))
-			var pipe: UtilityPipe = UtilityPipe.create(fluid, section_length, pipe_radius, dirt, _effect_scale())
+			var pipe: UtilityPipe = UtilityPipe.create(
+				fluid, section_length, pipe_radius, dirt, _effect_scale()
+			)
 			pipe.name = "%s_%d_%d" % [line_name, leg, section]
 			pipe.position = mid
 			pipe.basis = _pipe_basis(direction)
@@ -930,12 +1267,20 @@ func _build_polyline(parent: Node3D, fluid: UtilityPipe.Fluid, pipe_radius: floa
 			parent.add_child(fitting)
 	var last: Vector3 = points.back()
 	if is_equal_approx(last.y, _ceiling - _joist_depth):
-		_box(parent, "FloorPlate", Vector3(0.08, 0.01, 0.08) * _s, last - Vector3.UP * 0.005 * _s, _material(Color(0.35, 0.35, 0.37), 0.5))
+		_box(
+			parent,
+			"FloorPlate",
+			Vector3(0.08, 0.01, 0.08) * _s,
+			last - Vector3.UP * 0.005 * _s,
+			_material(Color(0.35, 0.35, 0.37), 0.5)
+		)
 
 
 ## Basis whose Y axis points along `axis` (pipes run along their local Y).
 func _pipe_basis(axis: Vector3) -> Basis:
-	var reference: Vector3 = Vector3.FORWARD if absf(axis.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+	var reference: Vector3 = (
+		Vector3.FORWARD if absf(axis.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+	)
 	var x_axis: Vector3 = axis.cross(reference).normalized()
 	var z_axis: Vector3 = x_axis.cross(axis).normalized()
 	return Basis(x_axis, axis, z_axis)
@@ -948,8 +1293,18 @@ func _build_bulbs(extents: Vector3) -> void:
 	var hang: float = _ceiling - _joist_depth - 0.08 * _s
 	for x_sign: float in [-1.0, 1.0]:
 		for z_sign: float in [-1.0, 1.0]:
-			var position := Vector3(_center.x + x_sign * extents.x * 0.25, hang, _center.z + z_sign * extents.z * 0.25)
-			_cylinder(lights, "Cord", 0.004 * _s, 0.08 * _s, position + Vector3.UP * 0.05 * _s, Vector3.ZERO, _material(Color(0.12, 0.12, 0.12)))
+			var position := Vector3(
+				_center.x + x_sign * extents.x * 0.25, hang, _center.z + z_sign * extents.z * 0.25
+			)
+			_cylinder(
+				lights,
+				"Cord",
+				0.004 * _s,
+				0.08 * _s,
+				position + Vector3.UP * 0.05 * _s,
+				Vector3.ZERO,
+				_material(Color(0.12, 0.12, 0.12))
+			)
 			var bulb := MeshInstance3D.new()
 			bulb.name = "Bulb"
 			var sphere := SphereMesh.new()
@@ -977,6 +1332,7 @@ func _build_bulbs(extents: Vector3) -> void:
 
 # --- Debris -----------------------------------------------------------------------------------
 
+
 ## Loose blocks, bricks, stones and lumber offcuts at real size: a block is a 40 cm block.
 func _build_debris() -> void:
 	var debris := Node3D.new()
@@ -991,7 +1347,11 @@ func _build_debris() -> void:
 		mesh_instance.name = "Rock"
 		mesh_instance.mesh = rock_mesh
 		mesh_instance.material_override = _material(ROCK_COLOR * _rng.randf_range(0.8, 1.15))
-		mesh_instance.scale = Vector3(size * _rng.randf_range(0.8, 1.3), size * _rng.randf_range(0.6, 1.0), size * _rng.randf_range(0.8, 1.3))
+		mesh_instance.scale = Vector3(
+			size * _rng.randf_range(0.8, 1.3),
+			size * _rng.randf_range(0.6, 1.0),
+			size * _rng.randf_range(0.8, 1.3)
+		)
 		mesh_instance.position = spot - Vector3.UP * size * 0.3
 		mesh_instance.rotation.y = _rng.randf() * TAU
 		debris.add_child(mesh_instance)
@@ -1004,11 +1364,22 @@ func _build_debris() -> void:
 			body.add_child(shape)
 			mesh_instance.add_child(body)
 	for _block: int in block_count:
-		_tumbled_box(debris, "Block", Vector3(0.4, 0.2, 0.2) * _s, CONCRETE_COLOR, true, Detail.CONCRETE)
+		_tumbled_box(
+			debris, "Block", Vector3(0.4, 0.2, 0.2) * _s, CONCRETE_COLOR, true, Detail.CONCRETE
+		)
 	for _brick: int in brick_count:
-		_tumbled_box(debris, "Brick", Vector3(0.2, 0.065, 0.1) * _s, BRICK_COLOR, true, Detail.CONCRETE)
+		_tumbled_box(
+			debris, "Brick", Vector3(0.2, 0.065, 0.1) * _s, BRICK_COLOR, true, Detail.CONCRETE
+		)
 	for _scrap: int in scrap_count:
-		_tumbled_box(debris, "Scrap", Vector3(_rng.randf_range(0.3, 1.0), 0.04, 0.09) * _s, LUMBER_COLOR, true, Detail.WOOD)
+		_tumbled_box(
+			debris,
+			"Scrap",
+			Vector3(_rng.randf_range(0.3, 1.0), 0.04, 0.09) * _s,
+			LUMBER_COLOR,
+			true,
+			Detail.WOOD
+		)
 
 
 ## Mushrooms in clusters, mostly at the damp foot of a pier or along a wall: pale buttons and
@@ -1029,7 +1400,11 @@ func _build_mushrooms() -> void:
 	material.roughness = 0.95
 	for _cluster: int in mushroom_clusters:
 		var pick: float = _rng.randf()
-		var kind: Array = kinds[0] if pick < kinds[0][2] else (kinds[1] if pick < kinds[0][2] + kinds[1][2] else kinds[2])
+		var kind: Array = (
+			kinds[0]
+			if pick < kinds[0][2]
+			else (kinds[1] if pick < kinds[0][2] + kinds[1][2] else kinds[2])
+		)
 		var key: String = "%s%d" % [kind[1], _rng.randi() % 3]
 		if not patches.has(key):
 			var built: Dictionary = MushroomMeshBuilder.build(hash(key) + _seed, kind[0])
@@ -1056,7 +1431,10 @@ func _build_mushrooms() -> void:
 				spot.y = _dirt_height(spot)
 				if not _spot_clear(spot, size * float(built["cap_radius"])):
 					continue
-			var basis: Basis = Basis(Vector3.UP, _rng.randf() * TAU) * Basis.from_scale(Vector3(size, size * _rng.randf_range(0.9, 1.15), size))
+			var basis: Basis = (
+				Basis(Vector3.UP, _rng.randf() * TAU)
+				* Basis.from_scale(Vector3(size, size * _rng.randf_range(0.9, 1.15), size))
+			)
 			var transform := Transform3D(basis, spot - Vector3.UP * size * 0.04)
 			patch["transforms"].append(transform)
 			var tint: Color = Color.WHITE * _rng.randf_range(0.88, 1.0)
@@ -1093,7 +1471,8 @@ func _damp_spot() -> Vector3:
 			var inset: float = _wall + _rng.randf_range(0.05, 0.2) * _s
 			var along: float = _rng.randf_range(-0.8, 0.8)
 			spot = (
-				Vector3(_center.x + along * _half.x, 0.0, _center.z + side * (_half.z - inset)) if along_x
+				Vector3(_center.x + along * _half.x, 0.0, _center.z + side * (_half.z - inset))
+				if along_x
 				else Vector3(_center.x + side * (_half.x - inset), 0.0, _center.z + along * _half.z)
 			)
 		else:
@@ -1105,7 +1484,9 @@ func _damp_spot() -> Vector3:
 
 
 ## A cylinder for the stem and a flat one for the cap, so bugs can climb up and stand on top.
-func _mushroom_collider(parent: Node3D, transform: Transform3D, built: Dictionary, size: float) -> void:
+func _mushroom_collider(
+	parent: Node3D, transform: Transform3D, built: Dictionary, size: float
+) -> void:
 	var body := StaticBody3D.new()
 	body.name = "MushroomCollider"
 	body.collision_layer = MapInfo.TERRAIN_LAYER
@@ -1123,7 +1504,9 @@ func _mushroom_collider(parent: Node3D, transform: Transform3D, built: Dictionar
 	cap.height = maxf(float(built["cap_height"]) * size * 0.6, 0.2)
 	var cap_shape := CollisionShape3D.new()
 	cap_shape.shape = cap
-	cap_shape.position = Vector3(0.0, (float(built["cap_y"]) + float(built["cap_height"]) * 0.3) * size, 0.0)
+	cap_shape.position = Vector3(
+		0.0, (float(built["cap_y"]) + float(built["cap_height"]) * 0.3) * size, 0.0
+	)
 	body.add_child(cap_shape)
 	parent.add_child(body)
 
@@ -1131,7 +1514,14 @@ func _mushroom_collider(parent: Node3D, transform: Transform3D, built: Dictionar
 ## A box lying on the dirt at a random spot and yaw, sometimes tipped on its side. The dirt is
 ## not flat under something this big, so the box is tilted to the slope fitted through the
 ## ground under its four corners and sunk a little, which keeps every corner touching.
-func _tumbled_box(parent: Node3D, box_name: String, size: Vector3, color: Color, collide: bool, detail: Detail = Detail.NONE) -> void:
+func _tumbled_box(
+	parent: Node3D,
+	box_name: String,
+	size: Vector3,
+	color: Color,
+	collide: bool,
+	detail: Detail = Detail.NONE
+) -> void:
 	var tipped: bool = _rng.randf() < 0.3
 	var yaw: float = _rng.randf() * TAU
 	var right: Vector3 = Basis(Vector3.UP, yaw).x
@@ -1152,7 +1542,16 @@ func _tumbled_box(parent: Node3D, box_name: String, size: Vector3, color: Color,
 	var slope_right: float = (height_right_plus - height_right_minus) / (2.0 * half_right)
 	var slope_forward: float = (height_forward_plus - height_forward_minus) / (2.0 * half_forward)
 	var up: Vector3 = (Vector3.UP - right * slope_right - forward * slope_forward).normalized()
-	var seat: float = (height_right_plus + height_right_minus + height_forward_plus + height_forward_minus + spot.y) / 5.0
+	var seat: float = (
+		(
+			height_right_plus
+			+ height_right_minus
+			+ height_forward_plus
+			+ height_forward_minus
+			+ spot.y
+		)
+		/ 5.0
+	)
 	var basis: Basis = Basis(Vector3.UP, yaw)
 	var tilt_axis: Vector3 = Vector3.UP.cross(up)
 	if tilt_axis.length_squared() > 0.000001:
@@ -1161,7 +1560,14 @@ func _tumbled_box(parent: Node3D, box_name: String, size: Vector3, color: Color,
 		basis = basis * Basis(Vector3.RIGHT, PI * 0.5)
 	var sink: float = 0.3 + 0.02 * _s
 	var position: Vector3 = Vector3(spot.x, seat, spot.z) + up * (rest_height - sink)
-	var box := _box(parent, box_name, size, position, _material(color * _rng.randf_range(0.85, 1.1), 0.95, detail, 0), MapInfo.TERRAIN_LAYER if collide else 0)
+	var box := _box(
+		parent,
+		box_name,
+		size,
+		position,
+		_material(color * _rng.randf_range(0.85, 1.1), 0.95, detail, 0),
+		MapInfo.TERRAIN_LAYER if collide else 0
+	)
 	box.basis = basis
 	if collide:
 		(box.get_child(0) as Node3D).basis = Basis.IDENTITY
@@ -1203,7 +1609,11 @@ func _ground_spot_along(along: Vector3, half_along: float, half_across: float) -
 func _span_clear(spot: Vector3, along: Vector3, half_along: float, half_across: float) -> bool:
 	var steps: int = maxi(int(ceil(half_along / maxf(half_across, 1.0))) * 2, 2)
 	for step: int in steps + 1:
-		var point: Vector3 = spot + along * lerpf(-half_along, half_along, float(step) / steps) + Vector3.UP * half_across
+		var point: Vector3 = (
+			spot
+			+ along * lerpf(-half_along, half_along, float(step) / steps)
+			+ Vector3.UP * half_across
+		)
 		for box: AABB in _network.obstacles:
 			if box.grow(half_across + 0.5).has_point(point):
 				return false
@@ -1211,7 +1621,9 @@ func _span_clear(spot: Vector3, along: Vector3, half_along: float, half_across: 
 
 
 func _spot_clear(spot: Vector3, reach: float) -> bool:
-	var footprint := AABB(spot - Vector3(reach, 0.5, reach), Vector3(reach * 2.0, reach * 2.0 + 0.5, reach * 2.0))
+	var footprint := AABB(
+		spot - Vector3(reach, 0.5, reach), Vector3(reach * 2.0, reach * 2.0 + 0.5, reach * 2.0)
+	)
 	for box: AABB in _network.obstacles:
 		if box.intersects(footprint):
 			return false
@@ -1220,7 +1632,15 @@ func _spot_clear(spot: Vector3, reach: float) -> bool:
 
 # --- Helpers ----------------------------------------------------------------------------------
 
-func _box(parent: Node3D, box_name: String, size: Vector3, position: Vector3, material: Material, collision_layer: int = 0) -> MeshInstance3D:
+
+func _box(
+	parent: Node3D,
+	box_name: String,
+	size: Vector3,
+	position: Vector3,
+	material: Material,
+	collision_layer: int = 0
+) -> MeshInstance3D:
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = box_name
 	var mesh := BoxMesh.new()
@@ -1242,7 +1662,9 @@ func _box(parent: Node3D, box_name: String, size: Vector3, position: Vector3, ma
 	return mesh_instance
 
 
-func _collider(parent: Node3D, body_name: String, size: Vector3, position: Vector3, collision_layer: int) -> void:
+func _collider(
+	parent: Node3D, body_name: String, size: Vector3, position: Vector3, collision_layer: int
+) -> void:
 	var body := StaticBody3D.new()
 	body.name = body_name
 	body.collision_layer = collision_layer
@@ -1257,7 +1679,15 @@ func _collider(parent: Node3D, body_name: String, size: Vector3, position: Vecto
 
 
 ## A cylinder whose own axis is Y; rotation turns it to lie along X or Z.
-func _cylinder(parent: Node3D, cylinder_name: String, radius: float, length: float, position: Vector3, rotation_radians: Vector3, material: Material) -> void:
+func _cylinder(
+	parent: Node3D,
+	cylinder_name: String,
+	radius: float,
+	length: float,
+	position: Vector3,
+	rotation_radians: Vector3,
+	material: Material
+) -> void:
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = cylinder_name
 	var mesh := CylinderMesh.new()
@@ -1272,14 +1702,11 @@ func _cylinder(parent: Node3D, cylinder_name: String, radius: float, length: flo
 	parent.add_child(mesh_instance)
 
 
-## Surface detail the toon shader paints on: see toon_detail.gdshaderinc.
-enum Detail { NONE, WOOD, CONCRETE, BLOCK, BRICK, POURED }
-enum Masonry { RANDOM, BLOCK, POURED }
-
-
 ## A shared material per colour, roughness and detail. `grain_axis` is the object axis the
 ## wood runs along (0 x, 1 y, 2 z) for Detail.WOOD.
-func _material(color: Color, roughness: float = 0.95, detail: Detail = Detail.NONE, grain_axis: int = 0) -> StandardMaterial3D:
+func _material(
+	color: Color, roughness: float = 0.95, detail: Detail = Detail.NONE, grain_axis: int = 0
+) -> StandardMaterial3D:
 	var key: String = "%s|%.2f|%d|%d" % [color.to_html(), roughness, detail, grain_axis]
 	if _materials.has(key):
 		return _materials[key]

@@ -1,21 +1,12 @@
-extends VBoxContainer
 class_name PlayerItemMenu
+extends VBoxContainer
 ## Popup list of hand items; selection activates torch or pickaxe / terrain edit.
-
 
 signal item_selected(item: PlayerItems.Item)
 ## The player picked what the pickaxe builds with; emitted just before item_selected(PICKAXE_ADD).
 signal add_material_selected(material: TerrainMaterials.Kind)
 ## The player toggled between the sculpting ball and the grid-snapped block.
 signal brush_shape_selected(shape: TerrainBrush.Shape)
-
-@onready var _toggle_button: Button = $ToggleButton
-@onready var _popup: PanelContainer = $Popup
-@onready var _none_button: Button = $Popup/Margin/Scroll/Buttons/NoneButton
-@onready var _torch_button: Button = $Popup/Margin/Scroll/Buttons/TorchButton
-@onready var _pickaxe_destroy_button: Button = $Popup/Margin/Scroll/Buttons/PickaxeDestroyButton
-@onready var _pickaxe_add_button: Button = $Popup/Margin/Scroll/Buttons/PickaxeAddButton
-@onready var _weapon_buttons_container: VBoxContainer = $Popup/Margin/Scroll/Buttons/WeaponButtons
 
 var _open: bool = false
 var _active_item: PlayerItems.Item = PlayerItems.Item.NONE
@@ -26,6 +17,14 @@ var _shape_button: Button
 var _weapon_buttons: Dictionary = {}
 ## TerrainMaterials.Kind -> its "Pickaxe — add" button (NATURAL is the scene's PickaxeAddButton).
 var _material_buttons: Dictionary = {}
+
+@onready var _toggle_button: Button = $ToggleButton
+@onready var _popup: PanelContainer = $Popup
+@onready var _none_button: Button = $Popup/Margin/Scroll/Buttons/NoneButton
+@onready var _torch_button: Button = $Popup/Margin/Scroll/Buttons/TorchButton
+@onready var _pickaxe_destroy_button: Button = $Popup/Margin/Scroll/Buttons/PickaxeDestroyButton
+@onready var _pickaxe_add_button: Button = $Popup/Margin/Scroll/Buttons/PickaxeAddButton
+@onready var _weapon_buttons_container: VBoxContainer = $Popup/Margin/Scroll/Buttons/WeaponButtons
 
 
 func _ready() -> void:
@@ -99,7 +98,9 @@ func _refresh_shape_button() -> void:
 	if _shape_button == null:
 		return
 	if _brush_shape == TerrainBrush.Shape.BLOCK:
-		_shape_button.text = "Brush shape — %d-voxel block (build by clicking; B; [ ] size)" % _block_size
+		_shape_button.text = (
+			"Brush shape — %d-voxel block (build by clicking; B; [ ] size)" % _block_size
+		)
 	else:
 		_shape_button.text = "Brush shape — ball (sculpt by holding; B)"
 
@@ -134,10 +135,7 @@ func _set_open(open: bool) -> void:
 func _refresh_buttons() -> void:
 	_reset_button_style(_none_button, _active_item == PlayerItems.Item.NONE)
 	_reset_button_style(_torch_button, _active_item == PlayerItems.Item.TORCH)
-	_reset_button_style(
-		_pickaxe_destroy_button,
-		_active_item == PlayerItems.Item.PICKAXE_DESTROY
-	)
+	_reset_button_style(_pickaxe_destroy_button, _active_item == PlayerItems.Item.PICKAXE_DESTROY)
 	for material: TerrainMaterials.Kind in _material_buttons.keys():
 		var material_button: Button = _material_buttons[material] as Button
 		_reset_button_style(
@@ -166,7 +164,9 @@ func _build_material_buttons() -> void:
 		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(swatch)
 		var material_button: Button = Button.new()
-		material_button.text = "Pickaxe — add %s" % TerrainMaterials.display_name(material).to_lower()
+		material_button.text = (
+			"Pickaxe — add %s" % TerrainMaterials.display_name(material).to_lower()
+		)
 		material_button.focus_mode = Control.FOCUS_NONE
 		material_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		material_button.pressed.connect(_select_add_material.bind(material))

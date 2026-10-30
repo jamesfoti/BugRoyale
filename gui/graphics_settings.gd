@@ -123,10 +123,16 @@ func _apply_environment(environment: Environment) -> void:
 func _apply_directional_light(light: DirectionalLight3D) -> void:
 	if low_quality:
 		if not light.has_meta(_ORIGINAL_META):
-			light.set_meta(_ORIGINAL_META, {
-				"max_distance": light.directional_shadow_max_distance,
-				"mode": light.directional_shadow_mode,
-			})
+			(
+				light
+				. set_meta(
+					_ORIGINAL_META,
+					{
+						"max_distance": light.directional_shadow_max_distance,
+						"mode": light.directional_shadow_mode,
+					}
+				)
+			)
 		light.directional_shadow_max_distance = minf(
 			light.directional_shadow_max_distance, LOW_DIRECTIONAL_SHADOW_DISTANCE
 		)

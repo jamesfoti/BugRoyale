@@ -1,19 +1,33 @@
-# Runs the unit tests (GUT, test/unit) headless, and with -Smoke one bot match per mode as well.
-# Exits non-zero when anything fails, so a release script can gate on it.
+# Runs the style check (tools/lint.ps1), the unit tests (GUT, test/unit) headless, and with
+# -Smoke one bot match per mode as well. Exits non-zero when anything fails, so a release
+# script can gate on it.
 #
-#   powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 [-Smoke] [-Godot <path>]
+#   powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1 [-Smoke] [-SkipLint] [-Godot <path>]
 #
 # The Godot console executable comes from -Godot, else the GODOT environment variable, else
-# "godot" on the PATH.
+# the editor installed beside the project (C:\Dev\Godot_v4.7.2-stable_win64), else "godot"
+# on the PATH. -SkipLint is for a machine without Python; the style check needs gdtoolkit.
 param(
 	[switch]$Smoke,
+	[switch]$SkipLint,
 	[string]$Godot = ""
 )
 
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $Godot) { $Godot = $env:GODOT }
+if (-not $Godot) {
+	$sibling = Join-Path (Split-Path -Parent $root) "Godot_v4.7.2-stable_win64\Godot_v4.7.2-stable_win64_console.exe"
+	if (Test-Path $sibling) { $Godot = $sibling }
+}
 if (-not $Godot) { $Godot = "godot" }
+
+$lintExit = 0
+if (-not $SkipLint) {
+	Write-Host "== Style (gdlint, gdformat)"
+	& (Join-Path $PSScriptRoot "lint.ps1")
+	$lintExit = $LASTEXITCODE
+}
 
 Write-Host "== Unit tests (GUT)"
 & $Godot --headless --path $root -s res://addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json -gexit
@@ -45,6 +59,6 @@ if ($Smoke) {
 	}
 }
 
-if ($unitExit -ne 0 -or $smokeExit -ne 0) { exit 1 }
+if ($lintExit -ne 0 -or $unitExit -ne 0 -or $smokeExit -ne 0) { exit 1 }
 Write-Host "All tests passed."
 exit 0

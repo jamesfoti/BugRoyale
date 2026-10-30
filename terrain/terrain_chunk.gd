@@ -2,21 +2,18 @@ class_name TerrainChunk
 extends MeshInstance3D
 ## One meshed chunk. Rebuilds from density when settings change.
 
-
 var chunk_coordinate: Vector3i = Vector3i.ZERO
 
 
 func rebuild(settings: ChunkedTerrainWorld.SettingsSnapshot) -> void:
 	var chunk_build_result: ChunkMeshBuilder.ChunkBuildResult = ChunkMeshBuilder.build_chunk(
-		chunk_coordinate,
-		settings
+		chunk_coordinate, settings
 	)
 	apply_build_result(chunk_build_result, settings.rebuild_collision)
 
 
 func apply_build_result(
-	chunk_build_result: ChunkMeshBuilder.ChunkBuildResult,
-	rebuild_collision: bool
+	chunk_build_result: ChunkMeshBuilder.ChunkBuildResult, rebuild_collision: bool
 ) -> void:
 	mesh = FlyingEdgesMesher.to_array_mesh(chunk_build_result.mesh_result)
 	position = chunk_build_result.local_position

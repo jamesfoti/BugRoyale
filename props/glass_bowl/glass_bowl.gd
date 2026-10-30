@@ -88,7 +88,9 @@ static func add_sphere_band(
 
 
 ## Adds a flat disc at a height, facing up (or down).
-static func add_disc(st: SurfaceTool, disc_radius: float, y: float, segments: int, face_up: bool) -> void:
+static func add_disc(
+	st: SurfaceTool, disc_radius: float, y: float, segments: int, face_up: bool
+) -> void:
 	var normal: Vector3 = Vector3.UP if face_up else Vector3.DOWN
 	var center := Vector3(0.0, y, 0.0)
 	for segment: int in segments:
@@ -101,7 +103,9 @@ static func add_disc(st: SurfaceTool, disc_radius: float, y: float, segments: in
 			points = [center, b, a]
 		for point: Vector3 in points:
 			st.set_normal(normal)
-			st.set_uv(Vector2(point.x, point.z) / maxf(disc_radius * 2.0, 0.001) + Vector2(0.5, 0.5))
+			st.set_uv(
+				Vector2(point.x, point.z) / maxf(disc_radius * 2.0, 0.001) + Vector2(0.5, 0.5)
+			)
 			st.add_vertex(point)
 
 
@@ -110,7 +114,13 @@ static func _sphere_point(phi: float, theta: float) -> Vector3:
 
 
 static func _sphere_triangle(
-	st: SurfaceTool, sphere_radius: float, a: Vector3, b: Vector3, c: Vector3, inside_out: bool, origin: Vector3
+	st: SurfaceTool,
+	sphere_radius: float,
+	a: Vector3,
+	b: Vector3,
+	c: Vector3,
+	inside_out: bool,
+	origin: Vector3
 ) -> void:
 	# Unit directions double as normals. Godot front faces wind clockwise seen from outside, so
 	# the right-hand normal of a front face points inward; flip when it doesn't.
@@ -124,5 +134,10 @@ static func _sphere_triangle(
 		order = [a, c, b]
 	for direction: Vector3 in order:
 		st.set_normal(-direction if inside_out else direction)
-		st.set_uv(Vector2(atan2(direction.z, direction.x) / TAU + 0.5, acos(clampf(direction.y, -1.0, 1.0)) / PI))
+		st.set_uv(
+			Vector2(
+				atan2(direction.z, direction.x) / TAU + 0.5,
+				acos(clampf(direction.y, -1.0, 1.0)) / PI
+			)
+		)
 		st.add_vertex(origin + direction * sphere_radius)

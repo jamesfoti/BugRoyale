@@ -1,5 +1,5 @@
-extends RefCounted
 class_name FighterInput
+extends RefCounted
 ## What a fighter wants to do this physics frame. A FighterBody reads nothing but this, so the
 ## same body serves the keyboard (LocalFighterController), a bot (BotBrain) or, later, a network
 ## peer that sends these over the wire. Everything the host needs to run the body is in here:

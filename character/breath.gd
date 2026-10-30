@@ -56,7 +56,9 @@ func _physics_process(delta: float) -> void:
 		if breath <= 0.0:
 			_drown(delta)
 	elif breath < max_breath_seconds:
-		breath = minf(breath + delta * max_breath_seconds / maxf(recover_seconds, 0.01), max_breath_seconds)
+		breath = minf(
+			breath + delta * max_breath_seconds / maxf(recover_seconds, 0.01), max_breath_seconds
+		)
 		breath_changed.emit(breath, max_breath_seconds)
 		_damage_accumulated = 0.0
 

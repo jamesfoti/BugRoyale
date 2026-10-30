@@ -1,5 +1,5 @@
-extends FighterController
 class_name BotBrain
+extends FighterController
 ## AI pilot for a FighterBody: the bot stands in for another player on the same body a human
 ## would use, so it walks, climbs, animates and shoots exactly as a player does. It hunts the
 ## nearest enemy, keeps to its weapon's preferred range, strafes, and fires with its own cadence
@@ -11,7 +11,9 @@ const _EYE_HEIGHT: float = 0.9
 const _RETARGET_SECONDS: float = 0.4
 const _REACTION_SECONDS: float = 0.55
 ## A husk's bite: melee, so no projectile, just a short reach.
-const HUSK_WEAPON: Dictionary = {"damage": 9.0, "cooldown": 0.8, "range": 2.4, "spread_degrees": 0.0, "melee": true}
+const HUSK_WEAPON: Dictionary = {
+	"damage": 9.0, "cooldown": 0.8, "range": 2.4, "spread_degrees": 0.0, "melee": true
+}
 ## How far inside the spore cloud's edge a clean bot likes to stay.
 const _STORM_MARGIN: float = 6.0
 
@@ -39,7 +41,8 @@ var _damageable: Damageable
 ## while facing a target; it turns toward wherever it is going instead.
 var _can_strafe: bool = true
 var _target: Node3D
-## Whether the current target was visible at the last check (hills, or the celestial body's curve, hide it).
+## Whether the current target was visible at the last check (hills, or the celestial body's curve,
+## hide it).
 var _target_in_sight: bool = false
 var _retarget_timer: float = 0.0
 var _reaction_timer: float = 0.0
@@ -135,8 +138,9 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 	var planar: Vector3 = to_goal.slide(up)
 	var move_direction: Vector3 = Vector3.ZERO
 	if to_goal.length() > 0.6:
-		# Walk along the ground toward the goal. On the celestial body a goal far around the curve projects
-		# to a tiny (or zero, if straight through) ground vector, so only its direction is used.
+		# Walk along the ground toward the goal. On the celestial body a goal far around the curve
+		# projects to a tiny (or zero, if straight through) ground vector, so only its direction is
+		# used.
 		if planar.length_squared() < 0.0001:
 			planar = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
 		move_direction = planar.normalized()
@@ -169,6 +173,7 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 
 # --- Targeting --------------------------------------------------------------------------------
 
+
 func _find_target() -> Node3D:
 	var best: Node3D = null
 	var best_distance: float = detection_range
@@ -196,6 +201,7 @@ func _is_valid_target(candidate: Node3D) -> bool:
 
 # --- Movement ---------------------------------------------------------------------------------
 
+
 func _choose_goal(up: Vector3) -> Vector3:
 	var position_now: Vector3 = _body.global_position
 	if avoid_water and map.water != null and position_now.y < map.water_surface_y() + 3.0:
@@ -203,15 +209,23 @@ func _choose_goal(up: Vector3) -> Vector3:
 	# In (or nearly in) the spore cloud: nothing matters but getting back inside the circle.
 	if _fears_storm() and _storm_depth(position_now) > -_STORM_MARGIN:
 		return _via_ducts(_storm_refuge(up))
-	var target_too_low: bool = avoid_water and _target != null and map.water != null and _target.global_position.y < map.water_surface_y() + 2.0
+	var target_too_low: bool = (
+		avoid_water
+		and _target != null
+		and map.water != null
+		and _target.global_position.y < map.water_surface_y() + 2.0
+	)
 	# No chasing a husk into the spores.
-	var target_in_storm: bool = _fears_storm() and _target != null and _storm_depth(_target.global_position) > 1.0
+	var target_in_storm: bool = (
+		_fears_storm() and _target != null and _storm_depth(_target.global_position) > 1.0
+	)
 	if _target != null and not target_too_low and not target_in_storm:
 		var to_target: Vector3 = (_target.global_position - position_now).slide(up)
 		var distance: float = to_target.length()
 		var melee: bool = bool(weapon.get("melee", false))
 		var preferred: float = (
-			float(weapon.get("range", 2.0)) * 0.6 if melee
+			float(weapon.get("range", 2.0)) * 0.6
+			if melee
 			else clampf(float(weapon.get("range", 40.0)) * 0.45, 6.0, 25.0)
 		)
 		if distance > preferred * 1.3 or not _target_in_sight:
@@ -228,7 +242,10 @@ func _choose_goal(up: Vector3) -> Vector3:
 	if leader != null and is_instance_valid(leader) and leader.visible:
 		# "Close enough" only counts on the same side of the ductwork; 5 m through sheet metal
 		# is not with the leader.
-		if position_now.distance_to(leader.global_position) > 7.0 or _separated_by_ducts(leader.global_position):
+		if (
+			position_now.distance_to(leader.global_position) > 7.0
+			or _separated_by_ducts(leader.global_position)
+		):
 			return _via_ducts(leader.global_position)
 		return position_now
 	return _wander_goal(-INF)
@@ -288,7 +305,10 @@ func _via_ducts(destination: Vector3) -> Vector3:
 	if network == null:
 		return destination
 	var probe: Vector3 = Vector3.UP * 0.6
-	if not network.is_inside(_body.global_position + probe) and not network.is_inside(destination + probe):
+	if (
+		not network.is_inside(_body.global_position + probe)
+		and not network.is_inside(destination + probe)
+	):
 		_clear_route()
 		return destination
 	if _route.is_empty() or _route_destination.distance_to(destination) > 4.0:
@@ -330,7 +350,9 @@ func _wander_goal(min_height: float) -> Vector3:
 	if not _route.is_empty():
 		return _follow_route()
 	var position_now: Vector3 = _body.global_position
-	var reached: bool = _wander_point != Vector3.INF and position_now.distance_to(_wander_point) < 2.0
+	var reached: bool = (
+		_wander_point != Vector3.INF and position_now.distance_to(_wander_point) < 2.0
+	)
 	var too_low: bool = _wander_point != Vector3.INF and _wander_point.y < min_height
 	if _wander_point == Vector3.INF or reached or too_low or _wander_timer <= 0.0:
 		var network: DuctNetwork = _find_duct_network()
@@ -338,7 +360,11 @@ func _wander_goal(min_height: float) -> Vector3:
 		# a flooded entry).
 		if network != null and min_height == -INF and _duct_cooldown <= 0.0 and randf() < 0.35:
 			var inside_spot: Vector3 = network.random_interior_point()
-			var in_storm: bool = inside_spot != Vector3.INF and _fears_storm() and _storm_depth(inside_spot) > -_STORM_MARGIN
+			var in_storm: bool = (
+				inside_spot != Vector3.INF
+				and _fears_storm()
+				and _storm_depth(inside_spot) > -_STORM_MARGIN
+			)
 			if inside_spot != Vector3.INF and not in_storm:
 				var route: PackedVector3Array = network.route(position_now, inside_spot)
 				if not route.is_empty() and not map.is_underwater(route[0] + Vector3.UP * 0.5):
@@ -381,6 +407,7 @@ func _find_duct_network() -> DuctNetwork:
 
 # --- Shooting ---------------------------------------------------------------------------------
 
+
 ## Decides whether to pull the trigger this frame and, if so, where the shot goes. A gun fires
 ## through the body's weapon (damage from its profile); a husk's bite lands straight away.
 func _try_shoot(input: FighterInput, up: Vector3) -> void:
@@ -398,7 +425,9 @@ func _try_shoot(input: FighterInput, up: Vector3) -> void:
 	if bool(weapon.get("melee", false)):
 		_apply_bite(_target, float(weapon.get("damage", 6.0)))
 		return
-	var direction: Vector3 = _spread((aim_point - eye).normalized(), float(weapon.get("spread_degrees", 3.0)))
+	var direction: Vector3 = _spread(
+		(aim_point - eye).normalized(), float(weapon.get("spread_degrees", 3.0))
+	)
 	input.shoot_pressed = true
 	input.shoot_held = true
 	input.has_aim = true
@@ -409,7 +438,9 @@ func _try_shoot(input: FighterInput, up: Vector3) -> void:
 func _spread(direction: Vector3, degrees: float) -> Vector3:
 	if degrees <= 0.0:
 		return direction
-	var side: Vector3 = direction.cross(Vector3.UP if absf(direction.y) < 0.95 else Vector3.RIGHT).normalized()
+	var side: Vector3 = (
+		direction.cross(Vector3.UP if absf(direction.y) < 0.95 else Vector3.RIGHT).normalized()
+	)
 	var spun: Vector3 = side.rotated(direction, randf() * TAU)
 	return direction.rotated(spun, deg_to_rad(randf() * degrees)).normalized()
 
@@ -446,4 +477,7 @@ func _step_leads_into_water(direction: Vector3) -> bool:
 		return false
 	var ahead: Dictionary = map.ground_hit(_body.global_position + direction * 1.5)
 	var safe_height: float = map.water_surface_y() + 1.5
-	return ahead.is_empty() or (ahead.position.y < safe_height and _body.global_position.y >= safe_height)
+	return (
+		ahead.is_empty()
+		or (ahead.position.y < safe_height and _body.global_position.y >= safe_height)
+	)

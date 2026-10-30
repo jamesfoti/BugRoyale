@@ -6,7 +6,6 @@ extends ChunkedTerrainWorld
 const RECOMMENDED_RAVINE_DEPTH := 12.0
 const RECOMMENDED_RAVINE_WIDTH := 0.08
 
-
 @export_group("CelestialBody Grid")
 ## CelestialBody radius in chunk units. World radius = this × chunk_size (e.g. 1.5 × 12 = 18).
 @export_range(0.5, 32.0, 0.1, "or_greater") var body_radius_chunks: float = 1.5:
@@ -25,7 +24,8 @@ const RECOMMENDED_RAVINE_WIDTH := 0.08
 		_request_rebuild()
 
 @export_group("CelestialBody Features")
-## Use celestial body density (auto surface noise, ravines, caves). Enable this before tuning ravine sliders.
+## Use celestial body density (auto surface noise, ravines, caves). Enable this before tuning ravine
+## sliders.
 @export var body_features_enabled: bool = false:
 	set(value):
 		body_features_enabled = value
@@ -40,23 +40,21 @@ const RECOMMENDED_RAVINE_WIDTH := 0.08
 	set(value):
 		body_caves_enabled = value
 		_request_rebuild()
-## Ravine carve depth (world units). Recommended: ~1× chunk_size for radius ~1.5 chunks, ~100 at radius 1600. -1 = auto from radius.
+## Ravine carve depth (world units). Recommended: ~1× chunk_size for radius ~1.5 chunks, ~100 at
+## radius 1600. -1 = auto from radius.
 @export_range(-1, 100.0, 0.5, "or_greater") var body_ravine_depth: float = RECOMMENDED_RAVINE_DEPTH:
 	get:
 		return _body_ravine_depth
 	set(value):
-		_body_ravine_depth = (
-			RECOMMENDED_RAVINE_DEPTH if value == null else float(value)
-		)
+		_body_ravine_depth = (RECOMMENDED_RAVINE_DEPTH if value == null else float(value))
 		_request_rebuild()
-## Ravine groove width (noise valley threshold). Higher = wider. Recommended: 0.08 for small celestial bodies, ~0.002 at radius 1600. -1 = auto from radius.
+## Ravine groove width (noise valley threshold). Higher = wider. Recommended: 0.08 for small
+## celestial bodies, ~0.002 at radius 1600. -1 = auto from radius.
 @export_range(-1, 0.5, 0.005, "or_greater") var body_ravine_width: float = RECOMMENDED_RAVINE_WIDTH:
 	get:
 		return _body_ravine_width
 	set(value):
-		_body_ravine_width = (
-			RECOMMENDED_RAVINE_WIDTH if value == null else float(value)
-		)
+		_body_ravine_width = (RECOMMENDED_RAVINE_WIDTH if value == null else float(value))
 		_request_rebuild()
 
 @export_group("Runtime")
@@ -117,7 +115,9 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_enabled = false
 
 
-func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> DensitySampler.WorldDensity:
+func _build_world_density(
+	settings: ChunkedTerrainWorld.SettingsSnapshot
+) -> DensitySampler.WorldDensity:
 	var sphere_world: Vector3 = settings.bounds_center + settings.sphere_center
 	if settings.body_features_enabled and settings.sphere_enabled:
 		return DensitySampler.create_celestial_body_world_density(

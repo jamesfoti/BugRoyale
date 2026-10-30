@@ -1,5 +1,5 @@
-extends FighterBody
 class_name CelestialBodyPlayer
+extends FighterBody
 ## Walks on spherical terrain: the pilot's yaw turns the body, forward/back moves along the
 ## view. Every intent comes from the FighterController (keyboard, bot or network); the mouse
 ## reaches the body only as the snapshot's yaw_delta.
@@ -8,13 +8,6 @@ const _INPUT_DEADZONE: float = 0.01
 const _SPAWN_ATTEMPTS: int = 12
 const _SPAWN_RAY_MARGIN: float = 40.0
 const _FALLBACK_BODY_RADIUS: float = 18.0
-
-class SpawnData:
-	var position: Vector3 = Vector3.ZERO
-	var surface_up: Vector3 = Vector3.UP
-	var forward: Vector3 = Vector3.FORWARD
-	var from_raycast_hit: bool = false
-
 
 @export var celestial_body: Node3D
 @export var speed: float = 5.0
@@ -32,11 +25,11 @@ class SpawnData:
 @export var fly_run_speed: float = 11.0
 @export var fly_vertical_speed: float = 5.0
 
-@onready var _orbit_camera: OrbitCamera = get_node_or_null("OrbitCamera") as OrbitCamera
-
 var _gravity_direction: Vector3 = Vector3.DOWN
 var _celestial_body: CelestialBody
 var _flying: bool = false
+
+@onready var _orbit_camera: OrbitCamera = get_node_or_null("OrbitCamera") as OrbitCamera
 
 
 func is_flying() -> bool:
@@ -194,7 +187,9 @@ func _get_movement_direction() -> Vector3:
 
 func _get_facing_direction(movement_direction: Vector3) -> Vector3:
 	# Shooter stance: aiming or firing squares the body up to the view.
-	var firing: bool = _shooter != null and _shooter.has_method("is_firing") and _shooter.call("is_firing")
+	var firing: bool = (
+		_shooter != null and _shooter.has_method("is_firing") and _shooter.call("is_firing")
+	)
 	if _intent.aiming or firing:
 		var view_forward: Vector3 = get_view_flat_forward()
 		if view_forward != Vector3.ZERO:
@@ -214,7 +209,9 @@ func _align_up_to_body(delta: float, facing_direction: Vector3) -> void:
 	if facing_direction.length_squared() < _MIN_DIR_LEN_SQ:
 		return
 
-	var target_basis: Basis = Basis.looking_at(facing_direction.normalized(), surface_up).orthonormalized()
+	var target_basis: Basis = (
+		Basis.looking_at(facing_direction.normalized(), surface_up).orthonormalized()
+	)
 	var alignment_blend: float = minf(1.0, surface_align_speed * delta)
 	var current_rotation: Quaternion = global_transform.basis.get_rotation_quaternion()
 	var target_rotation: Quaternion = target_basis.get_rotation_quaternion()
@@ -245,7 +242,9 @@ func _place_at(position_on_map: Vector3) -> void:
 	var spawn_data: SpawnData = SpawnData.new()
 	spawn_data.position = position_on_map
 	var radial: Vector3 = position_on_map - _get_body_center()
-	spawn_data.surface_up = radial.normalized() if radial.length_squared() > _MIN_DIR_LEN_SQ else Vector3.UP
+	spawn_data.surface_up = (
+		radial.normalized() if radial.length_squared() > _MIN_DIR_LEN_SQ else Vector3.UP
+	)
 	spawn_data.forward = _tangent_forward_on_plane(spawn_data.surface_up)
 	spawn_data.from_raycast_hit = true
 	_apply_spawn(spawn_data)
@@ -269,8 +268,7 @@ func _spawn_on_body() -> void:
 
 func _apply_spawn(spawn_data: SpawnData) -> void:
 	global_transform = Transform3D(
-		Basis.looking_at(spawn_data.forward, spawn_data.surface_up),
-		spawn_data.position
+		Basis.looking_at(spawn_data.forward, spawn_data.surface_up), spawn_data.position
 	)
 	velocity = Vector3.ZERO
 	_terrain_focus = false
@@ -285,11 +283,14 @@ func _apply_spawn(spawn_data: SpawnData) -> void:
 
 func _find_random_surface_spawn() -> SpawnData:
 	var spawn_data: SpawnData = SpawnData.new()
-	var random_direction: Vector3 = Vector3(
-		randf_range(-1.0, 1.0),
-		randf_range(-1.0, 1.0),
-		randf_range(-1.0, 1.0),
-	).normalized()
+	var random_direction: Vector3 = (
+		Vector3(
+			randf_range(-1.0, 1.0),
+			randf_range(-1.0, 1.0),
+			randf_range(-1.0, 1.0),
+		)
+		. normalized()
+	)
 	var body_center: Vector3 = _get_body_center()
 	var body_radius: float = (
 		_celestial_body.get_sphere_radius() if _celestial_body != null else _FALLBACK_BODY_RADIUS
@@ -346,3 +347,10 @@ func _update_animation(movement_direction: Vector3) -> void:
 		_set_anim_state(skin, "run" if _intent.run else "walk")
 	else:
 		_set_anim_state(skin, "idle")
+
+
+class SpawnData:
+	var position: Vector3 = Vector3.ZERO
+	var surface_up: Vector3 = Vector3.UP
+	var forward: Vector3 = Vector3.FORWARD
+	var from_raycast_hit: bool = false

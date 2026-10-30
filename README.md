@@ -97,9 +97,30 @@ committed.
 Tests
 -----
 
-Two layers: unit tests for the rules and arithmetic, and a headless smoke test that plays a
-whole bot match per mode. Both run without a window and exit non-zero on failure, so they can
-gate a release.
+Three layers: a style check against the GDScript style guide, unit tests for the rules and
+arithmetic, and a headless smoke test that plays a whole bot match per mode. All three run
+without a window and exit non-zero on failure, so they can gate a release.
+
+### Style
+
+Every script follows the official
+[GDScript style guide](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_styleguide.html),
+checked with `gdlint` and `gdformat` from
+[gdtoolkit](https://github.com/Scony/godot-gdscript-toolkit) (a Python package):
+
+```powershell
+python -m pip install "gdtoolkit==4.*"
+powershell -ExecutionPolicy Bypass -File tools/lint.ps1        # check
+powershell -ExecutionPolicy Bypass -File tools/lint.ps1 -Fix   # reformat, then check
+```
+
+`gdlintrc` holds the settings: the guide's rules, with gdlint's own limits on returns per
+function, public methods per class and lines per file switched off. The formatter fixes
+indentation, spacing and line wrapping on its own. Two things it cannot fix are done by hand:
+member order (`class_name`, `extends`, docstring, signals, enums, constants, static vars,
+`@export`s, public then private vars, `@onready` vars, functions, inner classes last) and
+lines over 100 columns inside comments or strings. Scripts under `addons/` are not ours and
+are not checked.
 
 ### Unit tests
 
@@ -121,9 +142,11 @@ GUT and `test/` are excluded from both export presets, so nothing test-related s
 powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1
 ```
 
-The script looks for a Godot console executable in `-Godot <path>`, then the `GODOT`
-environment variable, then `godot` on the PATH. Underneath it runs GUT's own runner, which you
-can also call directly, for example to run one suite:
+The script runs the style check first (skip it with `-SkipLint` on a machine without Python),
+then the unit tests. It looks for a Godot console executable in `-Godot <path>`, then the
+`GODOT` environment variable, then the 4.7.2 editor installed beside the project, then `godot`
+on the PATH. Underneath it runs GUT's own runner, which you can also call directly, for example
+to run one suite:
 
 ```powershell
 godot --headless --path . -s res://addons/gut/gut_cmdln.gd -gconfig=res://.gutconfig.json -gexit -gselect=test_block_snapping

@@ -1,8 +1,8 @@
 class_name TerrariumVegetation
 extends Node3D
-## Procedural terrarium garden: moss cushions, ferns, red nerve plants, mushrooms, slate rocks, driftwood
-## and small branching trees, grown over the terrain the same way the terrain is grown from
-## noise. Placement samples the terrain's analytic surface height (no physics needed) with a
+## Procedural terrarium garden: moss cushions, ferns, red nerve plants, mushrooms, slate rocks,
+## driftwood and small branching trees, grown over the terrain the same way the terrain is grown
+## from noise. Placement samples the terrain's analytic surface height (no physics needed) with a
 ## seeded RNG, so a terrarium always grows the same garden. Every plant kind draws through one
 ## MultiMesh; trees, logs and rocks get simple collision so bugs walk around them. Carving the
 ## terrain (pickaxe, explosions) clears whatever grew in the hole.
@@ -19,39 +19,20 @@ const TREES_PER_100M2: float = 0.25
 const MUSHROOM_CLUSTERS_PER_100M2: float = 1.4
 
 const MOSS_TINTS: Array[Color] = [
-	Color(0.36, 0.64, 0.2), Color(0.27, 0.5, 0.15), Color(0.52, 0.7, 0.22), Color(0.22, 0.42, 0.13),
+	Color(0.36, 0.64, 0.2),
+	Color(0.27, 0.5, 0.15),
+	Color(0.52, 0.7, 0.22),
+	Color(0.22, 0.42, 0.13),
 ]
-const LEAF_TINTS: Array[Color] = [Color(0.3, 0.56, 0.2), Color(0.23, 0.46, 0.16), Color(0.4, 0.62, 0.22)]
-const FERN_TINTS: Array[Color] = [Color(0.3, 0.6, 0.22), Color(0.36, 0.66, 0.26), Color(0.24, 0.5, 0.2)]
+const LEAF_TINTS: Array[Color] = [
+	Color(0.3, 0.56, 0.2), Color(0.23, 0.46, 0.16), Color(0.4, 0.62, 0.22)
+]
+const FERN_TINTS: Array[Color] = [
+	Color(0.3, 0.6, 0.22), Color(0.36, 0.66, 0.26), Color(0.24, 0.5, 0.2)
+]
 const BARK_COLOR: Color = Color(0.3, 0.22, 0.15)
 const DRIFTWOOD_COLOR: Color = Color(0.46, 0.37, 0.27)
 const ROCK_COLOR: Color = Color(0.32, 0.35, 0.4)
-
-
-## All instances of one plant kind: a MultiMesh plus the data needed to clear them later.
-class Patch:
-	var multimesh_instance: MultiMeshInstance3D
-	var transforms: Array[Transform3D] = []
-	var colors: PackedColorArray = PackedColorArray()
-	## Footprint radius per instance; negative once the instance has been cleared.
-	var radii: PackedFloat32Array = PackedFloat32Array()
-
-
-## One tapered branch of a tree or log.
-class Segment:
-	var start: Vector3
-	var end: Vector3
-	var radius_start: float
-	var radius_end: float
-
-
-## A tree, log or rock: a node with its own mesh and collision, plus (trees) its leaf clusters.
-class Prop:
-	var node: Node3D
-	var position: Vector3
-	var radius: float
-	var canopy_indices: PackedInt32Array = PackedInt32Array()
-
 
 var _rng := RandomNumberGenerator.new()
 var _terrain: TerrariumTerrain
@@ -116,17 +97,24 @@ func grow() -> void:
 	if _terrain.has_signal("brush_applied"):
 		_terrain.brush_applied.connect(_on_brush_applied)
 	if total == 0 and _props.is_empty():
-		push_warning("[TerrariumVegetation] Nothing grew: no terrain collision found under the terrarium.")
+		push_warning(
+			"[TerrariumVegetation] Nothing grew: no terrain collision found under the terrarium."
+		)
 	print("[TerrariumVegetation] Grew %d plants and %d props" % [total, _props.size()])
 
 
 # --- Placement --------------------------------------------------------------------------------
 
+
 ## A spot on the ground: flat enough (min_up = minimum surface normal Y), above the water by
 ## water_margin, inside the glass with a margin, optionally within spread of a point, and with
 ## the ground still there under a footprint radius (so wide plants don't hang off cliff lips).
 func _find_spot(
-	min_up: float, water_margin: float, near: Vector3 = Vector3.INF, spread: float = 0.0, footprint: float = 0.0
+	min_up: float,
+	water_margin: float,
+	near: Vector3 = Vector3.INF,
+	spread: float = 0.0,
+	footprint: float = 0.0
 ) -> Dictionary:
 	# Wide plants keep their whole footprint off the glass.
 	var margin: float = EDGE_MARGIN + footprint * 0.7
@@ -147,8 +135,10 @@ func _find_spot(
 			x = near.x + cos(angle) * distance
 			z = near.z + sin(angle) * distance
 			if (
-				x < _bounds.position.x + margin or x > _bounds.end.x - margin
-				or z < _bounds.position.z + margin or z > _bounds.end.z - margin
+				x < _bounds.position.x + margin
+				or x > _bounds.end.x - margin
+				or z < _bounds.position.z + margin
+				or z > _bounds.end.z - margin
 			):
 				continue
 		var ground: Dictionary = _ground(x, z)
@@ -168,7 +158,9 @@ func _find_spot(
 ## missing and none drops more than a fraction of the footprint below the center.
 func _footprint_supported(position: Vector3, footprint: float) -> bool:
 	var reach: float = footprint * 0.7
-	for offset: Vector2 in [Vector2(reach, 0.0), Vector2(-reach, 0.0), Vector2(0.0, reach), Vector2(0.0, -reach)]:
+	for offset: Vector2 in [
+		Vector2(reach, 0.0), Vector2(-reach, 0.0), Vector2(0.0, reach), Vector2(0.0, -reach)
+	]:
 		var around: Dictionary = _ground(position.x + offset.x, position.z + offset.y)
 		if around.is_empty() or position.y - around.position.y > footprint * 0.45:
 			return false
@@ -185,7 +177,9 @@ func _ground(x: float, z: float) -> Dictionary:
 		var horizontal: float = Vector2(x - _bowl_center.x, z - _bowl_center.z).length()
 		if horizontal >= _bowl_radius - 1.0:
 			return {}
-		top = minf(top, _bowl_center.y + sqrt(_bowl_radius * _bowl_radius - horizontal * horizontal) - 0.3)
+		top = minf(
+			top, _bowl_center.y + sqrt(_bowl_radius * _bowl_radius - horizontal * horizontal) - 0.3
+		)
 	var from := Vector3(x, top, z)
 	var to := Vector3(x, _bounds.position.y - 1.0, z)
 	var query := PhysicsRayQueryParameters3D.create(from, to, MapInfo.TERRAIN_LAYER, _exclude)
@@ -198,7 +192,9 @@ func _ground(x: float, z: float) -> Dictionary:
 
 ## Basis whose Y is up, spun by yaw and scaled.
 func _ground_basis(up: Vector3, yaw: float, scale: Vector3) -> Basis:
-	var reference: Vector3 = Vector3.FORWARD if absf(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+	var reference: Vector3 = (
+		Vector3.FORWARD if absf(up.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+	)
 	var x_axis: Vector3 = up.cross(reference).normalized()
 	var z_axis: Vector3 = x_axis.cross(up).normalized()
 	return Basis(x_axis, up, z_axis).rotated(up, yaw) * Basis.from_scale(scale)
@@ -215,6 +211,7 @@ func _perpendicular(direction: Vector3) -> Vector3:
 
 # --- Patches (one MultiMesh per plant kind) ---------------------------------------------------
 
+
 func _patch(key: StringName, mesh: Mesh, material: Material, shadows: bool) -> Patch:
 	if _patches.has(key):
 		return _patches[key]
@@ -228,7 +225,9 @@ func _patch(key: StringName, mesh: Mesh, material: Material, shadows: bool) -> P
 	patch.multimesh_instance.multimesh = multimesh
 	patch.multimesh_instance.material_override = material
 	patch.multimesh_instance.cast_shadow = (
-		GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		if shadows
+		else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	)
 	# Instance transforms are written in world space.
 	patch.multimesh_instance.top_level = true
@@ -268,6 +267,7 @@ func _vary(tint: Color, amount: float) -> Color:
 
 # --- Plants -----------------------------------------------------------------------------------
 
+
 ## Moss grows in clumps of cushions of a shared shade, hugging the ground.
 func _grow_moss(count: int) -> void:
 	var patch: Patch = _patch(&"Moss", _make_moss_mesh(), _make_material(false), false)
@@ -287,7 +287,9 @@ func _grow_moss(count: int) -> void:
 				radius * _rng.randf_range(0.35, 0.65),
 				radius * _rng.randf_range(0.85, 1.25)
 			)
-			var spot: Dictionary = _find_spot(0.35, 0.1, clump.position, 3.5, maxf(scale.x, scale.z))
+			var spot: Dictionary = _find_spot(
+				0.35, 0.1, clump.position, 3.5, maxf(scale.x, scale.z)
+			)
 			if spot.is_empty():
 				continue
 			var basis: Basis = _ground_basis(spot.normal, _rng.randf() * TAU, scale)
@@ -333,7 +335,11 @@ func _grow_mushrooms(clusters: int) -> void:
 	var builds: Dictionary = {}
 	for cluster: int in clusters:
 		var pick: float = _rng.randf()
-		var kind: Array = kinds[0] if pick < kinds[0][4] else (kinds[1] if pick < kinds[0][4] + kinds[1][4] else kinds[2])
+		var kind: Array = (
+			kinds[0]
+			if pick < kinds[0][4]
+			else (kinds[1] if pick < kinds[0][4] + kinds[1][4] else kinds[2])
+		)
 		var variant: int = _rng.randi() % 3
 		var key: StringName = StringName("%s%d" % [kind[1], variant])
 		if not builds.has(key):
@@ -346,11 +352,15 @@ func _grow_mushrooms(clusters: int) -> void:
 		var count: int = _rng.randi_range(1, 5)
 		for index: int in count:
 			var size: float = _rng.randf_range(kind[2], kind[3])
-			var spot: Dictionary = center if index == 0 else _find_spot(0.55, 0.25, center.position, 1.2 + size, 0.0)
+			var spot: Dictionary = (
+				center if index == 0 else _find_spot(0.55, 0.25, center.position, 1.2 + size, 0.0)
+			)
 			if spot.is_empty():
 				continue
 			var up: Vector3 = Vector3.UP.slerp(spot.normal, 0.25).normalized()
-			var basis: Basis = _ground_basis(up, _rng.randf() * TAU, Vector3(size, size * _rng.randf_range(0.9, 1.15), size))
+			var basis: Basis = _ground_basis(
+				up, _rng.randf() * TAU, Vector3(size, size * _rng.randf_range(0.9, 1.15), size)
+			)
 			var cap_radius: float = float(built["cap_radius"]) * size
 			var transform := Transform3D(basis, spot.position - up * 0.04)
 			_place(patch, transform, _vary(Color.WHITE, 0.08), cap_radius)
@@ -369,15 +379,24 @@ func _add_mushroom_collision(transform: Transform3D, built: Dictionary, scale: V
 	stem.radius = maxf(float(built["stem_radius"]) * width, 0.15)
 	stem.height = float(built["cap_y"]) * height
 	var unscaled := Transform3D(Basis(transform.basis.get_rotation_quaternion()), transform.origin)
-	var prop: Prop = _add_prop("Mushroom", unscaled, stem, Transform3D(Basis.IDENTITY, Vector3(0.0, stem.height * 0.5, 0.0)))
+	var prop: Prop = _add_prop(
+		"Mushroom",
+		unscaled,
+		stem,
+		Transform3D(Basis.IDENTITY, Vector3(0.0, stem.height * 0.5, 0.0))
+	)
 	var cap := CylinderShape3D.new()
 	cap.radius = float(built["cap_radius"]) * width * 0.9
 	cap.height = maxf(float(built["cap_height"]) * height * 0.6, 0.2)
 	var cap_shape := CollisionShape3D.new()
 	cap_shape.shape = cap
-	cap_shape.position = Vector3(0.0, (float(built["cap_y"]) + float(built["cap_height"]) * 0.3) * height, 0.0)
+	cap_shape.position = Vector3(
+		0.0, (float(built["cap_y"]) + float(built["cap_height"]) * 0.3) * height, 0.0
+	)
 	prop.node.get_child(0).add_child(cap_shape)
 	prop.radius = float(built["cap_radius"]) * width
+
+
 ## Slate rocks: noisy icospheres, flattened and half-buried, with convex collision.
 func _grow_rocks(count: int) -> void:
 	var rock: Dictionary = AsteroidMeshBuilder.build(_rng.randi(), 1.0, 2, 0.3)
@@ -387,7 +406,9 @@ func _grow_rocks(count: int) -> void:
 	for _rock: int in count:
 		var radius: float = _rng.randf_range(1.2, 3.2)
 		var scale := Vector3(
-			radius * _rng.randf_range(0.8, 1.4), radius * _rng.randf_range(0.55, 1.1), radius * _rng.randf_range(0.8, 1.4)
+			radius * _rng.randf_range(0.8, 1.4),
+			radius * _rng.randf_range(0.55, 1.1),
+			radius * _rng.randf_range(0.8, 1.4)
 		)
 		var spot: Dictionary = _find_spot(0.0, -0.5, Vector3.INF, 0.0, maxf(scale.x, scale.z) * 0.8)
 		if spot.is_empty():
@@ -403,7 +424,9 @@ func _grow_rocks(count: int) -> void:
 			scaled_points.append(point * scale)
 		var shape := ConvexPolygonShape3D.new()
 		shape.points = scaled_points
-		var prop: Prop = _add_prop("Rock", Transform3D(unscaled, origin), shape, Transform3D.IDENTITY)
+		var prop: Prop = _add_prop(
+			"Rock", Transform3D(unscaled, origin), shape, Transform3D.IDENTITY
+		)
 		prop.radius = maxf(scale.x, scale.z)
 
 
@@ -420,13 +443,26 @@ func _grow_logs(count: int) -> void:
 		var radius: float = _rng.randf_range(0.45, 0.75)
 		var segments: Array[Segment] = []
 		var tips := PackedVector3Array()
-		_grow_branches(Vector3.ZERO, direction, _rng.randf_range(4.0, 6.5), radius, 2, segments, tips, 32.0, 0.2, 0.05)
+		_grow_branches(
+			Vector3.ZERO,
+			direction,
+			_rng.randf_range(4.0, 6.5),
+			radius,
+			2,
+			segments,
+			tips,
+			32.0,
+			0.2,
+			0.05
+		)
 		var trunk: Segment = segments[0]
 		var shape := CapsuleShape3D.new()
 		shape.radius = trunk.radius_start * 0.9
 		shape.height = trunk.start.distance_to(trunk.end) + shape.radius * 2.0
 		var origin: Vector3 = spot.position - Vector3.UP * radius * 0.35
-		var prop: Prop = _add_prop("Driftwood", Transform3D(Basis.IDENTITY, origin), shape, _segment_shape_transform(trunk))
+		var prop: Prop = _add_prop(
+			"Driftwood", Transform3D(Basis.IDENTITY, origin), shape, _segment_shape_transform(trunk)
+		)
 		var mesh_instance := MeshInstance3D.new()
 		mesh_instance.mesh = _make_branch_mesh(segments, 7)
 		mesh_instance.material_override = bark
@@ -447,13 +483,27 @@ func _grow_trees(count: int) -> void:
 		var segments: Array[Segment] = []
 		var tips := PackedVector3Array()
 		_grow_branches(
-			Vector3.DOWN * 0.4, lean, _rng.randf_range(3.0, 5.0), trunk_radius, 3, segments, tips, 40.0, 0.22, 0.3
+			Vector3.DOWN * 0.4,
+			lean,
+			_rng.randf_range(3.0, 5.0),
+			trunk_radius,
+			3,
+			segments,
+			tips,
+			40.0,
+			0.22,
+			0.3
 		)
 		var trunk: Segment = segments[0]
 		var shape := CylinderShape3D.new()
 		shape.radius = trunk.radius_start
 		shape.height = trunk.start.distance_to(trunk.end)
-		var prop: Prop = _add_prop("Tree", Transform3D(Basis.IDENTITY, spot.position), shape, _segment_shape_transform(trunk))
+		var prop: Prop = _add_prop(
+			"Tree",
+			Transform3D(Basis.IDENTITY, spot.position),
+			shape,
+			_segment_shape_transform(trunk)
+		)
 		var mesh_instance := MeshInstance3D.new()
 		mesh_instance.mesh = _make_branch_mesh(segments, 6)
 		mesh_instance.material_override = bark
@@ -463,9 +513,13 @@ func _grow_trees(count: int) -> void:
 		for tip: Vector3 in tips:
 			var size: float = _rng.randf_range(1.1, 2.0)
 			var basis: Basis = _ground_basis(
-				Vector3.UP, _rng.randf() * TAU, Vector3(size, size * _rng.randf_range(0.65, 0.85), size)
+				Vector3.UP,
+				_rng.randf() * TAU,
+				Vector3(size, size * _rng.randf_range(0.65, 0.85), size)
 			)
-			var index: int = _place(canopy, Transform3D(basis, spot.position + tip), _vary(tint, 0.14), size)
+			var index: int = _place(
+				canopy, Transform3D(basis, spot.position + tip), _vary(tint, 0.14), size
+			)
 			prop.canopy_indices.append(index)
 
 
@@ -502,14 +556,24 @@ func _grow_branches(
 		var child_direction: Vector3 = grow_direction.rotated(axis, pitch)
 		child_direction = (child_direction + Vector3.UP * upward_bias).normalized()
 		_grow_branches(
-			segment.end, child_direction, length * _rng.randf_range(0.6, 0.78), segment.radius_end,
-			depth - 1, segments, tips, spread_degrees, bend, upward_bias
+			segment.end,
+			child_direction,
+			length * _rng.randf_range(0.6, 0.78),
+			segment.radius_end,
+			depth - 1,
+			segments,
+			tips,
+			spread_degrees,
+			bend,
+			upward_bias
 		)
 
 
 ## A prop node with a static collider on the terrain layer, so ground probes and bugs treat it
 ## like terrain.
-func _add_prop(prop_name: String, transform: Transform3D, shape: Shape3D, shape_transform: Transform3D) -> Prop:
+func _add_prop(
+	prop_name: String, transform: Transform3D, shape: Shape3D, shape_transform: Transform3D
+) -> Prop:
 	var prop := Prop.new()
 	prop.node = Node3D.new()
 	prop.node.name = prop_name
@@ -538,13 +602,17 @@ func _segment_shape_transform(segment: Segment) -> Transform3D:
 
 # --- Carving ----------------------------------------------------------------------------------
 
+
 ## Clears plants and props inside a terrain brush, so nothing floats over a fresh hole.
 func _on_brush_applied(world_position: Vector3, radius: float) -> void:
 	for patch: Patch in _patches.values():
 		for index: int in patch.transforms.size():
 			if patch.radii[index] < 0.0:
 				continue
-			if patch.transforms[index].origin.distance_to(world_position) < radius + patch.radii[index] * 0.5:
+			if (
+				patch.transforms[index].origin.distance_to(world_position)
+				< radius + patch.radii[index] * 0.5
+			):
 				_clear_instance(patch, index)
 	for prop: Prop in _props:
 		if prop.node == null or not is_instance_valid(prop.node):
@@ -567,9 +635,15 @@ func _clear_instance(patch: Patch, index: int) -> void:
 
 # --- Meshes -----------------------------------------------------------------------------------
 
+
 ## Adds a triangle, winding it so its front faces along `outward` (Godot front faces are
 ## clockwise seen from outside, so the right-hand normal points inward).
-func _triangle(st: SurfaceTool, points: PackedVector3Array, normals: PackedVector3Array, colors: PackedColorArray) -> void:
+func _triangle(
+	st: SurfaceTool,
+	points: PackedVector3Array,
+	normals: PackedVector3Array,
+	colors: PackedColorArray
+) -> void:
 	var outward: Vector3 = normals[0] + normals[1] + normals[2]
 	var order: PackedInt32Array = PackedInt32Array([0, 1, 2])
 	if (points[1] - points[0]).cross(points[2] - points[0]).dot(outward) > 0.0:
@@ -580,7 +654,12 @@ func _triangle(st: SurfaceTool, points: PackedVector3Array, normals: PackedVecto
 		st.add_vertex(points[index])
 
 
-func _quad(st: SurfaceTool, points: PackedVector3Array, normals: PackedVector3Array, colors: PackedColorArray) -> void:
+func _quad(
+	st: SurfaceTool,
+	points: PackedVector3Array,
+	normals: PackedVector3Array,
+	colors: PackedColorArray
+) -> void:
 	_triangle(
 		st,
 		PackedVector3Array([points[0], points[1], points[2]]),
@@ -620,17 +699,22 @@ func _make_moss_mesh() -> ArrayMesh:
 		var a: Vector3 = ring_points[0][segment]
 		var b: Vector3 = ring_points[0][(segment + 1) % segments]
 		_triangle(
-			st, PackedVector3Array([apex, a, b]),
+			st,
+			PackedVector3Array([apex, a, b]),
 			PackedVector3Array([Vector3.UP, a.normalized(), b.normalized()]),
 			PackedColorArray([_moss_shade(apex), _moss_shade(a), _moss_shade(b)])
 		)
 	for ring: int in rings:
 		for segment: int in segments:
 			var next: int = (segment + 1) % segments
-			var points := PackedVector3Array([
-				ring_points[ring][segment], ring_points[ring][next],
-				ring_points[ring + 1][next], ring_points[ring + 1][segment],
-			])
+			var points := PackedVector3Array(
+				[
+					ring_points[ring][segment],
+					ring_points[ring][next],
+					ring_points[ring + 1][next],
+					ring_points[ring + 1][segment],
+				]
+			)
 			var normals := PackedVector3Array()
 			var colors := PackedColorArray()
 			for point: Vector3 in points:
@@ -648,7 +732,8 @@ func _make_moss_mesh() -> ArrayMesh:
 	underside.a = 1.0
 	for segment: int in segments:
 		_triangle(
-			st, PackedVector3Array([rim_center, rim[(segment + 1) % segments], rim[segment]]),
+			st,
+			PackedVector3Array([rim_center, rim[(segment + 1) % segments], rim[segment]]),
 			PackedVector3Array([Vector3.DOWN, Vector3.DOWN, Vector3.DOWN]),
 			PackedColorArray([underside, underside, underside])
 		)
@@ -687,25 +772,47 @@ func _make_fern_mesh() -> ArrayMesh:
 				var half_width: Vector3 = side * 0.02
 				_quad(
 					st,
-					PackedVector3Array([previous - half_width, previous + half_width, point + half_width, point - half_width]),
+					PackedVector3Array(
+						[
+							previous - half_width,
+							previous + half_width,
+							point + half_width,
+							point - half_width
+						]
+					),
 					PackedVector3Array([normal, normal, normal, normal]),
 					PackedColorArray([shade, shade, shade, shade])
 				)
 				if station < stations:
-					var leaflet: float = length * 0.42 * sin(PI * (0.12 + 0.88 * t)) * (1.0 - 0.3 * t)
+					var leaflet: float = (
+						length * 0.42 * sin(PI * (0.12 + 0.88 * t)) * (1.0 - 0.3 * t)
+					)
 					for sign: float in [-1.0, 1.0]:
 						var outward: Vector3 = side * sign
-						var tip: Vector3 = point + outward * leaflet + Vector3.UP * leaflet * 0.12 + tangent * leaflet * 0.3
-						var mid_front: Vector3 = point + outward * leaflet * 0.45 + tangent * leaflet * 0.3
-						var mid_back: Vector3 = point + outward * leaflet * 0.45 - tangent * leaflet * 0.08
+						var tip: Vector3 = (
+							point
+							+ outward * leaflet
+							+ Vector3.UP * leaflet * 0.12
+							+ tangent * leaflet * 0.3
+						)
+						var mid_front: Vector3 = (
+							point + outward * leaflet * 0.45 + tangent * leaflet * 0.3
+						)
+						var mid_back: Vector3 = (
+							point + outward * leaflet * 0.45 - tangent * leaflet * 0.08
+						)
 						var tip_shade: Color = shade.lerp(Color.WHITE, 0.4)
 						_triangle(
-							st, PackedVector3Array([point, mid_front, tip]),
-							PackedVector3Array([normal, normal, normal]), PackedColorArray([shade, shade, tip_shade])
+							st,
+							PackedVector3Array([point, mid_front, tip]),
+							PackedVector3Array([normal, normal, normal]),
+							PackedColorArray([shade, shade, tip_shade])
 						)
 						_triangle(
-							st, PackedVector3Array([point, tip, mid_back]),
-							PackedVector3Array([normal, normal, normal]), PackedColorArray([shade, tip_shade, shade])
+							st,
+							PackedVector3Array([point, tip, mid_back]),
+							PackedVector3Array([normal, normal, normal]),
+							PackedColorArray([shade, tip_shade, shade])
 						)
 			previous = point
 	return st.commit()
@@ -759,7 +866,11 @@ func _make_canopy_mesh() -> ArrayMesh:
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 	for index: int in vertices.size():
-		st.set_color(Color(0.62, 0.66, 0.5).lerp(Color.WHITE, clampf(vertices[index].y * 0.5 + 0.5, 0.0, 1.0)))
+		st.set_color(
+			Color(0.62, 0.66, 0.5).lerp(
+				Color.WHITE, clampf(vertices[index].y * 0.5 + 0.5, 0.0, 1.0)
+			)
+		)
 		st.set_normal(normals[index])
 		st.add_vertex(vertices[index])
 	return st.commit()
@@ -782,24 +893,65 @@ func _make_branch_mesh(segments: Array[Segment], sides: int) -> ArrayMesh:
 			var d1: Vector3 = u * cos(angle1) + v * sin(angle1)
 			_quad(
 				st,
-				PackedVector3Array([
-					segment.start + d0 * segment.radius_start, segment.start + d1 * segment.radius_start,
-					segment.end + d1 * segment.radius_end, segment.end + d0 * segment.radius_end,
-				]),
+				PackedVector3Array(
+					[
+						segment.start + d0 * segment.radius_start,
+						segment.start + d1 * segment.radius_start,
+						segment.end + d1 * segment.radius_end,
+						segment.end + d0 * segment.radius_end,
+					]
+				),
 				PackedVector3Array([d0, d1, d1, d0]),
 				PackedColorArray([shade, shade, shade, shade])
 			)
 			# Capped ends, so a log or branch poking over a drop isn't a hollow tube.
 			_triangle(
 				st,
-				PackedVector3Array([segment.start, segment.start + d1 * segment.radius_start, segment.start + d0 * segment.radius_start]),
+				PackedVector3Array(
+					[
+						segment.start,
+						segment.start + d1 * segment.radius_start,
+						segment.start + d0 * segment.radius_start
+					]
+				),
 				PackedVector3Array([-axis, -axis, -axis]),
 				PackedColorArray([shade, shade, shade])
 			)
 			_triangle(
 				st,
-				PackedVector3Array([segment.end, segment.end + d0 * segment.radius_end, segment.end + d1 * segment.radius_end]),
+				PackedVector3Array(
+					[
+						segment.end,
+						segment.end + d0 * segment.radius_end,
+						segment.end + d1 * segment.radius_end
+					]
+				),
 				PackedVector3Array([axis, axis, axis]),
 				PackedColorArray([shade, shade, shade])
 			)
 	return st.commit()
+
+
+## All instances of one plant kind: a MultiMesh plus the data needed to clear them later.
+class Patch:
+	var multimesh_instance: MultiMeshInstance3D
+	var transforms: Array[Transform3D] = []
+	var colors: PackedColorArray = PackedColorArray()
+	## Footprint radius per instance; negative once the instance has been cleared.
+	var radii: PackedFloat32Array = PackedFloat32Array()
+
+
+## One tapered branch of a tree or log.
+class Segment:
+	var start: Vector3
+	var end: Vector3
+	var radius_start: float
+	var radius_end: float
+
+
+## A tree, log or rock: a node with its own mesh and collision, plus (trees) its leaf clusters.
+class Prop:
+	var node: Node3D
+	var position: Vector3
+	var radius: float
+	var canopy_indices: PackedInt32Array = PackedInt32Array()

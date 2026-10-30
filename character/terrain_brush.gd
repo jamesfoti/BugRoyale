@@ -1,12 +1,11 @@
-extends Node
 class_name TerrainBrush
+extends Node
 ## Raycasts terrain from screen center and applies edits. Two shapes: the SPHERE sculpts while
 ## left mouse is held; the BLOCK places or removes one grid-snapped cube per click, on the face
 ## under the crosshair, with a ghost showing where it will land. The block is block_size voxels
 ## on a side. Neither shape will add terrain that overlaps the player: terrain collision is a
 ## one-sided trimesh, so a player sealed inside new rock has nothing to stand on and falls out of
 ## the world. A blocked stamp is skipped and the preview turns grey.
-
 
 enum EditMode {
 	OFF,
@@ -31,6 +30,7 @@ const MAX_BLOCK_SIZE: int = 6
 ## A ray hitting a block lands a hair outside its face; this much slack (fraction of a voxel)
 ## snaps such hits to that face rather than the next plane out.
 const BLOCK_SNAP_SLACK: float = 0.1
+
 @export var edit_distance: float = 20.0
 @export var brush_radius: float = 1.5
 ## Seconds between brush stamps while holding LMB.
@@ -40,8 +40,6 @@ const BLOCK_SNAP_SLACK: float = 0.1
 @export var shape: Shape = Shape.SPHERE
 ## Voxels per side of the block the BLOCK shape places or removes.
 @export_range(1, 6) var block_size: int = 2
-
-@onready var _cursor: TerrainEditCursor = $TerrainEditCursor
 
 var _terrain: ChunkedTerrainWorld
 var _mode: EditMode = EditMode.OFF
@@ -63,6 +61,8 @@ var _blocked_color: Color = Color(0.6, 0.6, 0.6)
 ## True while the previewed ADD stamp would bury a fighter (the terrain refuses such edits), so
 ## the click is skipped and the preview greys.
 var _blocked: bool = false
+
+@onready var _cursor: TerrainEditCursor = $TerrainEditCursor
 
 
 func _ready() -> void:
@@ -182,7 +182,7 @@ func _process_paint_input(delta: float) -> void:
 		_apply_brush()
 		_stroke_cooldown = stroke_interval
 		return
-	elif not wants_paint:
+	if not wants_paint:
 		if _is_painting:
 			_is_painting = false
 			_stroke_cooldown = 0.0
@@ -221,7 +221,9 @@ func _apply_block() -> void:
 
 ## The sphere stamp the next stroke would apply, as the terrain's edit dictionary.
 func _sphere_edit() -> Dictionary:
-	return ChunkedTerrainWorld.sphere_edit(_hover_hit.position, brush_radius, _mode == EditMode.ADD, add_material)
+	return ChunkedTerrainWorld.sphere_edit(
+		_hover_hit.position, brush_radius, _mode == EditMode.ADD, add_material
+	)
 
 
 ## The block the next click would place or remove, as the terrain's edit dictionary.
@@ -233,6 +235,7 @@ func _block_edit() -> Dictionary:
 
 # --- Preview --------------------------------------------------------------------------------
 
+
 func _show_preview() -> void:
 	if shape == Shape.BLOCK and _terrain != null:
 		_cursor.hide_cursor()
@@ -241,13 +244,11 @@ func _show_preview() -> void:
 		_show_ghost(_block_center, _terrain.get_voxel_size() * float(block_size))
 		return
 	_hide_ghost()
-	_blocked = _mode == EditMode.ADD and _terrain != null and _terrain.buries_fighter(_sphere_edit())
+	_blocked = (
+		_mode == EditMode.ADD and _terrain != null and _terrain.buries_fighter(_sphere_edit())
+	)
 	_cursor.show_at(
-		_hover_hit.position,
-		_hover_hit.normal,
-		_mode == EditMode.ADD,
-		add_material,
-		_blocked
+		_hover_hit.position, _hover_hit.normal, _mode == EditMode.ADD, add_material, _blocked
 	)
 
 
@@ -335,11 +336,13 @@ func _build_ghost() -> void:
 func _build_cube_outline_mesh() -> ArrayMesh:
 	var corners: PackedVector3Array = PackedVector3Array()
 	for index: int in 8:
-		corners.append(Vector3(
-			-0.5 if (index & 1) == 0 else 0.5,
-			-0.5 if (index & 2) == 0 else 0.5,
-			-0.5 if (index & 4) == 0 else 0.5
-		))
+		corners.append(
+			Vector3(
+				-0.5 if (index & 1) == 0 else 0.5,
+				-0.5 if (index & 2) == 0 else 0.5,
+				-0.5 if (index & 4) == 0 else 0.5
+			)
+		)
 	var lines: PackedVector3Array = PackedVector3Array()
 	for index: int in 8:
 		for bit: int in [1, 2, 4]:
@@ -384,6 +387,7 @@ func _hide_ghost() -> void:
 
 
 # --- Terrain lookup -------------------------------------------------------------------------
+
 
 func _cache_terrain() -> void:
 	_terrain = null
@@ -444,11 +448,16 @@ func _raycast_terrain_from_view(player: Node) -> Dictionary:
 	if player is CollisionObject3D:
 		ray_query.exclude = [(player as CollisionObject3D).get_rid()]
 
-	var space: PhysicsDirectSpaceState3D = (get_parent() as Node3D).get_world_3d().direct_space_state
+	var space: PhysicsDirectSpaceState3D = (
+		(get_parent() as Node3D).get_world_3d().direct_space_state
+	)
 	var raycast_hit: Dictionary = space.intersect_ray(ray_query)
 	if raycast_hit.is_empty():
 		return {}
-	if player is Node3D and (player as Node3D).global_position.distance_to(raycast_hit.position) > edit_distance:
+	if (
+		player is Node3D
+		and (player as Node3D).global_position.distance_to(raycast_hit.position) > edit_distance
+	):
 		return {}
 	return raycast_hit
 

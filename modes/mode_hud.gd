@@ -1,5 +1,5 @@
-extends CanvasLayer
 class_name ModeHud
+extends CanvasLayer
 ## Game mode overlay: a status line at the top, timed messages in the middle, and an end-of-match
 ## panel with Play Again / Main Menu.
 

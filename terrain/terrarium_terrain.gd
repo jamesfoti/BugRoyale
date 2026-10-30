@@ -46,10 +46,7 @@ func _get_world_log_name() -> String:
 func get_surface_height_at(world_position: Vector3) -> float:
 	var local_position: Vector3 = to_local(world_position)
 	var half_extents: Vector3 = get_world_extents() * 0.5
-	if (
-		absf(local_position.x) > half_extents.x
-		or absf(local_position.z) > half_extents.z
-	):
+	if absf(local_position.x) > half_extents.x or absf(local_position.z) > half_extents.z:
 		return global_position.y
 	var density: DensitySampler.WorldDensity = _get_bake_density()
 	if density.open_terrain_enabled:

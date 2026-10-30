@@ -1,19 +1,18 @@
-extends Node3D
 class_name ShootProjectileVisual
+extends Node3D
 ## Short-lived sphere that travels toward the shot target.
 
-
 signal arrived
-
-@export var travel_speed: float = 140.0
-
-var _target_position: Vector3 = Vector3.ZERO
-var _is_flying: bool = false
 
 ## One sphere mesh per radius and one material for every projectile, instead of a fresh mesh
 ## and material per shot (automatic weapons fire 9-12 of these a second).
 static var _shared_meshes: Dictionary = {}
 static var _shared_material: StandardMaterial3D
+
+@export var travel_speed: float = 140.0
+
+var _target_position: Vector3 = Vector3.ZERO
+var _is_flying: bool = false
 
 
 func launch(start_position: Vector3, target_position: Vector3, projectile_radius: float) -> void:

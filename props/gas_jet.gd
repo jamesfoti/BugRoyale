@@ -21,7 +21,9 @@ var _lit_for: float = 0.0
 var _burning: bool = true
 
 
-static func create(jet_direction: Vector3, jet_length: float, jet_radius: float, damage: float, burn_seconds: float) -> GasJet:
+static func create(
+	jet_direction: Vector3, jet_length: float, jet_radius: float, damage: float, burn_seconds: float
+) -> GasJet:
 	var jet := GasJet.new()
 	jet.name = "GasJet"
 	jet.direction = jet_direction.normalized()
@@ -34,7 +36,10 @@ static func create(jet_direction: Vector3, jet_length: float, jet_radius: float,
 
 func _ready() -> void:
 	# The jet runs along the node's -Z.
-	look_at(global_position + direction, Vector3.UP if absf(direction.dot(Vector3.UP)) < 0.9 else Vector3.RIGHT)
+	look_at(
+		global_position + direction,
+		Vector3.UP if absf(direction.dot(Vector3.UP)) < 0.9 else Vector3.RIGHT
+	)
 	_build_flames()
 	_build_light()
 	_build_damage_zone()
@@ -72,7 +77,10 @@ func _build_flames() -> void:
 	_particles.amount = 96
 	_particles.lifetime = 0.55
 	_particles.local_coords = true
-	_particles.visibility_aabb = AABB(Vector3(-radius * 3.0, -radius * 3.0, -length * 1.3), Vector3(radius * 6.0, radius * 6.0, length * 1.3 + radius * 3.0))
+	_particles.visibility_aabb = AABB(
+		Vector3(-radius * 3.0, -radius * 3.0, -length * 1.3),
+		Vector3(radius * 6.0, radius * 6.0, length * 1.3 + radius * 3.0)
+	)
 	var process := ParticleProcessMaterial.new()
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	process.emission_sphere_radius = radius * 0.25

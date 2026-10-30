@@ -1,5 +1,5 @@
-extends Node
 class_name ShooterTest
+extends Node
 ## Weapon fire: a projectile visual, direct and splash damage on impact, and a crater in the
 ## terrain for the explosive weapons only ("digs" in the profile: grenade launcher, rocket
 ## launcher, short cannon). Bullets, pellets and blades leave the ground alone.
@@ -12,61 +12,150 @@ const SHOOT_ACTION: StringName = &"shoot"
 const ShootProjectileVisualScene: PackedScene = preload("res://combat/shoot_projectile_visual.tscn")
 
 const WEAPON_FIRE_PROFILE: Dictionary = {
-	PlayerItems.Item.WEAPON_AK: {
-		"cooldown": 0.11, "damage": 8.0, "radius": 1.4, "projectile_speed": 180.0, "projectile_radius": 0.1,
-		"spread": 1.4, "bloom": 0.35, "auto": true,
+	PlayerItems.Item.WEAPON_AK:
+	{
+		"cooldown": 0.11,
+		"damage": 8.0,
+		"radius": 1.4,
+		"projectile_speed": 180.0,
+		"projectile_radius": 0.1,
+		"spread": 1.4,
+		"bloom": 0.35,
+		"auto": true,
 	},
-	PlayerItems.Item.WEAPON_GRENADE_LAUNCHER: {
-		"cooldown": 0.65, "damage": 20.0, "radius": 3.8, "projectile_speed": 70.0, "projectile_radius": 0.22,
-		"spread": 1.5, "bloom": 0.8, "digs": true,
+	PlayerItems.Item.WEAPON_GRENADE_LAUNCHER:
+	{
+		"cooldown": 0.65,
+		"damage": 20.0,
+		"radius": 3.8,
+		"projectile_speed": 70.0,
+		"projectile_radius": 0.22,
+		"spread": 1.5,
+		"bloom": 0.8,
+		"digs": true,
 	},
-	PlayerItems.Item.WEAPON_KNIFE_1: {
-		"cooldown": 0.25, "damage": 4.0, "radius": 0.8, "projectile_speed": 120.0, "projectile_radius": 0.08,
-		"spread": 0.0, "bloom": 0.0,
+	PlayerItems.Item.WEAPON_KNIFE_1:
+	{
+		"cooldown": 0.25,
+		"damage": 4.0,
+		"radius": 0.8,
+		"projectile_speed": 120.0,
+		"projectile_radius": 0.08,
+		"spread": 0.0,
+		"bloom": 0.0,
 	},
-	PlayerItems.Item.WEAPON_KNIFE_2: {
-		"cooldown": 0.25, "damage": 4.0, "radius": 0.8, "projectile_speed": 120.0, "projectile_radius": 0.08,
-		"spread": 0.0, "bloom": 0.0,
+	PlayerItems.Item.WEAPON_KNIFE_2:
+	{
+		"cooldown": 0.25,
+		"damage": 4.0,
+		"radius": 0.8,
+		"projectile_speed": 120.0,
+		"projectile_radius": 0.08,
+		"spread": 0.0,
+		"bloom": 0.0,
 	},
-	PlayerItems.Item.WEAPON_PISTOL: {
-		"cooldown": 0.2, "damage": 10.0, "radius": 1.1, "projectile_speed": 165.0, "projectile_radius": 0.09,
-		"spread": 1.1, "bloom": 0.5,
+	PlayerItems.Item.WEAPON_PISTOL:
+	{
+		"cooldown": 0.2,
+		"damage": 10.0,
+		"radius": 1.1,
+		"projectile_speed": 165.0,
+		"projectile_radius": 0.09,
+		"spread": 1.1,
+		"bloom": 0.5,
 	},
-	PlayerItems.Item.WEAPON_REVOLVER: {
-		"cooldown": 0.3, "damage": 14.0, "radius": 1.6, "projectile_speed": 155.0, "projectile_radius": 0.1,
-		"spread": 0.9, "bloom": 0.9,
+	PlayerItems.Item.WEAPON_REVOLVER:
+	{
+		"cooldown": 0.3,
+		"damage": 14.0,
+		"radius": 1.6,
+		"projectile_speed": 155.0,
+		"projectile_radius": 0.1,
+		"spread": 0.9,
+		"bloom": 0.9,
 	},
-	PlayerItems.Item.WEAPON_REVOLVER_SMALL: {
-		"cooldown": 0.26, "damage": 11.0, "radius": 1.3, "projectile_speed": 160.0, "projectile_radius": 0.09,
-		"spread": 1.2, "bloom": 0.6,
+	PlayerItems.Item.WEAPON_REVOLVER_SMALL:
+	{
+		"cooldown": 0.26,
+		"damage": 11.0,
+		"radius": 1.3,
+		"projectile_speed": 160.0,
+		"projectile_radius": 0.09,
+		"spread": 1.2,
+		"bloom": 0.6,
 	},
-	PlayerItems.Item.WEAPON_ROCKET_LAUNCHER: {
-		"cooldown": 0.9, "damage": 28.0, "radius": 4.6, "projectile_speed": 55.0, "projectile_radius": 0.28,
-		"spread": 0.8, "bloom": 1.0, "digs": true,
+	PlayerItems.Item.WEAPON_ROCKET_LAUNCHER:
+	{
+		"cooldown": 0.9,
+		"damage": 28.0,
+		"radius": 4.6,
+		"projectile_speed": 55.0,
+		"projectile_radius": 0.28,
+		"spread": 0.8,
+		"bloom": 1.0,
+		"digs": true,
 	},
-	PlayerItems.Item.WEAPON_SHORT_CANNON: {
-		"cooldown": 0.75, "damage": 24.0, "radius": 3.4, "projectile_speed": 65.0, "projectile_radius": 0.24,
-		"spread": 2.0, "bloom": 1.2, "digs": true,
+	PlayerItems.Item.WEAPON_SHORT_CANNON:
+	{
+		"cooldown": 0.75,
+		"damage": 24.0,
+		"radius": 3.4,
+		"projectile_speed": 65.0,
+		"projectile_radius": 0.24,
+		"spread": 2.0,
+		"bloom": 1.2,
+		"digs": true,
 	},
-	PlayerItems.Item.WEAPON_SHOTGUN: {
-		"cooldown": 0.45, "damage": 16.0, "radius": 2.3, "projectile_speed": 145.0, "projectile_radius": 0.12,
-		"spread": 4.5, "bloom": 1.5,
+	PlayerItems.Item.WEAPON_SHOTGUN:
+	{
+		"cooldown": 0.45,
+		"damage": 16.0,
+		"radius": 2.3,
+		"projectile_speed": 145.0,
+		"projectile_radius": 0.12,
+		"spread": 4.5,
+		"bloom": 1.5,
 	},
-	PlayerItems.Item.WEAPON_SHOVEL: {
-		"cooldown": 0.35, "damage": 6.0, "radius": 1.0, "projectile_speed": 95.0, "projectile_radius": 0.1,
-		"spread": 0.0, "bloom": 0.0,
+	PlayerItems.Item.WEAPON_SHOVEL:
+	{
+		"cooldown": 0.35,
+		"damage": 6.0,
+		"radius": 1.0,
+		"projectile_speed": 95.0,
+		"projectile_radius": 0.1,
+		"spread": 0.0,
+		"bloom": 0.0,
 	},
-	PlayerItems.Item.WEAPON_SMG: {
-		"cooldown": 0.08, "damage": 6.0, "radius": 1.0, "projectile_speed": 190.0, "projectile_radius": 0.08,
-		"spread": 2.2, "bloom": 0.3, "auto": true,
+	PlayerItems.Item.WEAPON_SMG:
+	{
+		"cooldown": 0.08,
+		"damage": 6.0,
+		"radius": 1.0,
+		"projectile_speed": 190.0,
+		"projectile_radius": 0.08,
+		"spread": 2.2,
+		"bloom": 0.3,
+		"auto": true,
 	},
-	PlayerItems.Item.WEAPON_SNIPER: {
-		"cooldown": 0.55, "damage": 22.0, "radius": 2.0, "projectile_speed": 220.0, "projectile_radius": 0.11,
-		"spread": 3.0, "bloom": 1.5,
+	PlayerItems.Item.WEAPON_SNIPER:
+	{
+		"cooldown": 0.55,
+		"damage": 22.0,
+		"radius": 2.0,
+		"projectile_speed": 220.0,
+		"projectile_radius": 0.11,
+		"spread": 3.0,
+		"bloom": 1.5,
 	},
-	PlayerItems.Item.WEAPON_SNIPER_2: {
-		"cooldown": 0.6, "damage": 24.0, "radius": 2.2, "projectile_speed": 225.0, "projectile_radius": 0.11,
-		"spread": 3.0, "bloom": 1.5,
+	PlayerItems.Item.WEAPON_SNIPER_2:
+	{
+		"cooldown": 0.6,
+		"damage": 24.0,
+		"radius": 2.2,
+		"projectile_speed": 225.0,
+		"projectile_radius": 0.11,
+		"spread": 3.0,
+		"bloom": 1.5,
 	},
 }
 
@@ -110,8 +199,10 @@ var _bloom_degrees: float = 0.0
 func _ready() -> void:
 	if not InputMap.has_action(SHOOT_ACTION):
 		push_error(
-			"Missing InputMap action '%s'. Add it under Project > Project Settings > Input Map."
-			% SHOOT_ACTION
+			(
+				"Missing InputMap action '%s'. Add it under Project > Project Settings > Input Map."
+				% SHOOT_ACTION
+			)
 		)
 	_camera = get_node_or_null(camera_path) as Camera3D
 
@@ -221,7 +312,7 @@ func _get_muzzle_position(fallback: Vector3) -> Vector3:
 func _try_shoot() -> void:
 	if _cooldown_left_seconds > 0.0:
 		return
-	var equipped_weapon_item = _get_equipped_weapon_item()
+	var equipped_weapon_item: PlayerItems.Item = _get_equipped_weapon_item()
 	if not PlayerItems.is_weapon(equipped_weapon_item):
 		return
 
@@ -244,8 +335,7 @@ func _try_shoot() -> void:
 	_bloom_degrees = minf(_bloom_degrees + float(fire_profile.get("bloom", 0.5)), max_bloom_degrees)
 
 	var ray_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-		ray_origin,
-		ray_origin + ray_direction * max_shoot_distance
+		ray_origin, ray_origin + ray_direction * max_shoot_distance
 	)
 	var shooter_body: CollisionObject3D = get_parent() as CollisionObject3D
 	if shooter_body != null:
@@ -341,10 +431,7 @@ func _apply_damage_at_hit(raycast_hit: Dictionary, hit_damage: float) -> Damagea
 ## full at the center to splash_edge_damage_fraction at the edge. Skips the direct hit (already
 ## damaged) and the shooter's own player.
 func _apply_splash_damage(
-	explosion_position: Vector3,
-	explosion_radius: float,
-	hit_damage: float,
-	direct_hit: Damageable
+	explosion_position: Vector3, explosion_radius: float, hit_damage: float, direct_hit: Damageable
 ) -> void:
 	if explosion_radius <= 0.0:
 		return
@@ -378,7 +465,9 @@ func _spawn_explosion_effect(hit_position: Vector3, explosion_radius: float) -> 
 
 
 func _resolve_terrain_world() -> ChunkedTerrainWorld:
-	var terrain_world: ChunkedTerrainWorld = get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
+	var terrain_world: ChunkedTerrainWorld = (
+		get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
+	)
 	if terrain_world != null:
 		return terrain_world
 	terrain_world = get_tree().get_first_node_in_group("open_terrain") as ChunkedTerrainWorld
@@ -412,7 +501,10 @@ func _can_accept_shoot_input() -> bool:
 		return true
 	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
 		return false
-	if player_node.has_method("is_terrain_focus_active") and player_node.call("is_terrain_focus_active"):
+	if (
+		player_node.has_method("is_terrain_focus_active")
+		and player_node.call("is_terrain_focus_active")
+	):
 		return false
 	if player_node.has_method("_is_item_menu_open") and player_node.call("_is_item_menu_open"):
 		return false
@@ -423,15 +515,18 @@ func _update_skin_shooting_state() -> void:
 	var skin_node: Node = _get_skin_node()
 	if skin_node == null or not skin_node.has_method("set_shooting"):
 		return
-	var is_shooting: bool = _shoot_visual_timer_seconds > 0.0 and PlayerItems.is_weapon(_get_equipped_weapon_item())
+	var is_shooting: bool = (
+		_shoot_visual_timer_seconds > 0.0 and PlayerItems.is_weapon(_get_equipped_weapon_item())
+	)
 	skin_node.call("set_shooting", is_shooting)
 
 
-func _get_equipped_weapon_item():
+func _get_equipped_weapon_item() -> PlayerItems.Item:
 	var skin_node: Node = _get_skin_node()
 	if skin_node == null or not skin_node.has_method("get_equipped_weapon_item"):
 		return PlayerItems.Item.NONE
-	return skin_node.call("get_equipped_weapon_item")
+	var item: PlayerItems.Item = skin_node.call("get_equipped_weapon_item")
+	return item
 
 
 func _get_skin_node() -> Node:

@@ -1,7 +1,6 @@
-extends MeshInstance3D
 class_name SunCorona
+extends MeshInstance3D
 ## Billboard glow and ray burst drawn in front of the sun mesh.
-
 
 @export var radius_multiplier: float = 3.2
 @export var billboard_enabled: bool = true

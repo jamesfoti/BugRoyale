@@ -2,7 +2,6 @@ class_name InteriorRoomFurniture
 extends RefCounted
 ## Places simple box furniture for a single interior room.
 
-
 enum FurnitureType {
 	COUCH,
 	ARMCHAIR,
@@ -25,16 +24,7 @@ enum FurnitureType {
 }
 
 
-class Placement:
-	var furniture_type: FurnitureType = FurnitureType.CHAIR
-	var position: Vector3 = Vector3.ZERO
-	var rotation_y: float = 0.0
-
-
-static func place_for_layout(
-	layout: InteriorRoomLayout.Layout,
-	seed: int
-) -> Array[Placement]:
+static func place_for_layout(layout: InteriorRoomLayout.Layout, seed: int) -> Array[Placement]:
 	var placements: Array[Placement] = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed + 9137
@@ -80,11 +70,6 @@ static func get_footprint(furniture_type: FurnitureType) -> Vector3:
 			return Vector3(0.8, 1.0, 0.8)
 
 
-class SurfaceInfo:
-	var top_surface_y: float = 0.0
-	var footprint: Vector2 = Vector2.ONE
-
-
 static func get_surface_info(furniture_type: FurnitureType) -> SurfaceInfo:
 	var info := SurfaceInfo.new()
 	match furniture_type:
@@ -115,7 +100,9 @@ static func is_terrarium_surface(furniture_type: FurnitureType) -> bool:
 	return get_surface_info(furniture_type).top_surface_y >= 0.0
 
 
-static func get_preferred_terrarium_surfaces(room_type: InteriorRoomLayout.RoomType) -> Array[FurnitureType]:
+static func get_preferred_terrarium_surfaces(
+	room_type: InteriorRoomLayout.RoomType
+) -> Array[FurnitureType]:
 	match room_type:
 		InteriorRoomLayout.RoomType.LIVING_ROOM:
 			return [FurnitureType.COFFEE_TABLE, FurnitureType.TV_STAND]
@@ -131,10 +118,7 @@ static func get_preferred_terrarium_surfaces(room_type: InteriorRoomLayout.RoomT
 			return []
 
 
-static func get_scaled_footprint(
-	placement: Placement,
-	furniture_scale: float = 1.0
-) -> Vector3:
+static func get_scaled_footprint(placement: Placement, furniture_scale: float = 1.0) -> Vector3:
 	var footprint: Vector3 = get_footprint(placement.furniture_type)
 	if placement.furniture_type == InteriorRoomFurniture.FurnitureType.FLOOR_LAMP:
 		footprint = Vector3(0.35, 0.1, 0.35)
@@ -144,8 +128,7 @@ static func get_scaled_footprint(
 
 
 static func get_scaled_surface_footprint(
-	placement: Placement,
-	furniture_scale: float = 1.0
+	placement: Placement, furniture_scale: float = 1.0
 ) -> Vector2:
 	var info: SurfaceInfo = get_surface_info(placement.furniture_type)
 	if info.top_surface_y < 0.0:
@@ -184,43 +167,85 @@ static func _add(
 
 
 static func _place_living_room(
-	placements: Array[Placement],
-	layout: InteriorRoomLayout.Layout,
-	rng: RandomNumberGenerator
+	placements: Array[Placement], layout: InteriorRoomLayout.Layout, rng: RandomNumberGenerator
 ) -> void:
 	var half: Vector3 = _half(layout)
 	var yaw: float = PI if rng.randf() > 0.5 else 0.0
 	_add(placements, layout, FurnitureType.COUCH, Vector3(0.0, 0.0, half.z * 0.55), yaw)
-	_add(placements, layout, FurnitureType.ARMCHAIR, Vector3(-half.x * 0.45, 0.0, half.z * 0.1), yaw + PI * 0.5)
-	_add(placements, layout, FurnitureType.ARMCHAIR, Vector3(half.x * 0.45, 0.0, half.z * 0.1), yaw - PI * 0.5)
+	_add(
+		placements,
+		layout,
+		FurnitureType.ARMCHAIR,
+		Vector3(-half.x * 0.45, 0.0, half.z * 0.1),
+		yaw + PI * 0.5
+	)
+	_add(
+		placements,
+		layout,
+		FurnitureType.ARMCHAIR,
+		Vector3(half.x * 0.45, 0.0, half.z * 0.1),
+		yaw - PI * 0.5
+	)
 	_add(placements, layout, FurnitureType.COFFEE_TABLE, Vector3.ZERO, yaw)
 	_add(placements, layout, FurnitureType.RUG, Vector3(0.0, 0.0, 0.15), yaw)
 	_add(placements, layout, FurnitureType.TV_STAND, Vector3(0.0, 0.0, -half.z * 0.6), yaw + PI)
-	_add(placements, layout, FurnitureType.FLOOR_LAMP, Vector3(half.x * 0.65, 0.0, -half.z * 0.35), 0.0)
+	_add(
+		placements,
+		layout,
+		FurnitureType.FLOOR_LAMP,
+		Vector3(half.x * 0.65, 0.0, -half.z * 0.35),
+		0.0
+	)
 
 
 static func _place_bedroom(
-	placements: Array[Placement],
-	layout: InteriorRoomLayout.Layout,
-	rng: RandomNumberGenerator
+	placements: Array[Placement], layout: InteriorRoomLayout.Layout, rng: RandomNumberGenerator
 ) -> void:
 	var half: Vector3 = _half(layout)
 	var yaw: float = PI if rng.randf() > 0.5 else 0.0
 	_add(placements, layout, FurnitureType.BED, Vector3(-half.x * 0.2, 0.0, half.z * 0.35), yaw)
-	_add(placements, layout, FurnitureType.DRESSER, Vector3(half.x * 0.55, 0.0, -half.z * 0.45), yaw + PI)
-	_add(placements, layout, FurnitureType.DESK, Vector3(-half.x * 0.45, 0.0, -half.z * 0.35), yaw + PI * 0.5)
-	_add(placements, layout, FurnitureType.DESK_CHAIR, Vector3(-half.x * 0.25, 0.0, -half.z * 0.35), yaw - PI * 0.5)
+	_add(
+		placements,
+		layout,
+		FurnitureType.DRESSER,
+		Vector3(half.x * 0.55, 0.0, -half.z * 0.45),
+		yaw + PI
+	)
+	_add(
+		placements,
+		layout,
+		FurnitureType.DESK,
+		Vector3(-half.x * 0.45, 0.0, -half.z * 0.35),
+		yaw + PI * 0.5
+	)
+	_add(
+		placements,
+		layout,
+		FurnitureType.DESK_CHAIR,
+		Vector3(-half.x * 0.25, 0.0, -half.z * 0.35),
+		yaw - PI * 0.5
+	)
 
 
 static func _place_kitchen(placements: Array[Placement], layout: InteriorRoomLayout.Layout) -> void:
 	var half: Vector3 = _half(layout)
-	_add(placements, layout, FurnitureType.COUNTER, Vector3(-half.x * 0.15, 0.0, -half.z * 0.45), 0.0)
-	_add(placements, layout, FurnitureType.COUNTER, Vector3(half.x * 0.45, 0.0, -half.z * 0.15), PI * 0.5)
+	_add(
+		placements, layout, FurnitureType.COUNTER, Vector3(-half.x * 0.15, 0.0, -half.z * 0.45), 0.0
+	)
+	_add(
+		placements,
+		layout,
+		FurnitureType.COUNTER,
+		Vector3(half.x * 0.45, 0.0, -half.z * 0.15),
+		PI * 0.5
+	)
 	_add(placements, layout, FurnitureType.ISLAND, Vector3(0.0, 0.0, 0.1), 0.0)
 	_add(placements, layout, FurnitureType.CHAIR, Vector3(0.0, 0.0, half.z * 0.35), PI)
 
 
-static func _place_dining_room(placements: Array[Placement], layout: InteriorRoomLayout.Layout) -> void:
+static func _place_dining_room(
+	placements: Array[Placement], layout: InteriorRoomLayout.Layout
+) -> void:
 	var half: Vector3 = _half(layout)
 	_add(placements, layout, FurnitureType.DINING_TABLE, Vector3.ZERO, 0.0)
 	_add(placements, layout, FurnitureType.CHAIR, Vector3(0.0, 0.0, half.z * 0.35), 0.0)
@@ -229,7 +254,9 @@ static func _place_dining_room(placements: Array[Placement], layout: InteriorRoo
 	_add(placements, layout, FurnitureType.CHAIR, Vector3(-half.x * 0.35, 0.0, 0.0), PI * 0.5)
 
 
-static func _place_bathroom(placements: Array[Placement], layout: InteriorRoomLayout.Layout) -> void:
+static func _place_bathroom(
+	placements: Array[Placement], layout: InteriorRoomLayout.Layout
+) -> void:
 	var half: Vector3 = _half(layout)
 	_add(placements, layout, FurnitureType.TOILET, Vector3(half.x * 0.35, 0.0, half.z * 0.35), PI)
 	_add(placements, layout, FurnitureType.SINK, Vector3(-half.x * 0.35, 0.0, half.z * 0.35), 0.0)
@@ -240,5 +267,28 @@ static func _place_office(placements: Array[Placement], layout: InteriorRoomLayo
 	var half: Vector3 = _half(layout)
 	_add(placements, layout, FurnitureType.DESK, Vector3(0.0, 0.0, -half.z * 0.15), 0.0)
 	_add(placements, layout, FurnitureType.DESK_CHAIR, Vector3(0.0, 0.0, half.z * 0.2), PI)
-	_add(placements, layout, FurnitureType.BOOKSHELF, Vector3(half.x * 0.55, 0.0, -half.z * 0.35), -PI * 0.5)
-	_add(placements, layout, FurnitureType.FLOOR_LAMP, Vector3(-half.x * 0.55, 0.0, half.z * 0.35), 0.0)
+	_add(
+		placements,
+		layout,
+		FurnitureType.BOOKSHELF,
+		Vector3(half.x * 0.55, 0.0, -half.z * 0.35),
+		-PI * 0.5
+	)
+	_add(
+		placements,
+		layout,
+		FurnitureType.FLOOR_LAMP,
+		Vector3(-half.x * 0.55, 0.0, half.z * 0.35),
+		0.0
+	)
+
+
+class Placement:
+	var furniture_type: FurnitureType = FurnitureType.CHAIR
+	var position: Vector3 = Vector3.ZERO
+	var rotation_y: float = 0.0
+
+
+class SurfaceInfo:
+	var top_surface_y: float = 0.0
+	var footprint: Vector2 = Vector2.ONE

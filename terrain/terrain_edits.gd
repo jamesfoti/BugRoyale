@@ -3,9 +3,9 @@ extends RefCounted
 ## Baked voxel density overrides. Negative density = solid. Voxels built from a placed material
 ## (see TerrainMaterials) also remember which one, so the mesher can colour them.
 
-
 var _voxel_size: float = 1.0
-## World position of voxel key (0, 0, 0): the sample lattice of the terrain, so keys land on samples.
+## World position of voxel key (0, 0, 0): the sample lattice of the terrain, so keys land on
+## samples.
 var _grid_origin: Vector3 = Vector3.ZERO
 var _overrides: Dictionary = {}
 ## Voxel key -> TerrainMaterials.Kind for voxels built from a placed material; absent = natural.
@@ -46,7 +46,9 @@ func add_brush(
 	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
 ) -> bool:
 	var brush_radius: float = maxf(radius, 0.1)
-	return _stamp(world_position, Vector3.ONE * brush_radius, false, add_solid, procedural_density, material)
+	return _stamp(
+		world_position, Vector3.ONE * brush_radius, false, add_solid, procedural_density, material
+	)
 
 
 ## Carves (or fills) an axis-aligned box: the block tool. Same rules as add_brush. A box whose
@@ -59,7 +61,14 @@ func add_box(
 	procedural_density: Callable,
 	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
 ) -> bool:
-	return _stamp(center, half_extents.abs().max(Vector3.ONE * 0.1), true, add_solid, procedural_density, material)
+	return _stamp(
+		center,
+		half_extents.abs().max(Vector3.ONE * 0.1),
+		true,
+		add_solid,
+		procedural_density,
+		material
+	)
 
 
 ## Shared stamp: half_extents is the sphere radius on every axis, or the half size of the box.

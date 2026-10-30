@@ -1,5 +1,5 @@
-extends FighterBody
 class_name GroundPlayer
+extends FighterBody
 ## Shared third-person bug controller for flat worlds (open, boxed-in and terrarium terrain).
 ## View-relative movement. Walking is always upright (steep slopes act as walls); holding forward
 ## into a steep wall for a moment (or pressing Climb) grabs it: the body's up becomes the surface
@@ -13,6 +13,8 @@ const _SPAWN_ATTEMPTS: int = 12
 const _SPAWN_RAY_HEIGHT: float = 80.0
 ## Height of the collision capsule's center above the feet.
 const _BODY_CENTER_HEIGHT: float = 0.6
+## Pushing but going nowhere for this long means wedged; the bug gets shoved free.
+const _STUCK_SECONDS: float = 0.75
 
 @export var terrain: Node3D
 @export var speed: float = 5.0
@@ -51,7 +53,8 @@ const _BODY_CENTER_HEIGHT: float = 0.6
 @export var fly_run_speed: float = 11.0
 @export var fly_vertical_speed: float = 5.0
 
-@onready var _orbit_camera: OrbitCamera = get_node_or_null("OrbitCamera") as OrbitCamera
+## Cordyceps Royale: an infected bug reels. 0 = steady, 1 = staggering drunkenly off course.
+var control_wobble: float = 0.0
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _visual_rest_basis: Basis = Basis.IDENTITY
@@ -62,12 +65,10 @@ var _detached_time: float = 0.0
 var _last_move_direction: Vector3 = Vector3.ZERO
 var _flying: bool = false
 var _wall_push_time: float = 0.0
-## Cordyceps Royale: an infected bug reels. 0 = steady, 1 = staggering drunkenly off course.
-var control_wobble: float = 0.0
-## Pushing but going nowhere for this long means wedged; the bug gets shoved free.
-const _STUCK_SECONDS: float = 0.75
 var _stuck_time: float = 0.0
 var _last_position: Vector3 = Vector3.INF
+
+@onready var _orbit_camera: OrbitCamera = get_node_or_null("OrbitCamera") as OrbitCamera
 
 
 func is_climbing() -> bool:
@@ -145,6 +146,7 @@ func _finish_physics_step(delta: float) -> void:
 
 
 # --- Surface tracking (climbing) -------------------------------------------------------------
+
 
 func _update_surface(delta: float, movement_direction: Vector3) -> void:
 	if not _climbing:
@@ -252,7 +254,9 @@ func _sample_surface_normal(contact_normal: Vector3) -> Vector3:
 		var hit: Dictionary = _cast(from, from - up * (_BODY_CENTER_HEIGHT + 0.6))
 		if not hit.is_empty():
 			normal_sum += hit.normal
-	return normal_sum.normalized() if normal_sum.length_squared() > _MIN_DIR_LEN_SQ else contact_normal
+	return (
+		normal_sum.normalized() if normal_sum.length_squared() > _MIN_DIR_LEN_SQ else contact_normal
+	)
 
 
 ## Normal of a steep surface the bug is pushing into (Vector3.ZERO if none).
@@ -276,7 +280,11 @@ func _probe_surface(movement_direction: Vector3) -> Dictionary:
 	if not hit.is_empty():
 		return hit
 	# Ledge wrap: from just past the old surface plane, look back the way we came.
-	var travel: Vector3 = movement_direction if movement_direction.length_squared() > _MIN_DIR_LEN_SQ else _last_move_direction
+	var travel: Vector3 = (
+		movement_direction
+		if movement_direction.length_squared() > _MIN_DIR_LEN_SQ
+		else _last_move_direction
+	)
 	if travel.length_squared() < _MIN_DIR_LEN_SQ:
 		return {}
 	var past_edge: Vector3 = center - _surface_up * (_BODY_CENTER_HEIGHT + 0.25)
@@ -294,7 +302,9 @@ func _cast(from: Vector3, to: Vector3) -> Dictionary:
 ## pushes but goes nowhere. After a moment it lets go of any climb and gets a nudge out along
 ## whatever it is pressed against, plus a small hop, so no pinch holds it for good.
 func _watch_for_stuck(delta: float, movement_direction: Vector3) -> void:
-	var moved: float = global_position.distance_to(_last_position) if _last_position != Vector3.INF else INF
+	var moved: float = (
+		global_position.distance_to(_last_position) if _last_position != Vector3.INF else INF
+	)
 	_last_position = global_position
 	var pushing: bool = movement_direction.length_squared() > _MIN_DIR_LEN_SQ and not _flying
 	if not pushing or moved > 0.3 * delta or get_slide_collision_count() == 0:
@@ -331,7 +341,9 @@ func _align_body_to_surface(delta: float) -> void:
 		return
 	# Shortest rotation from the body's up to the surface up keeps the facing (and camera) stable.
 	var full_turn: Quaternion = Quaternion(current_up, _surface_up.normalized())
-	var step: Quaternion = Quaternion.IDENTITY.slerp(full_turn, minf(1.0, surface_align_speed * delta))
+	var step: Quaternion = Quaternion.IDENTITY.slerp(
+		full_turn, minf(1.0, surface_align_speed * delta)
+	)
 	global_basis = (Basis(step) * global_basis).orthonormalized()
 
 
@@ -352,6 +364,7 @@ static func _angle_degrees(a: Vector3, b: Vector3) -> float:
 
 
 # --- Movement ---------------------------------------------------------------------------------
+
 
 func _apply_movement(delta: float, movement_direction: Vector3) -> void:
 	var running: bool = _intent.run
@@ -409,6 +422,7 @@ func _apply_idle_physics(delta: float) -> void:
 
 # --- Flight -----------------------------------------------------------------------------------
 
+
 func _start_flight() -> void:
 	_flying = true
 	_climbing = false
@@ -431,6 +445,7 @@ func _apply_flight(_delta: float, movement_direction: Vector3) -> void:
 
 
 # --- Directions -------------------------------------------------------------------------------
+
 
 ## Where the bug's model faces. VisualRoot carries a rest rotation (the skins face +Z, so the
 ## scenes turn the root 180 degrees); undo it first, or this returns the direction behind the bug
@@ -460,7 +475,9 @@ func _get_movement_direction() -> Vector3:
 	if control_wobble > 0.0:
 		# The fungus has the legs: the heading sways with two overlapping rhythms.
 		var seconds: float = Time.get_ticks_msec() * 0.001
-		var reel: float = (sin(seconds * 2.9) * 0.7 + sin(seconds * 7.3) * 0.3) * control_wobble * 1.1
+		var reel: float = (
+			(sin(seconds * 2.9) * 0.7 + sin(seconds * 7.3) * 0.3) * control_wobble * 1.1
+		)
 		direction = direction.rotated(_surface_up.normalized(), reel)
 	return direction.normalized()
 
@@ -472,7 +489,9 @@ func _align_visual_to_facing(delta: float, facing_direction: Vector3) -> void:
 	var local_facing: Vector3 = (global_basis.inverse() * facing_direction).slide(Vector3.UP)
 	if local_facing.length_squared() < _MIN_DIR_LEN_SQ:
 		return
-	var target_basis: Basis = Basis.looking_at(local_facing.normalized(), Vector3.UP).orthonormalized()
+	var target_basis: Basis = (
+		Basis.looking_at(local_facing.normalized(), Vector3.UP).orthonormalized()
+	)
 	var alignment_blend: float = minf(1.0, 10.0 * delta)
 	var current_rotation: Quaternion = _visual_root.basis.get_rotation_quaternion()
 	var target_rotation: Quaternion = (target_basis * _visual_rest_basis).get_rotation_quaternion()
@@ -486,6 +505,7 @@ func _is_camera_orbiting() -> bool:
 
 
 # --- Terrain and spawning (subclasses override the terrain-specific parts) -------------------
+
 
 func _cache_terrain_refs() -> void:
 	pass
@@ -504,13 +524,18 @@ func _is_terrain_collider(collider: Variant) -> bool:
 		return true
 	# Built ground on the terrain layer (a raised bed's soil, a big mushroom's cap) counts too,
 	# or a spawn over it would fall back to the dirt height and land inside it.
-	return node is CollisionObject3D and ((node as CollisionObject3D).collision_layer & MapInfo.TERRAIN_LAYER) != 0
+	return (
+		node is CollisionObject3D
+		and ((node as CollisionObject3D).collision_layer & MapInfo.TERRAIN_LAYER) != 0
+	)
 
 
 ## Random spawn on a surface node that provides get_world_extents() and get_surface_height_at():
 ## raycasts down at a random spot, falling back to the surface height function.
 func _raycast_spawn_over(surface: Node3D) -> Dictionary:
-	var spawn_data: Dictionary = {"position": Vector3(0.0, spawn_clearance, 0.0), "from_raycast_hit": false}
+	var spawn_data: Dictionary = {
+		"position": Vector3(0.0, spawn_clearance, 0.0), "from_raycast_hit": false
+	}
 	if surface == null:
 		return spawn_data
 	var world_extents: Vector3 = surface.get_world_extents()
@@ -591,6 +616,7 @@ func _apply_spawn(spawn_data: Dictionary) -> void:
 
 
 # --- Animation --------------------------------------------------------------------------------
+
 
 func _update_animation(movement_direction: Vector3) -> void:
 	var skin: CharacterSkin = _skin

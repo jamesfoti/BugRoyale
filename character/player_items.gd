@@ -1,7 +1,6 @@
-extends RefCounted
 class_name PlayerItems
+extends RefCounted
 ## Hand-item ids and mapping to torch / terrain-edit behavior.
-
 
 enum Item {
 	NONE,
@@ -41,6 +40,16 @@ const WEAPON_ITEMS: Array[Item] = [
 	Item.WEAPON_SNIPER_2,
 ]
 
+## Weapons that aim through a scope: the zoom ladder (fields of view in degrees, widest first;
+## the scope key and the wheel step through them) and the reticle drawn over the view.
+## Everything else aims over the shoulder only.
+const WEAPON_SCOPES: Dictionary = {
+	Item.WEAPON_SNIPER: {"fovs": [18.0, 9.0], "style": "sniper"},
+	Item.WEAPON_SNIPER_2: {"fovs": [24.0, 13.0], "style": "sniper"},
+	# The AK carries a 2.5x optic: the scoped assault rifle, one step only.
+	Item.WEAPON_AK: {"fovs": [28.0], "style": "holo"},
+}
+
 
 static func item_from_edit_mode(mode: TerrainBrush.EditMode) -> Item:
 	match mode:
@@ -62,17 +71,6 @@ static func edit_mode_from_item(item: Item) -> TerrainBrush.EditMode:
 
 static func is_weapon(item: Item) -> bool:
 	return item in WEAPON_ITEMS
-
-
-## Weapons that aim through a scope: the zoom ladder (fields of view in degrees, widest first;
-## the scope key and the wheel step through them) and the reticle drawn over the view.
-## Everything else aims over the shoulder only.
-const WEAPON_SCOPES: Dictionary = {
-	Item.WEAPON_SNIPER: {"fovs": [18.0, 9.0], "style": "sniper"},
-	Item.WEAPON_SNIPER_2: {"fovs": [24.0, 13.0], "style": "sniper"},
-	# The AK carries a 2.5x optic: the scoped assault rifle, one step only.
-	Item.WEAPON_AK: {"fovs": [28.0], "style": "holo"},
-}
 
 
 ## Scoped fields of view in degrees, widest first; empty for a weapon without a scope.

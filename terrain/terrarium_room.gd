@@ -3,9 +3,11 @@ class_name TerrariumRoom
 extends Node3D
 ## Procedurally generates a furnished room with an optional glass terrarium and voxel terrain.
 
+signal content_rebuilt
+
+enum TerrariumShape { BOX, BOWL }
 
 const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.tres"
-
 
 @export_group("Room")
 @export var room_seed: int = 77:
@@ -52,11 +54,7 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.
 		_request_rebuild()
 @export var glass_box_size: Vector3 = Vector3(1.5, 1.5, 1.5):
 	set(value):
-		glass_box_size = Vector3(
-			maxf(value.x, 0.25),
-			maxf(value.y, 0.25),
-			maxf(value.z, 0.25)
-		)
+		glass_box_size = Vector3(maxf(value.x, 0.25), maxf(value.y, 0.25), maxf(value.z, 0.25))
 		_request_rebuild()
 @export_range(0.1, 8.0, 0.1, "or_greater") var ceiling_light_energy: float = 1.2:
 	set(value):
@@ -74,7 +72,6 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.
 	set(value):
 		spawn_terrarium_terrain = value
 		_request_rebuild()
-enum TerrariumShape { BOX, BOWL }
 ## A glass box, or a round fish bowl (terrain and water are clipped to the sphere).
 @export var terrarium_shape: TerrariumShape = TerrariumShape.BOX:
 	set(value):
@@ -96,7 +93,9 @@ enum TerrariumShape { BOX, BOWL }
 		_request_rebuild()
 @export_range(1.0, 64.0, 0.5, "suffix:m") var terrarium_chunk_size: float = 5.0:
 	set(value):
-		terrarium_chunk_size = clampf(value, TerrariumBudget.MIN_CHUNK_SIZE, TerrariumBudget.MAX_CHUNK_SIZE)
+		terrarium_chunk_size = clampf(
+			value, TerrariumBudget.MIN_CHUNK_SIZE, TerrariumBudget.MAX_CHUNK_SIZE
+		)
 		_request_rebuild()
 
 @export_subgroup("Terrain")
@@ -146,9 +145,12 @@ enum TerrariumShape { BOX, BOWL }
 		spawn_terrarium_water = value
 		_request_rebuild()
 ## Water depth as a fraction of terrarium height (from the bottom).
-@export_range(0.05, 0.6, 0.01) var terrarium_water_level: float = TerrariumWater.DEFAULT_WATER_LEVEL_RATIO:
+@export_range(0.05, 0.6, 0.01)
+var terrarium_water_level: float = TerrariumWater.DEFAULT_WATER_LEVEL_RATIO:
 	set(value):
-		terrarium_water_level = clampf(value, TerrariumWater.MIN_WATER_LEVEL_RATIO, TerrariumWater.MAX_WATER_LEVEL_RATIO)
+		terrarium_water_level = clampf(
+			value, TerrariumWater.MIN_WATER_LEVEL_RATIO, TerrariumWater.MAX_WATER_LEVEL_RATIO
+		)
 		_request_rebuild()
 
 @export_subgroup("Vegetation")
@@ -166,10 +168,6 @@ enum TerrariumShape { BOX, BOWL }
 @export_group("Runtime")
 @export var rebuild_on_ready: bool = true
 @export var auto_rebuild_in_editor: bool = false
-
-
-signal content_rebuilt
-
 
 var _layout: InteriorRoomLayout.Layout
 var _shell_root: Node3D
@@ -213,7 +211,10 @@ func get_bowl_center() -> Vector3:
 	if playable != null:
 		return playable.global_position
 	if _glass_box_root != null:
-		return _glass_box_root.global_position + Vector3.UP * TerrariumBudget.get_terrain_floor_offset(get_terrarium_world_size())
+		return (
+			_glass_box_root.global_position
+			+ Vector3.UP * TerrariumBudget.get_terrain_floor_offset(get_terrarium_world_size())
+		)
 	return global_position
 
 
@@ -285,10 +286,7 @@ func get_terrarium_chunks() -> Vector3i:
 
 
 func get_terrarium_grid_config() -> TerrariumBudget.GridConfig:
-	return TerrariumBudget.derive_grid_from_chunks(
-		get_terrarium_chunks(),
-		terrarium_chunk_size
-	)
+	return TerrariumBudget.derive_grid_from_chunks(get_terrarium_chunks(), terrarium_chunk_size)
 
 
 func get_terrarium_world_size() -> Vector3:
@@ -341,12 +339,7 @@ func _rebuild_content() -> void:
 	_dirty = false
 	_clear_content()
 	_layout = InteriorRoomLayout.generate(
-		room_seed,
-		room_type,
-		room_size,
-		wall_thickness,
-		room_size.y,
-		room_scale
+		room_seed, room_type, room_size, wall_thickness, room_size.y, room_scale
 	)
 	if spawn_shell:
 		_shell_root = InteriorRoomShellBuilder.build(_layout, wall_thickness * room_scale)
@@ -366,8 +359,7 @@ func _rebuild_content() -> void:
 		_register_generated_node(_furniture_root)
 		for placement: InteriorRoomFurniture.Placement in placements:
 			var furniture_body: StaticBody3D = InteriorFurnitureBuilder.build(
-				placement,
-				furniture_scale
+				placement, furniture_scale
 			)
 			_furniture_root.add_child(furniture_body)
 			_register_generated_node(furniture_body)
@@ -387,10 +379,12 @@ func _finish_rebuild() -> void:
 
 
 func _log_editor_build() -> void:
-		var terrarium_note: String = ""
-		if _terrarium_terrain != null:
-			var grid: TerrariumBudget.GridConfig = get_terrarium_grid_config()
-			terrarium_note = " terrarium=%dx%dx%d chunks @ %.1f m (%.1fx%.1fx%.1f m)" % [
+	var terrarium_note: String = ""
+	if _terrarium_terrain != null:
+		var grid: TerrariumBudget.GridConfig = get_terrarium_grid_config()
+		terrarium_note = (
+			" terrarium=%dx%dx%d chunks @ %.1f m (%.1fx%.1fx%.1f m)"
+			% [
 				grid.chunks.x,
 				grid.chunks.y,
 				grid.chunks.z,
@@ -399,10 +393,13 @@ func _log_editor_build() -> void:
 				grid.world_size.y,
 				grid.world_size.z,
 			]
-		print(
+		)
+	print(
+		(
 			"[TerrariumRoom] Built %s (editor, seed %d)%s"
 			% [get_room_type_name(), room_seed, terrarium_note]
 		)
+	)
 
 
 func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement]) -> void:
@@ -432,7 +429,9 @@ func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement
 		)
 		if spawn_result == null:
 			return
-		var result: InteriorTerrariumSpawner.SpawnResult = spawn_result as InteriorTerrariumSpawner.SpawnResult
+		var result: InteriorTerrariumSpawner.SpawnResult = (
+			spawn_result as InteriorTerrariumSpawner.SpawnResult
+		)
 		_glass_box_root = result.root
 		_terrarium_terrain = result.terrain as TerrariumTerrain
 		_terrarium_water = result.water
@@ -448,11 +447,7 @@ func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement
 			_finish_rebuild()
 		return
 
-	_glass_box_root = InteriorGlassBoxSpawner.build_if_clear(
-		_layout,
-		placements,
-		glass_box_size
-	)
+	_glass_box_root = InteriorGlassBoxSpawner.build_if_clear(_layout, placements, glass_box_size)
 	if _glass_box_root != null:
 		add_child(_glass_box_root)
 		_refresh_glass_box_visuals(_glass_box_root)
@@ -533,7 +528,10 @@ func _grow_terrarium_vegetation() -> void:
 	if not spawn_terrarium_vegetation or _glass_box_root == null:
 		return
 	var vegetation: TerrariumVegetation = TerrariumVegetation.build(
-		_terrarium_terrain, _terrarium_water, terrarium_noise_seed * 31 + room_seed, terrarium_vegetation_density
+		_terrarium_terrain,
+		_terrarium_water,
+		terrarium_noise_seed * 31 + room_seed,
+		terrarium_vegetation_density
 	)
 	if _bowl_radius > 0.0:
 		vegetation.set_bowl(get_bowl_center(), _bowl_radius)
@@ -605,8 +603,12 @@ func _migrate_legacy_terrarium_settings() -> void:
 		return
 	var legacy_width: Variant = get("terrarium_width")
 	if legacy_width is float:
-		var legacy_height: float = float(get("terrarium_height")) if get("terrarium_height") is float else 3.5
-		var legacy_depth: float = float(get("terrarium_depth")) if get("terrarium_depth") is float else 5.0
+		var legacy_height: float = (
+			float(get("terrarium_height")) if get("terrarium_height") is float else 3.5
+		)
+		var legacy_depth: float = (
+			float(get("terrarium_depth")) if get("terrarium_depth") is float else 5.0
+		)
 		_apply_legacy_world_size(Vector3(legacy_width, legacy_height, legacy_depth))
 
 

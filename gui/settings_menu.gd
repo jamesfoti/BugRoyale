@@ -8,7 +8,11 @@ enum GraphicsItem { HIGH, LOW }
 
 const _GRAPHICS_DESCRIPTIONS: Dictionary[GraphicsItem, String] = {
 	GraphicsItem.HIGH: "Full resolution, glow, ambient occlusion, and all shadows.",
-	GraphicsItem.LOW: "Half 3D resolution (upscaled), no glow or ambient occlusion, fewer shadows, simpler water and sky.",
+	GraphicsItem.LOW:
+	(
+		"Half 3D resolution (upscaled), no glow or ambient occlusion, "
+		+ "fewer shadows, simpler water and sky."
+	),
 }
 
 const _CONTROLS_LINES: Array[String] = [
@@ -31,7 +35,10 @@ const _CONTROLS_LINES: Array[String] = [
 	"Right click — Aim over the shoulder (any weapon; tap to toggle, hold to aim)",
 	"V / right stick click — Cycle zoom: shoulder, scope, closer scope, back out (scoped weapons)",
 	"Mouse wheel while scoped — Step the zoom in or out",
-	"Hold left click — Paint terrain (pickaxe equipped; pick dirt, stone, sand, clay or gravel to build with under Inventory)",
+	(
+		"Hold left click — Paint terrain "
+		+ "(pickaxe equipped; pick dirt, stone, sand, clay or gravel to build with under Inventory)"
+	),
 	"B — Brush shape: ball (sculpt by holding) or block (build by clicking); pickaxe equipped",
 	"Left click — Place or remove one grid-snapped block on the face you aim at (block shape)",
 	"[ / ] — Shrink / grow the block, 1 to 6 voxels per side (block shape)",
@@ -44,12 +51,14 @@ const _CONTROLS_LINES: Array[String] = [
 @onready var _panel: PanelContainer = $Center/Panel
 @onready var _settings_page: VBoxContainer = $Center/Panel/Margin/SettingsPage
 @onready var _controls_page: VBoxContainer = $Center/Panel/Margin/ControlsPage
-@onready var _graphics_option: OptionButton = $Center/Panel/Margin/SettingsPage/GraphicsRow/GraphicsOption
+@onready
+var _graphics_option: OptionButton = $Center/Panel/Margin/SettingsPage/GraphicsRow/GraphicsOption
 @onready var _graphics_description: Label = $Center/Panel/Margin/SettingsPage/GraphicsDescription
 @onready var _controls_button: Button = $Center/Panel/Margin/SettingsPage/ControlsButton
 @onready var _back_button: Button = $Center/Panel/Margin/SettingsPage/BackButton
 @onready var _controls_scroll: ScrollContainer = $Center/Panel/Margin/ControlsPage/ControlsScroll
-@onready var _controls_text: RichTextLabel = $Center/Panel/Margin/ControlsPage/ControlsScroll/ControlsText
+@onready
+var _controls_text: RichTextLabel = $Center/Panel/Margin/ControlsPage/ControlsScroll/ControlsText
 @onready var _controls_back_button: Button = $Center/Panel/Margin/ControlsPage/BackButton
 
 
@@ -120,7 +129,9 @@ func _fit_controls() -> void:
 	if not _controls_page.visible:
 		return
 	var available: float = get_viewport_rect().size.y - 180.0
-	_controls_scroll.custom_minimum_size.y = clampf(_controls_text.get_combined_minimum_size().y, 0.0, maxf(available, 120.0))
+	_controls_scroll.custom_minimum_size.y = clampf(
+		_controls_text.get_combined_minimum_size().y, 0.0, maxf(available, 120.0)
+	)
 
 
 func _show_controls_page() -> void:

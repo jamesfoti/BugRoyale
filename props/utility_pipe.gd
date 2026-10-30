@@ -24,28 +24,63 @@ const GAS_BURN_SECONDS: float = 20.0
 
 ## Per fluid: how the pipe and its fluid look, and how much the pool hurts.
 const FLUIDS: Dictionary = {
-	Fluid.SEWAGE: {
-		"pipe_color": Color(0.07, 0.07, 0.08), "pipe_roughness": 0.55, "stain_color": Color(0.2, 0.2, 0.16),
-		"fluid_color": Color(0.33, 0.38, 0.14), "pool_color": Color(0.27, 0.3, 0.12),
-		"crack_damage": 2.0, "burst_damage": 6.0, "health": 60.0, "bang_radius": 2.4, "steam": false,
+	Fluid.SEWAGE:
+	{
+		"pipe_color": Color(0.07, 0.07, 0.08),
+		"pipe_roughness": 0.55,
+		"stain_color": Color(0.2, 0.2, 0.16),
+		"fluid_color": Color(0.33, 0.38, 0.14),
+		"pool_color": Color(0.27, 0.3, 0.12),
+		"crack_damage": 2.0,
+		"burst_damage": 6.0,
+		"health": 60.0,
+		"bang_radius": 2.4,
+		"steam": false,
 	},
-	Fluid.HOT_WATER: {
-		"pipe_color": Color(0.72, 0.12, 0.12), "pipe_roughness": 0.65, "stain_color": Color(0.5, 0.2, 0.18),
-		"fluid_color": Color(0.85, 0.9, 0.95), "pool_color": Color(0.55, 0.65, 0.72),
-		"crack_damage": 3.0, "burst_damage": 8.0, "health": 35.0, "bang_radius": 1.1, "steam": true,
+	Fluid.HOT_WATER:
+	{
+		"pipe_color": Color(0.72, 0.12, 0.12),
+		"pipe_roughness": 0.65,
+		"stain_color": Color(0.5, 0.2, 0.18),
+		"fluid_color": Color(0.85, 0.9, 0.95),
+		"pool_color": Color(0.55, 0.65, 0.72),
+		"crack_damage": 3.0,
+		"burst_damage": 8.0,
+		"health": 35.0,
+		"bang_radius": 1.1,
+		"steam": true,
 	},
-	Fluid.COLD_WATER: {
-		"pipe_color": Color(0.14, 0.34, 0.8), "pipe_roughness": 0.65, "stain_color": Color(0.2, 0.3, 0.55),
-		"fluid_color": Color(0.4, 0.6, 0.88), "pool_color": Color(0.3, 0.45, 0.65),
-		"crack_damage": 0.0, "burst_damage": 0.0, "health": 35.0, "bang_radius": 1.1, "steam": false,
+	Fluid.COLD_WATER:
+	{
+		"pipe_color": Color(0.14, 0.34, 0.8),
+		"pipe_roughness": 0.65,
+		"stain_color": Color(0.2, 0.3, 0.55),
+		"fluid_color": Color(0.4, 0.6, 0.88),
+		"pool_color": Color(0.3, 0.45, 0.65),
+		"crack_damage": 0.0,
+		"burst_damage": 0.0,
+		"health": 35.0,
+		"bang_radius": 1.1,
+		"steam": false,
 	},
 	# Yellow gas line: a crack only hisses; a burst explodes and leaves a burning patch.
-	Fluid.GAS: {
-		"pipe_color": Color(0.95, 0.8, 0.12), "pipe_roughness": 0.5, "stain_color": Color(0.6, 0.52, 0.15),
-		"fluid_color": Color(0.85, 0.85, 0.8, 0.5), "pool_color": Color(1.0, 0.45, 0.08),
-		"crack_damage": 0.0, "burst_damage": 10.0, "health": 30.0, "bang_radius": 4.5, "steam": false,
+	Fluid.GAS:
+	{
+		"pipe_color": Color(0.95, 0.8, 0.12),
+		"pipe_roughness": 0.5,
+		"stain_color": Color(0.6, 0.52, 0.15),
+		"fluid_color": Color(0.85, 0.85, 0.8, 0.5),
+		"pool_color": Color(1.0, 0.45, 0.08),
+		"crack_damage": 0.0,
+		"burst_damage": 10.0,
+		"health": 30.0,
+		"bang_radius": 4.5,
+		"steam": false,
 	},
 }
+
+## Pipe materials shared per fluid.
+static var _pipe_materials: Dictionary = {}
 
 var fluid: Fluid = Fluid.SEWAGE
 var length: float = 8.0
@@ -64,11 +99,14 @@ var _is_burst: bool = false
 var _pool: FluidPool
 var _drip: GPUParticles3D
 
-## Pipe materials shared per fluid.
-static var _pipe_materials: Dictionary = {}
 
-
-static func create(pipe_fluid: Fluid, pipe_length: float, pipe_radius: float, ground_y: float, pipe_effect_scale: float = 1.0) -> UtilityPipe:
+static func create(
+	pipe_fluid: Fluid,
+	pipe_length: float,
+	pipe_radius: float,
+	ground_y: float,
+	pipe_effect_scale: float = 1.0
+) -> UtilityPipe:
 	var pipe := UtilityPipe.new()
 	pipe.name = "UtilityPipe"
 	pipe.fluid = pipe_fluid
@@ -158,7 +196,11 @@ func _on_died() -> void:
 	add_child(other_stub)
 	if fluid == Fluid.GAS:
 		# A flash as the leak catches, then the jet burns from the break.
-		WeaponExplosionEffect.spawn(get_tree().current_scene, global_position, config["bang_radius"] * sqrt(effect_scale) * 0.5)
+		WeaponExplosionEffect.spawn(
+			get_tree().current_scene,
+			global_position,
+			config["bang_radius"] * sqrt(effect_scale) * 0.5
+		)
 		_ignite_jet()
 		_stop_dripping()
 	else:
@@ -170,8 +212,12 @@ func _on_died() -> void:
 			var steam: GPUParticles3D = _make_steam()
 			get_parent().add_child(steam)
 			steam.global_position = global_position
-			get_tree().create_timer(DRAIN_SECONDS).timeout.connect(func() -> void: steam.emitting = false)
-		WeaponExplosionEffect.spawn(get_tree().current_scene, global_position, config["bang_radius"] * sqrt(effect_scale))
+			get_tree().create_timer(DRAIN_SECONDS).timeout.connect(
+				func() -> void: steam.emitting = false
+			)
+		WeaponExplosionEffect.spawn(
+			get_tree().current_scene, global_position, config["bang_radius"] * sqrt(effect_scale)
+		)
 		_ensure_pool(6.5 * effect_scale, config["burst_damage"], DRAIN_SECONDS)
 		get_tree().create_timer(DRAIN_SECONDS).timeout.connect(_stop_dripping)
 	burst.emit(self)
@@ -184,10 +230,14 @@ func _ignite_jet() -> void:
 	if side.length_squared() < 0.001:
 		side = axis.cross(Vector3.RIGHT)
 	side = side.normalized() * (1.0 if randf() < 0.5 else -1.0)
-	var direction: Vector3 = (side * 0.7 + Vector3.DOWN * 0.7)
+	var direction: Vector3 = side * 0.7 + Vector3.DOWN * 0.7
 	direction = (direction - axis * direction.dot(axis)).normalized()
 	var jet: GasJet = GasJet.create(
-		direction, GAS_JET_LENGTH * effect_scale, GAS_JET_RADIUS * effect_scale, GAS_JET_DAMAGE_PER_SECOND, GAS_BURN_SECONDS
+		direction,
+		GAS_JET_LENGTH * effect_scale,
+		GAS_JET_RADIUS * effect_scale,
+		GAS_JET_DAMAGE_PER_SECOND,
+		GAS_BURN_SECONDS
 	)
 	get_parent().add_child(jet)
 	jet.global_position = global_position + direction * radius
@@ -202,7 +252,9 @@ func _ensure_pool(pool_radius: float, damage: float, seconds: float) -> void:
 	if _pool != null and is_instance_valid(_pool):
 		_pool.spread(pool_radius, damage, seconds)
 		return
-	_pool = FluidPool.create(pool_radius, damage, seconds, FLUIDS[fluid]["pool_color"], fluid == Fluid.GAS)
+	_pool = FluidPool.create(
+		pool_radius, damage, seconds, FLUIDS[fluid]["pool_color"], fluid == Fluid.GAS
+	)
 	get_parent().add_child(_pool)
 	_pool.global_position = Vector3(global_position.x, dirt_y, global_position.z)
 
@@ -227,7 +279,9 @@ func _make_particles(spray: bool) -> GPUParticles3D:
 	particles.lifetime = (1.8 if spray else 1.3) * motion
 	particles.local_coords = false
 	particles.emitting = true
-	particles.visibility_aabb = AABB(Vector3.ONE * -12.0 * effect_scale, Vector3.ONE * 24.0 * effect_scale)
+	particles.visibility_aabb = AABB(
+		Vector3.ONE * -12.0 * effect_scale, Vector3.ONE * 24.0 * effect_scale
+	)
 	var process := ParticleProcessMaterial.new()
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	process.emission_sphere_radius = radius
@@ -259,7 +313,9 @@ func _make_steam() -> GPUParticles3D:
 	particles.lifetime = 2.4 * motion
 	particles.local_coords = false
 	particles.emitting = true
-	particles.visibility_aabb = AABB(Vector3.ONE * -8.0 * effect_scale, Vector3.ONE * 16.0 * effect_scale)
+	particles.visibility_aabb = AABB(
+		Vector3.ONE * -8.0 * effect_scale, Vector3.ONE * 16.0 * effect_scale
+	)
 	var process := ParticleProcessMaterial.new()
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	process.emission_sphere_radius = 0.6 * motion

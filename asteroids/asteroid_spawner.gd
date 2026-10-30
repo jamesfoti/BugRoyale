@@ -1,7 +1,6 @@
-extends Node
 class_name AsteroidSpawner
+extends Node
 ## Spawns procedural asteroids on trajectories toward playable celestial bodies.
-
 
 const AsteroidScene: PackedScene = preload("res://asteroids/asteroid.tscn")
 
@@ -45,7 +44,9 @@ func _try_spawn() -> void:
 	if celestial_bodies.is_empty():
 		return
 
-	var celestial_body: CelestialBody = celestial_bodies[randi() % celestial_bodies.size()] as CelestialBody
+	var celestial_body: CelestialBody = (
+		celestial_bodies[randi() % celestial_bodies.size()] as CelestialBody
+	)
 	if celestial_body == null:
 		return
 
@@ -60,9 +61,7 @@ func _try_spawn() -> void:
 	if tangent.length_squared() < 0.01:
 		tangent = spawn_dir.cross(Vector3.RIGHT)
 	tangent = tangent.normalized()
-	var approach: Vector3 = (
-		to_body + tangent * randf_range(-0.35, 0.35)
-	).normalized()
+	var approach: Vector3 = (to_body + tangent * randf_range(-0.35, 0.35)).normalized()
 
 	var radius: float = randf_range(min_radius, max_radius)
 	var speed: float = randf_range(min_speed, max_speed)
@@ -86,8 +85,11 @@ func _count_active_asteroids() -> int:
 
 
 func _random_unit_vector() -> Vector3:
-	return Vector3(
-		randf_range(-1.0, 1.0),
-		randf_range(-1.0, 1.0),
-		randf_range(-1.0, 1.0),
-	).normalized()
+	return (
+		Vector3(
+			randf_range(-1.0, 1.0),
+			randf_range(-1.0, 1.0),
+			randf_range(-1.0, 1.0),
+		)
+		. normalized()
+	)

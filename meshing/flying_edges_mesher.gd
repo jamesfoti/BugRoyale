@@ -4,60 +4,24 @@ extends RefCounted
 ## Samples live on a shared world grid (see DensitySampler.build_chunk_field), so vertices and
 ## normals on a chunk face are computed from identical values by both neighbouring chunks.
 
-
-class MeshResult:
-	var vertices: PackedVector3Array = PackedVector3Array()
-	var normals: PackedVector3Array = PackedVector3Array()
-	## Per vertex: the placed material on the solid side (TerrainMaterials.vertex_color, alpha 0),
-	## or plain white where the terrain shader draws its own ground.
-	var colors: PackedColorArray = PackedColorArray()
-	var indices: PackedInt32Array = PackedInt32Array()
-
-
 ## Per-edge lower corner (cell-local) and axis (0 = x, 1 = y, 2 = z), derived from
 ## FlyingEdgesTables.EDGE_CORNERS with corners 0..7 = (0,0,0) (1,0,0) (1,0,1) (0,0,1)
 ## (0,1,0) (1,1,0) (1,1,1) (0,1,1).
 const _EDGE_LOWER_CORNER: Array[Vector3i] = [
-	Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, 0),
-	Vector3i(0, 1, 0), Vector3i(1, 1, 0), Vector3i(0, 1, 1), Vector3i(0, 1, 0),
-	Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(1, 0, 1), Vector3i(0, 0, 1),
+	Vector3i(0, 0, 0),
+	Vector3i(1, 0, 0),
+	Vector3i(0, 0, 1),
+	Vector3i(0, 0, 0),
+	Vector3i(0, 1, 0),
+	Vector3i(1, 1, 0),
+	Vector3i(0, 1, 1),
+	Vector3i(0, 1, 0),
+	Vector3i(0, 0, 0),
+	Vector3i(1, 0, 0),
+	Vector3i(1, 0, 1),
+	Vector3i(0, 0, 1),
 ]
 const _EDGE_AXIS: PackedInt32Array = [0, 2, 0, 2, 0, 2, 0, 2, 1, 1, 1, 1]
-
-
-## Reads samples by local grid coordinate. Coordinates one step outside the chunk (needed for
-## central-difference normals on chunk faces) are evaluated from the density and cached.
-class _FieldReader:
-	var values: PackedFloat32Array
-	var size: Vector3i
-	var stride_y: int
-	var stride_z: int
-	var density: DensitySampler.WorldDensity
-	var grid_world_origin: Vector3
-	var grid_offset: Vector3i
-	var step: float
-	var _outside_samples: Dictionary = {}
-
-	func sample(x: int, y: int, z: int) -> float:
-		if x >= 0 and y >= 0 and z >= 0 and x < size.x and y < size.y and z < size.z:
-			return values[x + y * stride_y + z * stride_z]
-		var key: Vector3i = Vector3i(x, y, z)
-		var cached: Variant = _outside_samples.get(key)
-		if cached != null:
-			return cached as float
-		var world_pos: Vector3 = DensitySampler.grid_sample_position(
-			grid_world_origin, grid_offset + key, step
-		)
-		var value: float = density.evaluate(world_pos)
-		_outside_samples[key] = value
-		return value
-
-	func gradient(x: int, y: int, z: int) -> Vector3:
-		return Vector3(
-			sample(x + 1, y, z) - sample(x - 1, y, z),
-			sample(x, y + 1, z) - sample(x, y - 1, z),
-			sample(x, y, z + 1) - sample(x, y, z - 1)
-		)
 
 
 ## grid_world_origin + (grid_offset + local sample) * step is each sample's world position;
@@ -153,9 +117,20 @@ static func build_mesh(
 					if vertex_index < 0:
 						var lower_corner: Vector3i = Vector3i(x, y, z) + _EDGE_LOWER_CORNER[edge_id]
 						vertex_index = _create_edge_vertex(
-							values, lower_index, lower_corner, axis, stride_y, stride_z,
-							iso_level, grid_offset, world_step, center_offset, reader,
-							material_edits, grid_world_origin, result
+							values,
+							lower_index,
+							lower_corner,
+							axis,
+							stride_y,
+							stride_z,
+							iso_level,
+							grid_offset,
+							world_step,
+							center_offset,
+							reader,
+							material_edits,
+							grid_world_origin,
+							result
 						)
 						edge_vertex_index[key] = vertex_index
 					cell_edge_vertices[edge_id] = vertex_index
@@ -247,8 +222,10 @@ static func _create_edge_vertex(
 
 	if reader != null:
 		var upper_corner: Vector3i = lower_corner + axis_step
-		var gradient: Vector3 = reader.gradient(lower_corner.x, lower_corner.y, lower_corner.z).lerp(
-			reader.gradient(upper_corner.x, upper_corner.y, upper_corner.z), t
+		var gradient: Vector3 = (
+			reader
+			. gradient(lower_corner.x, lower_corner.y, lower_corner.z)
+			. lerp(reader.gradient(upper_corner.x, upper_corner.y, upper_corner.z), t)
 		)
 		if gradient.length_squared() > 0.0000000001:
 			result.normals.append(gradient.normalized())
@@ -277,3 +254,48 @@ static func _compute_face_normals(mesh_result: MeshResult) -> void:
 			mesh_result.normals[i] = n.normalized()
 		else:
 			mesh_result.normals[i] = Vector3.UP
+
+
+class MeshResult:
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	## Per vertex: the placed material on the solid side (TerrainMaterials.vertex_color, alpha 0),
+	## or plain white where the terrain shader draws its own ground.
+	var colors: PackedColorArray = PackedColorArray()
+	var indices: PackedInt32Array = PackedInt32Array()
+
+
+## Reads samples by local grid coordinate. Coordinates one step outside the chunk (needed for
+## central-difference normals on chunk faces) are evaluated from the density and cached.
+class _FieldReader:
+	var values: PackedFloat32Array
+	var size: Vector3i
+	var stride_y: int
+	var stride_z: int
+	var density: DensitySampler.WorldDensity
+	var grid_world_origin: Vector3
+	var grid_offset: Vector3i
+	var step: float
+
+	var _outside_samples: Dictionary = {}
+
+	func sample(x: int, y: int, z: int) -> float:
+		if x >= 0 and y >= 0 and z >= 0 and x < size.x and y < size.y and z < size.z:
+			return values[x + y * stride_y + z * stride_z]
+		var key: Vector3i = Vector3i(x, y, z)
+		var cached: Variant = _outside_samples.get(key)
+		if cached != null:
+			return cached as float
+		var world_pos: Vector3 = DensitySampler.grid_sample_position(
+			grid_world_origin, grid_offset + key, step
+		)
+		var value: float = density.evaluate(world_pos)
+		_outside_samples[key] = value
+		return value
+
+	func gradient(x: int, y: int, z: int) -> Vector3:
+		return Vector3(
+			sample(x + 1, y, z) - sample(x - 1, y, z),
+			sample(x, y + 1, z) - sample(x, y - 1, z),
+			sample(x, y, z + 1) - sample(x, y, z - 1)
+		)

@@ -4,7 +4,8 @@ extends CharacterSkin
 
 const TORCH_SCENE: PackedScene = preload("res://props/torch.tscn")
 const PICKAXE_SCENE: PackedScene = preload("res://props/pickaxe.tscn")
-const WEAPON_SOURCE_SCENE_PATH: String = "res://character/shooter_kit/Characters/glTF/Character_Soldier.gltf"
+const SHOOTER_KIT_DIR: String = "res://character/shooter_kit/Characters/glTF"
+const WEAPON_SOURCE_SCENE_PATH: String = SHOOTER_KIT_DIR + "/Character_Soldier.gltf"
 const HAND_BONE: String = "DEF-hand.R"
 const LOOPING_ANIMATIONS: PackedStringArray = ["idle", "walk", "run", "fall", "fly"]
 ## States a model may lack, and what to play instead (only winged bugs have "fly").
@@ -26,9 +27,6 @@ const DEFAULT_WEAPON_LENGTH: float = 0.6
 ## Weapons modelled standing up (blade or handle along their Y) instead of along X.
 const UPRIGHT_WEAPONS: PackedStringArray = ["Knife_1", "Knife_2", "Shovel"]
 
-@onready var _anim_player: AnimationPlayer = $AntModel/AnimationPlayer
-@onready var _skeleton: Skeleton3D = $AntModel/AntRig/Skeleton3D
-
 var _current_state: String = ""
 var _hand_attachment: BoneAttachment3D
 var _torch: GameTorch
@@ -39,6 +37,9 @@ var _terrain_edit_active: bool = false
 var _weapon_mesh_instance: MeshInstance3D
 var _weapon_meshes: Dictionary = {}
 var _equipped_weapon_item: PlayerItems.Item = PlayerItems.Item.NONE
+
+@onready var _anim_player: AnimationPlayer = $AntModel/AnimationPlayer
+@onready var _skeleton: Skeleton3D = $AntModel/AntRig/Skeleton3D
 
 
 func _ready() -> void:
@@ -137,7 +138,8 @@ func _setup_hand_items() -> void:
 	_hand_attachment.add_child(_torch)
 	# Held out to the right and tilted forward/outward so the flame clears the face.
 	_torch.transform = _hand_local(
-		Basis.from_euler(Vector3(deg_to_rad(25.0), 0.0, deg_to_rad(-20.0))), Vector3(0.08, 0.06, 0.04)
+		Basis.from_euler(Vector3(deg_to_rad(25.0), 0.0, deg_to_rad(-20.0))),
+		Vector3(0.08, 0.06, 0.04)
 	)
 	_torch.scale = Vector3.ONE * 0.85
 	_torch.visible = false
@@ -145,7 +147,8 @@ func _setup_hand_items() -> void:
 	_pickaxe = PICKAXE_SCENE.instantiate() as GamePickaxe
 	_hand_attachment.add_child(_pickaxe)
 	_pickaxe.transform = _hand_local(
-		Basis.from_euler(Vector3(deg_to_rad(25.0), 0.0, deg_to_rad(-25.0))), Vector3(0.08, 0.02, 0.04)
+		Basis.from_euler(Vector3(deg_to_rad(25.0), 0.0, deg_to_rad(-25.0))),
+		Vector3(0.08, 0.02, 0.04)
 	)
 	_pickaxe.scale = Vector3.ONE * 0.75
 	_pickaxe.visible = false
@@ -178,7 +181,9 @@ func _cache_weapon_meshes() -> void:
 		if not PlayerItems.is_weapon(item):
 			continue
 		var weapon_mesh_name: String = PlayerItems.weapon_mesh_name(item)
-		var weapon_node: MeshInstance3D = temporary_root.find_child(weapon_mesh_name, true, false) as MeshInstance3D
+		var weapon_node: MeshInstance3D = (
+			temporary_root.find_child(weapon_mesh_name, true, false) as MeshInstance3D
+		)
 		if weapon_node != null and weapon_node.mesh != null:
 			_weapon_meshes[weapon_mesh_name] = weapon_node.mesh
 	temporary_root.free()
@@ -201,8 +206,12 @@ func _weapon_transform(weapon_mesh_name: String, aabb: AABB) -> Transform3D:
 	var skeleton_basis: Basis
 	if weapon_mesh_name in UPRIGHT_WEAPONS:
 		# Blade / handle (+Y) points forward and slightly up, flat side facing sideways.
-		skeleton_basis = Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0)).rotated(Vector3.RIGHT, deg_to_rad(-30.0))
+		skeleton_basis = Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0)).rotated(
+			Vector3.RIGHT, deg_to_rad(-30.0)
+		)
 	else:
 		# Barrel (+X) points forward (+Z), weapon up (+Y) stays up.
 		skeleton_basis = Basis(Vector3(0, 0, 1), Vector3(0, 1, 0), Vector3(-1, 0, 0))
-	return _hand_local(skeleton_basis.scaled_local(Vector3.ONE * weapon_scale), Vector3(0.0, 0.0, 0.02))
+	return _hand_local(
+		skeleton_basis.scaled_local(Vector3.ONE * weapon_scale), Vector3(0.0, 0.0, 0.02)
+	)

@@ -3,10 +3,26 @@ extends Control
 ## page (see ModeCatalog), and a map starts the match. Choose Player and Settings are their own
 ## pages. Each page hides the one beneath it and Escape steps back.
 
-
 const LOADING_SCREEN_SCENE_PATH: String = "res://scenes/loading_screen.tscn"
 ## Extra space around the character in the Choose Player preview.
 const PREVIEW_FRAMING_PADDING: float = 1.15
+
+const PAGE_DESCRIPTION_COLOR: Color = Color(0.78, 0.82, 0.9)
+
+var _preview_player_scenes: Dictionary[LoadingScreen.PlayerCharacter, PackedScene] = {}
+var _preview_instance: Node3D
+var _preview_rotation_degrees_per_second: float = 25.0
+var _preview_selected_character: LoadingScreen.PlayerCharacter = (
+	LoadingScreen.PlayerCharacter.ANT_WARRIOR
+)
+
+var _mode_page: Control
+var _mode_buttons: Dictionary = {}
+var _map_page: Control
+var _map_page_title: Label
+var _map_page_description: Label
+var _map_buttons: VBoxContainer
+var _chosen_mode_id: String = ""
 
 ## The title and button column. Hidden while a page is open, the way the pause menu hides its
 ## own panel behind Settings, so nothing shows through.
@@ -18,21 +34,18 @@ const PREVIEW_FRAMING_PADDING: float = 1.15
 @onready var _quit_button: Button = $UI/Margin/VBox/Buttons/QuitButton
 @onready var _settings_menu: Control = $UI/SettingsMenu
 @onready var _player_select_page: Control = $UI/PlayerSelectPage
-@onready var _player_name_label: Label = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PlayerName
-@onready var _player_description_label: Label = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PlayerDescription
-@onready var _preview_root: Node3D = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport/PreviewRoot
-@onready var _preview_use_button: Button = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/Buttons/UseButton
-@onready var _preview_previous_button: Button = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/Buttons/PreviousButton
-@onready var _preview_next_button: Button = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/Buttons/NextButton
-@onready var _preview_back_button: Button = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/BackButton
+@onready var _select_panel: Control = $UI/PlayerSelectPage/CenterPanel/Margin/VBox
+@onready var _player_name_label: Label = _select_panel.get_node("PlayerName")
+@onready var _player_description_label: Label = _select_panel.get_node("PlayerDescription")
+@onready var _preview_use_button: Button = _select_panel.get_node("Buttons/UseButton")
+@onready var _preview_previous_button: Button = _select_panel.get_node("Buttons/PreviousButton")
+@onready var _preview_next_button: Button = _select_panel.get_node("Buttons/NextButton")
+@onready var _preview_back_button: Button = _select_panel.get_node("BackButton")
 @onready var _sky_viewport: SubViewport = $SkyViewportContainer/SkyViewport
-@onready var _preview_viewport: SubViewport = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport
-@onready var _preview_camera: Camera3D = $UI/PlayerSelectPage/CenterPanel/Margin/VBox/PreviewContainer/PreviewViewport/PreviewCamera
-
-var _preview_player_scenes: Dictionary[LoadingScreen.PlayerCharacter, PackedScene] = {}
-var _preview_instance: Node3D
-var _preview_rotation_degrees_per_second: float = 25.0
-var _preview_selected_character: LoadingScreen.PlayerCharacter = LoadingScreen.PlayerCharacter.ANT_WARRIOR
+@onready var _preview_container: Control = _select_panel.get_node("PreviewContainer")
+@onready var _preview_viewport: SubViewport = _preview_container.get_node("PreviewViewport")
+@onready var _preview_root: Node3D = _preview_viewport.get_node("PreviewRoot")
+@onready var _preview_camera: Camera3D = _preview_viewport.get_node("PreviewCamera")
 
 
 func _ready() -> void:
@@ -159,16 +172,22 @@ func _set_selected_character(selected_character: LoadingScreen.PlayerCharacter) 
 func _update_preview_display() -> void:
 	var selected_character: LoadingScreen.PlayerCharacter = _preview_selected_character
 	_player_name_label.text = _display_name_for_character(selected_character)
-	_player_description_label.text = "%s\n%s" % [
-		CharacterSkin.role_for(selected_character), CharacterSkin.description_for(selected_character)
-	]
+	_player_description_label.text = (
+		"%s\n%s"
+		% [
+			CharacterSkin.role_for(selected_character),
+			CharacterSkin.description_for(selected_character)
+		]
+	)
 	_spawn_preview_character(selected_character)
 
 
 func _spawn_preview_character(selected_character: LoadingScreen.PlayerCharacter) -> void:
 	_clear_preview_character()
 
-	var preview_scene: PackedScene = _preview_player_scenes.get(selected_character, null) as PackedScene
+	var preview_scene: PackedScene = (
+		_preview_player_scenes.get(selected_character, null) as PackedScene
+	)
 	if preview_scene == null:
 		return
 
@@ -188,7 +207,9 @@ func _spawn_preview_character(selected_character: LoadingScreen.PlayerCharacter)
 func _frame_preview_camera() -> void:
 	var bounds := AABB()
 	var has_bounds: bool = false
-	for mesh_instance: MeshInstance3D in _preview_instance.find_children("*", "MeshInstance3D", true, false):
+	for mesh_instance: MeshInstance3D in _preview_instance.find_children(
+		"*", "MeshInstance3D", true, false
+	):
 		if mesh_instance.mesh == null or not mesh_instance.is_visible_in_tree():
 			continue
 		var mesh_bounds: AABB = mesh_instance.global_transform * mesh_instance.get_aabb()
@@ -200,12 +221,14 @@ func _frame_preview_camera() -> void:
 	var aspect: float = float(_preview_viewport.size.x) / maxf(float(_preview_viewport.size.y), 1.0)
 	# The character spins, so fit its widest horizontal extent as well as its height.
 	var spin_width: float = Vector2(bounds.size.x, bounds.size.z).length()
-	var distance: float = maxf(
-		bounds.size.y * 0.5 / tan(half_fov),
-		spin_width * 0.5 / (tan(half_fov) * aspect)
-	) * PREVIEW_FRAMING_PADDING
+	var distance: float = (
+		maxf(bounds.size.y * 0.5 / tan(half_fov), spin_width * 0.5 / (tan(half_fov) * aspect))
+		* PREVIEW_FRAMING_PADDING
+	)
 	var center: Vector3 = bounds.get_center()
-	var view_direction: Vector3 = Vector3(sin(deg_to_rad(-12.0)), 0.12, cos(deg_to_rad(-12.0))).normalized()
+	var view_direction: Vector3 = (
+		Vector3(sin(deg_to_rad(-12.0)), 0.12, cos(deg_to_rad(-12.0))).normalized()
+	)
 	_preview_camera.global_position = center + view_direction * distance
 	_preview_camera.look_at(center)
 
@@ -213,7 +236,9 @@ func _frame_preview_camera() -> void:
 func _set_idle_state_if_supported(preview_node: Node3D) -> void:
 	if preview_node.has_method("set_state"):
 		preview_node.call("set_state", "idle")
-	var animation_player: AnimationPlayer = preview_node.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	var animation_player: AnimationPlayer = (
+		preview_node.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	)
 	if animation_player == null:
 		return
 	if animation_player.has_animation("Idle"):
@@ -239,16 +264,6 @@ func _set_preview_viewport_active(active: bool) -> void:
 
 
 # --- Play flow: Play -> mode -> map -> start ------------------------------------------------
-
-const PAGE_DESCRIPTION_COLOR: Color = Color(0.78, 0.82, 0.9)
-
-var _mode_page: Control
-var _mode_buttons: Dictionary = {}
-var _map_page: Control
-var _map_page_title: Label
-var _map_page_description: Label
-var _map_buttons: VBoxContainer
-var _chosen_mode_id: String = ""
 
 
 func _open_mode_page() -> void:

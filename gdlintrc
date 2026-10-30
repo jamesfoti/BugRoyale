@@ -1,0 +1,6 @@
+# gdlint (gdtoolkit) settings. The defaults are the official GDScript style guide; the three
+# rules switched off are gdlint's own opinions about size, not the guide's.
+disable:
+- max-returns
+- max-public-methods
+- max-file-lines

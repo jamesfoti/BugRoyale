@@ -1,8 +1,9 @@
-extends Node3D
 class_name BirdFlock
+extends Node3D
 ## Flock of wasp drones (cones if no drone model is set) using boids steering, with optional
 ## attack behavior. Works on any map when given a MapInfo, and spawns in waves for game modes.
 
+signal bird_died(bird: Bird)
 
 const BirdScene: PackedScene = preload("res://ai/boids/bird.tscn")
 const BIRD_CONE_HEIGHT: float = 0.42
@@ -11,8 +12,6 @@ const WING_FLAP_SHADER: Shader = preload("res://ai/boids/wasp_wing_flap.gdshader
 ## Flocks up to this size refresh every bird's steering and ground probe every physics tick.
 const FULL_RATE_BIRD_COUNT: int = 24
 const UNKNOWN_ALTITUDE: float = -INF
-
-signal bird_died(bird: Bird)
 
 @export_group("Flock")
 @export var enabled: bool = true
@@ -32,7 +31,8 @@ signal bird_died(bird: Bird)
 @export var min_height: float = 10.0
 @export var max_height: float = 22.0
 ## Model drawn for each flock member (a rig-free drone from create_bugs.py --drone); empty = cone.
-@export var drone_scene: PackedScene = preload("res://character/wasp/models/yellowjacket_wasp_drone.glb")
+@export
+var drone_scene: PackedScene = preload("res://character/wasp/models/yellowjacket_wasp_drone.glb")
 ## Same scale as the playable Wasp skin (yellowjacket_wasp.tscn), so a hornet is wasp-sized.
 @export var drone_scale: float = 1.15
 ## Tips the (upright, centaur-style) drone forward so it flies nose-first.
@@ -57,6 +57,13 @@ signal bird_died(bird: Bird)
 @export var attack_damage: float = 12.0
 @export var attack_cooldown: float = 1.1
 @export var attack_weight: float = 2.4
+@export var obstacle_weight: float = 2.5
+
+## Set by game modes so the flock flies correctly on any map (celestial body up, terrarium glass).
+var map: MapInfo
+## Solid boxes (world space) the flock steers around and is pushed out of: the crawlspace's
+## ducts, furnace and piers. Set by game modes from the map's DuctNetwork.
+var obstacles: Array[AABB] = []
 
 var _birds: Array[Bird] = []
 var _positions: PackedVector3Array
@@ -72,12 +79,6 @@ var _tick: int = 0
 var _targets: Array[Node3D] = []
 var _flock_center: Vector3 = Vector3.ZERO
 var _terrain: OpenTerrain
-## Set by game modes so the flock flies correctly on any map (celestial body up, terrarium glass).
-var map: MapInfo
-## Solid boxes (world space) the flock steers around and is pushed out of: the crawlspace's
-## ducts, furnace and piers. Set by game modes from the map's DuctNetwork.
-var obstacles: Array[AABB] = []
-@export var obstacle_weight: float = 2.5
 ## Draws every bird cone in one call instead of one MeshInstance3D per bird.
 var _bird_multimesh_instance: MultiMeshInstance3D
 var _bird_mesh_offset: Transform3D = _make_bird_mesh_offset()
@@ -188,8 +189,12 @@ func _make_drone_mesh() -> Mesh:
 		return null
 	var drone_root: Node = drone_scene.instantiate()
 	var source: MeshInstance3D = (
-		drone_root if drone_root is MeshInstance3D
-		else drone_root.find_children("*", "MeshInstance3D", true, false).front() as MeshInstance3D
+		(
+			drone_root
+			if drone_root is MeshInstance3D
+			else drone_root.find_children("*", "MeshInstance3D", true, false).front()
+		)
+		as MeshInstance3D
 	)
 	var mesh: Mesh = source.mesh.duplicate() if source != null and source.mesh != null else null
 	drone_root.free()
@@ -209,7 +214,9 @@ func _make_drone_mesh() -> Mesh:
 func _make_drone_offset(mesh: Mesh) -> Transform3D:
 	var basis := Basis(Vector3.UP, PI).scaled(Vector3.ONE * drone_scale)
 	var centered := Transform3D(basis, -(basis * mesh.get_aabb().get_center()))
-	return Transform3D(Basis(Vector3.RIGHT, -deg_to_rad(drone_pitch_degrees)), Vector3.ZERO) * centered
+	return (
+		Transform3D(Basis(Vector3.RIGHT, -deg_to_rad(drone_pitch_degrees)), Vector3.ZERO) * centered
+	)
 
 
 func _make_cone_mesh() -> Mesh:
@@ -314,7 +321,9 @@ func _simulate_flock(delta: float) -> void:
 				_try_attack_target(bird, target)
 
 		steering = steering.limit_length(max_steer_force)
-		var new_velocity: Vector3 = (_velocities[bird_index] + steering * delta).limit_length(speed_limit)
+		var new_velocity: Vector3 = (_velocities[bird_index] + steering * delta).limit_length(
+			speed_limit
+		)
 		var new_position: Vector3 = _positions[bird_index] + new_velocity * delta
 		# Stay above the ground (altitude estimated from this frame's probe) and inside the map.
 		var up: Vector3 = _up(new_position)
@@ -395,7 +404,10 @@ func _outside_obstacles(position: Vector3) -> Vector3:
 		if padded.has_point(result):
 			var direction: Vector3 = _escape_direction(padded, result)
 			var axis: int = direction.abs().max_axis_index()
-			result[axis] = (padded.end[axis] if direction[axis] > 0.0 else padded.position[axis]) + direction[axis] * 0.05
+			result[axis] = (
+				(padded.end[axis] if direction[axis] > 0.0 else padded.position[axis])
+				+ direction[axis] * 0.05
+			)
 	return result
 
 
@@ -445,7 +457,9 @@ func _minimum_flight_height(position: Vector3) -> float:
 
 func _random_spawn_position() -> Vector3:
 	var up: Vector3 = _up(_flock_center)
-	var tangent: Vector3 = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	var tangent: Vector3 = (
+		up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	)
 	var bitangent: Vector3 = up.cross(tangent).normalized()
 	var angle: float = randf_range(0.0, TAU)
 	var radius: float = randf_range(spawn_radius * 0.4, spawn_radius)
@@ -456,7 +470,9 @@ func _random_spawn_position() -> Vector3:
 
 func _random_horizontal_velocity() -> Vector3:
 	var up: Vector3 = _up(_flock_center)
-	var direction: Vector3 = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	var direction: Vector3 = (
+		up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	)
 	direction = direction.rotated(up, randf_range(0.0, TAU))
 	return direction * randf_range(4.0, max_speed)
 

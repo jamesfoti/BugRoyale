@@ -14,11 +14,12 @@ var wave: int = 0
 var hornets_killed: int = 0
 ## Hornets still flying, as last counted by the host (the swarm itself lives on the host).
 var hornets_left: int = 0
+
 var _break_time_left: float = 0.0
 var _in_break: bool = true
 
-
 # --- Deciding ---------------------------------------------------------------------------------
+
 
 func _start_match() -> void:
 	for human: Fighter in humans():
@@ -84,7 +85,10 @@ func _update_match(delta: float) -> void:
 	if alive_count() == 0:
 		end_match(
 			"Overrun!",
-			"Your squad survived %d wave%s and swatted %d hornets." % [maxi(wave - 1, 0), "" if wave == 2 else "s", hornets_killed]
+			(
+				"Your squad survived %d wave%s and swatted %d hornets."
+				% [maxi(wave - 1, 0), "" if wave == 2 else "s", hornets_killed]
+			)
 		)
 		return
 	if _in_break:
@@ -138,20 +142,33 @@ func _revive_fallen() -> void:
 ## A spot on the ground a few meters from a point.
 func _near(point: Vector3) -> Vector3:
 	var up: Vector3 = map.up_at(point)
-	var offset: Vector3 = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	var offset: Vector3 = (
+		up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	)
 	offset = offset.rotated(up, randf_range(0.0, TAU)) * randf_range(2.0, 4.0)
 	var probe: Vector3 = point + offset
 	var ground: Dictionary = map.ground_hit(probe)
-	return (ground.position + map.up_at(ground.position) * 1.2) if not ground.is_empty() else point + up * 1.2
+	return (
+		(ground.position + map.up_at(ground.position) * 1.2)
+		if not ground.is_empty()
+		else point + up * 1.2
+	)
 
 
 # --- Showing ----------------------------------------------------------------------------------
 
+
 func _status_text() -> String:
 	var squad: String = "Squad %d/%d" % [alive_count(), SQUAD_SIZE]
 	if _in_break:
-		return "Wave %d in %ds  ·  %s  ·  Hornets swatted %d" % [wave + 1, ceili(_break_time_left), squad, hornets_killed]
-	return "Wave %d  ·  Hornets left %d  ·  %s  ·  Swatted %d" % [wave, hornets_left, squad, hornets_killed]
+		return (
+			"Wave %d in %ds  ·  %s  ·  Hornets swatted %d"
+			% [wave + 1, ceili(_break_time_left), squad, hornets_killed]
+		)
+	return (
+		"Wave %d  ·  Hornets left %d  ·  %s  ·  Swatted %d"
+		% [wave, hornets_left, squad, hornets_killed]
+	)
 
 
 func _snapshot_state() -> Dictionary:

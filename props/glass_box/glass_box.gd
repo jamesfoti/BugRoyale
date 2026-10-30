@@ -1,8 +1,7 @@
 @tool
-extends Node3D
 class_name GlassBox
+extends Node3D
 ## 1 m reference glass box. Uses imported GLB when present, otherwise builds thin panels.
-
 
 const GLB_PATH: String = "res://props/glass_box/glass_box.glb"
 const REFERENCE_SIZE: Vector3 = Vector3.ONE
@@ -63,8 +62,12 @@ func _build_procedural_panels() -> void:
 	var thickness: float = WALL_THICKNESS
 
 	# Every panel collides (including the floor) so climbing bugs can't crawl out of the terrarium.
-	_add_panel("Bottom", Vector3(sx, thickness, sz), Vector3(0.0, thickness * 0.5, 0.0), glass_material)
-	_add_panel("Top", Vector3(sx, thickness, sz), Vector3(0.0, sy - thickness * 0.5, 0.0), glass_material)
+	_add_panel(
+		"Bottom", Vector3(sx, thickness, sz), Vector3(0.0, thickness * 0.5, 0.0), glass_material
+	)
+	_add_panel(
+		"Top", Vector3(sx, thickness, sz), Vector3(0.0, sy - thickness * 0.5, 0.0), glass_material
+	)
 	_add_panel(
 		"Front",
 		Vector3(sx, sy, thickness),

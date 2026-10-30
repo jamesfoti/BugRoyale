@@ -2,7 +2,6 @@ class_name InteriorRoomLayout
 extends RefCounted
 ## Single-room layout data for procedural interiors.
 
-
 enum RoomType {
 	RANDOM,
 	LIVING_ROOM,
@@ -12,13 +11,6 @@ enum RoomType {
 	BATHROOM,
 	OFFICE,
 }
-
-
-class Layout:
-	var room_type: RoomType = RoomType.LIVING_ROOM
-	var world_aabb: AABB = AABB()
-	var floor_y: float = 0.0
-	var spawn_position: Vector3 = Vector3.ZERO
 
 
 static func generate(
@@ -40,20 +32,15 @@ static func generate(
 	)
 	var thickness: float = maxf(scaled_wall_thickness, 0.2)
 	var inner_size := Vector3(
-		safe_size.x - thickness * 2.0,
-		safe_size.y,
-		safe_size.z - thickness * 2.0
+		safe_size.x - thickness * 2.0, safe_size.y, safe_size.z - thickness * 2.0
 	)
 	layout.floor_y = 0.0
 	layout.world_aabb = AABB(
-		Vector3(-inner_size.x * 0.5, layout.floor_y, -inner_size.z * 0.5),
-		inner_size
+		Vector3(-inner_size.x * 0.5, layout.floor_y, -inner_size.z * 0.5), inner_size
 	)
 	layout.room_type = _resolve_room_type(seed, room_type)
 	layout.spawn_position = Vector3(
-		layout.world_aabb.get_center().x,
-		layout.floor_y + 1.4,
-		layout.world_aabb.get_center().z
+		layout.world_aabb.get_center().x, layout.floor_y + 1.4, layout.world_aabb.get_center().z
 	)
 	return layout
 
@@ -72,3 +59,10 @@ static func _resolve_room_type(seed: int, room_type: RoomType) -> RoomType:
 		RoomType.OFFICE,
 	]
 	return playable_types[rng.randi_range(0, playable_types.size() - 1)]
+
+
+class Layout:
+	var room_type: RoomType = RoomType.LIVING_ROOM
+	var world_aabb: AABB = AABB()
+	var floor_y: float = 0.0
+	var spawn_position: Vector3 = Vector3.ZERO

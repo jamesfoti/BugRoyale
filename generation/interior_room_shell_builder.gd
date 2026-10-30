@@ -95,10 +95,7 @@ static func _add_room_shell(
 
 
 static func _add_box_part(
-	parent: Node3D,
-	size: Vector3,
-	position: Vector3,
-	material: StandardMaterial3D
+	parent: Node3D, size: Vector3, position: Vector3, material: StandardMaterial3D
 ) -> void:
 	var mesh_instance := MeshInstance3D.new()
 	var box := BoxMesh.new()

@@ -93,7 +93,9 @@ func _toon_version(material: Material) -> Material:
 	if _converted.has(key):
 		return _converted[key]
 	var toon := ShaderMaterial.new()
-	toon.shader = TOON_TWO_SIDED_SHADER if source.cull_mode == BaseMaterial3D.CULL_DISABLED else TOON_SHADER
+	toon.shader = (
+		TOON_TWO_SIDED_SHADER if source.cull_mode == BaseMaterial3D.CULL_DISABLED else TOON_SHADER
+	)
 	toon.resource_name = source.resource_name
 	toon.render_priority = source.render_priority
 	toon.set_shader_parameter("albedo", source.albedo_color)

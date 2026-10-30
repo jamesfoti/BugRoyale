@@ -1,5 +1,5 @@
-extends Node
 class_name GameMode
+extends Node
 ## Base for game modes. Added to a loaded map by the loading screen; waits for the local player
 ## to spawn, then sets up the match (_start_match) and keeps the HUD status current
 ## (_status_text). The match is a list of fighters: humans and bots alike, with the local human
@@ -11,13 +11,13 @@ class_name GameMode
 ## What a client needs is a mode's state snapshot (_snapshot_state / _apply_state) plus the
 ## announcements and the end of the match, which go out as signals.
 
-const MAIN_MENU_SCENE_PATH: String = "res://scenes/main_menu.tscn"
-
 ## The host told everyone something (shown on every HUD).
 signal announced(text: String, seconds: float)
 ## The host told one fighter something (shown on that fighter's HUD only).
 signal announced_to(fighter_id: int, text: String, seconds: float)
 signal match_ended(title: String, subtitle: String)
+
+const MAIN_MENU_SCENE_PATH: String = "res://scenes/main_menu.tscn"
 
 var map: MapInfo
 var hud: ModeHud
@@ -28,6 +28,7 @@ var local_fighter: Fighter
 var match_over: bool = false
 var end_title: String = ""
 var end_subtitle: String = ""
+
 var _started: bool = false
 var _next_fighter_id: int = 1
 
@@ -54,7 +55,9 @@ func _begin() -> void:
 	hud.name = "ModeHud"
 	add_child(hud)
 	hud.play_again_pressed.connect(func() -> void: LoadingScreen.restart_current(get_tree()))
-	hud.main_menu_pressed.connect(func() -> void: get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH))
+	hud.main_menu_pressed.connect(
+		func() -> void: get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
+	)
 	if Authority.is_host():
 		_start_match()
 	_started = true
@@ -74,6 +77,7 @@ func _process(delta: float) -> void:
 
 # --- Overridables: deciding (host only) -----------------------------------------------------
 
+
 ## Places every fighter and spawns the bots. The host decides where everyone starts, the local
 ## player included: its first self-spawn is only a safe spot to wait on.
 func _start_match() -> void:
@@ -90,6 +94,7 @@ func _on_fighter_died(fighter: Fighter) -> void:
 
 
 # --- Overridables: showing (every machine) --------------------------------------------------
+
 
 func _status_text() -> String:
 	return ""
@@ -112,6 +117,7 @@ func _apply_state(_state: Dictionary) -> void:
 
 # --- State -----------------------------------------------------------------------------------
 
+
 func snapshot_state() -> Dictionary:
 	var state: Dictionary = _snapshot_state()
 	state["over"] = match_over
@@ -131,6 +137,7 @@ func apply_state(state: Dictionary) -> void:
 
 
 # --- Helpers ----------------------------------------------------------------------------------
+
 
 ## Adds a bot of a class to a team at a position. skin_path overrides the class's bot skin.
 func spawn_bot(

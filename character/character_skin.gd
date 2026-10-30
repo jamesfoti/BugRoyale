@@ -1,5 +1,5 @@
-extends Node3D
 class_name CharacterSkin
+extends Node3D
 ## Interface shared by every playable character skin (ant, and future bugs).
 ## Players, the shooter and the HUD talk to whichever skin is the first child of VisualRoot.
 ## Methods here are safe defaults; skins override what they support.
@@ -15,51 +15,75 @@ const BLACK_ANT_BOT_SCENE_PATH: String = "res://character/ant/skins/little_black
 ## jump_velocity; can_fly lets the class take off by jumping in mid-air. Models are built by
 ## tools/blender/create_bugs.py. Add an entry per new class.
 const CHARACTERS: Dictionary = {
-	LoadingScreen.PlayerCharacter.ANT_WARRIOR: {
+	LoadingScreen.PlayerCharacter.ANT_WARRIOR:
+	{
 		"scene": "res://character/ant/skins/soldier_ant.tscn",
 		"bot_scene": "res://character/ant/skins/soldier_ant_bot.tscn",
 		"weapon": PlayerItems.Item.WEAPON_AK,
-		"bot_weapon": {"damage": 7.0, "cooldown": 0.28, "range": 45.0, "spread_degrees": 3.5, "pellets": 1},
+		"bot_weapon":
+		{"damage": 7.0, "cooldown": 0.28, "range": 45.0, "spread_degrees": 3.5, "pellets": 1},
 		"name": "Ant Warrior",
 		"role": "Assault / All-Rounder",
-		"description": "High stamina, balanced armor and rapid ground speed. Formidable mandibles for close quarters and acid-artillery for range.",
+		"description":
+		(
+			"High stamina, balanced armor and rapid ground speed. "
+			+ "Formidable mandibles for close quarters and acid-artillery for range."
+		),
 		"max_health": 110.0,
 		"speed": 1.15,
 		"jump": 1.0,
 	},
-	LoadingScreen.PlayerCharacter.TERMITE_SOLDIER: {
+	LoadingScreen.PlayerCharacter.TERMITE_SOLDIER:
+	{
 		"scene": "res://character/termite/skins/dampwood_termite.tscn",
 		"bot_scene": "res://character/termite/skins/dampwood_termite_bot.tscn",
 		"weapon": PlayerItems.Item.WEAPON_SHOTGUN,
-		"bot_weapon": {"damage": 4.0, "cooldown": 0.9, "range": 18.0, "spread_degrees": 7.0, "pellets": 5},
+		"bot_weapon":
+		{"damage": 4.0, "cooldown": 0.9, "range": 18.0, "spread_degrees": 7.0, "pellets": 5},
 		"name": "Termite Soldier",
 		"role": "Heavy Juggernaut",
-		"description": "Tank class. Slow but heavily armored. Close-range chemical sprays and a defensive pheromone shield to protect the squad.",
+		"description":
+		(
+			"Tank class. Slow but heavily armored. "
+			+ "Close-range chemical sprays and a defensive pheromone shield to protect the squad."
+		),
 		"max_health": 170.0,
 		"speed": 0.75,
 		"jump": 0.8,
 	},
-	LoadingScreen.PlayerCharacter.WASP: {
+	LoadingScreen.PlayerCharacter.WASP:
+	{
 		"scene": "res://character/wasp/skins/yellowjacket_wasp.tscn",
 		"bot_scene": "res://character/wasp/skins/yellowjacket_wasp_bot.tscn",
 		"weapon": PlayerItems.Item.WEAPON_SMG,
-		"bot_weapon": {"damage": 4.0, "cooldown": 0.13, "range": 30.0, "spread_degrees": 5.0, "pellets": 1},
+		"bot_weapon":
+		{"damage": 4.0, "cooldown": 0.13, "range": 30.0, "spread_degrees": 5.0, "pellets": 1},
 		"name": "Wasp",
 		"role": "Airborne Skirmisher",
-		"description": "High mobility and rapid-fire stingers for hit-and-run attacks. Fragile armor, but incredibly hard to hit in mid-air.",
+		"description":
+		(
+			"High mobility and rapid-fire stingers for hit-and-run attacks. "
+			+ "Fragile armor, but incredibly hard to hit in mid-air."
+		),
 		"max_health": 70.0,
 		"speed": 1.25,
 		"jump": 1.1,
 		"can_fly": true,
 	},
-	LoadingScreen.PlayerCharacter.TRAPDOOR_SPIDER: {
+	LoadingScreen.PlayerCharacter.TRAPDOOR_SPIDER:
+	{
 		"scene": "res://character/spider/skins/trapdoor_spider.tscn",
 		"bot_scene": "res://character/spider/skins/trapdoor_spider_bot.tscn",
 		"weapon": PlayerItems.Item.WEAPON_SNIPER,
-		"bot_weapon": {"damage": 18.0, "cooldown": 1.5, "range": 90.0, "spread_degrees": 1.2, "pellets": 1},
+		"bot_weapon":
+		{"damage": 18.0, "cooldown": 1.5, "range": 90.0, "spread_degrees": 1.2, "pellets": 1},
 		"name": "Trapdoor Spider",
 		"role": "Stealth Sniper",
-		"description": "Camouflages into terrain and foliage, sets web traps to anchor enemies, then strikes with high-damage venom shots.",
+		"description":
+		(
+			"Camouflages into terrain and foliage, sets web traps to anchor enemies, "
+			+ "then strikes with high-damage venom shots."
+		),
 		"max_health": 90.0,
 		"speed": 1.0,
 		"jump": 1.25,

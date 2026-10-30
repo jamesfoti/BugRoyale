@@ -27,8 +27,8 @@ var _rise_from_y: float = 0.0
 var _water_floor_y: float = 0.0
 var _water_height: float = 48.0
 
-
 # --- Deciding ---------------------------------------------------------------------------------
+
 
 func _start_match() -> void:
 	if map.water == null:
@@ -129,6 +129,7 @@ func _spread_spawn_point(taken: Array[Vector3]) -> Vector3:
 
 
 # --- Showing ----------------------------------------------------------------------------------
+
 
 func _status_text() -> String:
 	var alive: String = "Alive %d" % alive_count()

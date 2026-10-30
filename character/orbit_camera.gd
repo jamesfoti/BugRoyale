@@ -1,5 +1,5 @@
-extends SpringArm3D
 class_name OrbitCamera
+extends SpringArm3D
 ## Third-person shooter camera in the Fortnite mould: over the right shoulder whenever a weapon
 ## is out, pitch from straight down to well above the horizon, the arm collides with terrain and
 ## structure so the view never goes through a wall, scroll to zoom, hold middle mouse to orbit.
@@ -7,7 +7,6 @@ class_name OrbitCamera
 ## view narrows. A scoped weapon (see PlayerItems.scope_fovs) has a zoom ladder on top: the
 ## scope key (V, or clicking the right stick) cycles shoulder view, each scope step, and back
 ## out, the way a console right-stick click does; the wheel steps the zoom while scoped.
-
 
 const AIM_ACTION: StringName = &"aim"
 const SCOPE_ACTION: StringName = &"scope"
@@ -37,8 +36,6 @@ const AIM_HOLD_THRESHOLD: float = 0.4
 @export var scope_eye_offset: Vector3 = Vector3(0.0, -0.15, 0.4)
 @export var scope_transition_speed: float = 6.0
 
-@onready var _camera: Camera3D = $Camera3D
-
 var _orbiting: bool = false
 var _aiming: bool = false
 var _toggled_aim: bool = false
@@ -54,12 +51,16 @@ var _rest_position: Vector3 = Vector3.ZERO
 var _default_fov: float = 60.0
 var _body_hidden: bool = false
 
+@onready var _camera: Camera3D = $Camera3D
+
 
 func _ready() -> void:
 	if not InputMap.has_action(AIM_ACTION):
 		push_error(
-			"Missing InputMap action '%s'. Add it under Project > Project Settings > Input Map."
-			% AIM_ACTION
+			(
+				"Missing InputMap action '%s'. Add it under Project > Project Settings > Input Map."
+				% AIM_ACTION
+			)
 		)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	_rest_position = position
@@ -198,7 +199,11 @@ func _update_aim_state(delta: float) -> void:
 	# back to the shoulder. From the hip it goes straight to the first step (and stays, like a
 	# tapped aim).
 	var steps: int = get_scope_level_count()
-	if steps > 0 and InputMap.has_action(SCOPE_ACTION) and Input.is_action_just_pressed(SCOPE_ACTION):
+	if (
+		steps > 0
+		and InputMap.has_action(SCOPE_ACTION)
+		and Input.is_action_just_pressed(SCOPE_ACTION)
+	):
 		if current_aim:
 			_scope_level = (_scope_level + 1) % (steps + 1)
 		else:
@@ -218,15 +223,23 @@ func _update_aim_state(delta: float) -> void:
 
 func _update_aim_camera(delta: float) -> void:
 	var weapon_out: bool = _has_weapon_equipped()
-	var scope_fov: float = PlayerItems.scope_fov(_get_equipped_weapon_item(), _scope_level) if weapon_out else 0.0
+	var scope_fov: float = (
+		PlayerItems.scope_fov(_get_equipped_weapon_item(), _scope_level) if weapon_out else 0.0
+	)
 	var scoped: bool = _aiming and scope_fov > 0.0 and _scope_level > 0
 	if scoped:
 		# Stepping the ladder eases between magnifications instead of snapping.
-		_scope_fov = scope_fov if _scope_fov <= 0.0 or _scope_blend < 0.5 else lerpf(_scope_fov, scope_fov, minf(1.0, 12.0 * delta))
+		_scope_fov = (
+			scope_fov
+			if _scope_fov <= 0.0 or _scope_blend < 0.5
+			else lerpf(_scope_fov, scope_fov, minf(1.0, 12.0 * delta))
+		)
 	_scope_blend = move_toward(_scope_blend, 1.0 if scoped else 0.0, scope_transition_speed * delta)
 	var target_blend: float = 1.0 if _aiming and weapon_out and not scoped else 0.0
 	_aim_blend = move_toward(_aim_blend, target_blend, aim_transition_speed * delta)
-	_shoulder_blend = move_toward(_shoulder_blend, 1.0 if weapon_out else 0.0, aim_transition_speed * delta)
+	_shoulder_blend = move_toward(
+		_shoulder_blend, 1.0 if weapon_out else 0.0, aim_transition_speed * delta
+	)
 
 	var third_person_length: float = lerpf(_user_spring_length, aim_spring_length, _aim_blend)
 	spring_length = lerpf(third_person_length, 0.0, _scope_blend)
@@ -236,8 +249,12 @@ func _update_aim_camera(delta: float) -> void:
 	position = (_rest_position + offset).lerp(_rest_position + scope_eye, _scope_blend)
 	if _camera != null:
 		var third_person_fov: float = lerpf(_default_fov, aim_fov, _aim_blend)
-		_camera.fov = lerpf(third_person_fov, _scope_fov if _scope_fov > 0.0 else aim_fov, _scope_blend)
-	_set_body_hidden(_scope_blend > 0.85 or (spring_length > 0.0 and get_hit_length() < hide_body_distance))
+		_camera.fov = lerpf(
+			third_person_fov, _scope_fov if _scope_fov > 0.0 else aim_fov, _scope_blend
+		)
+	_set_body_hidden(
+		_scope_blend > 0.85 or (spring_length > 0.0 and get_hit_length() < hide_body_distance)
+	)
 
 
 ## The bug's own body is hidden while looking through a scope, or when the camera is pushed in
@@ -282,9 +299,7 @@ func _offset_in_parent_space(offset: Vector3) -> Vector3:
 	character_forward = character_forward.normalized()
 
 	var world_offset: Vector3 = (
-		-character_right * offset.x
-		+ surface_up * offset.y
-		+ character_forward * offset.z
+		-character_right * offset.x + surface_up * offset.y + character_forward * offset.z
 	)
 	return player_node.global_transform.basis.inverse() * world_offset
 
@@ -302,7 +317,10 @@ func _can_use_aim() -> bool:
 	if get_tree().paused:
 		return false
 	# A headless server (automated runs) has no mouse to capture.
-	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
+	if (
+		Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED
+		and DisplayServer.get_name() != "headless"
+	):
 		return false
 	if _is_item_menu_open():
 		return false
@@ -345,9 +363,7 @@ func _apply_scroll_zoom(button_index: MouseButton) -> void:
 		_scope_level = clampi(_scope_level - int(direction), 0, get_scope_level_count())
 		return
 	_user_spring_length = clampf(
-		_user_spring_length + direction * scroll_zoom_step,
-		min_spring_length,
-		max_spring_length
+		_user_spring_length + direction * scroll_zoom_step, min_spring_length, max_spring_length
 	)
 	if _aim_blend <= 0.001 and _scope_blend <= 0.001:
 		spring_length = _user_spring_length
@@ -370,5 +386,7 @@ func _is_terrain_focus_active() -> bool:
 
 
 func _is_item_menu_open() -> bool:
-	var menu: PlayerItemMenu = get_tree().get_first_node_in_group("player_item_menu") as PlayerItemMenu
+	var menu: PlayerItemMenu = (
+		get_tree().get_first_node_in_group("player_item_menu") as PlayerItemMenu
+	)
 	return menu != null and menu.is_open()

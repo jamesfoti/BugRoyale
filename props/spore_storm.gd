@@ -41,9 +41,12 @@ uniform vec3 spore_color : source_color = vec3(0.62, 0.7, 0.34);
 
 void fog() {
 	vec2 flat_offset = WORLD_POSITION.xz - zone_center.xz;
-	float outside = smoothstep(zone_radius - edge_width * 0.5, zone_radius + edge_width, length(flat_offset));
+	float outside = smoothstep(
+		zone_radius - edge_width * 0.5, zone_radius + edge_width, length(flat_offset)
+	);
 	float under_roof = 1.0 - smoothstep(top_y, top_y + 4.0, WORLD_POSITION.y);
-	float drift = 0.7 + 0.3 * sin(WORLD_POSITION.x * 0.35 + TIME * 0.7) * sin(WORLD_POSITION.z * 0.29 - TIME * 0.5);
+	float drift = 0.7 + 0.3 * sin(WORLD_POSITION.x * 0.35 + TIME * 0.7)
+		* sin(WORLD_POSITION.z * 0.29 - TIME * 0.5);
 	DENSITY = density_max * outside * under_roof * drift;
 	ALBEDO = spore_color;
 	EMISSION = spore_color * 0.4 * outside;
@@ -66,7 +69,9 @@ var _mote_texture: GradientTexture2D
 
 ## Builds the cloud for a map: the safe circle starts at zone_radius around zone_center, and the
 ## cloud fills from bottom_y up to ceiling_y (the top of the playable box).
-static func create(zone_center: Vector3, zone_radius: float, bottom_y: float, ceiling_y: float) -> SporeStorm:
+static func create(
+	zone_center: Vector3, zone_radius: float, bottom_y: float, ceiling_y: float
+) -> SporeStorm:
 	var storm := SporeStorm.new()
 	storm.name = "SporeStorm"
 	storm.center = zone_center

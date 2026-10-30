@@ -6,294 +6,6 @@ extends RefCounted
 const OPEN_TERRAIN_NOISE_SKIP_HEIGHT: float = 2.0
 
 
-class WorldDensity:
-	## Analytic density + gradient at any world position (seam-consistent normals).
-	var sphere_enabled: bool = true
-	var sphere_center: Vector3 = Vector3.ZERO
-	var sphere_radius: float = 18.0
-	var noise_enabled: bool = true
-	var noise_amplitude: float = 3.0
-	var noise_octaves: int = 3
-	var noise_lacunarity: float = 2.0
-	var noise_gain: float = 0.5
-	var bounds_falloff_enabled: bool = false
-	var bounds_center: Vector3 = Vector3.ZERO
-	var bounds_half: Vector3 = Vector3.ZERO
-	var bounds_falloff_distance: float = 8.0
-	var bounds_falloff_strength: float = 5.0
-	var bounds_clip_inset: float = 0.5
-	var ravines_enabled: bool = false
-	var ravine_depth: float = 100.0
-	var ravine_width: float = 0.12
-	var caves_enabled: bool = false
-	var cave_noise_strength: float = 400.0
-	var cave_height_multiplier: float = 0.03
-	var cave_reference_scale: float = 1500.0 / 1600.0
-	var cave_height_noise_scale: float = 1.5
-	var cave_smoothness: float = 5.0
-	var boxed_in_terrain_enabled: bool = false
-	var boxed_in_edges_enabled: bool = true
-	var open_terrain_enabled: bool = false
-	var open_terrain_edges_enabled: bool = true
-	var open_terrain_solid_fill: bool = false
-	## Clips open terrain to a sphere of this radius around bounds_center (fish bowl); 0 = off.
-	var open_terrain_bowl_radius: float = 0.0
-	var surface_height_offset: float = 0.0
-	var _macro_noise: FastNoiseLite
-	var _height_noise: FastNoiseLite
-	var _heightmap_image: Image
-	var _noise: FastNoiseLite
-	var _ravine_noise: FastNoiseLite
-	var _ravine_blend_noise: FastNoiseLite
-	var _cave_noise: FastNoiseLite
-	var terrain_edits: TerrainEdits = null
-
-	static func create(
-		sphere_enabled: bool,
-		sphere_center: Vector3,
-		sphere_radius: float,
-		noise_enabled: bool,
-		noise_seed: int,
-		noise_frequency: float,
-		noise_amplitude: float,
-		noise_octaves: int,
-		noise_lacunarity: float,
-		noise_gain: float,
-		bounds_center: Vector3,
-		bounds_half: Vector3,
-		bounds_falloff_enabled: bool,
-		bounds_falloff_distance: float,
-		bounds_falloff_strength: float,
-		bounds_clip_inset: float = 0.5
-	) -> WorldDensity:
-		var density := WorldDensity.new()
-		density.sphere_enabled = sphere_enabled
-		density.sphere_center = sphere_center
-		density.sphere_radius = sphere_radius
-		density.noise_enabled = noise_enabled
-		density.noise_amplitude = noise_amplitude
-		density.noise_octaves = noise_octaves
-		density.noise_lacunarity = noise_lacunarity
-		density.noise_gain = noise_gain
-		density.bounds_falloff_enabled = bounds_falloff_enabled
-		density.bounds_center = bounds_center
-		density.bounds_half = bounds_half
-		density.bounds_falloff_distance = bounds_falloff_distance
-		density.bounds_falloff_strength = bounds_falloff_strength
-		density.bounds_clip_inset = bounds_clip_inset
-		if noise_enabled:
-			density._noise = FastNoiseLite.new()
-			density._noise.seed = noise_seed
-			density._noise.noise_type = FastNoiseLite.TYPE_PERLIN
-			density._noise.frequency = noise_frequency
-		return density
-
-	func _init_body_feature_noises(body_seed: int) -> void:
-		if ravines_enabled:
-			_ravine_noise = FastNoiseLite.new()
-			_ravine_noise.seed = body_seed
-			_ravine_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-			_ravine_noise.frequency = 1.0
-			_ravine_blend_noise = FastNoiseLite.new()
-			_ravine_blend_noise.seed = body_seed + 2
-			_ravine_blend_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-			_ravine_blend_noise.frequency = 1.0
-		if caves_enabled:
-			_init_cave_noise(body_seed + 202, 1.0)
-
-	func _init_cave_noise(terrain_seed: int, frequency: float) -> void:
-		_cave_noise = FastNoiseLite.new()
-		_cave_noise.seed = terrain_seed
-		_cave_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-		_cave_noise.frequency = maxf(frequency, 0.001)
-		_cave_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-		_cave_noise.fractal_octaves = 6
-		_cave_noise.fractal_lacunarity = 2.5
-		_cave_noise.fractal_gain = 0.5
-
-	func _init_boxed_in_terrain_noise(
-		terrain_seed: int,
-		surface_frequency: float,
-		octaves: int,
-		lacunarity: float,
-		gain: float
-	) -> void:
-		_macro_noise = FastNoiseLite.new()
-		_macro_noise.seed = terrain_seed
-		_macro_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-		_macro_noise.frequency = maxf(surface_frequency, 0.001)
-		_macro_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-		_macro_noise.fractal_octaves = octaves
-		_macro_noise.fractal_lacunarity = lacunarity
-		_macro_noise.fractal_gain = gain
-
-	func _sample_boxed_in_terrain_noise(world_position: Vector3) -> float:
-		if not noise_enabled or _macro_noise == null:
-			return 1.0
-		return _macro_noise.get_noise_3d(
-			world_position.x, world_position.y, world_position.z
-		)
-
-	func _evaluate_boxed_in_terrain(world_pos: Vector3) -> float:
-		var value: float = _sample_boxed_in_terrain_noise(world_pos)
-		if boxed_in_edges_enabled:
-			value = maxf(
-				value,
-				DensitySampler.boxed_in_terrain_box_sdf(
-					world_pos, bounds_center, bounds_half, bounds_clip_inset
-				)
-			)
-		if terrain_edits != null:
-			value = terrain_edits.apply_to_density(value, world_pos)
-		return value
-
-	func _init_open_terrain_height_noise(
-		terrain_seed: int,
-		surface_frequency: float,
-		octaves: int,
-		lacunarity: float,
-		gain: float
-	) -> void:
-		_height_noise = FastNoiseLite.new()
-		_height_noise.seed = terrain_seed
-		_height_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-		_height_noise.frequency = maxf(surface_frequency, 0.001)
-		_height_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-		_height_noise.fractal_octaves = octaves
-		_height_noise.fractal_lacunarity = lacunarity
-		_height_noise.fractal_gain = gain
-
-	func _sample_open_terrain_height(world_x: float, world_z: float) -> float:
-		if _heightmap_image != null and not _heightmap_image.is_empty():
-			return DensitySampler.sample_heightmap_image(
-				_heightmap_image,
-				world_x,
-				world_z,
-				bounds_center,
-				bounds_half,
-				noise_amplitude
-			) + surface_height_offset
-		if not noise_enabled or _height_noise == null:
-			return bounds_center.y + surface_height_offset
-		var noise_value: float = _height_noise.get_noise_2d(world_x, world_z)
-		return bounds_center.y + noise_value * noise_amplitude + surface_height_offset
-
-	func sample_open_terrain_height(world_x: float, world_z: float) -> float:
-		return _sample_open_terrain_height(world_x, world_z)
-
-	func _evaluate_open_terrain(world_pos: Vector3) -> float:
-		var surface_height: float = _sample_open_terrain_height(world_pos.x, world_pos.z)
-		return evaluate_open_terrain_with_surface(world_pos, surface_height)
-
-	## Open-terrain density when the column's surface height is already known (field builds
-	## sample one height per XZ column instead of per voxel).
-	func evaluate_open_terrain_with_surface(world_pos: Vector3, surface_height: float) -> float:
-		var above_surface: float = world_pos.y - surface_height
-		var value: float
-		if open_terrain_solid_fill:
-			value = above_surface
-		elif above_surface >= OPEN_TERRAIN_NOISE_SKIP_HEIGHT:
-			# FBM noise stays within [-1, 1], so max(noise, above_surface) is exactly above_surface.
-			value = above_surface
-		else:
-			# Same 3D noise field as boxed-in terrain; heightmap clips the open top.
-			value = _sample_boxed_in_terrain_noise(world_pos)
-			if above_surface > 0.0:
-				value = maxf(value, above_surface)
-		if open_terrain_edges_enabled:
-			value = maxf(
-				value,
-				DensitySampler.open_terrain_box_sdf(
-					world_pos, bounds_center, bounds_half, bounds_clip_inset
-				)
-			)
-		if open_terrain_bowl_radius > 0.0:
-			# Fish bowl: everything outside the sphere is air.
-			value = maxf(
-				value, world_pos.distance_to(bounds_center) - (open_terrain_bowl_radius - bounds_clip_inset)
-			)
-		if terrain_edits != null:
-			value = terrain_edits.apply_to_density(value, world_pos)
-		return value
-
-	func evaluate(world_pos: Vector3) -> float:
-		if open_terrain_enabled:
-			return _evaluate_open_terrain(world_pos)
-		if boxed_in_terrain_enabled:
-			return _evaluate_boxed_in_terrain(world_pos)
-		var value := 1.0
-		var surface_noise := 0.0
-		if sphere_enabled:
-			value = DensitySampler.sphere_sdf(world_pos, sphere_center, sphere_radius)
-		if noise_enabled:
-			surface_noise = DensitySampler.fbm_noise_3d(
-				_noise, world_pos, noise_octaves, noise_lacunarity, noise_gain
-			)
-			value -= surface_noise * noise_amplitude
-		if ravines_enabled and _ravine_noise != null and _ravine_blend_noise != null:
-			value += DensitySampler.ravine_density_offset(
-				world_pos,
-				sphere_center,
-				_ravine_noise,
-				_ravine_blend_noise,
-				ravine_depth,
-				ravine_width
-			)
-		if caves_enabled and _cave_noise != null:
-			value = DensitySampler.apply_cave_smooth_subtract(
-				value,
-				world_pos,
-				sphere_center,
-				sphere_radius,
-				_cave_noise,
-				surface_noise,
-				noise_amplitude,
-				cave_noise_strength,
-				cave_height_multiplier,
-				cave_reference_scale,
-				cave_height_noise_scale,
-				cave_smoothness
-			)
-		if bounds_falloff_enabled:
-			if sphere_enabled:
-				var max_radius := (
-					minf(bounds_half.x, minf(bounds_half.y, bounds_half.z)) - bounds_clip_inset
-				)
-				value += DensitySampler.bounds_sphere_push(
-					world_pos,
-					sphere_center,
-					max_radius,
-					bounds_falloff_distance,
-					bounds_falloff_strength
-				)
-			else:
-				value += DensitySampler.bounds_edge_push(
-					world_pos,
-					bounds_center,
-					bounds_half,
-					bounds_falloff_distance,
-					bounds_falloff_strength
-				)
-		if terrain_edits != null:
-			value = terrain_edits.apply_to_density(value, world_pos)
-		return value
-
-	func gradient(world_pos: Vector3, epsilon: float) -> Vector3:
-		var dx := (
-			evaluate(world_pos + Vector3(epsilon, 0.0, 0.0))
-			- evaluate(world_pos - Vector3(epsilon, 0.0, 0.0))
-		) / (2.0 * epsilon)
-		var dy := (
-			evaluate(world_pos + Vector3(0.0, epsilon, 0.0))
-			- evaluate(world_pos - Vector3(0.0, epsilon, 0.0))
-		) / (2.0 * epsilon)
-		var dz := (
-			evaluate(world_pos + Vector3(0.0, 0.0, epsilon))
-			- evaluate(world_pos - Vector3(0.0, 0.0, epsilon))
-		) / (2.0 * epsilon)
-		return Vector3(dx, dy, dz)
-
-
 static func create_open_terrain_world_density(
 	noise_seed: int,
 	noise_frequency: float,
@@ -391,11 +103,11 @@ static func create_celestial_body_world_density(
 	## CelestialBody SDF with surface noise, radial ravines, and near-surface cave pockets.
 	## Parameters scale from the old voxel graph defaults (radius ~1600).
 	var scale := maxf(radius / 1600.0, 0.01)
-	var amp := surface_noise_amplitude if surface_noise_amplitude >= 0.0 else lerpf(3.0, 100.0, scale)
+	var amp := (
+		surface_noise_amplitude if surface_noise_amplitude >= 0.0 else lerpf(3.0, 100.0, scale)
+	)
 	var freq := (
-		surface_noise_frequency
-		if surface_noise_frequency >= 0.0
-		else lerpf(0.08, 0.001, scale)
+		surface_noise_frequency if surface_noise_frequency >= 0.0 else lerpf(0.08, 0.001, scale)
 	)
 	var density := WorldDensity.create(
 		true,
@@ -417,14 +129,10 @@ static func create_celestial_body_world_density(
 	)
 	density.ravines_enabled = ravines_enabled
 	density.ravine_depth = (
-		ravine_depth
-		if ravine_depth >= 0.0
-		else compute_auto_ravine_depth(radius, amp)
+		ravine_depth if ravine_depth >= 0.0 else compute_auto_ravine_depth(radius, amp)
 	)
 	density.ravine_width = (
-		ravine_width
-		if ravine_width >= 0.0
-		else compute_auto_ravine_width(radius)
+		ravine_width if ravine_width >= 0.0 else compute_auto_ravine_width(radius)
 	)
 	density.caves_enabled = caves_enabled
 	density.cave_noise_strength = 400.0 * scale
@@ -436,10 +144,7 @@ static func create_celestial_body_world_density(
 	return density
 
 
-static func compute_auto_ravine_depth(
-	radius: float,
-	surface_noise_amplitude: float
-) -> float:
+static func compute_auto_ravine_depth(radius: float, surface_noise_amplitude: float) -> float:
 	## Graph default at r=1600 is 100 (6.25% of radius). Smaller celestial bodies bump depth so grooves
 	## stay comparable to surface noise.
 	var graph_depth := radius * 0.0625
@@ -447,7 +152,8 @@ static func compute_auto_ravine_depth(
 
 
 static func compute_auto_ravine_width(radius: float) -> float:
-	## Wider grooves on small celestial bodies so ravines resolve at voxel scale (graph uses ~0.002 at r=1600).
+	## Wider grooves on small celestial bodies so ravines resolve at voxel scale (graph uses ~0.002
+	## at r=1600).
 	return lerpf(0.12, 0.002, clampf((radius - 20.0) / 380.0, 0.0, 1.0))
 
 
@@ -512,22 +218,19 @@ static func sdf_smooth_subtract(distance_a: float, distance_b: float, smoothing:
 
 
 static func fbm_noise_3d(
-	noise: FastNoiseLite,
-	world_pos: Vector3,
-	octaves: int,
-	lacunarity: float,
-	gain: float
+	noise: FastNoiseLite, world_pos: Vector3, octaves: int, lacunarity: float, gain: float
 ) -> float:
 	var amplitude := 1.0
 	var frequency := 1.0
 	var total := 0.0
 	var normalizer := 0.0
 	for _i in octaves:
-		total += noise.get_noise_3d(
-			world_pos.x * frequency,
-			world_pos.y * frequency,
-			world_pos.z * frequency
-		) * amplitude
+		total += (
+			noise.get_noise_3d(
+				world_pos.x * frequency, world_pos.y * frequency, world_pos.z * frequency
+			)
+			* amplitude
+		)
 		normalizer += amplitude
 		amplitude *= gain
 		frequency *= lacunarity
@@ -575,10 +278,7 @@ static func apply_noise(
 
 
 static func boxed_in_terrain_box_sdf(
-	world_pos: Vector3,
-	bounds_center: Vector3,
-	bounds_half: Vector3,
-	clip_inset: float
+	world_pos: Vector3, bounds_center: Vector3, bounds_half: Vector3, clip_inset: float
 ) -> float:
 	## Positive outside the playable box; negative inside (X, Y, and Z faces).
 	var relative: Vector3 = world_pos - bounds_center
@@ -592,10 +292,7 @@ static func boxed_in_terrain_box_sdf(
 
 
 static func open_terrain_box_sdf(
-	world_pos: Vector3,
-	bounds_center: Vector3,
-	bounds_half: Vector3,
-	clip_inset: float
+	world_pos: Vector3, bounds_center: Vector3, bounds_half: Vector3, clip_inset: float
 ) -> float:
 	## Positive outside the playable volume; clips X, Z, and bottom Y only (open top).
 	var relative: Vector3 = world_pos - bounds_center
@@ -604,7 +301,7 @@ static func open_terrain_box_sdf(
 	var half_extent_z: float = maxf(bounds_half.z - clip_inset, 0.0)
 	var outside_x: float = absf(relative.x) - half_extent_x
 	var outside_z: float = absf(relative.z) - half_extent_z
-	var outside_bottom: float = (-half_extent_y - relative.y)
+	var outside_bottom: float = -half_extent_y - relative.y
 	return maxf(outside_x, maxf(outside_z, outside_bottom))
 
 
@@ -624,14 +321,10 @@ static func sample_heightmap_image(
 		return bounds_center.y
 	var image_size: Vector2i = heightmap_image.get_size()
 	var sample_x: int = clampi(
-		int(floor((normalized_x * 0.5 + 0.5) * float(image_size.x - 1))),
-		0,
-		image_size.x - 1
+		int(floor((normalized_x * 0.5 + 0.5) * float(image_size.x - 1))), 0, image_size.x - 1
 	)
 	var sample_z: int = clampi(
-		int(floor((normalized_z * 0.5 + 0.5) * float(image_size.y - 1))),
-		0,
-		image_size.y - 1
+		int(floor((normalized_z * 0.5 + 0.5) * float(image_size.y - 1))), 0, image_size.y - 1
 	)
 	var pixel: Color = heightmap_image.get_pixel(sample_x, sample_z)
 	var height_sample: float = (pixel.r + pixel.g + pixel.b) / 3.0
@@ -660,11 +353,7 @@ static func bounds_edge_push(
 
 
 static func bounds_sphere_push(
-	world_pos: Vector3,
-	center: Vector3,
-	max_radius: float,
-	feather: float,
-	strength: float
+	world_pos: Vector3, center: Vector3, max_radius: float, feather: float, strength: float
 ) -> float:
 	if feather <= 0.0 or strength <= 0.0:
 		return 0.0
@@ -690,9 +379,7 @@ static func apply_bounds_falloff(
 	use_sphere_falloff: bool,
 	falloff_center: Vector3
 ) -> void:
-	var max_radius: float = (
-		minf(bounds_half.x, minf(bounds_half.y, bounds_half.z)) - voxel_size
-	)
+	var max_radius: float = minf(bounds_half.x, minf(bounds_half.y, bounds_half.z)) - voxel_size
 	for z in field.size.z:
 		for y in field.size.y:
 			for x in field.size.x:
@@ -737,7 +424,9 @@ static func build_chunk_field(
 			var world_z: float = grid_world_origin.z + float(grid_offset.z + z) * step
 			for x in size_x:
 				var world_x: float = grid_world_origin.x + float(grid_offset.x + x) * step
-				column_heights[x + z * size_x] = density.sample_open_terrain_height(world_x, world_z)
+				column_heights[x + z * size_x] = density.sample_open_terrain_height(
+					world_x, world_z
+				)
 	var index: int = 0
 	for z in size_z:
 		var world_z: float = grid_world_origin.z + float(grid_offset.z + z) * step
@@ -773,3 +462,294 @@ static func grid_sample_position(
 		grid_world_origin.y + float(global_sample.y) * step,
 		grid_world_origin.z + float(global_sample.z) * step
 	)
+
+
+class WorldDensity:
+	## Analytic density + gradient at any world position (seam-consistent normals).
+
+	var sphere_enabled: bool = true
+	var sphere_center: Vector3 = Vector3.ZERO
+	var sphere_radius: float = 18.0
+	var noise_enabled: bool = true
+	var noise_amplitude: float = 3.0
+	var noise_octaves: int = 3
+	var noise_lacunarity: float = 2.0
+	var noise_gain: float = 0.5
+	var bounds_falloff_enabled: bool = false
+	var bounds_center: Vector3 = Vector3.ZERO
+	var bounds_half: Vector3 = Vector3.ZERO
+	var bounds_falloff_distance: float = 8.0
+	var bounds_falloff_strength: float = 5.0
+	var bounds_clip_inset: float = 0.5
+	var ravines_enabled: bool = false
+	var ravine_depth: float = 100.0
+	var ravine_width: float = 0.12
+	var caves_enabled: bool = false
+	var cave_noise_strength: float = 400.0
+	var cave_height_multiplier: float = 0.03
+	var cave_reference_scale: float = 1500.0 / 1600.0
+	var cave_height_noise_scale: float = 1.5
+	var cave_smoothness: float = 5.0
+	var boxed_in_terrain_enabled: bool = false
+	var boxed_in_edges_enabled: bool = true
+	var open_terrain_enabled: bool = false
+	var open_terrain_edges_enabled: bool = true
+	var open_terrain_solid_fill: bool = false
+	## Clips open terrain to a sphere of this radius around bounds_center (fish bowl); 0 = off.
+	var open_terrain_bowl_radius: float = 0.0
+	var surface_height_offset: float = 0.0
+	var terrain_edits: TerrainEdits = null
+
+	var _macro_noise: FastNoiseLite
+	var _height_noise: FastNoiseLite
+	var _heightmap_image: Image
+	var _noise: FastNoiseLite
+	var _ravine_noise: FastNoiseLite
+	var _ravine_blend_noise: FastNoiseLite
+	var _cave_noise: FastNoiseLite
+
+	static func create(
+		sphere_enabled: bool,
+		sphere_center: Vector3,
+		sphere_radius: float,
+		noise_enabled: bool,
+		noise_seed: int,
+		noise_frequency: float,
+		noise_amplitude: float,
+		noise_octaves: int,
+		noise_lacunarity: float,
+		noise_gain: float,
+		bounds_center: Vector3,
+		bounds_half: Vector3,
+		bounds_falloff_enabled: bool,
+		bounds_falloff_distance: float,
+		bounds_falloff_strength: float,
+		bounds_clip_inset: float = 0.5
+	) -> WorldDensity:
+		var density := WorldDensity.new()
+		density.sphere_enabled = sphere_enabled
+		density.sphere_center = sphere_center
+		density.sphere_radius = sphere_radius
+		density.noise_enabled = noise_enabled
+		density.noise_amplitude = noise_amplitude
+		density.noise_octaves = noise_octaves
+		density.noise_lacunarity = noise_lacunarity
+		density.noise_gain = noise_gain
+		density.bounds_falloff_enabled = bounds_falloff_enabled
+		density.bounds_center = bounds_center
+		density.bounds_half = bounds_half
+		density.bounds_falloff_distance = bounds_falloff_distance
+		density.bounds_falloff_strength = bounds_falloff_strength
+		density.bounds_clip_inset = bounds_clip_inset
+		if noise_enabled:
+			density._noise = FastNoiseLite.new()
+			density._noise.seed = noise_seed
+			density._noise.noise_type = FastNoiseLite.TYPE_PERLIN
+			density._noise.frequency = noise_frequency
+		return density
+
+	func _init_body_feature_noises(body_seed: int) -> void:
+		if ravines_enabled:
+			_ravine_noise = FastNoiseLite.new()
+			_ravine_noise.seed = body_seed
+			_ravine_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+			_ravine_noise.frequency = 1.0
+			_ravine_blend_noise = FastNoiseLite.new()
+			_ravine_blend_noise.seed = body_seed + 2
+			_ravine_blend_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+			_ravine_blend_noise.frequency = 1.0
+		if caves_enabled:
+			_init_cave_noise(body_seed + 202, 1.0)
+
+	func _init_cave_noise(terrain_seed: int, frequency: float) -> void:
+		_cave_noise = FastNoiseLite.new()
+		_cave_noise.seed = terrain_seed
+		_cave_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+		_cave_noise.frequency = maxf(frequency, 0.001)
+		_cave_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+		_cave_noise.fractal_octaves = 6
+		_cave_noise.fractal_lacunarity = 2.5
+		_cave_noise.fractal_gain = 0.5
+
+	func _init_boxed_in_terrain_noise(
+		terrain_seed: int, surface_frequency: float, octaves: int, lacunarity: float, gain: float
+	) -> void:
+		_macro_noise = FastNoiseLite.new()
+		_macro_noise.seed = terrain_seed
+		_macro_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_macro_noise.frequency = maxf(surface_frequency, 0.001)
+		_macro_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+		_macro_noise.fractal_octaves = octaves
+		_macro_noise.fractal_lacunarity = lacunarity
+		_macro_noise.fractal_gain = gain
+
+	func _sample_boxed_in_terrain_noise(world_position: Vector3) -> float:
+		if not noise_enabled or _macro_noise == null:
+			return 1.0
+		return _macro_noise.get_noise_3d(world_position.x, world_position.y, world_position.z)
+
+	func _evaluate_boxed_in_terrain(world_pos: Vector3) -> float:
+		var value: float = _sample_boxed_in_terrain_noise(world_pos)
+		if boxed_in_edges_enabled:
+			value = maxf(
+				value,
+				DensitySampler.boxed_in_terrain_box_sdf(
+					world_pos, bounds_center, bounds_half, bounds_clip_inset
+				)
+			)
+		if terrain_edits != null:
+			value = terrain_edits.apply_to_density(value, world_pos)
+		return value
+
+	func _init_open_terrain_height_noise(
+		terrain_seed: int, surface_frequency: float, octaves: int, lacunarity: float, gain: float
+	) -> void:
+		_height_noise = FastNoiseLite.new()
+		_height_noise.seed = terrain_seed
+		_height_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_height_noise.frequency = maxf(surface_frequency, 0.001)
+		_height_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+		_height_noise.fractal_octaves = octaves
+		_height_noise.fractal_lacunarity = lacunarity
+		_height_noise.fractal_gain = gain
+
+	func _sample_open_terrain_height(world_x: float, world_z: float) -> float:
+		if _heightmap_image != null and not _heightmap_image.is_empty():
+			return (
+				DensitySampler.sample_heightmap_image(
+					_heightmap_image, world_x, world_z, bounds_center, bounds_half, noise_amplitude
+				)
+				+ surface_height_offset
+			)
+		if not noise_enabled or _height_noise == null:
+			return bounds_center.y + surface_height_offset
+		var noise_value: float = _height_noise.get_noise_2d(world_x, world_z)
+		return bounds_center.y + noise_value * noise_amplitude + surface_height_offset
+
+	func sample_open_terrain_height(world_x: float, world_z: float) -> float:
+		return _sample_open_terrain_height(world_x, world_z)
+
+	func _evaluate_open_terrain(world_pos: Vector3) -> float:
+		var surface_height: float = _sample_open_terrain_height(world_pos.x, world_pos.z)
+		return evaluate_open_terrain_with_surface(world_pos, surface_height)
+
+	## Open-terrain density when the column's surface height is already known (field builds
+	## sample one height per XZ column instead of per voxel).
+	func evaluate_open_terrain_with_surface(world_pos: Vector3, surface_height: float) -> float:
+		var above_surface: float = world_pos.y - surface_height
+		var value: float
+		if open_terrain_solid_fill:
+			value = above_surface
+		elif above_surface >= OPEN_TERRAIN_NOISE_SKIP_HEIGHT:
+			# FBM noise stays within [-1, 1], so max(noise, above_surface) is exactly above_surface.
+			value = above_surface
+		else:
+			# Same 3D noise field as boxed-in terrain; heightmap clips the open top.
+			value = _sample_boxed_in_terrain_noise(world_pos)
+			if above_surface > 0.0:
+				value = maxf(value, above_surface)
+		if open_terrain_edges_enabled:
+			value = maxf(
+				value,
+				DensitySampler.open_terrain_box_sdf(
+					world_pos, bounds_center, bounds_half, bounds_clip_inset
+				)
+			)
+		if open_terrain_bowl_radius > 0.0:
+			# Fish bowl: everything outside the sphere is air.
+			value = maxf(
+				value,
+				(
+					world_pos.distance_to(bounds_center)
+					- (open_terrain_bowl_radius - bounds_clip_inset)
+				)
+			)
+		if terrain_edits != null:
+			value = terrain_edits.apply_to_density(value, world_pos)
+		return value
+
+	func evaluate(world_pos: Vector3) -> float:
+		if open_terrain_enabled:
+			return _evaluate_open_terrain(world_pos)
+		if boxed_in_terrain_enabled:
+			return _evaluate_boxed_in_terrain(world_pos)
+		var value := 1.0
+		var surface_noise := 0.0
+		if sphere_enabled:
+			value = DensitySampler.sphere_sdf(world_pos, sphere_center, sphere_radius)
+		if noise_enabled:
+			surface_noise = DensitySampler.fbm_noise_3d(
+				_noise, world_pos, noise_octaves, noise_lacunarity, noise_gain
+			)
+			value -= surface_noise * noise_amplitude
+		if ravines_enabled and _ravine_noise != null and _ravine_blend_noise != null:
+			value += DensitySampler.ravine_density_offset(
+				world_pos,
+				sphere_center,
+				_ravine_noise,
+				_ravine_blend_noise,
+				ravine_depth,
+				ravine_width
+			)
+		if caves_enabled and _cave_noise != null:
+			value = DensitySampler.apply_cave_smooth_subtract(
+				value,
+				world_pos,
+				sphere_center,
+				sphere_radius,
+				_cave_noise,
+				surface_noise,
+				noise_amplitude,
+				cave_noise_strength,
+				cave_height_multiplier,
+				cave_reference_scale,
+				cave_height_noise_scale,
+				cave_smoothness
+			)
+		if bounds_falloff_enabled:
+			if sphere_enabled:
+				var max_radius := (
+					minf(bounds_half.x, minf(bounds_half.y, bounds_half.z)) - bounds_clip_inset
+				)
+				value += DensitySampler.bounds_sphere_push(
+					world_pos,
+					sphere_center,
+					max_radius,
+					bounds_falloff_distance,
+					bounds_falloff_strength
+				)
+			else:
+				value += DensitySampler.bounds_edge_push(
+					world_pos,
+					bounds_center,
+					bounds_half,
+					bounds_falloff_distance,
+					bounds_falloff_strength
+				)
+		if terrain_edits != null:
+			value = terrain_edits.apply_to_density(value, world_pos)
+		return value
+
+	func gradient(world_pos: Vector3, epsilon: float) -> Vector3:
+		var dx := (
+			(
+				evaluate(world_pos + Vector3(epsilon, 0.0, 0.0))
+				- evaluate(world_pos - Vector3(epsilon, 0.0, 0.0))
+			)
+			/ (2.0 * epsilon)
+		)
+		var dy := (
+			(
+				evaluate(world_pos + Vector3(0.0, epsilon, 0.0))
+				- evaluate(world_pos - Vector3(0.0, epsilon, 0.0))
+			)
+			/ (2.0 * epsilon)
+		)
+		var dz := (
+			(
+				evaluate(world_pos + Vector3(0.0, 0.0, epsilon))
+				- evaluate(world_pos - Vector3(0.0, 0.0, epsilon))
+			)
+			/ (2.0 * epsilon)
+		)
+		return Vector3(dx, dy, dz)

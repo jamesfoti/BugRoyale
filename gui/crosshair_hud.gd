@@ -1,10 +1,9 @@
-extends Control
 class_name CrosshairHud
+extends Control
 ## Shooter reticle. With a weapon out it draws a four-line crosshair around a center dot whose
 ## spread opens with the shot's actual cone (movement, firing, being airborne) and tightens when
 ## aiming, so what you see is where the bullets can go. Through a scope it draws the scope
 ## instead: a black mask with a round window and the weapon's reticle.
-
 
 @export var crosshair_size: float = 12.0
 @export var crosshair_thickness: float = 2.5
@@ -46,9 +45,19 @@ func _draw_crosshair(center: Vector2, spread: float) -> void:
 	var half_thickness: float = crosshair_thickness * 0.5
 	var gap: float = crosshair_gap + spread
 	var lines: Array[Rect2] = [
-		Rect2(center.x - gap - crosshair_size, center.y - half_thickness, crosshair_size, crosshair_thickness),
+		Rect2(
+			center.x - gap - crosshair_size,
+			center.y - half_thickness,
+			crosshair_size,
+			crosshair_thickness
+		),
 		Rect2(center.x + gap, center.y - half_thickness, crosshair_size, crosshair_thickness),
-		Rect2(center.x - half_thickness, center.y - gap - crosshair_size, crosshair_thickness, crosshair_size),
+		Rect2(
+			center.x - half_thickness,
+			center.y - gap - crosshair_size,
+			crosshair_thickness,
+			crosshair_size
+		),
 		Rect2(center.x - half_thickness, center.y + gap, crosshair_thickness, crosshair_size),
 	]
 	for line: Rect2 in lines:
@@ -72,10 +81,14 @@ func _draw_scope(style: String, blend: float) -> void:
 		var direction_a := Vector2(cos(angle_a), sin(angle_a))
 		var direction_b := Vector2(cos(angle_b), sin(angle_b))
 		draw_colored_polygon(
-			PackedVector2Array([
-				center + direction_a * radius, center + direction_b * radius,
-				center + direction_b * far, center + direction_a * far,
-			]),
+			PackedVector2Array(
+				[
+					center + direction_a * radius,
+					center + direction_b * radius,
+					center + direction_b * far,
+					center + direction_a * far,
+				]
+			),
 			scope_mask_color
 		)
 	# Eyepiece rim.
@@ -85,17 +98,53 @@ func _draw_scope(style: String, blend: float) -> void:
 			draw_arc(center, radius * 0.22, 0.0, TAU, 48, holo_color, 2.5, true)
 			draw_circle(center, 2.5, holo_color)
 			for direction: Vector2 in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
-				draw_line(center + direction * radius * 0.26, center + direction * radius * 0.36, holo_color, 2.0, true)
+				draw_line(
+					center + direction * radius * 0.26,
+					center + direction * radius * 0.36,
+					holo_color,
+					2.0,
+					true
+				)
 		_:
 			# Fine crosshair through the window with range marks below and beside the center.
-			draw_line(center + Vector2(-radius, 0.0), center + Vector2(radius, 0.0), scope_line_color, 1.5, true)
-			draw_line(center + Vector2(0.0, -radius), center + Vector2(0.0, radius), scope_line_color, 1.5, true)
+			draw_line(
+				center + Vector2(-radius, 0.0),
+				center + Vector2(radius, 0.0),
+				scope_line_color,
+				1.5,
+				true
+			)
+			draw_line(
+				center + Vector2(0.0, -radius),
+				center + Vector2(0.0, radius),
+				scope_line_color,
+				1.5,
+				true
+			)
 			for step: int in range(1, 5):
 				var tick: float = radius * 0.18 * step
 				var length: float = 6.0 if step % 2 == 0 else 4.0
-				draw_line(center + Vector2(tick, -length), center + Vector2(tick, length), scope_line_color, 1.5, true)
-				draw_line(center + Vector2(-tick, -length), center + Vector2(-tick, length), scope_line_color, 1.5, true)
-				draw_line(center + Vector2(-length, tick), center + Vector2(length, tick), scope_line_color, 1.5, true)
+				draw_line(
+					center + Vector2(tick, -length),
+					center + Vector2(tick, length),
+					scope_line_color,
+					1.5,
+					true
+				)
+				draw_line(
+					center + Vector2(-tick, -length),
+					center + Vector2(-tick, length),
+					scope_line_color,
+					1.5,
+					true
+				)
+				draw_line(
+					center + Vector2(-length, tick),
+					center + Vector2(length, tick),
+					scope_line_color,
+					1.5,
+					true
+				)
 			draw_circle(center, 2.0, Color(0.9, 0.1, 0.1, 0.9))
 
 

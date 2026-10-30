@@ -14,9 +14,11 @@ const MODE_SCRIPTS: Dictionary = {
 ## A state per mode that exercises every field the mode snapshots.
 const SAMPLE_STATES: Dictionary = {
 	"ants_vs_ants": {"scores": [3, 5]},
-	"hornets": {"wave": 4, "hornets_killed": 27, "hornets_left": 9, "in_break": false, "break_time_left": 2.5},
+	"hornets":
+	{"wave": 4, "hornets_killed": 27, "hornets_left": 9, "in_break": false, "break_time_left": 2.5},
 	"battle_royale": {"stage": 2, "stage_time": 7.5},
-	"cordyceps_royale": {
+	"cordyceps_royale":
+	{
 		"stage": 1,
 		"stage_time": 12.25,
 		"infection": {1: 0.4, 2: 1.0, 5: 0.0},
@@ -47,7 +49,11 @@ func test_state_round_trips_onto_a_fresh_mode() -> void:
 
 		var target: GameMode = _new_mode(mode_id)
 		target.apply_state(snapshot)
-		assert_eq(target.snapshot_state(), snapshot, "%s: the snapshot is stable across a round trip" % mode_id)
+		assert_eq(
+			target.snapshot_state(),
+			snapshot,
+			"%s: the snapshot is stable across a round trip" % mode_id
+		)
 
 
 func test_sample_fields_come_back_out_of_the_snapshot() -> void:
@@ -56,7 +62,11 @@ func test_sample_fields_come_back_out_of_the_snapshot() -> void:
 		mode.apply_state(SAMPLE_STATES[mode_id])
 		var snapshot: Dictionary = mode.snapshot_state()
 		for key: String in SAMPLE_STATES[mode_id].keys():
-			assert_eq(snapshot[key], SAMPLE_STATES[mode_id][key], "%s: '%s' is in the snapshot" % [mode_id, key])
+			assert_eq(
+				snapshot[key],
+				SAMPLE_STATES[mode_id][key],
+				"%s: '%s' is in the snapshot" % [mode_id, key]
+			)
 
 
 func test_base_fields_are_always_present() -> void:

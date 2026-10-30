@@ -1,8 +1,8 @@
-extends RefCounted
 class_name MapInfo
-## Answers map questions the same way on every map (celestial body, open battlefield, terrarium) so game
-## modes, bots and hornets don't care which one they are on: which way is up, how high above the
-## ground a point is, the playable bounds, random spawn points, and the terrarium's water.
+extends RefCounted
+## Answers map questions the same way on every map (celestial body, open battlefield, terrarium) so
+## game modes, bots and hornets don't care which one they are on: which way is up, how high above
+## the ground a point is, the playable bounds, random spawn points, and the terrarium's water.
 
 enum Kind { FLAT, CELESTIAL_BODY, TERRARIUM }
 
@@ -31,16 +31,21 @@ var ceiling_y: float = INF
 
 var _space: PhysicsDirectSpaceState3D
 
-
 ## Builds the info for a loaded map scene (looks at its PlayerSpawner's terrain).
+
+
 static func from_scene(scene_root: Node) -> MapInfo:
 	var info := MapInfo.new()
-	var spawner: PlayerSpawner = scene_root.find_children("*", "PlayerSpawner", true, false).front() as PlayerSpawner
+	var spawner: PlayerSpawner = (
+		scene_root.find_children("*", "PlayerSpawner", true, false).front() as PlayerSpawner
+	)
 	if spawner != null:
 		info.world = spawner.get_node_or_null(spawner.terrain_path) as Node3D
 	if info.world == null:
 		info.world = scene_root.get_tree().get_first_node_in_group("terrain_world") as Node3D
-	info._space = (scene_root as Node3D).get_world_3d().direct_space_state if scene_root is Node3D else null
+	info._space = (
+		(scene_root as Node3D).get_world_3d().direct_space_state if scene_root is Node3D else null
+	)
 	if info._space == null and info.world != null:
 		info._space = info.world.get_world_3d().direct_space_state
 
@@ -53,7 +58,9 @@ static func from_scene(scene_root: Node) -> MapInfo:
 		var room: TerrariumRoom = info.world as TerrariumRoom
 		info.kind = Kind.TERRARIUM
 		var terrain: TerrariumTerrain = room.get_playable_terrain()
-		var terrain_center: Vector3 = terrain.global_position if terrain != null else room.global_position
+		var terrain_center: Vector3 = (
+			terrain.global_position if terrain != null else room.global_position
+		)
 		var size: Vector3 = room.get_world_extents()
 		# Slightly inside the glass walls.
 		info.bounds = AABB(terrain_center - size * 0.5, size).grow(-0.6)
@@ -74,7 +81,11 @@ static func from_scene(scene_root: Node) -> MapInfo:
 		# A map with overhead structure (CrawlspaceBuilder) caps flight at its ceiling, which may
 		# sit well above the dirt's voxel volume; the playable box grows up to meet it.
 		for ceiling_node: Node in scene_root.get_tree().get_nodes_in_group("map_ceiling"):
-			info.ceiling_y = float(ceiling_node.call("get_ceiling_y")) if ceiling_node.has_method("get_ceiling_y") else info.bounds.end.y
+			info.ceiling_y = (
+				float(ceiling_node.call("get_ceiling_y"))
+				if ceiling_node.has_method("get_ceiling_y")
+				else info.bounds.end.y
+			)
 			if info.ceiling_y > info.bounds.end.y:
 				info.bounds.size.y = info.ceiling_y - info.bounds.position.y
 	# Any map may carry a body of water (the terrariums' pools, the crawlspace's flood).
@@ -120,7 +131,9 @@ func ground_hit(position: Vector3) -> Dictionary:
 				if inner_top == -INF:
 					return {}
 				top = minf(top, inner_top)
-		var bottom: float = bounds.position.y - 40.0 if bounds.size != Vector3.ZERO else position.y - 200.0
+		var bottom: float = (
+			bounds.position.y - 40.0 if bounds.size != Vector3.ZERO else position.y - 200.0
+		)
 		from = Vector3(position.x, top, position.z)
 		to = Vector3(position.x, bottom, position.z)
 	return _cast(from, to)
@@ -150,12 +163,16 @@ func side_of(position: Vector3) -> float:
 
 ## Random spot on the ground (plus clearance). side: 0 = anywhere, -1/+1 = that half of the map.
 ## min_height: only accept ground at least this high (world Y; ignored on the celestial body).
-func random_surface_point(clearance: float = 1.2, side: float = 0.0, min_height: float = -INF) -> Vector3:
+func random_surface_point(
+	clearance: float = 1.2, side: float = 0.0, min_height: float = -INF
+) -> Vector3:
 	var best: Vector3 = center() + up_at(center()) * clearance
 	for attempt: int in _SPAWN_TRIES:
 		var hit: Dictionary = {}
 		if kind == Kind.CELESTIAL_BODY:
-			var direction := Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized()
+			var direction := (
+				Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized()
+			)
 			if side != 0.0:
 				direction.x = absf(direction.x) * side
 				direction = direction.normalized()
@@ -171,13 +188,20 @@ func random_surface_point(clearance: float = 1.2, side: float = 0.0, min_height:
 			var column := Vector3(
 				randf_range(x_min, x_max),
 				0.0,
-				randf_range(lerpf(bounds.position.z, bounds.end.z, margin), lerpf(bounds.position.z, bounds.end.z, 1.0 - margin))
+				randf_range(
+					lerpf(bounds.position.z, bounds.end.z, margin),
+					lerpf(bounds.position.z, bounds.end.z, 1.0 - margin)
+				)
 			)
 			if bowl_radius > 0.0:
 				# Fish bowl: columns inside the opening, so the probe enters through the top.
 				var angle: float = randf_range(0.0, TAU)
 				var distance: float = sqrt(randf()) * bowl_radius * 0.75
-				column = Vector3(bowl_center.x + cos(angle) * distance, 0.0, bowl_center.z + sin(angle) * distance)
+				column = Vector3(
+					bowl_center.x + cos(angle) * distance,
+					0.0,
+					bowl_center.z + sin(angle) * distance
+				)
 				if side != 0.0:
 					column.x = bowl_center.x + absf(column.x - bowl_center.x) * side
 			hit = ground_hit(column)

@@ -1,7 +1,6 @@
-extends Node3D
 class_name GameTorch
+extends Node3D
 ## Hand-held torch: particle flames, glow shader, and flickering OmniLight3D.
-
 
 @export var light_energy: float = 2.5
 @export var light_range: float = 10.0
@@ -10,15 +9,15 @@ class_name GameTorch
 @export var cast_shadows: bool = false
 @export_range(0.0, 10.0, 0.01) var light_attenuation: float = 0.85
 
+var _lit: bool = false
+var _base_light_energy: float = 2.5
+var _flicker_time: float = 0.0
+
 @onready var _flame_anchor: Node3D = $FlameAnchor
 @onready var _light: OmniLight3D = $FlameAnchor/TorchLight
 @onready var _flame_glow: MeshInstance3D = $FlameAnchor/FlameGlow
 @onready var _flame_particles: GPUParticles3D = $FlameAnchor/FlameParticles
 @onready var _ember_particles: GPUParticles3D = $FlameAnchor/EmberParticles
-
-var _lit: bool = false
-var _base_light_energy: float = 2.5
-var _flicker_time: float = 0.0
 
 
 func _ready() -> void:

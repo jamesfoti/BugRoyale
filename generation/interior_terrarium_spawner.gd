@@ -2,21 +2,8 @@ class_name InteriorTerrariumSpawner
 extends RefCounted
 ## Spawns a glass box and capped terrarium terrain on the room floor.
 
-
 const GLASS_BOX_SCENE_PATH: String = "res://props/glass_box/glass_box.tscn"
 const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.tres"
-
-
-class SpawnResult:
-	var root: Node3D
-	var glass_box: Node3D
-	var terrain: Node3D
-	var water: TerrariumWater
-	var floor_position: Vector3 = Vector3.ZERO
-	var terrarium_world_size: Vector3 = Vector3(5.0, 5.0, 5.0)
-	var glass_box_size: Vector3 = Vector3.ONE
-	## Sphere radius of a fish-bowl terrarium (0 for a glass box).
-	var bowl_radius: float = 0.0
 
 
 static func build_if_clear(
@@ -41,10 +28,7 @@ static func build_if_clear(
 ) -> Variant:
 	var glass_box_size: Vector3 = TerrariumBudget.derive_glass_box_size(grid_config.world_size)
 	var spawn_position: Vector3 = find_spawn_position(
-		layout,
-		placements,
-		glass_box_size,
-		furniture_scale
+		layout, placements, glass_box_size, furniture_scale
 	)
 	if spawn_position == Vector3.INF:
 		return null
@@ -75,18 +59,12 @@ static func find_spawn_position(
 	furniture_scale: float = 1.0
 ) -> Vector3:
 	var table_position: Vector3 = _find_table_position(
-		layout,
-		placements,
-		box_size,
-		furniture_scale
+		layout, placements, box_size, furniture_scale
 	)
 	if table_position != Vector3.INF:
 		return table_position
 	return InteriorGlassBoxSpawner.find_clear_floor_position(
-		layout,
-		placements,
-		box_size,
-		furniture_scale
+		layout, placements, box_size, furniture_scale
 	)
 
 
@@ -147,10 +125,13 @@ static func _build_at(
 	root.position = spawn_position
 
 	if bowl:
-		result.bowl_radius = minf(
-			grid_config.world_size.x, minf(grid_config.world_size.y, grid_config.world_size.z)
-		) * 0.5
-		var glass_bowl: GlassBowl = GlassBowl.create(result.bowl_radius + TerrariumBudget.GLASS_WALL_INSET)
+		result.bowl_radius = (
+			minf(grid_config.world_size.x, minf(grid_config.world_size.y, grid_config.world_size.z))
+			* 0.5
+		)
+		var glass_bowl: GlassBowl = GlassBowl.create(
+			result.bowl_radius + TerrariumBudget.GLASS_WALL_INSET
+		)
 		glass_bowl.position = Vector3(0.0, center_height, 0.0)
 		root.add_child(glass_bowl)
 		result.glass_box = glass_bowl
@@ -205,3 +186,15 @@ static func _create_glass_box(glass_box_size: Vector3) -> Node3D:
 	glass_box.name = "GlassBox"
 	glass_box.scale = glass_box_size
 	return glass_box
+
+
+class SpawnResult:
+	var root: Node3D
+	var glass_box: Node3D
+	var terrain: Node3D
+	var water: TerrariumWater
+	var floor_position: Vector3 = Vector3.ZERO
+	var terrarium_world_size: Vector3 = Vector3(5.0, 5.0, 5.0)
+	var glass_box_size: Vector3 = Vector3.ONE
+	## Sphere radius of a fish-bowl terrarium (0 for a glass box).
+	var bowl_radius: float = 0.0

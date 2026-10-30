@@ -1,7 +1,6 @@
-extends MeshInstance3D
 class_name TerrainEditCursor
+extends MeshInstance3D
 ## Ring decal aligned to terrain surface under the mouse.
-
 
 @export var edit_radius: float = 1.5
 @export var ring_segments: int = 64
@@ -44,8 +43,7 @@ func show_at(
 	tangent = tangent.normalized()
 	var bitangent: Vector3 = tangent.cross(surface_up).normalized()
 	global_transform = Transform3D(
-		Basis(tangent, surface_up, bitangent),
-		hit_position + surface_up * surface_lift
+		Basis(tangent, surface_up, bitangent), hit_position + surface_up * surface_lift
 	)
 
 	if material_override is StandardMaterial3D:
@@ -82,14 +80,19 @@ func _build_ring_mesh() -> ArrayMesh:
 
 	for segment_index: int in range(ring_segments):
 		var base_index: int = segment_index * 2
-		indices.append_array([
-			base_index,
-			base_index + 1,
-			base_index + 2,
-			base_index + 1,
-			base_index + 3,
-			base_index + 2,
-		])
+		(
+			indices
+			. append_array(
+				[
+					base_index,
+					base_index + 1,
+					base_index + 2,
+					base_index + 1,
+					base_index + 3,
+					base_index + 2,
+				]
+			)
+		)
 
 	var mesh_arrays: Array = []
 	mesh_arrays.resize(Mesh.ARRAY_MAX)

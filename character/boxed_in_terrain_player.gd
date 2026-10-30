@@ -1,5 +1,5 @@
-extends GroundPlayer
 class_name BoxedInTerrainPlayer
+extends GroundPlayer
 ## Bug controller for boxed-in and terrarium terrain (movement, climbing and flight live in
 ## GroundPlayer).
 

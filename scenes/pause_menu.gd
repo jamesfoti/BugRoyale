@@ -1,6 +1,10 @@
 extends CanvasLayer
 ## Pause overlay: Resume, Settings, Restart, Main Menu, or Quit.
 
+const MAIN_MENU_SCENE_PATH: String = "res://scenes/main_menu.tscn"
+
+var _paused: bool = false
+
 @onready var _panel: PanelContainer = $Panel
 @onready var _resume_button: Button = $Panel/Margin/MainMenu/ResumeButton
 @onready var _stuck_button: Button = $Panel/Margin/MainMenu/StuckButton
@@ -9,10 +13,6 @@ extends CanvasLayer
 @onready var _main_menu_button: Button = $Panel/Margin/MainMenu/MainMenuButton
 @onready var _quit_button: Button = $Panel/Margin/MainMenu/QuitButton
 @onready var _settings_menu: Control = $SettingsMenu
-
-const MAIN_MENU_SCENE_PATH: String = "res://scenes/main_menu.tscn"
-
-var _paused: bool = false
 
 
 func _ready() -> void:
@@ -89,12 +89,18 @@ func _clear_spot_near(player: CharacterBody3D) -> Vector3:
 	var map: MapInfo = MapInfo.from_scene(get_tree().current_scene)
 	var origin: Vector3 = player.global_position
 	var up: Vector3 = map.up_at(origin)
-	var side: Vector3 = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
-	var collision_shape: CollisionShape3D = player.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	var side: Vector3 = (
+		up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD).normalized()
+	)
+	var collision_shape: CollisionShape3D = (
+		player.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	)
 	var space: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state
 	for ring_radius: float in [1.5, 3.0, 5.0, 8.0, 12.0]:
 		for step: int in 8:
-			var offset: Vector3 = side.rotated(up, TAU * float(step) / 8.0 + ring_radius) * ring_radius
+			var offset: Vector3 = (
+				side.rotated(up, TAU * float(step) / 8.0 + ring_radius) * ring_radius
+			)
 			var ground: Dictionary = map.ground_hit(origin + offset + up * 2.0)
 			if ground.is_empty():
 				continue
@@ -109,7 +115,13 @@ func _clear_spot_near(player: CharacterBody3D) -> Vector3:
 
 
 ## True when the player's capsule, hovering just above a spot, touches nothing solid.
-func _fits(space: PhysicsDirectSpaceState3D, collision_shape: CollisionShape3D, spot: Vector3, up: Vector3, player: CharacterBody3D) -> bool:
+func _fits(
+	space: PhysicsDirectSpaceState3D,
+	collision_shape: CollisionShape3D,
+	spot: Vector3,
+	up: Vector3,
+	player: CharacterBody3D
+) -> bool:
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = collision_shape.shape
 	var basis := Basis(Quaternion(Vector3.UP, up))

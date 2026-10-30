@@ -1,2 +1,2 @@
-extends Node3D
 class_name GamePickaxe
+extends Node3D

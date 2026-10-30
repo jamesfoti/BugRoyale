@@ -26,7 +26,9 @@ static func compute_steering(
 	var separation_radius_sq: float = separation_radius * separation_radius
 	var alignment_radius_sq: float = alignment_radius * alignment_radius
 	var cohesion_radius_sq: float = cohesion_radius * cohesion_radius
-	var widest_radius_sq: float = maxf(separation_radius_sq, maxf(alignment_radius_sq, cohesion_radius_sq))
+	var widest_radius_sq: float = maxf(
+		separation_radius_sq, maxf(alignment_radius_sq, cohesion_radius_sq)
+	)
 
 	for other_index in positions.size():
 		if other_index == index:

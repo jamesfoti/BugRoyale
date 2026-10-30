@@ -2,18 +2,13 @@ class_name InteriorGlassBoxSpawner
 extends RefCounted
 ## Spawns a scaled glass box on the room floor when the spot is clear.
 
-
 const GLASS_BOX_SCENE_PATH: String = "res://props/glass_box/glass_box.tscn"
 const DEFAULT_BOX_SIZE: Vector3 = Vector3(1.5, 1.5, 1.5)
 
 
 static func get_box_aabb(layout: InteriorRoomLayout.Layout, box_size: Vector3) -> AABB:
 	var center: Vector3 = layout.world_aabb.get_center()
-	var safe_size := Vector3(
-		maxf(box_size.x, 0.25),
-		maxf(box_size.y, 0.25),
-		maxf(box_size.z, 0.25)
-	)
+	var safe_size := Vector3(maxf(box_size.x, 0.25), maxf(box_size.y, 0.25), maxf(box_size.z, 0.25))
 	return AABB(
 		Vector3(center.x - safe_size.x * 0.5, layout.floor_y, center.z - safe_size.z * 0.5),
 		safe_size
@@ -48,10 +43,11 @@ static func find_clear_floor_position(
 ) -> Vector3:
 	var room_center: Vector3 = layout.world_aabb.get_center()
 	var candidates: Array[Vector3] = _build_floor_candidates(layout, box_size)
-	candidates.sort_custom(func(a: Vector3, b: Vector3) -> bool:
-		var a_dist: float = Vector2(a.x - room_center.x, a.z - room_center.z).length_squared()
-		var b_dist: float = Vector2(b.x - room_center.x, b.z - room_center.z).length_squared()
-		return a_dist < b_dist
+	candidates.sort_custom(
+		func(a: Vector3, b: Vector3) -> bool:
+			var a_dist: float = Vector2(a.x - room_center.x, a.z - room_center.z).length_squared()
+			var b_dist: float = Vector2(b.x - room_center.x, b.z - room_center.z).length_squared()
+			return a_dist < b_dist
 	)
 	for candidate: Vector3 in candidates:
 		if _is_position_clear(layout, placements, box_size, candidate, furniture_scale):
@@ -59,13 +55,11 @@ static func find_clear_floor_position(
 	return Vector3.INF
 
 
-static func _build_floor_candidates(layout: InteriorRoomLayout.Layout, box_size: Vector3) -> Array[Vector3]:
+static func _build_floor_candidates(
+	layout: InteriorRoomLayout.Layout, box_size: Vector3
+) -> Array[Vector3]:
 	var candidates: Array[Vector3] = []
-	var safe_size := Vector3(
-		maxf(box_size.x, 0.25),
-		maxf(box_size.y, 0.25),
-		maxf(box_size.z, 0.25)
-	)
+	var safe_size := Vector3(maxf(box_size.x, 0.25), maxf(box_size.y, 0.25), maxf(box_size.z, 0.25))
 	var half_footprint := Vector2(safe_size.x, safe_size.z) * 0.5
 	var wall_margin: float = 0.35
 	var bounds: AABB = layout.world_aabb
@@ -106,15 +100,9 @@ static func _is_position_clear(
 
 
 static func _get_box_aabb_at(
-	layout: InteriorRoomLayout.Layout,
-	box_size: Vector3,
-	center: Vector3
+	layout: InteriorRoomLayout.Layout, box_size: Vector3, center: Vector3
 ) -> AABB:
-	var safe_size := Vector3(
-		maxf(box_size.x, 0.25),
-		maxf(box_size.y, 0.25),
-		maxf(box_size.z, 0.25)
-	)
+	var safe_size := Vector3(maxf(box_size.x, 0.25), maxf(box_size.y, 0.25), maxf(box_size.z, 0.25))
 	return AABB(
 		Vector3(center.x - safe_size.x * 0.5, layout.floor_y, center.z - safe_size.z * 0.5),
 		safe_size
@@ -122,9 +110,7 @@ static func _get_box_aabb_at(
 
 
 static func _furniture_intersects_box(
-	placement: InteriorRoomFurniture.Placement,
-	box_aabb: AABB,
-	furniture_scale: float = 1.0
+	placement: InteriorRoomFurniture.Placement, box_aabb: AABB, furniture_scale: float = 1.0
 ) -> bool:
 	if placement.furniture_type == InteriorRoomFurniture.FurnitureType.RUG:
 		return false
@@ -136,9 +122,7 @@ static func _furniture_intersects_box(
 
 
 static func _build_at(
-	layout: InteriorRoomLayout.Layout,
-	box_size: Vector3,
-	center: Vector3
+	layout: InteriorRoomLayout.Layout, box_size: Vector3, center: Vector3
 ) -> Node3D:
 	var root := Node3D.new()
 	root.name = "GlassBoxProp"
@@ -154,11 +138,7 @@ static func _build_at(
 		push_error("[InteriorGlassBoxSpawner] Failed to instantiate glass box.")
 		return root
 
-	var safe_size := Vector3(
-		maxf(box_size.x, 0.25),
-		maxf(box_size.y, 0.25),
-		maxf(box_size.z, 0.25)
-	)
+	var safe_size := Vector3(maxf(box_size.x, 0.25), maxf(box_size.y, 0.25), maxf(box_size.z, 0.25))
 	glass_box.scale = safe_size
 	glass_box.name = "GlassBox"
 	root.add_child(glass_box)

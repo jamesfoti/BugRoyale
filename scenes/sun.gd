@@ -1,7 +1,6 @@
-extends Node3D
 class_name SunBody
+extends Node3D
 ## Terrain-meshed sun with a directional light that shines toward the celestial body.
-
 
 @export var celestial_body_path: NodePath
 @export var light_energy: float = 1.25

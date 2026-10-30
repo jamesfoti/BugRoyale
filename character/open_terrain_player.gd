@@ -1,5 +1,5 @@
-extends GroundPlayer
 class_name OpenTerrainPlayer
+extends GroundPlayer
 ## Bug controller for open heightmap terrain (movement, climbing and flight live in GroundPlayer).
 
 var _open_terrain: OpenTerrain

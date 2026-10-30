@@ -1,7 +1,6 @@
-extends RigidBody3D
 class_name Asteroid
+extends RigidBody3D
 ## Procedural rocky body that falls toward a celestial body and carves terrain on impact.
-
 
 signal impacted(celestial_body: CelestialBody, position: Vector3, crater_radius: float)
 
@@ -14,13 +13,13 @@ const _MIN_DIR_LEN_SQ: float = 0.0001
 @export var max_crater_radius: float = 7.0
 @export var max_lifetime: float = 120.0
 
-@onready var _mesh_instance: MeshInstance3D = $MeshInstance3D
-@onready var _collision_shape: CollisionShape3D = $CollisionShape3D
-
 var _target_body: CelestialBody
 var _asteroid_radius: float = 1.0
 var _impacted: bool = false
 var _lifetime: float = 0.0
+
+@onready var _mesh_instance: MeshInstance3D = $MeshInstance3D
+@onready var _collision_shape: CollisionShape3D = $CollisionShape3D
 
 
 func _ready() -> void:
@@ -41,21 +40,17 @@ func setup(
 	_asteroid_radius = radius
 
 	var built: Dictionary = AsteroidMeshBuilder.build(
-		mesh_seed,
-		radius,
-		mesh_subdivisions,
-		surface_roughness
+		mesh_seed, radius, mesh_subdivisions, surface_roughness
 	)
 	_mesh_instance.mesh = built["mesh"] as ArrayMesh
 	_collision_shape.shape = built["shape"] as Shape3D
 
 	mass = maxf(radius * radius * radius * 0.65, 0.5)
 	linear_velocity = initial_velocity
-	angular_velocity = Vector3(
-		randf_range(-2.5, 2.5),
-		randf_range(-2.5, 2.5),
-		randf_range(-2.5, 2.5)
-	) / maxf(radius, 0.5)
+	angular_velocity = (
+		Vector3(randf_range(-2.5, 2.5), randf_range(-2.5, 2.5), randf_range(-2.5, 2.5))
+		/ maxf(radius, 0.5)
+	)
 
 
 func _physics_process(delta: float) -> void:
@@ -120,8 +115,7 @@ func _estimate_impact_point(terrain: CelestialBody) -> Vector3:
 	var center: Vector3 = terrain.global_position + terrain.sphere_center
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-		global_position,
-		center
+		global_position, center
 	)
 	query.collide_with_areas = false
 	var hit: Dictionary = space.intersect_ray(query)

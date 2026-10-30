@@ -1,5 +1,5 @@
-extends AnimatableBody3D
 class_name Bird
+extends AnimatableBody3D
 ## Single flock bird. Movement is driven by BirdFlock, which also draws every bird's cone
 ## in one MultiMeshInstance3D. Shots hit its sphere (collision layer 4, which the player body
 ## ignores) and damage its Damageable; at zero health it tumbles to the ground and is removed.

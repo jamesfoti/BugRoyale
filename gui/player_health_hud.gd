@@ -1,16 +1,15 @@
-extends PanelContainer
 class_name PlayerHealthHud
+extends PanelContainer
 ## Always-visible player health bar. Binds to the player's Damageable child.
 
+var _damageable: Damageable
+## The player's air supply; the Air bar shows only while it is below full.
+var _breath: Breath
 
 @onready var _bar: ProgressBar = $Margin/Row/HealthBar
 @onready var _value_label: Label = $Margin/Row/ValueLabel
 @onready var _breath_label: Label = $Margin/Row/BreathLabel
 @onready var _breath_bar: ProgressBar = $Margin/Row/BreathBar
-
-var _damageable: Damageable
-## The player's air supply; the Air bar shows only while it is below full.
-var _breath: Breath
 
 
 func _ready() -> void:
@@ -48,7 +47,11 @@ func _try_bind() -> void:
 
 
 func _bind_breath(breath: Breath) -> void:
-	if _breath != null and is_instance_valid(_breath) and _breath.breath_changed.is_connected(_on_breath_changed):
+	if (
+		_breath != null
+		and is_instance_valid(_breath)
+		and _breath.breath_changed.is_connected(_on_breath_changed)
+	):
 		_breath.breath_changed.disconnect(_on_breath_changed)
 	_breath = breath
 	if _breath != null:

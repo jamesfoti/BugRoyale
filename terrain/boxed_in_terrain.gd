@@ -3,7 +3,6 @@ class_name BoxedInTerrain
 extends ChunkedTerrainWorld
 ## 3D noise terrain clipped to a boxed world volume.
 
-
 @export_group("Boxed-In Terrain Grid")
 @export_range(1, 64, 1) var chunks_x: int = 5:
 	set(value):
@@ -38,7 +37,7 @@ func _get_world_log_name() -> String:
 	return "BoxedInTerrain"
 
 
-func get_surface_height_at(world_position: Vector3) -> float:
+func get_surface_height_at(_world_position: Vector3) -> float:
 	return global_position.y
 
 
@@ -49,7 +48,9 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.boxed_in_edges_enabled = boxed_edges_enabled
 
 
-func _build_world_density(settings: ChunkedTerrainWorld.SettingsSnapshot) -> DensitySampler.WorldDensity:
+func _build_world_density(
+	settings: ChunkedTerrainWorld.SettingsSnapshot
+) -> DensitySampler.WorldDensity:
 	return DensitySampler.create_boxed_in_terrain_world_density(
 		settings.noise_seed,
 		settings.noise_frequency,

@@ -1,5 +1,5 @@
-extends FighterController
 class_name LocalFighterController
+extends FighterController
 ## The keyboard, mouse and camera of the player at this machine, packed into a FighterInput.
 ## Jump and climb are edges taken from _unhandled_input so a press the UI consumed (an open
 ## inventory, a menu) never reaches the body, exactly as before the body read Input itself.
@@ -44,7 +44,9 @@ func _input(event: InputEvent) -> void:
 	var body: Node = get_parent()
 	if body != null and body.has_method("is_ui_blocking") and body.call("is_ui_blocking"):
 		return
-	var orbit_camera: OrbitCamera = body.get_node_or_null("OrbitCamera") as OrbitCamera if body != null else null
+	var orbit_camera: OrbitCamera = (
+		body.get_node_or_null("OrbitCamera") as OrbitCamera if body != null else null
+	)
 	if orbit_camera != null and orbit_camera.is_orbiting():
 		return
 	var delta_x: float = (event as InputEventMouseMotion).relative.x
@@ -65,12 +67,13 @@ func sample(body: CharacterBody3D, _delta: float) -> FighterInput:
 	if not enabled:
 		return input
 	input.move = Vector2(
-		Input.get_axis("move_left", "move_right"),
-		Input.get_axis("move_backward", "move_forward")
+		Input.get_axis("move_left", "move_right"), Input.get_axis("move_backward", "move_forward")
 	)
 	input.run = Input.is_action_pressed("run")
 	input.jump_held = Input.is_action_pressed("jump")
-	input.descend_held = InputMap.has_action(DESCEND_ACTION) and Input.is_action_pressed(DESCEND_ACTION)
+	input.descend_held = (
+		InputMap.has_action(DESCEND_ACTION) and Input.is_action_pressed(DESCEND_ACTION)
+	)
 	input.shoot_held = InputMap.has_action(SHOOT_ACTION) and Input.is_action_pressed(SHOOT_ACTION)
 
 	var camera: Camera3D = body.get_node_or_null("OrbitCamera/Camera3D") as Camera3D

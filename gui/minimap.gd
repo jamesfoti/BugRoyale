@@ -1,5 +1,5 @@
-extends Control
 class_name Minimap
+extends Control
 ## Bottom-left minimap. A small orthographic camera looks straight down at the real map around
 ## the player and renders it into a round viewport, so any map, present or future, shows up with
 ## no per-map data: terrain, water, piers, ducts, mushrooms, whatever is there. Markers go on
@@ -40,7 +40,8 @@ void fragment() {
 	vec2 p = UV - 0.5;
 	float r = length(p) * 2.0;
 	vec4 map = texture(TEXTURE, UV);
-	float in_storm = smoothstep(storm_radius_uv - 0.01, storm_radius_uv + 0.01, length(UV - storm_center_uv));
+	float storm_distance = length(UV - storm_center_uv);
+	float in_storm = smoothstep(storm_radius_uv - 0.01, storm_radius_uv + 0.01, storm_distance);
 	map.rgb = mix(map.rgb, spore_color, in_storm * storm_strength);
 	float rim = smoothstep(1.0 - rim_width * 2.0, 1.0 - rim_width, r);
 	float inside = 1.0 - smoothstep(0.985, 1.0, r);
@@ -63,8 +64,9 @@ var _forward: Vector3 = Vector3.FORWARD
 var _player_team: int = Damageable.NO_TEAM
 var _player_health: Damageable
 
-
 ## Puts a minimap on screen for a player; scene_root is the loaded map (for MapInfo).
+
+
 static func attach(target_player: Node3D, scene_root: Node) -> Minimap:
 	var layer := CanvasLayer.new()
 	layer.name = "MinimapLayer"
@@ -104,6 +106,7 @@ func _process(_delta: float) -> void:
 
 
 # --- The rendered map -------------------------------------------------------------------------
+
 
 func _build_viewport() -> void:
 	_viewport = SubViewport.new()
@@ -180,7 +183,9 @@ func _aim_camera() -> void:
 	var position_now: Vector3 = player.global_position
 	var up: Vector3 = map.up_at(position_now) if map != null else Vector3.UP
 	var main_camera: Camera3D = get_viewport().get_camera_3d()
-	var heading: Vector3 = -main_camera.global_basis.z if main_camera != null else -player.global_basis.z
+	var heading: Vector3 = (
+		-main_camera.global_basis.z if main_camera != null else -player.global_basis.z
+	)
 	heading = heading.slide(up)
 	if heading.length_squared() < 0.0001:
 		heading = (-player.global_basis.z).slide(up)
@@ -196,6 +201,7 @@ func _aim_camera() -> void:
 
 
 # --- Markers ----------------------------------------------------------------------------------
+
 
 func _draw_markers() -> void:
 	var center: Vector2 = size * 0.5
@@ -223,7 +229,9 @@ func _fighter_color(node: Node) -> Color:
 
 
 ## A dot for a bug or hornet; anything past the rim sits on it, faded, to show the direction.
-func _draw_marker(node: Node, center: Vector2, rim: float, scale_px: float, color: Color, radius: float) -> void:
+func _draw_marker(
+	node: Node, center: Vector2, rim: float, scale_px: float, color: Color, radius: float
+) -> void:
 	var body: Node3D = node as Node3D
 	if body == null or not body.visible or not body.is_inside_tree():
 		return
@@ -244,12 +252,14 @@ func _draw_marker(node: Node, center: Vector2, rim: float, scale_px: float, colo
 ## You: an arrowhead at the centre, pointing up the map (your camera's heading). Cyan, since no
 ## map paints anything that colour, with a heavy dark outline so it reads on light ground too.
 func _draw_self(center: Vector2) -> void:
-	var points := PackedVector2Array([
-		center + Vector2(0.0, -10.0),
-		center + Vector2(7.5, 7.5),
-		center + Vector2(0.0, 3.5),
-		center + Vector2(-7.5, 7.5),
-	])
+	var points := PackedVector2Array(
+		[
+			center + Vector2(0.0, -10.0),
+			center + Vector2(7.5, 7.5),
+			center + Vector2(0.0, 3.5),
+			center + Vector2(-7.5, 7.5),
+		]
+	)
 	var outline: PackedVector2Array = points.duplicate()
 	outline.append(points[0])
 	_markers.draw_polyline(outline, COLOR_OUTLINE, 5.0, true)
@@ -269,7 +279,9 @@ func _draw_spore_circle(center: Vector2, rim: float, scale_px: float) -> void:
 		return
 	# Wash the map outside the circle with spores (the frame shader works in map UV space, where
 	# the whole map spans 0..1 and the centre is the player).
-	var center_uv: Vector2 = Vector2(0.5, 0.5) + (_to_map(storm_center, center, scale_px) - center) / size
+	var center_uv: Vector2 = (
+		Vector2(0.5, 0.5) + (_to_map(storm_center, center, scale_px) - center) / size
+	)
 	_frame_material.set_shader_parameter("storm_center_uv", center_uv)
 	_frame_material.set_shader_parameter("storm_radius_uv", storm_radius / (_view_radius * 2.0))
 	_frame_material.set_shader_parameter("storm_strength", STORM_FILL)
@@ -280,7 +292,9 @@ func _draw_spore_circle(center: Vector2, rim: float, scale_px: float) -> void:
 	var steps: int = 128
 	for step: int in steps + 1:
 		var angle: float = TAU * float(step) / float(steps)
-		var world: Vector3 = storm_center + _right * cos(angle) * storm_radius + _forward * sin(angle) * storm_radius
+		var world: Vector3 = (
+			storm_center + _right * cos(angle) * storm_radius + _forward * sin(angle) * storm_radius
+		)
 		var point: Vector2 = _to_map(world, center, scale_px)
 		var inside: bool = (point - center).length() < rim - 1.0
 		if previous != Vector2.INF and inside and (previous - center).length() < rim - 1.0:

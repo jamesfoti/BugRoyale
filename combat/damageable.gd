@@ -1,12 +1,11 @@
-extends Node
 class_name Damageable
+extends Node
 ## Health container for players and other entities that can take damage.
 ## Teams: damage from a source on the same team is ignored (no friendly fire). team -1 means
 ## "no team", which everyone may damage.
 ## Only the authority (this machine offline, the host online) changes health: every caller,
 ## from shots to drowning to falling off the map, passes through here, so none of them has to
 ## know. A client's copy only ever receives health from the host.
-
 
 signal health_changed(current: float, maximum: float)
 signal damaged(amount: float, source: Node)

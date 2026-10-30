@@ -5,7 +5,6 @@ extends RefCounted
 ## shaders show instead of the procedural ground. For now any amount of any kind can be placed;
 ## mining it first is a later step.
 
-
 enum Kind {
 	NATURAL,
 	DIRT,

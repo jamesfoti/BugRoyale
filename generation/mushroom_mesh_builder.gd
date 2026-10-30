@@ -87,8 +87,18 @@ static func build(seed: int, species: Species) -> Dictionary:
 	_lathe(st, stem, true)
 	if ring:
 		var skirt: Array = [
-			{"r": stem_top * 1.05, "y": stem_height * 0.74, "color": stem_color, "offset": lean * 0.55},
-			{"r": stem_top * 1.9, "y": stem_height * 0.66, "color": stem_color * 0.92, "offset": lean * 0.55},
+			{
+				"r": stem_top * 1.05,
+				"y": stem_height * 0.74,
+				"color": stem_color,
+				"offset": lean * 0.55
+			},
+			{
+				"r": stem_top * 1.9,
+				"y": stem_height * 0.66,
+				"color": stem_color * 0.92,
+				"offset": lean * 0.55
+			},
 		]
 		_lathe(st, skirt, true)
 
@@ -99,7 +109,15 @@ static func build(seed: int, species: Species) -> Dictionary:
 	for index: int in GILL_RINGS + 1:
 		var t: float = float(index) / GILL_RINGS
 		var radius: float = lerpf(stem_top, cap_radius, t)
-		gills.append({"r": radius, "y": lerpf(stem_height - 0.015, rim_y, t * t), "color": gill_color, "offset": cap_offset, "stripes": true})
+		gills.append(
+			{
+				"r": radius,
+				"y": lerpf(stem_height - 0.015, rim_y, t * t),
+				"color": gill_color,
+				"offset": cap_offset,
+				"stripes": true
+			}
+		)
 	_lathe(st, gills, false)
 
 	# Cap: a lathed profile from the rim to the apex, tinted toward the apex, spotted by noise.
@@ -110,7 +128,16 @@ static func build(seed: int, species: Species) -> Dictionary:
 		var radius: float = cap_radius * pow(cos(angle), round_top)
 		var y: float = rim_y + cap_height * pow(sin(angle), point_top)
 		var shade: Color = cap_color.lerp(apex_color, a)
-		cap.append({"r": radius, "y": y, "color": shade, "offset": cap_offset, "spots": spots, "noise": noise})
+		cap.append(
+			{
+				"r": radius,
+				"y": y,
+				"color": shade,
+				"offset": cap_offset,
+				"spots": spots,
+				"noise": noise
+			}
+		)
 	_lathe(st, cap, true)
 
 	st.index()
@@ -136,34 +163,68 @@ static func _lathe(st: SurfaceTool, profile: Array, outward: bool) -> void:
 		for side: int in SIDES:
 			var angle0: float = TAU * side / SIDES
 			var angle1: float = TAU * (side + 1) / SIDES
-			var points := PackedVector3Array([
-				_ring_point(a, angle0), _ring_point(a, angle1), _ring_point(b, angle1), _ring_point(b, angle0),
-			])
-			var normals := PackedVector3Array([
-				_ring_normal(slope_a, angle0, outward), _ring_normal(slope_a, angle1, outward),
-				_ring_normal(slope_b, angle1, outward), _ring_normal(slope_b, angle0, outward),
-			])
-			var colors := PackedColorArray([
-				_ring_color(a, points[0], side), _ring_color(a, points[1], side),
-				_ring_color(b, points[2], side), _ring_color(b, points[3], side),
-			])
+			var points := PackedVector3Array(
+				[
+					_ring_point(a, angle0),
+					_ring_point(a, angle1),
+					_ring_point(b, angle1),
+					_ring_point(b, angle0),
+				]
+			)
+			var normals := PackedVector3Array(
+				[
+					_ring_normal(slope_a, angle0, outward),
+					_ring_normal(slope_a, angle1, outward),
+					_ring_normal(slope_b, angle1, outward),
+					_ring_normal(slope_b, angle0, outward),
+				]
+			)
+			var colors := PackedColorArray(
+				[
+					_ring_color(a, points[0], side),
+					_ring_color(a, points[1], side),
+					_ring_color(b, points[2], side),
+					_ring_color(b, points[3], side),
+				]
+			)
 			if float(b["r"]) < 0.0001:
-				_triangle(st, PackedVector3Array([points[0], points[1], points[2]]), PackedVector3Array([normals[0], normals[1], normals[2]]), PackedColorArray([colors[0], colors[1], colors[2]]))
+				_triangle(
+					st,
+					PackedVector3Array([points[0], points[1], points[2]]),
+					PackedVector3Array([normals[0], normals[1], normals[2]]),
+					PackedColorArray([colors[0], colors[1], colors[2]])
+				)
 			else:
-				_triangle(st, PackedVector3Array([points[0], points[1], points[2]]), PackedVector3Array([normals[0], normals[1], normals[2]]), PackedColorArray([colors[0], colors[1], colors[2]]))
-				_triangle(st, PackedVector3Array([points[0], points[2], points[3]]), PackedVector3Array([normals[0], normals[2], normals[3]]), PackedColorArray([colors[0], colors[2], colors[3]]))
+				_triangle(
+					st,
+					PackedVector3Array([points[0], points[1], points[2]]),
+					PackedVector3Array([normals[0], normals[1], normals[2]]),
+					PackedColorArray([colors[0], colors[1], colors[2]])
+				)
+				_triangle(
+					st,
+					PackedVector3Array([points[0], points[2], points[3]]),
+					PackedVector3Array([normals[0], normals[2], normals[3]]),
+					PackedColorArray([colors[0], colors[2], colors[3]])
+				)
 
 
 static func _ring_point(ring: Dictionary, angle: float) -> Vector3:
 	var offset: Vector2 = ring.get("offset", Vector2.ZERO)
-	return Vector3(cos(angle) * float(ring["r"]) + offset.x, float(ring["y"]), sin(angle) * float(ring["r"]) + offset.y)
+	return Vector3(
+		cos(angle) * float(ring["r"]) + offset.x,
+		float(ring["y"]),
+		sin(angle) * float(ring["r"]) + offset.y
+	)
 
 
 ## The profile's (dr, dy) direction at a ring, from its neighbours.
 static func _slope(profile: Array, index: int) -> Vector2:
 	var before: Dictionary = profile[maxi(index - 1, 0)]
 	var after: Dictionary = profile[mini(index + 1, profile.size() - 1)]
-	var slope := Vector2(float(after["r"]) - float(before["r"]), float(after["y"]) - float(before["y"]))
+	var slope := Vector2(
+		float(after["r"]) - float(before["r"]), float(after["y"]) - float(before["y"])
+	)
 	if slope.length_squared() < 0.000001:
 		return Vector2(0.0, 1.0)
 	return slope.normalized()
@@ -193,7 +254,12 @@ static func _ring_color(ring: Dictionary, point: Vector3, side: int) -> Color:
 
 
 ## Winds a triangle so its front faces along the given normals.
-static func _triangle(st: SurfaceTool, points: PackedVector3Array, normals: PackedVector3Array, colors: PackedColorArray) -> void:
+static func _triangle(
+	st: SurfaceTool,
+	points: PackedVector3Array,
+	normals: PackedVector3Array,
+	colors: PackedColorArray
+) -> void:
 	var outward: Vector3 = normals[0] + normals[1] + normals[2]
 	var order: PackedInt32Array = PackedInt32Array([0, 1, 2])
 	if (points[1] - points[0]).cross(points[2] - points[0]).dot(outward) > 0.0:

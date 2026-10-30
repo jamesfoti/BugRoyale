@@ -50,7 +50,9 @@ var _shown_radius: float = -1.0
 var _rebuild_in: float = 0.0
 
 
-static func create(pool_radius: float, damage: float, seconds: float, pool_color: Color, is_burning: bool = false) -> FluidPool:
+static func create(
+	pool_radius: float, damage: float, seconds: float, pool_color: Color, is_burning: bool = false
+) -> FluidPool:
 	var pool := FluidPool.new()
 	pool.name = "FluidPool"
 	pool.target_radius = pool_radius
@@ -186,7 +188,10 @@ func _apply_radius() -> void:
 		return
 	if _flooded.is_empty():
 		return
-	if absf(safe - _shown_radius) < 0.01 or (_rebuild_in > 0.0 and safe < target_radius and _drying < 0.0):
+	if (
+		absf(safe - _shown_radius) < 0.01
+		or (_rebuild_in > 0.0 and safe < target_radius and _drying < 0.0)
+	):
 		return
 	_rebuild_in = REBUILD_SECONDS
 	_shown_radius = safe
@@ -194,6 +199,7 @@ func _apply_radius() -> void:
 
 
 # --- Terrain-following flood -----------------------------------------------------------------
+
 
 ## Floods outward from the spill point over a square grid: a cell joins when a flooded
 ## neighbour can reach it within the radius without the ground rising more than a gentle step.
@@ -237,12 +243,16 @@ func _flood(radius: float) -> void:
 				continue
 			var low: float = INF
 			var high: float = -INF
-			for around: Vector2i in [Vector2i.ZERO, Vector2i(-1, 0), Vector2i(0, -1), Vector2i(-1, -1)]:
+			for around: Vector2i in [
+				Vector2i.ZERO, Vector2i(-1, 0), Vector2i(0, -1), Vector2i(-1, -1)
+			]:
 				var neighbour: Vector2i = key + around
 				if _flooded.has(neighbour):
 					low = minf(low, float(heights[neighbour]))
 					high = maxf(high, float(heights[neighbour]))
-			var corner_height: float = _ground_height(origin.x + (key.x - 0.5) * _cell, origin.z + (key.y - 0.5) * _cell)
+			var corner_height: float = _ground_height(
+				origin.x + (key.x - 0.5) * _cell, origin.z + (key.y - 0.5) * _cell
+			)
 			if is_nan(corner_height):
 				corner_height = (low + high) * 0.5
 			_corner_heights[key] = clampf(corner_height, low - climb, high + climb)
@@ -267,7 +277,9 @@ func _flood(radius: float) -> void:
 func _ground_height(x: float, z: float) -> float:
 	var reach: float = target_radius + 6.0
 	var query := PhysicsRayQueryParameters3D.create(
-		Vector3(x, global_position.y + reach, z), Vector3(x, global_position.y - reach, z), MapInfo.TERRAIN_LAYER
+		Vector3(x, global_position.y + reach, z),
+		Vector3(x, global_position.y - reach, z),
+		MapInfo.TERRAIN_LAYER
 	)
 	query.collide_with_areas = false
 	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
@@ -302,9 +314,13 @@ func _show_flood(radius: float) -> void:
 		var points := PackedVector3Array()
 		for corner: Vector2i in corners:
 			var key: Vector2i = cell + corner
-			points.append(Vector3(
-				(key.x - 0.5) * _cell, float(_corner_heights[key]) - origin.y + SURFACE_LIFT, (key.y - 0.5) * _cell
-			))
+			points.append(
+				Vector3(
+					(key.x - 0.5) * _cell,
+					float(_corner_heights[key]) - origin.y + SURFACE_LIFT,
+					(key.y - 0.5) * _cell
+				)
+			)
 		var normal: Vector3 = (points[1] - points[0]).cross(points[3] - points[0]).normalized()
 		if normal.y < 0.0:
 			normal = -normal

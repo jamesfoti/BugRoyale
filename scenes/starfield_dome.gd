@@ -1,7 +1,6 @@
 extends Node3D
 ## Large star dome mesh scaled to follow the camera.
 
-
 const DOME_RADIUS: float = 800.0
 
 @onready var _mesh: MeshInstance3D = $MeshInstance3D

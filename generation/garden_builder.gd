@@ -11,22 +11,8 @@ extends Node3D
 ## Bed walls, rims and soil collide on MapInfo.TERRAIN_LAYER, so ground probes, spawns and the
 ## minimap treat a bed top as ground.
 
-@export var terrain_path: NodePath = ^"../TerrainWorld"
-## World metres per real metre.
-@export_range(1.0, 200.0, 1.0) var structure_scale: float = 80.0
-## Bed wall height in real metres (a 17-inch bed).
-@export var bed_height: float = 0.43
-## Corrugation: one rib every rib_pitch metres, bulging rib_depth outward.
-@export var rib_pitch: float = 0.085
-@export var rib_depth: float = 0.008
-## Grass tufts scattered over the lawn.
-@export var grass_tufts: int = 3000
-## Give each bed a random finish from the Birdies range. Off: every bed is Zincalume.
-@export var random_bed_finishes: bool = true
-## Lawn ground. Replaces the terrain's material when the scene left it on the planet shader,
-## which colours flat ground by distance from the origin and turns a backyard to rock.
-@export var lawn_material: Material = preload("res://materials/garden_lawn.tres")
-@export var garden_seed: int = 11
+enum Plant { LETTUCE, RED_LETTUCE, BEAN, PEPPER, MARIGOLD, GRASS }
+enum Trellis { NONE, ARCHES, OBELISK }
 
 ## Bed wall finishes, after the Birdies Garden Products range (Colorbond names in brackets):
 ## Zincalume (Aluzinc), Merino (Paperbark / Light Clay), Mist Green (Pale Eucalypt),
@@ -45,7 +31,9 @@ const SIDING_COLOR := Color(0.82, 0.8, 0.74)
 const ROOF_COLOR := Color(0.32, 0.3, 0.28)
 const WINDOW_COLOR := Color(0.18, 0.24, 0.34)
 const BARK_COLOR := Color(0.36, 0.28, 0.2)
-const CANOPY_COLORS: Array[Color] = [Color(0.25, 0.48, 0.2), Color(0.32, 0.56, 0.24), Color(0.2, 0.42, 0.18)]
+const CANOPY_COLORS: Array[Color] = [
+	Color(0.25, 0.48, 0.2), Color(0.32, 0.56, 0.24), Color(0.2, 0.42, 0.18)
+]
 const FENCE_COLOR := Color(0.55, 0.57, 0.58)
 ## Chain-link fabric: diamonds of wire, cut out between them. See shaders/chain_link.gdshader.
 const CHAIN_LINK_SHADER: Shader = preload("res://shaders/chain_link.gdshader")
@@ -55,34 +43,111 @@ const FENCE_INSET: float = 0.5
 const RIM_LIP: float = 0.03
 const SOIL_DROP: float = 0.06
 
-enum Plant { LETTUCE, RED_LETTUCE, BEAN, PEPPER, MARIGOLD, GRASS }
-enum Trellis { NONE, ARCHES, OBELISK }
-
 ## The beds, in real metres from the garden's centre: centre, length (along the bed), width,
 ## whether the long side runs along z, what grows in it (plant: share of the planting grid)
 ## and the trellis in it. Laid out like a backyard: two big beds up front with arches, a
 ## lettuce bed in the middle, a long narrow bed behind, two square beds with obelisks at the
 ## back, and a narrow bed down each side.
 const BEDS: Array[Dictionary] = [
-	{"center": Vector2(-1.4, 1.7), "length": 2.4, "width": 1.2, "along_z": false, "trellis": Trellis.ARCHES,
-		"plants": {Plant.BEAN: 0.85, Plant.MARIGOLD: 0.15}, "spacing": 0.17},
-	{"center": Vector2(1.4, 1.7), "length": 2.4, "width": 1.2, "along_z": false, "trellis": Trellis.ARCHES,
-		"plants": {Plant.BEAN: 0.9, Plant.MARIGOLD: 0.1}, "spacing": 0.16},
-	{"center": Vector2(0.0, 0.0), "length": 2.4, "width": 1.2, "along_z": false, "trellis": Trellis.NONE,
-		"plants": {Plant.LETTUCE: 0.55, Plant.RED_LETTUCE: 0.3, Plant.MARIGOLD: 0.15}, "spacing": 0.22},
-	{"center": Vector2(0.0, -1.3), "length": 3.0, "width": 0.6, "along_z": false, "trellis": Trellis.NONE,
-		"plants": {Plant.PEPPER: 0.75, Plant.MARIGOLD: 0.25}, "spacing": 0.27},
-	{"center": Vector2(-2.0, -2.0), "length": 1.2, "width": 1.2, "along_z": false, "trellis": Trellis.OBELISK,
-		"plants": {Plant.PEPPER: 0.7, Plant.MARIGOLD: 0.3}, "spacing": 0.27},
-	{"center": Vector2(2.0, -2.0), "length": 1.2, "width": 1.2, "along_z": false, "trellis": Trellis.OBELISK,
-		"plants": {Plant.PEPPER: 0.7, Plant.MARIGOLD: 0.3}, "spacing": 0.27},
-	{"center": Vector2(0.0, -2.3), "length": 2.0, "width": 0.6, "along_z": false, "trellis": Trellis.NONE,
-		"plants": {Plant.LETTUCE: 0.5, Plant.RED_LETTUCE: 0.5}, "spacing": 0.21},
-	{"center": Vector2(-2.3, -0.2), "length": 2.2, "width": 0.6, "along_z": true, "trellis": Trellis.NONE,
-		"plants": {Plant.LETTUCE: 0.7, Plant.MARIGOLD: 0.3}, "spacing": 0.21},
-	{"center": Vector2(2.3, -0.2), "length": 2.2, "width": 0.6, "along_z": true, "trellis": Trellis.NONE,
-		"plants": {Plant.BEAN: 1.0}, "spacing": 0.17},
+	{
+		"center": Vector2(-1.4, 1.7),
+		"length": 2.4,
+		"width": 1.2,
+		"along_z": false,
+		"trellis": Trellis.ARCHES,
+		"plants": {Plant.BEAN: 0.85, Plant.MARIGOLD: 0.15},
+		"spacing": 0.17
+	},
+	{
+		"center": Vector2(1.4, 1.7),
+		"length": 2.4,
+		"width": 1.2,
+		"along_z": false,
+		"trellis": Trellis.ARCHES,
+		"plants": {Plant.BEAN: 0.9, Plant.MARIGOLD: 0.1},
+		"spacing": 0.16
+	},
+	{
+		"center": Vector2(0.0, 0.0),
+		"length": 2.4,
+		"width": 1.2,
+		"along_z": false,
+		"trellis": Trellis.NONE,
+		"plants": {Plant.LETTUCE: 0.55, Plant.RED_LETTUCE: 0.3, Plant.MARIGOLD: 0.15},
+		"spacing": 0.22
+	},
+	{
+		"center": Vector2(0.0, -1.3),
+		"length": 3.0,
+		"width": 0.6,
+		"along_z": false,
+		"trellis": Trellis.NONE,
+		"plants": {Plant.PEPPER: 0.75, Plant.MARIGOLD: 0.25},
+		"spacing": 0.27
+	},
+	{
+		"center": Vector2(-2.0, -2.0),
+		"length": 1.2,
+		"width": 1.2,
+		"along_z": false,
+		"trellis": Trellis.OBELISK,
+		"plants": {Plant.PEPPER: 0.7, Plant.MARIGOLD: 0.3},
+		"spacing": 0.27
+	},
+	{
+		"center": Vector2(2.0, -2.0),
+		"length": 1.2,
+		"width": 1.2,
+		"along_z": false,
+		"trellis": Trellis.OBELISK,
+		"plants": {Plant.PEPPER: 0.7, Plant.MARIGOLD: 0.3},
+		"spacing": 0.27
+	},
+	{
+		"center": Vector2(0.0, -2.3),
+		"length": 2.0,
+		"width": 0.6,
+		"along_z": false,
+		"trellis": Trellis.NONE,
+		"plants": {Plant.LETTUCE: 0.5, Plant.RED_LETTUCE: 0.5},
+		"spacing": 0.21
+	},
+	{
+		"center": Vector2(-2.3, -0.2),
+		"length": 2.2,
+		"width": 0.6,
+		"along_z": true,
+		"trellis": Trellis.NONE,
+		"plants": {Plant.LETTUCE: 0.7, Plant.MARIGOLD: 0.3},
+		"spacing": 0.21
+	},
+	{
+		"center": Vector2(2.3, -0.2),
+		"length": 2.2,
+		"width": 0.6,
+		"along_z": true,
+		"trellis": Trellis.NONE,
+		"plants": {Plant.BEAN: 1.0},
+		"spacing": 0.17
+	},
 ]
+
+@export var terrain_path: NodePath = ^"../TerrainWorld"
+## World metres per real metre.
+@export_range(1.0, 200.0, 1.0) var structure_scale: float = 80.0
+## Bed wall height in real metres (a 17-inch bed).
+@export var bed_height: float = 0.43
+## Corrugation: one rib every rib_pitch metres, bulging rib_depth outward.
+@export var rib_pitch: float = 0.085
+@export var rib_depth: float = 0.008
+## Grass tufts scattered over the lawn.
+@export var grass_tufts: int = 3000
+## Give each bed a random finish from the Birdies range. Off: every bed is Zincalume.
+@export var random_bed_finishes: bool = true
+## Lawn ground. Replaces the terrain's material when the scene left it on the planet shader,
+## which colours flat ground by distance from the origin and turns a backyard to rock.
+@export var lawn_material: Material = preload("res://materials/garden_lawn.tres")
+@export var garden_seed: int = 11
 
 var _terrain: OpenTerrain
 var _center: Vector3
@@ -94,7 +159,8 @@ var _finishes: Array[String] = []
 var _materials: Dictionary = {}
 ## Plant kind -> {"mesh": ArrayMesh, "transforms": Array[Transform3D], "colors": Array[Color]}.
 var _plantings: Dictionary = {}
-## Bed footprints in world space, for keeping lawn grass out: {"center": Vector3, "length", "width", "along_z"}.
+## Bed footprints in world space, for keeping lawn grass out: {"center": Vector3, "length", "width",
+## "along_z"}.
 var _footprints: Array[Dictionary] = []
 var _built: bool = false
 
@@ -114,7 +180,11 @@ func _lay_lawn() -> void:
 	if terrain == null or lawn_material == null:
 		return
 	var current: ShaderMaterial = terrain.terrain_material as ShaderMaterial
-	var planet: bool = current != null and current.shader != null and current.shader.resource_path == "res://shaders/terrain_spherical.gdshader"
+	var planet: bool = (
+		current != null
+		and current.shader != null
+		and current.shader.resource_path == "res://shaders/terrain_spherical.gdshader"
+	)
 	if terrain.terrain_material == null or planet:
 		terrain.terrain_material = lawn_material
 
@@ -127,7 +197,9 @@ func get_ceiling_y() -> float:
 ## The yard inside the chain-link: play, spawns and terrain edits stay in here. The dirt runs
 ## on past the fence so there is lawn, not void, on the other side.
 func get_play_bounds() -> AABB:
-	var terrain: OpenTerrain = _terrain if _terrain != null else get_node_or_null(terrain_path) as OpenTerrain
+	var terrain: OpenTerrain = (
+		_terrain if _terrain != null else get_node_or_null(terrain_path) as OpenTerrain
+	)
 	if terrain == null:
 		return AABB()
 	var half: Vector3 = terrain.get_world_extents() * 0.5
@@ -135,7 +207,11 @@ func get_play_bounds() -> AABB:
 	var center: Vector3 = terrain.global_position
 	return AABB(
 		Vector3(center.x - half.x + inset, center.y - half.y - 100.0, center.z - half.z + inset),
-		Vector3((half.x - inset) * 2.0, half.y * 2.0 + 200.0 + 3.2 * structure_scale, (half.z - inset) * 2.0)
+		Vector3(
+			(half.x - inset) * 2.0,
+			half.y * 2.0 + 200.0 + 3.2 * structure_scale,
+			(half.z - inset) * 2.0
+		)
 	)
 
 
@@ -169,10 +245,24 @@ func build() -> void:
 	_build_fence()
 	_build_trees()
 	_built = true
-	print("[Garden] Built %.0fx%.0f m backyard at 1:%.0f: %d raised beds %.0f m tall (%s), %d grass tufts" % [extents.x, extents.z, _s, BEDS.size(), bed_height * _s, ", ".join(_finishes.slice(0, BEDS.size())), grass_tufts])
+	print(
+		(
+			"[Garden] Built %.0fx%.0f m backyard at 1:%.0f: %d raised beds %.0f m tall (%s), %d grass tufts"
+			% [
+				extents.x,
+				extents.z,
+				_s,
+				BEDS.size(),
+				bed_height * _s,
+				", ".join(_finishes.slice(0, BEDS.size())),
+				grass_tufts
+			]
+		)
+	)
 
 
 # --- Raised beds ------------------------------------------------------------------------------
+
 
 ## The finish of each bed in order: a shuffled deck with every finish dealt before any repeats,
 ## so neighbours differ and the whole range shows up. All Zincalume when random finishes are off.
@@ -233,7 +323,9 @@ func _build_bed(parent: Node3D, bed: Dictionary, number: int) -> void:
 	var soil_top: float = height - SOIL_DROP * _s
 	var soil := MeshInstance3D.new()
 	soil.name = "Soil"
-	soil.mesh = _cap_mesh(_stadium(length - RIM_LIP * 2.0 * _s, width - RIM_LIP * 2.0 * _s), soil_top, SOIL_COLOR)
+	soil.mesh = _cap_mesh(
+		_stadium(length - RIM_LIP * 2.0 * _s, width - RIM_LIP * 2.0 * _s), soil_top, SOIL_COLOR
+	)
 	soil.material_override = _material(SOIL_COLOR, 1.0, true)
 	root.add_child(soil)
 
@@ -242,14 +334,21 @@ func _build_bed(parent: Node3D, bed: Dictionary, number: int) -> void:
 	match int(bed["trellis"]):
 		Trellis.ARCHES:
 			for side: int in 2:
-				_build_arch_panel(root, Vector3(length * (0.5 * side - 0.25), soil_top, 0.0), width * 0.8, side + 1)
+				_build_arch_panel(
+					root,
+					Vector3(length * (0.5 * side - 0.25), soil_top, 0.0),
+					width * 0.8,
+					side + 1
+				)
 		Trellis.OBELISK:
 			_build_obelisk(root, Vector3(0.0, soil_top, 0.0))
 
 
 ## Points around a stadium (a rectangle with semicircular ends) of a length along x and a
 ## width along z, with the outward normal at each point.
-func _stadium(length: float, width: float, end_segments: int = 14, side_segments: int = 10) -> Dictionary:
+func _stadium(
+	length: float, width: float, end_segments: int = 14, side_segments: int = 10
+) -> Dictionary:
 	var r: float = width * 0.5
 	var c: float = maxf(length * 0.5 - r, 0.0)
 	var points := PackedVector2Array()
@@ -275,7 +374,9 @@ func _stadium(length: float, width: float, end_segments: int = 14, side_segments
 
 ## The corrugated wall: rings of the outline from the bottom to the rim, each pushed out by
 ## the rib profile at its height, then a lip turned inward at the top and a short inner wall.
-func _corrugated_wall_mesh(outline: Dictionary, bottom: float, top: float, color: Color) -> ArrayMesh:
+func _corrugated_wall_mesh(
+	outline: Dictionary, bottom: float, top: float, color: Color
+) -> ArrayMesh:
 	var points: PackedVector2Array = outline["points"]
 	var normals: PackedVector2Array = outline["normals"]
 	var pitch: float = rib_pitch * _s
@@ -295,12 +396,16 @@ func _corrugated_wall_mesh(outline: Dictionary, bottom: float, top: float, color
 		var ring_norms := PackedVector3Array()
 		for index: int in points.size():
 			var n: Vector2 = normals[index]
-			ring_points.append(Vector3(points[index].x + n.x * bulge, h, points[index].y + n.y * bulge))
+			ring_points.append(
+				Vector3(points[index].x + n.x * bulge, h, points[index].y + n.y * bulge)
+			)
 			ring_norms.append(Vector3(n.x, -slope, n.y).normalized())
 		rings.append(ring_points)
 		ring_normals.append(ring_norms)
 	for ring: int in ring_count - 1:
-		_stitch_rings(st, rings[ring], rings[ring + 1], ring_normals[ring], ring_normals[ring + 1], color)
+		_stitch_rings(
+			st, rings[ring], rings[ring + 1], ring_normals[ring], ring_normals[ring + 1], color
+		)
 	# Lip and inner wall.
 	var lip: float = RIM_LIP * _s
 	var outer_top: PackedVector3Array = rings[ring_count - 1]
@@ -311,7 +416,11 @@ func _corrugated_wall_mesh(outline: Dictionary, bottom: float, top: float, color
 	for index: int in points.size():
 		var n: Vector2 = normals[index]
 		inner_top.append(Vector3(points[index].x - n.x * lip, top, points[index].y - n.y * lip))
-		inner_down.append(Vector3(points[index].x - n.x * lip, top - SOIL_DROP * _s - 0.5, points[index].y - n.y * lip))
+		inner_down.append(
+			Vector3(
+				points[index].x - n.x * lip, top - SOIL_DROP * _s - 0.5, points[index].y - n.y * lip
+			)
+		)
 		up_norms.append(Vector3.UP)
 		in_norms.append(Vector3(-n.x, 0.0, -n.y))
 	_stitch_rings(st, outer_top, inner_top, up_norms, up_norms, color)
@@ -320,7 +429,14 @@ func _corrugated_wall_mesh(outline: Dictionary, bottom: float, top: float, color
 
 
 ## Triangles between two rings of equal length (closed loops).
-func _stitch_rings(st: SurfaceTool, a: PackedVector3Array, b: PackedVector3Array, na: PackedVector3Array, nb: PackedVector3Array, color: Color) -> void:
+func _stitch_rings(
+	st: SurfaceTool,
+	a: PackedVector3Array,
+	b: PackedVector3Array,
+	na: PackedVector3Array,
+	nb: PackedVector3Array,
+	color: Color
+) -> void:
 	var count: int = a.size()
 	for index: int in count:
 		var next: int = (index + 1) % count
@@ -352,7 +468,15 @@ func _cap_mesh(outline: Dictionary, y: float, color: Color) -> ArrayMesh:
 
 ## Collision for a bed: a smooth (rib-free) trimesh of the outer wall, the lip and the inner
 ## wall, and the soil as a box plus two cylinders, all on the terrain layer.
-func _bed_collision(root: Node3D, outline: Dictionary, length: float, width: float, bottom: float, top: float, soil_top: float) -> void:
+func _bed_collision(
+	root: Node3D,
+	outline: Dictionary,
+	length: float,
+	width: float,
+	bottom: float,
+	top: float,
+	soil_top: float
+) -> void:
 	var points: PackedVector2Array = outline["points"]
 	var normals: PackedVector2Array = outline["normals"]
 	var lip: float = RIM_LIP * _s
@@ -365,12 +489,29 @@ func _bed_collision(root: Node3D, outline: Dictionary, length: float, width: flo
 		var pn: Vector2 = p - normals[index] * lip
 		var qn: Vector2 = q - normals[next] * lip
 		var quads: Array = [
-			[Vector3(p.x, bottom, p.y), Vector3(p.x, top, p.y), Vector3(q.x, bottom, q.y), Vector3(q.x, top, q.y)],
-			[Vector3(p.x, top, p.y), Vector3(pn.x, top, pn.y), Vector3(q.x, top, q.y), Vector3(qn.x, top, qn.y)],
-			[Vector3(pn.x, top, pn.y), Vector3(pn.x, soil_top - 0.5, pn.y), Vector3(qn.x, top, qn.y), Vector3(qn.x, soil_top - 0.5, qn.y)],
+			[
+				Vector3(p.x, bottom, p.y),
+				Vector3(p.x, top, p.y),
+				Vector3(q.x, bottom, q.y),
+				Vector3(q.x, top, q.y)
+			],
+			[
+				Vector3(p.x, top, p.y),
+				Vector3(pn.x, top, pn.y),
+				Vector3(q.x, top, q.y),
+				Vector3(qn.x, top, qn.y)
+			],
+			[
+				Vector3(pn.x, top, pn.y),
+				Vector3(pn.x, soil_top - 0.5, pn.y),
+				Vector3(qn.x, top, qn.y),
+				Vector3(qn.x, soil_top - 0.5, qn.y)
+			],
 		]
 		for quad: Array in quads:
-			faces.append_array(PackedVector3Array([quad[0], quad[1], quad[2], quad[2], quad[1], quad[3]]))
+			faces.append_array(
+				PackedVector3Array([quad[0], quad[1], quad[2], quad[2], quad[1], quad[3]])
+			)
 	var body := StaticBody3D.new()
 	body.name = "WallCollider"
 	body.collision_layer = MapInfo.TERRAIN_LAYER
@@ -410,8 +551,11 @@ func _bed_local_to_world(local: Vector3, along_z: bool) -> Vector3:
 
 # --- Planting ---------------------------------------------------------------------------------
 
+
 ## Fills a bed's soil on a jittered grid, each cell drawing a plant kind by the bed's shares.
-func _plant_bed(bed: Dictionary, root: Node3D, length: float, width: float, soil_top: float) -> void:
+func _plant_bed(
+	bed: Dictionary, root: Node3D, length: float, width: float, soil_top: float
+) -> void:
 	var shares: Dictionary = bed["plants"]
 	var spacing: float = float(bed["spacing"]) * _s
 	var inset: float = (RIM_LIP + 0.08) * _s
@@ -421,7 +565,11 @@ func _plant_bed(bed: Dictionary, root: Node3D, length: float, width: float, soil
 	var rows: int = maxi(int((width - inset * 2.0) / spacing), 1)
 	for column: int in columns:
 		for row: int in rows:
-			var x: float = lerpf(-(length * 0.5 - inset), length * 0.5 - inset, (float(column) + 0.5) / float(columns))
+			var x: float = lerpf(
+				-(length * 0.5 - inset),
+				length * 0.5 - inset,
+				(float(column) + 0.5) / float(columns)
+			)
 			var z: float = lerpf(-r, r, (float(row) + 0.5) / float(rows))
 			x += _rng.randf_range(-0.3, 0.3) * spacing
 			z += _rng.randf_range(-0.3, 0.3) * spacing
@@ -431,8 +579,13 @@ func _plant_bed(bed: Dictionary, root: Node3D, length: float, width: float, soil
 				continue
 			var kind: Plant = _draw_plant(shares)
 			var size: float = _s * _rng.randf_range(0.85, 1.15)
-			var basis: Basis = Basis(Vector3.UP, _rng.randf() * TAU) * Basis.from_scale(Vector3(size, size * _rng.randf_range(0.9, 1.1), size))
-			var transform: Transform3D = root.global_transform * Transform3D(basis, Vector3(x, soil_top, z))
+			var basis: Basis = (
+				Basis(Vector3.UP, _rng.randf() * TAU)
+				* Basis.from_scale(Vector3(size, size * _rng.randf_range(0.9, 1.1), size))
+			)
+			var transform: Transform3D = (
+				root.global_transform * Transform3D(basis, Vector3(x, soil_top, z))
+			)
 			_queue_plant(kind, transform, Color.WHITE * _rng.randf_range(0.88, 1.0))
 
 
@@ -509,18 +662,44 @@ func _lettuce(st: SurfaceTool, color: Color, edge: Color) -> void:
 	for whorl: int in 2:
 		var count: int = 7 + whorl * 3
 		for index: int in count:
-			var yaw: float = TAU * (float(index) + whorl * 0.5) / float(count) + _rng.randf_range(-0.1, 0.1)
+			var yaw: float = (
+				TAU * (float(index) + whorl * 0.5) / float(count) + _rng.randf_range(-0.1, 0.1)
+			)
 			var out := Vector3(cos(yaw), 0.0, sin(yaw))
-			var pitch: float = deg_to_rad(_rng.randf_range(55.0, 70.0)) if whorl == 0 else deg_to_rad(_rng.randf_range(15.0, 35.0))
+			var pitch: float = (
+				deg_to_rad(_rng.randf_range(55.0, 70.0))
+				if whorl == 0
+				else deg_to_rad(_rng.randf_range(15.0, 35.0))
+			)
 			var direction: Vector3 = (out * cos(pitch) + Vector3.UP * sin(pitch)).normalized()
-			var length: float = (_rng.randf_range(0.09, 0.12) if whorl == 0 else _rng.randf_range(0.13, 0.18))
-			_leaf(st, Vector3(0.0, 0.01, 0.0) + out * 0.01, direction, length, length * 0.6, color, edge, 0.6, 5)
+			var length: float = (
+				_rng.randf_range(0.09, 0.12) if whorl == 0 else _rng.randf_range(0.13, 0.18)
+			)
+			_leaf(
+				st,
+				Vector3(0.0, 0.01, 0.0) + out * 0.01,
+				direction,
+				length,
+				length * 0.6,
+				color,
+				edge,
+				0.6,
+				5
+			)
 	# A heart of pale leaves in the middle.
 	_blob(st, Vector3(0.0, 0.05, 0.0), 0.045, edge.lerp(color, 0.4))
 
 
 ## A bushy plant: leaves on short stalks all around a stem.
-func _bush(st: SurfaceTool, height: float, leaves: int, leaf_length: float, leaf_width: float, color: Color, edge: Color) -> void:
+func _bush(
+	st: SurfaceTool,
+	height: float,
+	leaves: int,
+	leaf_length: float,
+	leaf_width: float,
+	color: Color,
+	edge: Color
+) -> void:
 	_stem(st, Vector3.ZERO, Vector3(0.0, height, 0.0), 0.006, color * 0.8)
 	for index: int in leaves:
 		var t: float = _rng.randf_range(0.25, 1.0)
@@ -549,12 +728,23 @@ func _pepper(st: SurfaceTool) -> void:
 		var base := Vector3(0.0, height * t, 0.0)
 		var direction: Vector3 = (out * 0.8 + Vector3.UP * _rng.randf_range(-0.2, 0.4)).normalized()
 		_leaf(st, base, direction, _rng.randf_range(0.07, 0.11), 0.035, color, edge, 0.25, 3)
-	var fruit_colors: Array[Color] = [Color(0.85, 0.15, 0.08), Color(0.95, 0.5, 0.08), Color(0.35, 0.6, 0.2)]
+	var fruit_colors: Array[Color] = [
+		Color(0.85, 0.15, 0.08), Color(0.95, 0.5, 0.08), Color(0.35, 0.6, 0.2)
+	]
 	for index: int in 4:
 		var yaw: float = _rng.randf() * TAU
-		var hang := Vector3(cos(yaw), 0.0, sin(yaw)) * _rng.randf_range(0.04, 0.09) + Vector3(0.0, height * _rng.randf_range(0.4, 0.8), 0.0)
+		var hang := (
+			Vector3(cos(yaw), 0.0, sin(yaw)) * _rng.randf_range(0.04, 0.09)
+			+ Vector3(0.0, height * _rng.randf_range(0.4, 0.8), 0.0)
+		)
 		_stem(st, Vector3(0.0, hang.y + 0.03, 0.0), hang, 0.002, color * 0.7)
-		_blob(st, hang - Vector3(0.0, 0.02, 0.0), 0.022, fruit_colors[_rng.randi() % fruit_colors.size()], 1.6)
+		_blob(
+			st,
+			hang - Vector3(0.0, 0.02, 0.0),
+			0.022,
+			fruit_colors[_rng.randi() % fruit_colors.size()],
+			1.6
+		)
 
 
 ## A marigold: a short stem, feathery leaves and an orange pompom with a yellow crown.
@@ -566,7 +756,17 @@ func _marigold(st: SurfaceTool) -> void:
 		var yaw: float = _rng.randf() * TAU
 		var out := Vector3(cos(yaw), 0.0, sin(yaw))
 		var base := Vector3(0.0, height * _rng.randf_range(0.2, 0.7), 0.0)
-		_leaf(st, base, (out * 0.8 + Vector3.UP * 0.3).normalized(), 0.06, 0.018, color, color * 1.2, 0.3, 3)
+		_leaf(
+			st,
+			base,
+			(out * 0.8 + Vector3.UP * 0.3).normalized(),
+			0.06,
+			0.018,
+			color,
+			color * 1.2,
+			0.3,
+			3
+		)
 	var orange := Color(0.95, 0.5, 0.08)
 	_blob(st, Vector3(0.0, height + 0.02, 0.0), 0.032, orange)
 	_blob(st, Vector3(0.0, height + 0.04, 0.0), 0.018, Color(0.98, 0.8, 0.15))
@@ -580,12 +780,32 @@ func _grass_tuft(st: SurfaceTool) -> void:
 		var out := Vector3(cos(yaw), 0.0, sin(yaw))
 		var direction: Vector3 = (out * _rng.randf_range(0.2, 0.5) + Vector3.UP).normalized()
 		var length: float = _rng.randf_range(0.05, 0.09)
-		_leaf(st, Vector3.ZERO, direction, length, 0.008, GRASS_COLOR * _rng.randf_range(0.85, 1.05), GRASS_COLOR * 1.15, 0.5, 3)
+		_leaf(
+			st,
+			Vector3.ZERO,
+			direction,
+			length,
+			0.008,
+			GRASS_COLOR * _rng.randf_range(0.85, 1.05),
+			GRASS_COLOR * 1.15,
+			0.5,
+			3
+		)
 
 
 ## A leaf: a strip `segments` long from `origin` along `direction`, widest in the middle,
 ## drooping by `bend`, coloured `color` in the middle and `edge` at the edges.
-func _leaf(st: SurfaceTool, origin: Vector3, direction: Vector3, length: float, width: float, color: Color, edge: Color, bend: float, segments: int) -> void:
+func _leaf(
+	st: SurfaceTool,
+	origin: Vector3,
+	direction: Vector3,
+	length: float,
+	width: float,
+	color: Color,
+	edge: Color,
+	bend: float,
+	segments: int
+) -> void:
 	var side: Vector3 = direction.cross(Vector3.UP)
 	if side.length_squared() < 0.0001:
 		side = Vector3.RIGHT
@@ -600,7 +820,9 @@ func _leaf(st: SurfaceTool, origin: Vector3, direction: Vector3, length: float, 
 		var left: Vector3 = spine - side * half
 		var right: Vector3 = spine + side * half
 		var mid: Color = color.lerp(edge, t * 0.6)
-		_triangle(st, [previous_left, previous_right, left], [Vector3.UP, Vector3.UP, Vector3.UP], mid)
+		_triangle(
+			st, [previous_left, previous_right, left], [Vector3.UP, Vector3.UP, Vector3.UP], mid
+		)
 		_triangle(st, [previous_right, right, left], [Vector3.UP, Vector3.UP, Vector3.UP], mid)
 		previous_left = left
 		previous_right = right
@@ -609,7 +831,9 @@ func _leaf(st: SurfaceTool, origin: Vector3, direction: Vector3, length: float, 
 ## A thin square-section stem between two points.
 func _stem(st: SurfaceTool, from: Vector3, to: Vector3, radius: float, color: Color) -> void:
 	var axis: Vector3 = (to - from).normalized()
-	var side: Vector3 = axis.cross(Vector3.RIGHT if absf(axis.x) < 0.9 else Vector3.FORWARD).normalized() * radius
+	var side: Vector3 = (
+		axis.cross(Vector3.RIGHT if absf(axis.x) < 0.9 else Vector3.FORWARD).normalized() * radius
+	)
 	var other: Vector3 = axis.cross(side).normalized() * radius
 	var corners: Array = [side, other, -side, -other]
 	for index: int in 4:
@@ -621,7 +845,9 @@ func _stem(st: SurfaceTool, from: Vector3, to: Vector3, radius: float, color: Co
 
 
 ## A lumpy ball (a lettuce heart, a flower head, a pepper), stretched by `tall`.
-func _blob(st: SurfaceTool, center: Vector3, radius: float, color: Color, tall: float = 1.0) -> void:
+func _blob(
+	st: SurfaceTool, center: Vector3, radius: float, color: Color, tall: float = 1.0
+) -> void:
 	var rings: int = 4
 	var sides: int = 7
 	var previous := PackedVector3Array()
@@ -631,7 +857,16 @@ func _blob(st: SurfaceTool, center: Vector3, radius: float, color: Color, tall: 
 		for side: int in sides:
 			var lon: float = TAU * float(side) / float(sides)
 			var wobble: float = 1.0 + 0.08 * sin(lon * 3.0 + lat * 2.0)
-			current.append(center + Vector3(sin(lat) * cos(lon), cos(lat) * tall, sin(lat) * sin(lon)) * radius * wobble)
+			current.append(
+				(
+					center
+					+ (
+						Vector3(sin(lat) * cos(lon), cos(lat) * tall, sin(lat) * sin(lon))
+						* radius
+						* wobble
+					)
+				)
+			)
 		if ring > 0:
 			for side: int in sides:
 				var next: int = (side + 1) % sides
@@ -642,6 +877,7 @@ func _blob(st: SurfaceTool, center: Vector3, radius: float, color: Color, tall: 
 
 
 # --- Trellises --------------------------------------------------------------------------------
+
 
 ## An arched wire panel standing across a bed: verticals every 12 cm rising into a half-round
 ## top, horizontals every 20 cm. Legs collide so a bug can climb a rod.
@@ -714,7 +950,9 @@ func _build_obelisk(root: Node3D, base: Vector3) -> void:
 		var box := BoxShape3D.new()
 		box.size = Vector3(rod * 2.0, from.distance_to(to), rod * 2.0)
 		shape.shape = box
-		shape.transform = Transform3D(Basis(Quaternion(Vector3.UP, (to - from).normalized())), (from + to) * 0.5)
+		shape.transform = Transform3D(
+			Basis(Quaternion(Vector3.UP, (to - from).normalized())), (from + to) * 0.5
+		)
 		body.add_child(shape)
 	for fraction: float in [0.3, 0.55, 0.8]:
 		var y: float = height * fraction
@@ -735,7 +973,9 @@ func _build_obelisk(root: Node3D, base: Vector3) -> void:
 ## A six-sided rod between two points.
 func _rod(st: SurfaceTool, from: Vector3, to: Vector3, radius: float) -> void:
 	var axis: Vector3 = (to - from).normalized()
-	var side: Vector3 = axis.cross(Vector3.RIGHT if absf(axis.x) < 0.9 else Vector3.FORWARD).normalized()
+	var side: Vector3 = (
+		axis.cross(Vector3.RIGHT if absf(axis.x) < 0.9 else Vector3.FORWARD).normalized()
+	)
 	var other: Vector3 = axis.cross(side).normalized()
 	var sides: int = 6
 	for index: int in sides:
@@ -749,6 +989,7 @@ func _rod(st: SurfaceTool, from: Vector3, to: Vector3, radius: float) -> void:
 
 
 # --- Lawn and scenery -------------------------------------------------------------------------
+
 
 ## Grass tufts over the lawn, clear of the beds.
 func _build_lawn() -> void:
@@ -764,8 +1005,12 @@ func _build_lawn() -> void:
 			continue
 		spot.y = _dirt_height(spot) - 0.05
 		var size: float = _s * _rng.randf_range(0.7, 1.3)
-		var basis: Basis = Basis(Vector3.UP, _rng.randf() * TAU) * Basis.from_scale(Vector3(size, size, size))
-		_queue_plant(Plant.GRASS, Transform3D(basis, spot), Color.WHITE * _rng.randf_range(0.85, 1.0))
+		var basis: Basis = (
+			Basis(Vector3.UP, _rng.randf() * TAU) * Basis.from_scale(Vector3(size, size, size))
+		)
+		_queue_plant(
+			Plant.GRASS, Transform3D(basis, spot), Color.WHITE * _rng.randf_range(0.85, 1.0)
+		)
 		placed += 1
 	# The lawn joins the garden's planting node (one more MultiMesh).
 	var plants: Node3D = get_node("Plants")
@@ -781,7 +1026,9 @@ func _build_lawn() -> void:
 	var instance := MultiMeshInstance3D.new()
 	instance.name = "Lawn"
 	instance.multimesh = multimesh
-	instance.material_override = plants.get_child(0).material_override if plants.get_child_count() > 0 else null
+	instance.material_override = (
+		plants.get_child(0).material_override if plants.get_child_count() > 0 else null
+	)
 	plants.add_child(instance)
 
 
@@ -809,7 +1056,9 @@ func _build_house() -> void:
 	var length: float = 9.0 * _s
 	var wall_height: float = 2.6 * _s
 	var x_near: float = _center.x - _half.x - 0.6 * _s
-	var ground_y: float = _dirt_height(Vector3(_center.x - _half.x + 1.0, 0.0, _center.z)) - 0.2 * _s
+	var ground_y: float = (
+		_dirt_height(Vector3(_center.x - _half.x + 1.0, 0.0, _center.z)) - 0.2 * _s
+	)
 	var center := Vector3(x_near - depth * 0.5, ground_y + wall_height * 0.5, _center.z + 0.8 * _s)
 	_box(house, "Walls", Vector3(depth, wall_height, length), center, _material(SIDING_COLOR, 0.9))
 	# Roof: a prism along z.
@@ -825,13 +1074,20 @@ func _build_house() -> void:
 		var a := Vector3(-hx, eave_y, sign_z * hz)
 		var b := Vector3(hx, eave_y, sign_z * hz)
 		var p: Vector3 = peak + Vector3(0.0, 0.0, sign_z * hz)
-		_triangle(st, [a, b, p], [Vector3(0, 0, sign_z), Vector3(0, 0, sign_z), Vector3(0, 0, sign_z)], ROOF_COLOR)
+		_triangle(
+			st,
+			[a, b, p],
+			[Vector3(0, 0, sign_z), Vector3(0, 0, sign_z), Vector3(0, 0, sign_z)],
+			ROOF_COLOR
+		)
 	for sign_x: float in [-1.0, 1.0]:
 		var n := Vector3(sign_x * ridge, hx, 0.0).normalized()
 		var low_a := Vector3(sign_x * hx, eave_y, -hz)
 		var low_b := Vector3(sign_x * hx, eave_y, hz)
 		_triangle(st, [low_a, low_b, peak + Vector3(0, 0, -hz)], [n, n, n], ROOF_COLOR)
-		_triangle(st, [low_b, peak + Vector3(0, 0, hz), peak + Vector3(0, 0, -hz)], [n, n, n], ROOF_COLOR)
+		_triangle(
+			st, [low_b, peak + Vector3(0, 0, hz), peak + Vector3(0, 0, -hz)], [n, n, n], ROOF_COLOR
+		)
 	var roof := MeshInstance3D.new()
 	roof.name = "Roof"
 	roof.mesh = st.commit()
@@ -840,9 +1096,27 @@ func _build_house() -> void:
 	house.add_child(roof)
 	# Windows and a door on the garden side.
 	for offset: float in [-2.8, -0.9, 2.6]:
-		_box(house, "Window", Vector3(0.04 * _s, 1.0 * _s, 0.9 * _s), Vector3(x_near + 0.02 * _s, ground_y + 1.5 * _s, center.z + offset * _s), _material(WINDOW_COLOR, 0.3))
-		_box(house, "Trim", Vector3(0.03 * _s, 1.12 * _s, 1.02 * _s), Vector3(x_near + 0.01 * _s, ground_y + 1.5 * _s, center.z + offset * _s), _material(Color(0.95, 0.95, 0.93), 0.8))
-	_box(house, "Door", Vector3(0.05 * _s, 2.0 * _s, 0.9 * _s), Vector3(x_near + 0.02 * _s, ground_y + 1.0 * _s, center.z + 1.0 * _s), _material(Color(0.35, 0.22, 0.14), 0.8))
+		_box(
+			house,
+			"Window",
+			Vector3(0.04 * _s, 1.0 * _s, 0.9 * _s),
+			Vector3(x_near + 0.02 * _s, ground_y + 1.5 * _s, center.z + offset * _s),
+			_material(WINDOW_COLOR, 0.3)
+		)
+		_box(
+			house,
+			"Trim",
+			Vector3(0.03 * _s, 1.12 * _s, 1.02 * _s),
+			Vector3(x_near + 0.01 * _s, ground_y + 1.5 * _s, center.z + offset * _s),
+			_material(Color(0.95, 0.95, 0.93), 0.8)
+		)
+	_box(
+		house,
+		"Door",
+		Vector3(0.05 * _s, 2.0 * _s, 0.9 * _s),
+		Vector3(x_near + 0.02 * _s, ground_y + 1.0 * _s, center.z + 1.0 * _s),
+		_material(Color(0.35, 0.22, 0.14), 0.8)
+	)
 
 
 ## Chain-link around the whole yard, a little inside the edge of the dirt: posts, a top rail, a
@@ -873,12 +1147,38 @@ func _build_fence() -> void:
 		for index: int in posts:
 			var at: Vector3 = from + direction * span * float(index) / float(posts)
 			var post_ground: float = _dirt_height(at) - 0.1 * _s
-			_cylinder(fence, "Post", post_radius, height + 0.3 * _s, Vector3(at.x, post_ground + height * 0.5, at.z), Vector3.ZERO, _material(FENCE_COLOR, 0.5))
+			_cylinder(
+				fence,
+				"Post",
+				post_radius,
+				height + 0.3 * _s,
+				Vector3(at.x, post_ground + height * 0.5, at.z),
+				Vector3.ZERO,
+				_material(FENCE_COLOR, 0.5)
+			)
 		var mid: Vector3 = (from + to) * 0.5
-		var ground_y: float = minf(minf(_dirt_height(from), _dirt_height(to)), _dirt_height(mid)) - 0.1 * _s
+		var ground_y: float = (
+			minf(minf(_dirt_height(from), _dirt_height(to)), _dirt_height(mid)) - 0.1 * _s
+		)
 		var yaw: float = atan2(direction.x, direction.z)
-		_cylinder(fence, "Rail", post_radius * 0.6, span, Vector3(mid.x, ground_y + height, mid.z), Vector3(PI * 0.5, yaw, 0.0), _material(FENCE_COLOR, 0.5))
-		_cylinder(fence, "TensionWire", post_radius * 0.3, span, Vector3(mid.x, ground_y + 0.05 * _s, mid.z), Vector3(PI * 0.5, yaw, 0.0), _material(FENCE_COLOR, 0.5))
+		_cylinder(
+			fence,
+			"Rail",
+			post_radius * 0.6,
+			span,
+			Vector3(mid.x, ground_y + height, mid.z),
+			Vector3(PI * 0.5, yaw, 0.0),
+			_material(FENCE_COLOR, 0.5)
+		)
+		_cylinder(
+			fence,
+			"TensionWire",
+			post_radius * 0.3,
+			span,
+			Vector3(mid.x, ground_y + 0.05 * _s, mid.z),
+			Vector3(PI * 0.5, yaw, 0.0),
+			_material(FENCE_COLOR, 0.5)
+		)
 		var sheet := MeshInstance3D.new()
 		sheet.name = "Fabric"
 		var quad := QuadMesh.new()
@@ -917,18 +1217,38 @@ func _build_trees() -> void:
 	trees.name = "Trees"
 	add_child(trees)
 	var spots: Array[Vector2] = [
-		Vector2(-2.0, -5.5), Vector2(1.5, -6.0), Vector2(4.5, -4.5), Vector2(6.0, -0.5), Vector2(5.5, 3.5), Vector2(-1.5, -9.0),
+		Vector2(-2.0, -5.5),
+		Vector2(1.5, -6.0),
+		Vector2(4.5, -4.5),
+		Vector2(6.0, -0.5),
+		Vector2(5.5, 3.5),
+		Vector2(-1.5, -9.0),
 	]
 	for spot: Vector2 in spots:
 		var at := Vector3(_center.x + spot.x * _s, 0.0, _center.z + spot.y * _s)
 		at.y = _dirt_height(_center) - 0.3 * _s
 		var trunk_height: float = _rng.randf_range(4.0, 6.0) * _s
 		var trunk_radius: float = _rng.randf_range(0.22, 0.32) * _s
-		_cylinder(trees, "Trunk", trunk_radius, trunk_height, at + Vector3(0.0, trunk_height * 0.5, 0.0), Vector3.ZERO, _material(BARK_COLOR, 0.95, true))
+		_cylinder(
+			trees,
+			"Trunk",
+			trunk_radius,
+			trunk_height,
+			at + Vector3(0.0, trunk_height * 0.5, 0.0),
+			Vector3.ZERO,
+			_material(BARK_COLOR, 0.95, true)
+		)
 		var canopy_center: Vector3 = at + Vector3(0.0, trunk_height, 0.0)
 		for index: int in 5:
 			var radius: float = _rng.randf_range(1.8, 3.0) * _s
-			var offset := Vector3(_rng.randf_range(-1.6, 1.6), _rng.randf_range(-0.4, 1.6), _rng.randf_range(-1.6, 1.6)) * _s
+			var offset := (
+				Vector3(
+					_rng.randf_range(-1.6, 1.6),
+					_rng.randf_range(-0.4, 1.6),
+					_rng.randf_range(-1.6, 1.6)
+				)
+				* _s
+			)
 			var ball := MeshInstance3D.new()
 			ball.name = "Canopy"
 			var sphere := SphereMesh.new()
@@ -937,18 +1257,23 @@ func _build_trees() -> void:
 			sphere.radial_segments = 14
 			sphere.rings = 8
 			ball.mesh = sphere
-			ball.material_override = _material(CANOPY_COLORS[_rng.randi() % CANOPY_COLORS.size()], 0.95)
+			ball.material_override = _material(
+				CANOPY_COLORS[_rng.randi() % CANOPY_COLORS.size()], 0.95
+			)
 			ball.position = canopy_center + offset
 			trees.add_child(ball)
 
 
 # --- Helpers ----------------------------------------------------------------------------------
 
+
 func _dirt_height(point: Vector3) -> float:
 	return _terrain.get_surface_height_at(Vector3(point.x, 0.0, point.z))
 
 
-func _box(parent: Node3D, box_name: String, size: Vector3, position: Vector3, material: Material) -> MeshInstance3D:
+func _box(
+	parent: Node3D, box_name: String, size: Vector3, position: Vector3, material: Material
+) -> MeshInstance3D:
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = box_name
 	var mesh := BoxMesh.new()
@@ -960,7 +1285,15 @@ func _box(parent: Node3D, box_name: String, size: Vector3, position: Vector3, ma
 	return mesh_instance
 
 
-func _cylinder(parent: Node3D, cylinder_name: String, radius: float, length: float, position: Vector3, rotation_radians: Vector3, material: Material) -> void:
+func _cylinder(
+	parent: Node3D,
+	cylinder_name: String,
+	radius: float,
+	length: float,
+	position: Vector3,
+	rotation_radians: Vector3,
+	material: Material
+) -> void:
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = cylinder_name
 	var mesh := CylinderMesh.new()
@@ -976,7 +1309,9 @@ func _cylinder(parent: Node3D, cylinder_name: String, radius: float, length: flo
 
 
 ## A shared material per colour and roughness; vertex-coloured meshes multiply their colours in.
-func _material(color: Color, roughness: float = 0.95, vertex_colors: bool = false) -> StandardMaterial3D:
+func _material(
+	color: Color, roughness: float = 0.95, vertex_colors: bool = false
+) -> StandardMaterial3D:
 	var key: String = "%s|%.2f|%s" % [color.to_html(), roughness, vertex_colors]
 	if _materials.has(key):
 		return _materials[key]
@@ -987,5 +1322,3 @@ func _material(color: Color, roughness: float = 0.95, vertex_colors: bool = fals
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED if vertex_colors else BaseMaterial3D.CULL_BACK
 	_materials[key] = material
 	return material
-
-

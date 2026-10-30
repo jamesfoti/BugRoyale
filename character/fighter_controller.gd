@@ -1,5 +1,5 @@
-extends Node
 class_name FighterController
+extends Node
 ## Decides what a FighterBody does each physics frame, as a FighterInput. A body asks its
 ## controller child once per physics step; the body never looks at the keyboard itself. The
 ## local player's controller reads Input and the camera, a bot's runs its AI, and a network
@@ -8,8 +8,9 @@ class_name FighterController
 ## A disabled controller hands back an empty input: the body stands still (gravity still applies).
 var enabled: bool = true
 
-
 ## Override: the body is the FighterBody asking; delta is the physics step.
+
+
 func sample(_body: CharacterBody3D, _delta: float) -> FighterInput:
 	return FighterInput.new()
 

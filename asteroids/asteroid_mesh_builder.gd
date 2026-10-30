@@ -2,20 +2,72 @@ class_name AsteroidMeshBuilder
 extends RefCounted
 ## Builds a noisy icosphere mesh and matching convex collision shape.
 
-
 const _ICO_INDICES: Array[int] = [
-	0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11,
-	1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7, 1, 8,
-	3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9,
-	4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9, 8, 1,
+	0,
+	11,
+	5,
+	0,
+	5,
+	1,
+	0,
+	1,
+	7,
+	0,
+	7,
+	10,
+	0,
+	10,
+	11,
+	1,
+	5,
+	9,
+	5,
+	11,
+	4,
+	11,
+	10,
+	2,
+	10,
+	7,
+	6,
+	7,
+	1,
+	8,
+	3,
+	9,
+	4,
+	3,
+	4,
+	2,
+	3,
+	2,
+	6,
+	3,
+	6,
+	8,
+	3,
+	8,
+	9,
+	4,
+	9,
+	5,
+	2,
+	4,
+	11,
+	6,
+	2,
+	10,
+	8,
+	6,
+	7,
+	9,
+	8,
+	1,
 ]
 
 
 static func build(
-	mesh_seed: int,
-	radius: float,
-	subdivisions: int = 2,
-	roughness: float = 0.35
+	mesh_seed: int, radius: float, subdivisions: int = 2, roughness: float = 0.35
 ) -> Dictionary:
 	var vertices: Array[Vector3] = []
 	for v: Vector3 in _base_ico_vertices():
@@ -74,12 +126,7 @@ static func _subdivide(vertices: Array[Vector3], indices: Array[int]) -> void:
 	indices.append_array(new_indices)
 
 
-static func _get_midpoint(
-	i0: int,
-	i1: int,
-	vertices: Array[Vector3],
-	cache: Dictionary
-) -> int:
+static func _get_midpoint(i0: int, i1: int, vertices: Array[Vector3], cache: Dictionary) -> int:
 	var key: int = mini(i0, i1) * 10000 + maxi(i0, i1)
 	if cache.has(key):
 		return cache[key]
@@ -93,10 +140,7 @@ static func _get_midpoint(
 
 
 static func _displace_vertices(
-	vertices: Array[Vector3],
-	mesh_seed: int,
-	radius: float,
-	roughness: float
+	vertices: Array[Vector3], mesh_seed: int, radius: float, roughness: float
 ) -> void:
 	var noise := FastNoiseLite.new()
 	noise.seed = mesh_seed
@@ -107,9 +151,7 @@ static func _displace_vertices(
 	for i: int in vertices.size():
 		var direction: Vector3 = vertices[i].normalized()
 		var sample: float = noise.get_noise_3d(
-			direction.x * 2.4,
-			direction.y * 2.4,
-			direction.z * 2.4
+			direction.x * 2.4, direction.y * 2.4, direction.z * 2.4
 		)
 		var scale: float = 1.0 + sample * roughness
 		vertices[i] = direction * radius * scale

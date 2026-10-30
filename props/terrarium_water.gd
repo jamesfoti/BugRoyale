@@ -2,7 +2,6 @@ class_name TerrariumWater
 extends Node3D
 ## Shader water pool at the bottom of a terrarium with splash particles on entry.
 
-
 const WATER_SURFACE_MATERIAL_PATH: String = "res://materials/terrarium_water.tres"
 const WATER_VOLUME_MATERIAL_PATH: String = "res://materials/terrarium_water_volume.tres"
 const SPLASH_PARTICLE_MATERIAL_PATH: String = "res://materials/water_splash_particle.tres"
@@ -15,7 +14,6 @@ const SPLASH_MIN_SPEED: float = 0.35
 const SPLASH_COOLDOWN_SEC: float = 0.3
 const SPLASH_AIR_PROBE_RATIO: float = 0.08
 const MIN_SPLASH_AIR_PROBE: float = 1.0
-
 
 var _world_size: Vector3 = Vector3.ONE * 5.0
 var _water_level_y: float = 0.9
@@ -101,7 +99,9 @@ func set_water_surface_y(world_y: float) -> void:
 			(volume.mesh as BoxMesh).size.y = _water_level_y
 			volume.position.y = _water_level_y * 0.5
 			if volume.material_override is ShaderMaterial:
-				(volume.material_override as ShaderMaterial).set_shader_parameter("volume_height", _water_level_y)
+				(volume.material_override as ShaderMaterial).set_shader_parameter(
+					"volume_height", _water_level_y
+				)
 		var surface: MeshInstance3D = get_node_or_null("WaterSurface") as MeshInstance3D
 		if surface != null:
 			surface.position.y = _water_level_y
@@ -144,7 +144,9 @@ func _build_visuals() -> void:
 		var volume_material: Material = _load_material(WATER_VOLUME_MATERIAL_PATH)
 		if volume_material is ShaderMaterial:
 			volume_material = (volume_material as ShaderMaterial).duplicate()
-			(volume_material as ShaderMaterial).set_shader_parameter("volume_height", _water_level_y)
+			(volume_material as ShaderMaterial).set_shader_parameter(
+				"volume_height", _water_level_y
+			)
 		volume.material_override = volume_material
 		add_child(volume)
 
@@ -171,11 +173,22 @@ func _build_bowl_visuals() -> void:
 	var sphere_center := Vector3(0.0, _bowl_center_y, 0.0)
 	var bottom_y: float = _bowl_center_y - inner_radius
 	var top_y: float = clampf(_water_level_y, bottom_y + 0.05, _bowl_center_y + inner_radius - 0.05)
-	var disc_radius: float = sqrt(maxf(inner_radius * inner_radius - (top_y - _bowl_center_y) * (top_y - _bowl_center_y), 0.0))
+	var disc_radius: float = sqrt(
+		maxf(inner_radius * inner_radius - (top_y - _bowl_center_y) * (top_y - _bowl_center_y), 0.0)
+	)
 
 	var volume_tool := SurfaceTool.new()
 	volume_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-	GlassBowl.add_sphere_band(volume_tool, inner_radius, bottom_y - _bowl_center_y, top_y - _bowl_center_y, 14, 36, false, sphere_center)
+	GlassBowl.add_sphere_band(
+		volume_tool,
+		inner_radius,
+		bottom_y - _bowl_center_y,
+		top_y - _bowl_center_y,
+		14,
+		36,
+		false,
+		sphere_center
+	)
 	GlassBowl.add_disc(volume_tool, disc_radius, top_y, 36, true)
 	var volume := MeshInstance3D.new()
 	volume.name = "WaterVolume"
@@ -261,12 +274,19 @@ func _get_particle_quad_size() -> float:
 func _create_splash_process_material(velocity_scale: float) -> ParticleProcessMaterial:
 	var gradient := Gradient.new()
 	gradient.set_offsets(PackedFloat32Array([0.0, 0.35, 0.75, 1.0]))
-	gradient.set_colors(PackedColorArray([
-		Color(0.85, 0.97, 1.0, 0.0),
-		Color(0.7, 0.92, 1.0, 0.95),
-		Color(0.25, 0.65, 0.95, 0.55),
-		Color(0.1, 0.4, 0.8, 0.0),
-	]))
+	(
+		gradient
+		. set_colors(
+			PackedColorArray(
+				[
+					Color(0.85, 0.97, 1.0, 0.0),
+					Color(0.7, 0.92, 1.0, 0.95),
+					Color(0.25, 0.65, 0.95, 0.55),
+					Color(0.1, 0.4, 0.8, 0.0),
+				]
+			)
+		)
+	)
 	var gradient_texture := GradientTexture1D.new()
 	gradient_texture.gradient = gradient
 
@@ -349,12 +369,12 @@ func _emit_splash(world_position: Vector3, speed_y: float) -> void:
 	var velocity_scale: float = maxf(world_span * 0.08, 1.0)
 	var impact: float = clampf(absf(speed_y), 0.5, velocity_scale * 2.0)
 	_splash_particles.global_position = Vector3(
-		world_position.x,
-		get_water_surface_y(),
-		world_position.z
+		world_position.x, get_water_surface_y(), world_position.z
 	)
 	_splash_particles.amount = clampi(24 + int(impact * 4.0), 24, 96)
-	var process_material: ParticleProcessMaterial = _splash_particles.process_material as ParticleProcessMaterial
+	var process_material: ParticleProcessMaterial = (
+		_splash_particles.process_material as ParticleProcessMaterial
+	)
 	if process_material != null:
 		process_material.initial_velocity_min = velocity_scale * 0.6 + impact * 0.2
 		process_material.initial_velocity_max = velocity_scale * 1.6 + impact * 0.45

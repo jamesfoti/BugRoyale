@@ -1,25 +1,14 @@
 extends CanvasLayer
 ## Collapsible debug overlay plus terrain edit mode toggle.
 
-
 signal terrain_edit_mode_changed(mode: TerrainBrush.EditMode)
 
 const PlayerHealthHudScene: PackedScene = preload("res://gui/player_health_hud.tscn")
 const CrosshairHudScene: PackedScene = preload("res://gui/crosshair_hud.tscn")
 
-@onready var _bar: HBoxContainer = $Bar
-@onready var _item_anchor: VBoxContainer = $Bar/ItemAnchor
-@onready var _item_menu: PlayerItemMenu = $Bar/ItemAnchor/PlayerItemMenu
-@onready var _anchor: VBoxContainer = $Bar/Anchor
-@onready var _toggle_button: Button = $Bar/Anchor/ToggleButton
-@onready var _panel: PanelContainer = $Bar/Anchor/Panel
-@onready var _fps: Label = $Bar/Anchor/Panel/Margin/Fields/Fps
-@onready var _position: Label = $Bar/Anchor/Panel/Margin/Fields/Position
-@onready var _chunks: Label = $Bar/Anchor/Panel/Margin/Fields/Chunks
-@onready var _chunk_size: Label = $Bar/Anchor/Panel/Margin/Fields/ChunkSize
-@onready var _body_size: Label = $Bar/Anchor/Panel/Margin/Fields/BodySize
-@onready var _vertex_count: Label = $Bar/Anchor/Panel/Margin/Fields/VertexCount
-@onready var _edit_mode_label: Label = $Bar/Anchor/Panel/Margin/Fields/EditMode
+const _MARGIN: float = 8.0
+## Debug labels walk every terrain chunk's mesh, so refresh a few times per second, not every frame.
+const _DEBUG_REFRESH_INTERVAL: float = 0.25
 
 var _expanded: bool = false
 var _edit_mode: TerrainBrush.EditMode = TerrainBrush.EditMode.OFF
@@ -41,9 +30,19 @@ var _sampled_render_cpu_ms: float = 0.0
 var _sampled_process_ms: float = 0.0
 var _sampled_physics_ms: float = 0.0
 
-const _MARGIN: float = 8.0
-## Debug labels walk every terrain chunk's mesh, so refresh a few times per second, not every frame.
-const _DEBUG_REFRESH_INTERVAL: float = 0.25
+@onready var _bar: HBoxContainer = $Bar
+@onready var _item_anchor: VBoxContainer = $Bar/ItemAnchor
+@onready var _item_menu: PlayerItemMenu = $Bar/ItemAnchor/PlayerItemMenu
+@onready var _anchor: VBoxContainer = $Bar/Anchor
+@onready var _toggle_button: Button = $Bar/Anchor/ToggleButton
+@onready var _panel: PanelContainer = $Bar/Anchor/Panel
+@onready var _fps: Label = $Bar/Anchor/Panel/Margin/Fields/Fps
+@onready var _position: Label = $Bar/Anchor/Panel/Margin/Fields/Position
+@onready var _chunks: Label = $Bar/Anchor/Panel/Margin/Fields/Chunks
+@onready var _chunk_size: Label = $Bar/Anchor/Panel/Margin/Fields/ChunkSize
+@onready var _body_size: Label = $Bar/Anchor/Panel/Margin/Fields/BodySize
+@onready var _vertex_count: Label = $Bar/Anchor/Panel/Margin/Fields/VertexCount
+@onready var _edit_mode_label: Label = $Bar/Anchor/Panel/Margin/Fields/EditMode
 
 
 func _ready() -> void:
@@ -76,10 +75,7 @@ func _input(event: InputEvent) -> void:
 		_item_menu.close_menu()
 		get_viewport().set_input_as_handled()
 		return
-	if (
-		event.is_action_pressed("ui_cancel")
-		and _edit_mode != TerrainBrush.EditMode.OFF
-	):
+	if event.is_action_pressed("ui_cancel") and _edit_mode != TerrainBrush.EditMode.OFF:
 		set_edit_mode(TerrainBrush.EditMode.OFF)
 		get_viewport().set_input_as_handled()
 
@@ -241,25 +237,62 @@ func _update_performance_label() -> void:
 	var render_scale: float = root.scaling_3d_scale
 	var render_size: Vector2i = Vector2i(Vector2(window_size) * render_scale)
 	var quality: String = "Low" if GraphicsSettings.low_quality else "High"
-	var video_memory_mb: float = Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0
+	var video_memory_mb: float = (
+		Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0
+	)
 
-	_performance.text = "\n".join([
-		"Frame time: %.1f ms (GPU %.1f ms, CPU render %.1f ms)" % [frame_ms, gpu_ms, render_cpu_ms],
-		"Process: %.1f ms, Physics: %.1f ms" % [process_ms, physics_ms],
-		"Draw calls: %s, Triangles: %s, Objects: %s" % [
-			_format_count(int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))),
-			_format_count(int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))),
-			_format_count(int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME))),
-		],
-		"3D resolution: %d×%d (%d%% of %d×%d), Graphics: %s" % [
-			render_size.x, render_size.y, roundi(render_scale * 100.0),
-			window_size.x, window_size.y, quality,
-		],
-		"Video memory: %.0f MB, Nodes: %s" % [
-			video_memory_mb,
-			_format_count(int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))),
-		],
-	])
+	_performance.text = (
+		"\n"
+		. join(
+			[
+				(
+					"Frame time: %.1f ms (GPU %.1f ms, CPU render %.1f ms)"
+					% [frame_ms, gpu_ms, render_cpu_ms]
+				),
+				"Process: %.1f ms, Physics: %.1f ms" % [process_ms, physics_ms],
+				(
+					"Draw calls: %s, Triangles: %s, Objects: %s"
+					% [
+						_format_count(
+							int(
+								Performance.get_monitor(
+									Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME
+								)
+							)
+						),
+						_format_count(
+							int(
+								Performance.get_monitor(
+									Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME
+								)
+							)
+						),
+						_format_count(
+							int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME))
+						),
+					]
+				),
+				(
+					"3D resolution: %d×%d (%d%% of %d×%d), Graphics: %s"
+					% [
+						render_size.x,
+						render_size.y,
+						roundi(render_scale * 100.0),
+						window_size.x,
+						window_size.y,
+						quality,
+					]
+				),
+				(
+					"Video memory: %.0f MB, Nodes: %s"
+					% [
+						video_memory_mb,
+						_format_count(int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))),
+					]
+				),
+			]
+		)
+	)
 
 
 ## GPU/CPU render timing has a small cost, so it only runs while the debug panel is open.
@@ -292,20 +325,27 @@ func _update_body_debug_labels() -> void:
 	var triangle_count: int = terrain_world.get_total_triangle_count()
 	var edited_voxels: int = terrain_world.get_edited_voxel_count()
 
-	_chunks.text = "Chunks: %d (%d×%d×%d grid) · seed %d" % [
-		chunk_count, grid_dimensions.x, grid_dimensions.y, grid_dimensions.z, terrain_world.noise_seed
-	]
+	_chunks.text = (
+		"Chunks: %d (%d×%d×%d grid) · seed %d"
+		% [
+			chunk_count,
+			grid_dimensions.x,
+			grid_dimensions.y,
+			grid_dimensions.z,
+			terrain_world.noise_seed
+		]
+	)
 	_chunk_size.text = "Chunk size: %.1f" % chunk_extent
 	if terrain_world is CelestialBody:
 		var celestial_body: CelestialBody = terrain_world as CelestialBody
 		var body_radius: float = celestial_body.get_sphere_radius()
-		_body_size.text = "Body size: %.1f radius (%.1f diameter)" % [
-			body_radius, body_radius * 2.0
-		]
+		_body_size.text = (
+			"Body size: %.1f radius (%.1f diameter)" % [body_radius, body_radius * 2.0]
+		)
 	else:
-		_body_size.text = "World size: %.0f × %.0f × %.0f" % [
-			world_extents.x, world_extents.y, world_extents.z
-		]
+		_body_size.text = (
+			"World size: %.0f × %.0f × %.0f" % [world_extents.x, world_extents.y, world_extents.z]
+		)
 	_vertex_count.text = (
 		"Mesh: %s verts / %s tris (edited voxels: %s)"
 		% [_format_count(vertex_count), _format_count(triangle_count), _format_count(edited_voxels)]
@@ -344,7 +384,10 @@ func _edit_mode_text() -> String:
 		TerrainBrush.EditMode.ADD:
 			var what: String = block_text if block else ""
 			if _add_material != TerrainMaterials.Kind.NATURAL:
-				what = TerrainMaterials.display_name(_add_material).to_lower() + (" " + block_text if block else "")
+				what = (
+					TerrainMaterials.display_name(_add_material).to_lower()
+					+ (" " + block_text if block else "")
+				)
 			return ("Add %s (%s)" % [what, how]).replace("  ", " ")
 	return "Off"
 

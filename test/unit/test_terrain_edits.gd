@@ -35,15 +35,29 @@ func test_shell_sample_is_written_but_stays_air() -> void:
 	_edits.add_brush(Vector3(0, 3, 0), 2.0, true, _density())
 	# (0, 5, 0) sits exactly on the sphere: its distance is written (zero) but it is not solid.
 	assert_false(_solid_at(Vector3(0, 5, 0)))
-	assert_almost_eq(_edits.apply_to_density(flat_ground(Vector3(0, 5, 0)), Vector3(0, 5, 0)), 0.0, 0.0001)
+	assert_almost_eq(
+		_edits.apply_to_density(flat_ground(Vector3(0, 5, 0)), Vector3(0, 5, 0)), 0.0, 0.0001
+	)
 
 
 func test_placed_material_tags_only_voxels_inside_the_stamp() -> void:
 	# Half buried in natural ground: (0, 0, 0) is inside the sphere, (0, -1, 0) is in its shell.
 	_edits.add_brush(Vector3(0, 1, 0), 1.5, true, _density(), TerrainMaterials.Kind.STONE)
-	assert_eq(_edits.material_at(Vector3(0, 1, 0)), TerrainMaterials.Kind.STONE, "the centre takes the material")
-	assert_eq(_edits.material_at(Vector3(0, 0, 0)), TerrainMaterials.Kind.STONE, "ground inside the sphere is re-skinned")
-	assert_eq(_edits.material_at(Vector3(0, -1, 0)), TerrainMaterials.Kind.NATURAL, "ground in the shell keeps its own material")
+	assert_eq(
+		_edits.material_at(Vector3(0, 1, 0)),
+		TerrainMaterials.Kind.STONE,
+		"the centre takes the material"
+	)
+	assert_eq(
+		_edits.material_at(Vector3(0, 0, 0)),
+		TerrainMaterials.Kind.STONE,
+		"ground inside the sphere is re-skinned"
+	)
+	assert_eq(
+		_edits.material_at(Vector3(0, -1, 0)),
+		TerrainMaterials.Kind.NATURAL,
+		"ground in the shell keeps its own material"
+	)
 	assert_true(_edits.has_materials())
 
 
@@ -53,22 +67,35 @@ func test_carving_removes_ground_and_forgets_its_material() -> void:
 	var changed: bool = _edits.add_brush(Vector3(0, -3, 0), 1.5, false, _density())
 	assert_true(changed)
 	assert_false(_solid_at(Vector3(0, -3, 0)), "the carved centre is air")
-	assert_eq(_edits.material_at(Vector3(0, -3, 0)), TerrainMaterials.Kind.NATURAL, "air has no material")
+	assert_eq(
+		_edits.material_at(Vector3(0, -3, 0)), TerrainMaterials.Kind.NATURAL, "air has no material"
+	)
 
 
 func test_repeating_an_edit_that_changes_nothing_reports_no_change() -> void:
-	assert_true(_edits.add_brush(Vector3(0, -3, 0), 1.5, false, _density()), "first carve changes voxels")
-	assert_false(_edits.add_brush(Vector3(0, -3, 0), 1.5, false, _density()), "the same carve again changes nothing")
+	assert_true(
+		_edits.add_brush(Vector3(0, -3, 0), 1.5, false, _density()), "first carve changes voxels"
+	)
+	assert_false(
+		_edits.add_brush(Vector3(0, -3, 0), 1.5, false, _density()),
+		"the same carve again changes nothing"
+	)
 
 
 func test_box_with_faces_on_sample_planes_is_two_voxels_wide() -> void:
 	# A block two voxels on a side, pushed out by a hair so its face samples are just solid.
 	var half: Vector3 = Vector3.ONE * 1.02
 	assert_true(_edits.add_box(Vector3(0, 3, 0), half, true, _density()))
-	for offset: Vector3 in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1)]:
+	for offset: Vector3 in [
+		Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1)
+	]:
 		assert_true(_solid_at(Vector3(0, 3, 0) + offset), "face sample %s is solid" % offset)
-	for offset: Vector3 in [Vector3(2, 0, 0), Vector3(-2, 0, 0), Vector3(0, 2, 0), Vector3(0, 0, -2)]:
-		assert_false(_solid_at(Vector3(0, 3, 0) + offset), "sample %s beyond the face is air" % offset)
+	for offset: Vector3 in [
+		Vector3(2, 0, 0), Vector3(-2, 0, 0), Vector3(0, 2, 0), Vector3(0, 0, -2)
+	]:
+		assert_false(
+			_solid_at(Vector3(0, 3, 0) + offset), "sample %s beyond the face is air" % offset
+		)
 
 
 func test_voxel_keys_follow_the_grid_origin() -> void:
@@ -89,7 +116,9 @@ func test_export_and_import_keep_every_voxel_and_material() -> void:
 	copy.import_state(state)
 
 	assert_eq(copy.get_override_count(), _edits.get_override_count())
-	for position: Vector3 in [Vector3(0, 3, 0), Vector3(0, 5, 0), Vector3(6, -2, 0), Vector3(6, -4, 0)]:
+	for position: Vector3 in [
+		Vector3(0, 3, 0), Vector3(0, 5, 0), Vector3(6, -2, 0), Vector3(6, -4, 0)
+	]:
 		assert_almost_eq(
 			copy.apply_to_density(flat_ground(position), position),
 			_edits.apply_to_density(flat_ground(position), position),
