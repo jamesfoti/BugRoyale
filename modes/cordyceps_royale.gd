@@ -48,6 +48,7 @@ void fragment() {
 """
 
 var storm: SporeStorm
+var _fighters: int = FIGHTERS
 
 var _stage: int = 0
 var _stage_time: float = 0.0
@@ -79,8 +80,9 @@ func _start_match() -> void:
 		team += 1
 		human.respawn_at(_spread_spawn_point(taken))
 		_infection[human.id] = 0.0
+	_fighters = fighter_count(FIGHTERS)
 	var classes: Array = LoadingScreen.PlayerCharacter.values()
-	for index: int in FIGHTERS - humans().size():
+	for _index: int in _fighters - humans().size():
 		var character: LoadingScreen.PlayerCharacter = classes[randi() % classes.size()]
 		var bot: Fighter = spawn_bot(character, team, _spread_spawn_point(taken))
 		team += 1
@@ -128,9 +130,13 @@ func _on_fighter_died(fighter: Fighter) -> void:
 		_infection.erase(fighter.id)
 		if fighter.is_human and _clean_humans() == 0:
 			# Everyone still clean finished ahead of the last human.
-			end_match("Eliminated", "You placed #%d of %d." % [_clean_count() + 1, FIGHTERS])
+			end_match("Eliminated", "You placed #%d of %d." % [_clean_count() + 1, _fighters])
 			return
 	_check_victory()
+
+
+func uses_ghosts() -> bool:
+	return true
 
 
 # --- The cloud --------------------------------------------------------------------------------

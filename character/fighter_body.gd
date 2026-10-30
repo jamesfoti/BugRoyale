@@ -8,6 +8,15 @@ extends CharacterBody3D
 ## only runs when is_local.
 
 const _MIN_DIR_LEN_SQ: float = 0.0001
+## Bots far from every human cost less: beyond FAR_DISTANCE the body steps its physics every
+## FAR_STRIDE-th frame (with the step scaled to cover the gap), beyond ANIMATE_DISTANCE the
+## skin stops animating and casting shadows, and beyond DRAW_DISTANCE it is not drawn. The
+## tier is rechecked every TIER_CHECK_FRAMES. Humans always get everything.
+const FAR_DISTANCE: float = 40.0
+const FAR_STRIDE: int = 3
+const ANIMATE_DISTANCE: float = 60.0
+const DRAW_DISTANCE: float = 160.0
+const TIER_CHECK_FRAMES: int = 15
 
 ## Which bug this body is: skin, stats and weapon. Set before the body enters the tree.
 var character: LoadingScreen.PlayerCharacter = LoadingScreen.selected_player_character
@@ -31,6 +40,11 @@ var _anim_state: String = ""
 var _skin: CharacterSkin
 var _visual_root: Node3D
 var _shooter: Node
+var _far: bool = false
+var _animated: bool = true
+var _tier_check_frame: int = 0
+## How many frames this physics step stands for (FAR_STRIDE on a far bot's active frame).
+var _step_scale: float = 1.0
 
 
 func _ready() -> void:
@@ -49,6 +63,9 @@ func _ready() -> void:
 	_shooter = get_node_or_null("ShooterTest")
 	if is_local:
 		call_deferred("_connect_terrain_hud")
+	elif _skin != null:
+		for mesh: Node in _skin.find_children("*", "MeshInstance3D", true, false):
+			(mesh as MeshInstance3D).visibility_range_end = DRAW_DISTANCE
 
 
 # --- Pilot ------------------------------------------------------------------------------------
@@ -64,6 +81,52 @@ func sample_input(delta: float) -> void:
 
 func get_input() -> FighterInput:
 	return _intent
+
+
+# --- Tiers ------------------------------------------------------------------------------------
+
+
+## Called first thing in a physics step: the delta the step should use (a far bot's active
+## frame covers the skipped ones), or a negative number when this frame is skipped.
+func begin_physics_frame(delta: float) -> float:
+	_step_scale = 1.0
+	if is_local or not (controller is BotBrain):
+		return delta
+	var frame: int = Engine.get_physics_frames()
+	if frame >= _tier_check_frame:
+		_tier_check_frame = frame + TIER_CHECK_FRAMES
+		_update_tier(FighterRegistry.distance_to_nearest_human(get_tree(), global_position))
+	if _far and (frame + fighter_id) % FAR_STRIDE != 0:
+		return -1.0
+	if _far:
+		_step_scale = float(FAR_STRIDE)
+	return delta * _step_scale
+
+
+## Moves the body for the step; a far bot's one step covers its skipped frames.
+func slide_step() -> void:
+	velocity *= _step_scale
+	move_and_slide()
+	velocity /= _step_scale
+
+
+func is_far_tier() -> bool:
+	return _far
+
+
+func _update_tier(distance_to_human: float) -> void:
+	_far = distance_to_human > FAR_DISTANCE
+	var animate: bool = distance_to_human <= ANIMATE_DISTANCE
+	if animate == _animated or _skin == null:
+		return
+	_animated = animate
+	_skin.process_mode = Node.PROCESS_MODE_INHERIT if animate else Node.PROCESS_MODE_DISABLED
+	for mesh: Node in _skin.find_children("*", "MeshInstance3D", true, false):
+		(mesh as MeshInstance3D).cast_shadow = (
+			GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			if animate
+			else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		)
 
 
 ## The input's forward, flattened onto the surface the body stands on; falls back to the input's
@@ -115,6 +178,12 @@ func set_in_play(active: bool) -> void:
 	collision_layer = MapInfo.FIGHTER_LAYER if active else 0
 	if not active:
 		velocity = Vector3.ZERO
+
+
+## Back in play at a position with whatever health it has (a ghost getting its body back).
+func place(position_on_map: Vector3) -> void:
+	set_in_play(true)
+	_place_at(position_on_map)
 
 
 ## Puts the body back in play at a position, or at a random spot on the ground when INF.

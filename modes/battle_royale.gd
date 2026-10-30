@@ -21,6 +21,7 @@ const WATER_STAGES: Array[Dictionary] = [
 ## Stage at which a crawlspace's drains start backing up sewage onto the flood.
 const SEWAGE_STAGE: int = 2
 
+var _fighters: int = FIGHTERS
 var _stage: int = 0
 var _stage_time: float = 0.0
 var _rise_from_y: float = 0.0
@@ -37,6 +38,7 @@ func _start_match() -> void:
 		_water_floor_y = map.water.global_position.y
 		_water_height = map.water._world_size.y
 		_rise_from_y = map.water_surface_y()
+	_fighters = fighter_count(FIGHTERS)
 	var taken: Array[Vector3] = []
 	var team: int = 0
 	for human: Fighter in humans():
@@ -44,7 +46,7 @@ func _start_match() -> void:
 		team += 1
 		human.respawn_at(_spread_spawn_point(taken))
 	var classes: Array = LoadingScreen.PlayerCharacter.values()
-	for index: int in FIGHTERS - humans().size():
+	for _index: int in _fighters - humans().size():
 		var character: LoadingScreen.PlayerCharacter = classes[randi() % classes.size()]
 		var bot: Fighter = spawn_bot(character, team, _spread_spawn_point(taken))
 		team += 1
@@ -70,14 +72,18 @@ func _on_fighter_died(fighter: Fighter) -> void:
 		return
 	if fighter.is_human and humans_alive() == 0:
 		# Everyone still standing finished ahead of the last human.
-		end_match("Eliminated", "You placed #%d of %d." % [alive_count() + 1, FIGHTERS])
+		end_match("Eliminated", "You placed #%d of %d." % [alive_count() + 1, _fighters])
 		return
 	if alive_count() == 1:
 		var winner: Fighter = alive_fighters()[0]
 		if winner.is_local:
-			end_match("Victory Royale!", "Last bug standing out of %d." % FIGHTERS)
+			end_match("Victory Royale!", "Last bug standing out of %d." % _fighters)
 		else:
-			end_match("%s wins" % winner.display_name(), "Last bug standing out of %d." % FIGHTERS)
+			end_match("%s wins" % winner.display_name(), "Last bug standing out of %d." % _fighters)
+
+
+func uses_ghosts() -> bool:
+	return true
 
 
 func _update_water(delta: float) -> void:

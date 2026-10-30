@@ -13,17 +13,19 @@ const TEAM_NAMES: Array[String] = ["Red", "Black"]
 const TEAM_SIDES: Array[float] = [-1.0, 1.0]
 
 var scores: Array[int] = [0, 0]
+var _team_size: int = TEAM_SIZE
 
 # --- Deciding ---------------------------------------------------------------------------------
 
 
 func _start_match() -> void:
+	_team_size = fighter_count(TEAM_SIZE * 2) / 2
 	for human: Fighter in humans():
 		human.set_team(RED_TEAM)
 		human.respawn_at(_team_spawn(RED_TEAM))
-	for index: int in TEAM_SIZE - humans().size():
+	for _index: int in _team_size - humans().size():
 		_spawn_colony_bot(RED_TEAM)
-	for index: int in TEAM_SIZE:
+	for _index: int in _team_size:
 		_spawn_colony_bot(BLACK_TEAM)
 	announce("Ants vs Ants\nRed colony, first to %d kills!" % KILL_LIMIT, 4.0)
 
@@ -40,6 +42,10 @@ func _on_fighter_died(fighter: Fighter) -> void:
 			if not match_over and fighter.is_valid():
 				fighter.respawn_at(_team_spawn(team))
 	)
+
+
+func uses_ghosts() -> bool:
+	return true
 
 
 func _spawn_colony_bot(team: int) -> void:

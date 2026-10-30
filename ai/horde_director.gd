@@ -1,10 +1,11 @@
 class_name HordeDirector
 extends Node
-## The pressure in a co-op mode, inspired by Left 4 Dead. Hornet nests hold their patches of
-## ground. A noise meter listens to the squad (shots, blasts, digging, sprinting; a squadmate
-## bot's gun counts for a fraction) and sends a horde when it fills, another after a long lull,
-## and one on a timer during a finale. The mode announces what goes out; the director keeps the
-## flocks, the meter and the horde count, and snapshots the two numbers a client shows.
+## The pressure in a co-op mode, inspired by State of Decay's noise and Left 4 Dead's pacing.
+## Hornet nests hold their patches of ground. A noise meter listens to the squad (shots, blasts,
+## digging, sprinting; a squadmate bot's gun counts for a fraction) and sends a horde when it
+## fills, another after a long lull, and one on a timer during a finale. The mode announces what
+## goes out; the director keeps the flocks, the meter and the horde count, and snapshots the two
+## numbers a client shows.
 ##
 ## Every flock is built by make_flock, which reads the map's flight band and flying obstacles,
 ## so a mode never has to know which map it is on.

@@ -98,6 +98,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	if terrain == null or not _spawned or not _in_play:
 		return
+	delta = begin_physics_frame(delta)
+	if delta < 0.0:
+		return
 	sample_input(delta)
 	if _terrain_focus or is_ui_blocking():
 		_apply_idle_physics(delta)
@@ -142,7 +145,7 @@ func _is_aiming_or_firing() -> bool:
 func _finish_physics_step(delta: float) -> void:
 	up_direction = _surface_up
 	_align_body_to_surface(delta)
-	move_and_slide()
+	slide_step()
 
 
 # --- Surface tracking (climbing) -------------------------------------------------------------

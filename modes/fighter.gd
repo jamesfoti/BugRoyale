@@ -15,6 +15,10 @@ var is_human: bool = false
 ## The human playing at this machine (there is at most one).
 var is_local: bool = false
 var character: LoadingScreen.PlayerCharacter = LoadingScreen.PlayerCharacter.ANT_WARRIOR
+## A far bot without a body for now (GhostSimulation): it stands at ghost_position with its
+## health, counts as alive and in play, and gets its body back when a human comes near.
+var ghost: bool = false
+var ghost_position: Vector3 = Vector3.ZERO
 
 
 static func for_body(fighter_body: FighterBody, fighter_id: int) -> Fighter:
@@ -42,14 +46,14 @@ func is_valid() -> bool:
 	return body != null and is_instance_valid(body) and health != null and is_instance_valid(health)
 
 
-## Standing on the map with health left.
+## Standing on the map (in a body or as a ghost) with health left.
 func is_alive() -> bool:
-	return is_valid() and body.is_in_play() and health.is_alive()
+	return is_valid() and (ghost or body.is_in_play()) and health.is_alive()
 
 
 ## In the match (not dead): a fighter whose health is being drained is still in play.
 func is_in_play() -> bool:
-	return is_valid() and body.is_in_play()
+	return is_valid() and (ghost or body.is_in_play())
 
 
 func is_bot() -> bool:
@@ -71,11 +75,14 @@ func set_team(team: int) -> void:
 
 
 func get_position() -> Vector3:
+	if ghost:
+		return ghost_position
 	return body.global_position if is_valid() else Vector3.ZERO
 
 
 ## Takes the fighter out of play (dead): frozen, hidden, not targetable.
 func kill() -> void:
+	ghost = false
 	if is_valid():
 		body.set_in_play(false)
 
@@ -84,6 +91,7 @@ func kill() -> void:
 func respawn_at(position_on_map: Vector3 = Vector3.INF) -> void:
 	if not is_valid():
 		return
+	ghost = false
 	body.respawn_at(position_on_map)
 	health.revive()
 	if brain != null:

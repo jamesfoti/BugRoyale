@@ -3,10 +3,11 @@ extends GameMode
 ## by a dragonfly, gathers materials (crumbs, sugar, seeds) scattered over the map, and rides the
 ## dragonfly out again from the extraction beacon. The ground is held by hornet nests and husks:
 ## a handful in any one place. But every shot, blast, dig and sprint feeds the director's noise
-## meter, and when it fills a horde comes for the squad (inspired by Left 4 Dead), and one comes
-## anyway after a long lull. Once the quota is gathered, or time runs out, the dragonfly heads
-## for the beacon and hovers for a short window while hordes keep coming: whoever is aboard when
-## it leaves is out. What a bug carries drops where it falls. No respawns.
+## meter, and when it fills a horde comes for the squad (inspired by State of Decay's noise and
+## Left 4 Dead's pacing), and one comes anyway after a long lull. Once the quota is gathered, or
+## time runs out, the dragonfly heads for the beacon and hovers for a short window while hordes
+## keep coming: whoever is aboard when it leaves is out. What a bug carries drops where it falls.
+## No respawns.
 
 enum Phase { INSERTION, FORAGE, INBOUND, BOARDING, LEAVING, DONE }
 

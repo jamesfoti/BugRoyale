@@ -54,6 +54,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	if celestial_body == null or not _spawned or not _in_play:
 		return
+	delta = begin_physics_frame(delta)
+	if delta < 0.0:
+		return
 	sample_input(delta)
 
 	_update_gravity_direction()
@@ -65,7 +68,7 @@ func _physics_process(delta: float) -> void:
 		_apply_focus_physics(delta)
 		if _terrain_focus:
 			_align_up_to_body(delta, _get_flat_forward())
-		move_and_slide()
+		slide_step()
 		_update_animation(Vector3.ZERO)
 		return
 
@@ -82,7 +85,7 @@ func _physics_process(delta: float) -> void:
 		_align_up_to_body(delta, facing_direction)
 	elif not _is_camera_orbiting():
 		_orthonormalize_basis()
-	move_and_slide()
+	slide_step()
 	_update_animation(movement_direction)
 
 

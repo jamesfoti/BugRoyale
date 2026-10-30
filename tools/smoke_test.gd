@@ -9,8 +9,12 @@ extends Node
 ## Arguments (all optional): map=<ModeCatalog map id>, mode=<ModeCatalog mode id>,
 ## frames=<physics frames to run after the match starts>, character=<0..3>, seed=<terrain seed>,
 ## drive=1 to work the local player's controls too (run forward, jump, hold the trigger) so the
-## keyboard path is exercised. The result line starts with "SMOKE RESULT" so a script can grep
-## for it; "SMOKE FAIL" means the match never started.
+## keyboard path is exercised, fighters=<n> to override how many fighters a mode with a free
+## count spawns (scaling runs), brains=0 to switch the bots' AI off once the match starts (what
+## the bodies alone cost), ghosts=0 to keep every far bot in its body. The result line starts
+## with "SMOKE RESULT" so a script can grep for it, and carries the average and worst physics
+## and process frame times in milliseconds after a warm-up; "SMOKE FAIL" means the match never
+## started.
 
 const DEFAULT_MAP: String = "battlefield"
 const DEFAULT_MODE: String = "ants_vs_ants"
@@ -32,12 +36,15 @@ func _ready() -> void:
 		int(options.get("character", 0)) as LoadingScreen.PlayerCharacter
 	)
 	LoadingScreen.pending_terrain_seed = int(options.get("seed", 0))
+	GameMode.fighter_count_override = int(options.get("fighters", 0))
+	GameMode.ghosts_enabled = str(options.get("ghosts", "1")) != "0"
 	LoadingScreen.pending_mode_id = mode_id
 	LoadingScreen.pending_scene_path = scene_path
 	var runner := Runner.new()
 	runner.name = "SmokeTestRunner"
 	runner.frames_to_run = int(options.get("frames", DEFAULT_FRAMES))
 	runner.drive_local = str(options.get("drive", "0")) == "1"
+	runner.brains_off = str(options.get("brains", "1")) == "0"
 	get_tree().root.add_child.call_deferred(runner)
 	print("[SmokeTest] %s on %s for %d frames." % [mode_id, map_id, runner.frames_to_run])
 	get_tree().change_scene_to_file.call_deferred("res://scenes/loading_screen.tscn")
@@ -55,8 +62,12 @@ func _parse_args() -> Dictionary:
 class Runner:
 	extends Node
 
+	## Frames left out of the timing: the map is still building and bodies still spawning.
+	const WARM_UP_FRAMES: int = 60
+
 	var frames_to_run: int = DEFAULT_FRAMES
 	var drive_local: bool = false
+	var brains_off: bool = false
 
 	var _mode: GameMode
 	var _frames_run: int = 0
@@ -64,6 +75,11 @@ class Runner:
 	var _spawn_positions: Dictionary = {}
 	var _deaths: Dictionary = {}
 	var _bodies_hooked: Dictionary = {}
+	## Frame times in seconds, summed and the worst seen, from Godot's own monitors.
+	var _physics_total: float = 0.0
+	var _physics_peak: float = 0.0
+	var _process_total: float = 0.0
+	var _process_peak: float = 0.0
 
 	func _physics_process(_delta: float) -> void:
 		if _mode == null or not is_instance_valid(_mode):
@@ -85,6 +101,11 @@ class Runner:
 			)
 		_hook_fighters()
 		_frames_run += 1
+		_sample_frame_times()
+		if brains_off and _frames_run == 1:
+			for fighter: Fighter in _mode.fighters:
+				if fighter.brain != null:
+					fighter.brain.enabled = false
 		if drive_local:
 			_drive_local_player()
 		if _frames_run == 120:
@@ -126,7 +147,7 @@ class Runner:
 			return
 		var victim: Fighter = null
 		for fighter: Fighter in _mode.fighters:
-			if fighter.is_alive():
+			if fighter.is_alive() and not fighter.ghost:
 				victim = fighter
 				break
 		if victim == null:
@@ -160,6 +181,17 @@ class Runner:
 				% [str(refused), str(applied), log_size, sequence, before, after]
 			)
 		)
+
+	## The last frame's physics and process times (the whole step, scripts included).
+	func _sample_frame_times() -> void:
+		if _frames_run <= WARM_UP_FRAMES:
+			return
+		var physics: float = Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)
+		var process: float = Performance.get_monitor(Performance.TIME_PROCESS)
+		_physics_total += physics
+		_physics_peak = maxf(_physics_peak, physics)
+		_process_total += process
+		_process_peak = maxf(_process_peak, process)
 
 	func _hook_fighters() -> void:
 		for fighter: Fighter in _mode.fighters:
@@ -236,7 +268,8 @@ class Runner:
 			(
 				(
 					"SMOKE RESULT: fighters=%d alive=%d moved=%d shooters=%d shots=%d deaths=%d "
-					+ "over=%s state_roundtrip=%s status='%s'"
+					+ "over=%s state_roundtrip=%s ghosts=%d physics_ms=%.2f/%.1f "
+					+ "process_ms=%.2f/%.1f status='%s'"
 				)
 				% [
 					_mode.fighters.size(),
@@ -247,6 +280,11 @@ class Runner:
 					total_deaths,
 					str(_mode.match_over),
 					roundtrip,
+					_mode.ghost_count(),
+					_physics_total / maxi(_frames_run - WARM_UP_FRAMES, 1) * 1000.0,
+					_physics_peak * 1000.0,
+					_process_total / maxi(_frames_run - WARM_UP_FRAMES, 1) * 1000.0,
+					_process_peak * 1000.0,
 					_mode._status_text()
 				]
 			)

@@ -73,6 +73,8 @@ func _ready() -> void:
 	_damageable = get_parent().get_node_or_null("Damageable") as Damageable
 	_can_strafe = not (_body is CelestialBodyPlayer)
 	_strafe_sign = 1.0 if randf() < 0.5 else -1.0
+	# Spread the bots' target searches (and sight rays) over the frames, not all on one.
+	_retarget_timer = randf() * _RETARGET_SECONDS
 
 
 ## Stops the bot firing for a while (e.g. a royale's drop-in grace period).
@@ -178,21 +180,14 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 # --- Targeting --------------------------------------------------------------------------------
 
 
+## The nearest enemy in range, from the frame's shared registry (built once for every bot).
 func _find_target() -> Node3D:
-	var best: Node3D = null
-	var best_distance: float = detection_range
-	for group: StringName in [target_group, secondary_target_group]:
-		if group == &"":
-			continue
-		for node: Node in get_tree().get_nodes_in_group(group):
-			var candidate: Node3D = node as Node3D
-			if candidate == null or not _is_valid_target(candidate):
-				continue
-			var distance: float = _body.global_position.distance_to(candidate.global_position)
-			if distance < best_distance:
-				best_distance = distance
-				best = candidate
-	return best
+	var groups: Array[StringName] = [target_group]
+	if secondary_target_group != &"":
+		groups.append(secondary_target_group)
+	return FighterRegistry.nearest_enemy(
+		get_tree(), _body.global_position, _damageable.team, groups, detection_range, _body
+	)
 
 
 ## The nearest member of a group within a distance (a pickup to walk over), or null.

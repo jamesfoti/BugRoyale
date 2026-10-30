@@ -19,6 +19,12 @@ signal match_ended(title: String, subtitle: String)
 
 const MAIN_MENU_SCENE_PATH: String = "res://scenes/main_menu.tscn"
 
+## Overrides how many fighters a mode with a free count puts on the map (0 = the mode's own
+## number). Set by the smoke test to measure how the game scales.
+static var fighter_count_override: int = 0
+## Lets modes that opt in (uses_ghosts) turn far bots into ghosts; off for measuring.
+static var ghosts_enabled: bool = true
+
 var map: MapInfo
 var hud: ModeHud
 ## Everyone in the match, humans first.
@@ -30,6 +36,7 @@ var end_title: String = ""
 var end_subtitle: String = ""
 
 var _started: bool = false
+var _ghosts: GhostSimulation
 var _next_fighter_id: int = 1
 
 
@@ -59,6 +66,12 @@ func _begin() -> void:
 		func() -> void: get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
 	)
 	if Authority.is_host():
+		if uses_ghosts() and ghosts_enabled:
+			_ghosts = GhostSimulation.new()
+			_ghosts.name = "GhostSimulation"
+			_ghosts.map = map
+			_ghosts.mode = self
+			add_child(_ghosts)
 		_start_match()
 	_started = true
 
@@ -72,6 +85,8 @@ func _process(delta: float) -> void:
 				if fighter.is_alive() and map.is_out_of_bounds(fighter.get_position()):
 					fighter.health.apply_damage(fighter.health.max_health * 10.0)
 		_update_match(delta)
+		if _ghosts != null and not match_over:
+			_ghosts.update(delta)
 	_present()
 
 
@@ -91,6 +106,11 @@ func _update_match(_delta: float) -> void:
 ## A fighter's health hit zero. Default: out of play for good.
 func _on_fighter_died(fighter: Fighter) -> void:
 	fighter.kill()
+
+
+## Whether far bots may give up their bodies (many bots spread over the map, nobody to escort).
+func uses_ghosts() -> bool:
+	return false
 
 
 # --- Overridables: showing (every machine) --------------------------------------------------
@@ -139,6 +159,11 @@ func apply_state(state: Dictionary) -> void:
 # --- Helpers ----------------------------------------------------------------------------------
 
 
+## The number of fighters this match puts on the map: the mode's own, unless overridden.
+static func fighter_count(default_count: int) -> int:
+	return fighter_count_override if fighter_count_override > 0 else default_count
+
+
 ## Adds a bot of a class to a team at a position. skin_path overrides the class's bot skin.
 func spawn_bot(
 	character: LoadingScreen.PlayerCharacter, team: int, position: Vector3, skin_path: String = ""
@@ -178,6 +203,10 @@ func _register(body: FighterBody) -> Fighter:
 func _find_spawner() -> PlayerSpawner:
 	var found: Array[Node] = get_parent().find_children("*", "PlayerSpawner", true, false)
 	return found.front() as PlayerSpawner if not found.is_empty() else null
+
+
+func ghost_count() -> int:
+	return _ghosts.ghost_count() if _ghosts != null else 0
 
 
 func fighter_by_id(fighter_id: int) -> Fighter:

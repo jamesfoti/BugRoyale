@@ -59,6 +59,9 @@ single-player game, and the bots stay as backfill for lobbies that do not fill.
   shot visuals immediately and accept the verdict.
 - [ ] Bots run only on the host and are replicated like any other fighter; lobbies fill with
   bots when short of players.
+- [ ] Interest management: a client only receives the bodies inside its bubble, the way far
+  bots already drop to ghosts on the host, so big colony and royale counts stay affordable
+  over the wire.
 - [ ] Per-mode stats that survive a restart (best hornet wave per map, royale wins, colony
   records) shown on the mode picker.
 - [ ] A pass through every mode on every map (thirty combinations) before any release.
@@ -183,6 +186,22 @@ Map ids: `battlefield`, `celestial_body`, `terrarium`, `fishbowl`, `crawlspace`.
 `hornets`, `ants_vs_ants`, `battle_royale`, `cordyceps_royale`, `forage`, `explore`. Add `drive=1` to
 work the local player's controls as well. The result line starts with `SMOKE RESULT`. Headless
 Godot cannot capture the mouse, so the local player's trigger is the one thing it never fires.
+
+**Scaling runs.** The same harness measures how the game copes with crowds. `fighters=<n>`
+overrides how many fighters Ants vs Ants, Battle Royale and Cordyceps Royale spawn, `brains=0`
+switches the bots' AI off once the match starts, and `ghosts=0` keeps every far bot in its
+body. The result line carries `physics_ms` and `process_ms` as average/worst frame times in
+milliseconds after a warm-up, and `ghosts`, the number of bots currently without a body:
+
+```powershell
+godot --headless --path . res://tools/smoke_test.tscn -- map=battlefield mode=ants_vs_ants frames=600 seed=7 fighters=96
+```
+
+Bots cost less the farther they are from every human: beyond 40 m their physics steps every
+third frame, beyond 60 m they stop animating and casting shadows, beyond 160 m they are not
+drawn, and in the modes that opt in (the colony and royale modes) a bot beyond 115 m gives up
+its body altogether and lives on as a ghost (`GhostSimulation`) that wanders, fights other
+ghosts by rolls, and gets its body back when a human comes within 100 m.
 
 Release
 -------
