@@ -2,11 +2,11 @@ extends GameMode
 ## Forage: extraction. A squad of four (humans plus AI squadmates) is flown onto hostile ground
 ## by a dragonfly, gathers materials (crumbs, sugar, seeds) scattered over the map, and rides the
 ## dragonfly out again from the extraction beacon. The ground is held by hornet nests and husks:
-## a handful in any one place. But every shot, blast, dig and sprint feeds a noise meter, and when
-## it fills a horde comes for the squad (Left 4 Dead's director), and one comes anyway after a
-## long lull. Once the quota is gathered, or time runs out, the dragonfly heads for the beacon
-## and hovers for a short window while hordes keep coming: whoever is aboard when it leaves is
-## out. What a bug carries drops where it falls. No respawns.
+## a handful in any one place. But every shot, blast, dig and sprint feeds the director's noise
+## meter, and when it fills a horde comes for the squad (inspired by Left 4 Dead), and one comes
+## anyway after a long lull. Once the quota is gathered, or time runs out, the dragonfly heads
+## for the beacon and hovers for a short window while hordes keep coming: whoever is aboard when
+## it leaves is out. What a bug carries drops where it falls. No respawns.
 
 enum Phase { INSERTION, FORAGE, INBOUND, BOARDING, LEAVING, DONE }
 
@@ -29,30 +29,16 @@ const HUSKS: int = 8
 const HUSK_SPEED: float = 0.75
 ## Enemies keep at least this far from the landing zone at the drop.
 const QUIET_RADIUS: float = 28.0
-## The noise meter runs 0..100; these feed it, and it fades on its own.
-const NOISE_SHOT: float = 4.0
-const NOISE_BLAST: float = 18.0
-const NOISE_DIG: float = 7.0
-const NOISE_RUN_PER_SECOND: float = 3.0
-const NOISE_DECAY_PER_SECOND: float = 7.0
-## How much of a squadmate bot's noise counts (the director watches the players).
-const BOT_NOISE_SHARE: float = 0.2
-const NOISE_HORDE: float = 100.0
-const NOISE_AFTER_HORDE: float = 30.0
-const HORDE_COOLDOWN: float = 25.0
-## A horde comes anyway after this long without one, and this often while the dragonfly waits.
-const LULL_SECONDS: float = 80.0
-const FINALE_HORDE_SECONDS: float = 12.0
-const HORDE_BASE: int = 8
-const HORDE_GROWTH: int = 3
-const HORDE_MAX: int = 40
 const NOISE_CELLS: int = 6
 
+var squad: Squad
+var director: HordeDirector
 var dragonfly: Dragonfly
 var phase: Phase = Phase.INSERTION
 ## Materials safe aboard the dragonfly, and carried per fighter id.
 var banked: int = 0
 var carried: Dictionary = {}
+## The director's meter and horde count, mirrored here for the snapshot and the status line.
 var noise: float = 0.0
 var hordes: int = 0
 var time_left: float = MATCH_SECONDS
@@ -62,11 +48,6 @@ var aboard: Array[int] = []
 var landing_zone: Vector3 = Vector3.INF
 var extraction: Vector3 = Vector3.INF
 
-var _horde_cooldown: float = 0.0
-var _lull: float = 0.0
-var _finale_timer: float = 0.0
-var _horde_flock: BirdFlock
-var _nests: Array[BirdFlock] = []
 var _beacon: MeshInstance3D
 var _leave_timer: float = 0.0
 
@@ -76,27 +57,27 @@ var _leave_timer: float = 0.0
 func _start_match() -> void:
 	landing_zone = map.random_surface_point(0.0)
 	extraction = _far_surface_point(landing_zone, 10)
-	for human: Fighter in humans():
-		_join_squad(human)
-	var leader: Node3D = local_fighter.body if local_fighter != null else null
-	var player_class: LoadingScreen.PlayerCharacter = LoadingScreen.selected_player_character
-	var squad_classes: Array = LoadingScreen.PlayerCharacter.values().filter(
-		func(character: int) -> bool: return character != player_class
+	squad = Squad.fill(
+		self, SQUAD_TEAM, PREY_GROUP, SQUAD_SIZE, func() -> Vector3: return landing_zone
 	)
-	for index: int in SQUAD_SIZE - humans().size():
-		var character: LoadingScreen.PlayerCharacter = squad_classes[index % squad_classes.size()]
-		var bot: Fighter = spawn_bot(character, SQUAD_TEAM, landing_zone)
-		if bot == null:
-			continue
+	for bot: Fighter in squad.bots():
 		bot.brain.target_group = &"fighter"
 		bot.brain.secondary_target_group = &"bird"
 		bot.brain.gather_group = ForageMaterial.GROUP
-		bot.brain.leader = leader
 		bot.brain.detection_range = 40.0
-		_join_squad(bot)
+	for member: Fighter in squad.members:
+		carried[member.id] = 0
+
+	director = HordeDirector.new()
+	director.name = "HordeDirector"
+	director.setup(map, get_parent(), PREY_GROUP, ENEMY_TEAM)
+	add_child(director)
+	for member: Fighter in squad.members:
+		director.listen_to(member)
+	director.listen_to_terrain()
+	director.horde_sent.connect(_on_horde_sent)
 	_scatter_materials()
 	_place_enemies()
-	_listen_for_digging()
 
 	dragonfly = Dragonfly.new()
 	dragonfly.name = "Dragonfly"
@@ -104,8 +85,8 @@ func _start_match() -> void:
 	get_parent().add_child(dragonfly)
 	dragonfly.arrived.connect(_on_dragonfly_arrived)
 	dragonfly.departed.connect(_on_dragonfly_departed)
-	for fighter: Fighter in _squad():
-		_board(fighter)
+	for member: Fighter in squad.members:
+		_board(member)
 	dragonfly.fly_in(_sky_edge(landing_zone), landing_zone)
 	announce(
 		(
@@ -138,10 +119,6 @@ func _update_match(delta: float) -> void:
 		Phase.BOARDING:
 			_run_director(delta)
 			window_left = maxf(window_left - delta, 0.0)
-			_finale_timer -= delta
-			if _finale_timer <= 0.0:
-				_finale_timer = FINALE_HORDE_SECONDS
-				_spawn_horde("The horde is on the beacon!")
 			_board_nearby()
 			if window_left <= 0.0 or _everyone_standing_is_aboard():
 				_leave()
@@ -163,43 +140,44 @@ func _physics_process(_delta: float) -> void:
 
 func _on_fighter_died(fighter: Fighter) -> void:
 	fighter.kill()
-	if match_over or fighter.get_team() != SQUAD_TEAM:
+	if match_over or squad == null or not squad.has(fighter):
 		return
 	_drop_carried(fighter)
 	announce_to(fighter, "You're down.", 3.0)
 
 
+func _run_director(delta: float) -> void:
+	director.tick(delta, squad.members)
+	noise = director.noise
+	hordes = director.hordes
+
+
+func _on_horde_sent(_count: int, reason: HordeDirector.Reason) -> void:
+	match reason:
+		HordeDirector.Reason.NOISE:
+			announce("They heard you!", 3.0)
+		HordeDirector.Reason.LULL:
+			announce("A horde is coming!", 3.0)
+		HordeDirector.Reason.FINALE:
+			announce("The horde is on the beacon!", 3.0)
+
+
 # --- The squad ---------------------------------------------------------------------------------
-
-
-func _join_squad(fighter: Fighter) -> void:
-	fighter.set_team(SQUAD_TEAM)
-	fighter.body.add_to_group(PREY_GROUP)
-	carried[fighter.id] = 0
-	var shooter: Node = fighter.body.get_node_or_null("ShooterTest")
-	if shooter != null and shooter.has_signal("fired"):
-		shooter.connect("fired", _on_squad_fired.bind(fighter.is_human))
-
-
-func _squad() -> Array[Fighter]:
-	var result: Array[Fighter] = []
-	for fighter: Fighter in fighters:
-		if fighter.get_team() == SQUAD_TEAM:
-			result.append(fighter)
-	return result
 
 
 ## Squad members still in the match: on the ground alive, or aboard.
 func _squad_standing() -> int:
+	if squad == null:
+		return 0
 	var count: int = 0
-	for fighter: Fighter in _squad():
+	for fighter: Fighter in squad.members:
 		if fighter.is_alive() or aboard.has(fighter.id):
 			count += 1
 	return count
 
 
 func _everyone_standing_is_aboard() -> bool:
-	for fighter: Fighter in _squad():
+	for fighter: Fighter in squad.members:
 		if fighter.is_alive() and not aboard.has(fighter.id):
 			return false
 	return true
@@ -212,7 +190,7 @@ func _board(fighter: Fighter) -> void:
 	aboard.append(fighter.id)
 	banked += int(carried.get(fighter.id, 0))
 	carried[fighter.id] = 0
-	fighter.body.remove_from_group(PREY_GROUP)
+	squad.leave(fighter)
 	fighter.body.set_in_play(false)
 	if dragonfly != null:
 		fighter.body.global_position = dragonfly.seat_point()
@@ -222,12 +200,12 @@ func _board(fighter: Fighter) -> void:
 func _drop_off(fighter: Fighter, point: Vector3) -> void:
 	aboard.erase(fighter.id)
 	fighter.respawn_at(map.ground_point_near(point, 2.0, 4.5, 1.2))
-	fighter.body.add_to_group(PREY_GROUP)
+	squad.rejoin(fighter)
 
 
 ## Anyone alive and close to the hovering dragonfly climbs aboard.
 func _board_nearby() -> void:
-	for fighter: Fighter in _squad():
+	for fighter: Fighter in squad.members:
 		if not fighter.is_alive() or aboard.has(fighter.id):
 			continue
 		var offset: Vector3 = fighter.get_position() - extraction
@@ -244,18 +222,20 @@ func _scatter_materials() -> void:
 	var taken: Array[Vector3] = []
 	for index: int in MATERIALS:
 		var spot: Vector3 = _spread_point(taken, 5.0, 0.4)
-		var kind: ForageMaterial.Kind = (index % ForageMaterial.Kind.size()) as ForageMaterial.Kind
-		var material: ForageMaterial = ForageMaterial.spawn(
-			get_parent(), spot, kind, map.up_at(spot)
-		)
-		material.picked_up.connect(_on_material_picked_up)
+		_place_material(spot, index)
+
+
+func _place_material(spot: Vector3, index: int) -> void:
+	var kind: ForageMaterial.Kind = (index % ForageMaterial.Kind.size()) as ForageMaterial.Kind
+	var material: ForageMaterial = ForageMaterial.spawn(get_parent(), spot, kind, map.up_at(spot))
+	material.picked_up.connect(_on_material_picked_up)
 
 
 func _on_material_picked_up(material: ForageMaterial, body: FighterBody) -> void:
 	if not Authority.is_host() or material.is_taken() or match_over:
 		return
 	var fighter: Fighter = fighter_by_id(body.fighter_id)
-	if fighter == null or fighter.get_team() != SQUAD_TEAM:
+	if fighter == null or not squad.has(fighter):
 		return
 	material.take()
 	carried[fighter.id] = int(carried.get(fighter.id, 0)) + 1
@@ -274,40 +254,18 @@ func _drop_carried(fighter: Fighter) -> void:
 	var count: int = int(carried.get(fighter.id, 0))
 	carried[fighter.id] = 0
 	for index: int in count:
-		var spot: Vector3 = map.ground_point_near(fighter.get_position(), 1.0, 2.5, 0.4)
-		var material: ForageMaterial = ForageMaterial.spawn(
-			get_parent(),
-			spot,
-			(index % ForageMaterial.Kind.size()) as ForageMaterial.Kind,
-			map.up_at(spot)
-		)
-		material.picked_up.connect(_on_material_picked_up)
+		_place_material(map.ground_point_near(fighter.get_position(), 1.0, 2.5, 0.4), index)
 
 
-# --- Enemies and the director ------------------------------------------------------------------
+# --- Enemies -----------------------------------------------------------------------------------
 
 
 func _place_enemies() -> void:
-	var network: DuctNetwork = get_tree().get_first_node_in_group("duct_network") as DuctNetwork
-	for index: int in NESTS:
-		var nest: Vector3 = _far_surface_point(landing_zone, 8, QUIET_RADIUS)
-		var flock: BirdFlock = _make_flock("HornetNest%d" % index, network)
-		flock.follow_targets = false
-		flock.spawn_radius = 10.0
-		flock.attack_detection_radius = 20.0
-		flock.global_position = nest + map.up_at(nest) * 5.0
-		flock.spawn_wave(NEST_HORNETS)
-		_nests.append(flock)
-	_horde_flock = _make_flock("Horde", network)
-	_horde_flock.follow_targets = true
-	_horde_flock.spawn_radius = 45.0
-	_horde_flock.attack_detection_radius = 60.0
-	_horde_flock.max_speed = 13.0
-	_horde_flock.max_attack_speed = 19.0
-	_horde_flock.attack_damage = 8.0
-
+	for _index: int in NESTS:
+		director.add_nest(_far_surface_point(landing_zone, 8, QUIET_RADIUS), NEST_HORNETS)
+	director.build_horde_flock()
 	var classes: Array = LoadingScreen.PlayerCharacter.values()
-	for index: int in HUSKS:
+	for _index: int in HUSKS:
 		var spot: Vector3 = _far_surface_point(landing_zone, 6, QUIET_RADIUS)
 		var character: LoadingScreen.PlayerCharacter = classes[randi() % classes.size()]
 		var husk: Fighter = spawn_bot(character, ENEMY_TEAM, spot)
@@ -318,94 +276,21 @@ func _place_enemies() -> void:
 		husk.brain.detection_range = 30.0
 
 
-func _make_flock(flock_name: String, network: DuctNetwork) -> BirdFlock:
-	var flock := BirdFlock.new()
-	flock.name = flock_name
-	flock.auto_build = false
-	flock.map = map
-	flock.target_group = PREY_GROUP
-	flock.hornet_team = ENEMY_TEAM
-	match map.kind:
-		MapInfo.Kind.TERRARIUM:
-			flock.min_height = 3.0
-			flock.max_height = 9.0
-		MapInfo.Kind.CELESTIAL_BODY:
-			flock.min_height = 6.0
-			flock.max_height = 13.0
-		_:
-			flock.min_height = 8.0
-			flock.max_height = 16.0
-	if map.ceiling_y < INF:
-		flock.min_height = 2.0
-		var dirt: Dictionary = map.ground_hit(map.center())
-		var dirt_y: float = dirt.position.y if not dirt.is_empty() else map.bounds.position.y
-		flock.max_height = clampf(map.ceiling_y - dirt_y - 3.0, 3.0, 40.0)
-	if network != null:
-		flock.obstacles = network.obstacles.duplicate()
-	get_parent().add_child(flock)
-	return flock
-
-
-## Fades the meter, listens to the squad sprinting, and sends a horde when it fills or after a
-## long lull.
-func _run_director(delta: float) -> void:
-	_horde_cooldown -= delta
-	_lull += delta
-	for fighter: Fighter in _squad():
-		if not fighter.is_alive():
-			continue
-		var input: FighterInput = fighter.body.get_input()
-		if input.run and fighter.body.velocity.length() > 4.0:
-			noise += NOISE_RUN_PER_SECOND * delta
-	noise = clampf(noise - NOISE_DECAY_PER_SECOND * delta, 0.0, NOISE_HORDE)
-	if noise >= NOISE_HORDE and _horde_cooldown <= 0.0:
-		noise = NOISE_AFTER_HORDE
-		_spawn_horde("They heard you!")
-	elif _lull >= LULL_SECONDS:
-		_spawn_horde("A horde is coming!")
-
-
-func _spawn_horde(message: String) -> void:
-	if _horde_flock == null:
-		return
-	_horde_cooldown = HORDE_COOLDOWN
-	_lull = 0.0
-	var count: int = mini(HORDE_BASE + hordes * HORDE_GROWTH, HORDE_MAX)
-	_horde_flock.spawn_wave(count)
-	hordes += 1
-	announce(message, 3.0)
-
-
-## The director listens to the players; a squadmate bot's gun counts for a fraction.
-func _on_squad_fired(explosion_radius: float, human: bool) -> void:
-	var loudness: float = NOISE_BLAST if explosion_radius > 0.6 else NOISE_SHOT
-	noise += loudness if human else loudness * BOT_NOISE_SHARE
-
-
-func _listen_for_digging() -> void:
-	var terrain: ChunkedTerrainWorld = (
-		get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
-	)
-	if terrain != null:
-		terrain.edit_applied.connect(func(_edit: Dictionary) -> void: noise += NOISE_DIG)
-
-
 # --- The dragonfly -----------------------------------------------------------------------------
 
 
 func _on_dragonfly_arrived() -> void:
 	match phase:
 		Phase.INSERTION:
-			for fighter: Fighter in _squad():
+			for fighter: Fighter in squad.members:
 				_drop_off(fighter, landing_zone)
 			announce("Go! Go! Go!", 2.0)
 			dragonfly.fly_out(_sky_edge(landing_zone))
 			phase = Phase.FORAGE
-			_lull = 0.0
 		Phase.INBOUND:
 			phase = Phase.BOARDING
 			window_left = BOARDING_SECONDS
-			_finale_timer = FINALE_HORDE_SECONDS * 0.5
+			director.start_finale()
 			announce("The dragonfly is on the beacon. Climb aboard!", 3.0)
 
 
@@ -418,6 +303,7 @@ func _call_dragonfly(message: String) -> void:
 func _leave() -> void:
 	phase = Phase.LEAVING
 	_leave_timer = 8.0
+	director.stop_finale()
 	announce("The dragonfly is leaving!", 3.0)
 	dragonfly.fly_out(_sky_edge(extraction))
 
@@ -475,7 +361,7 @@ func _far_surface_point(from: Vector3, tries: int, min_distance: float = 0.0) ->
 func _spread_point(taken: Array[Vector3], gap: float, clearance: float) -> Vector3:
 	var best: Vector3 = map.random_surface_point(clearance)
 	var best_gap: float = -1.0
-	for attempt: int in 6:
+	for _attempt: int in 6:
 		var candidate: Vector3 = map.random_surface_point(clearance)
 		var nearest: float = INF
 		for other: Vector3 in taken:
@@ -493,19 +379,20 @@ func _spread_point(taken: Array[Vector3], gap: float, clearance: float) -> Vecto
 
 
 func _status_text() -> String:
-	var squad: String = "Squad %d/%d" % [_squad_standing(), SQUAD_SIZE]
+	var squad_line: String = "Squad %d/%d" % [_squad_standing(), SQUAD_SIZE]
 	var materials: String = "Materials %d/%d" % [_gathered(), QUOTA]
+	var noise_bar: String = HordeDirector.noise_bar(noise, NOISE_CELLS)
 	match phase:
 		Phase.INSERTION:
-			return "Forage  ·  Dragonfly inbound  ·  %s" % squad
+			return "Forage  ·  Dragonfly inbound  ·  %s" % squad_line
 		Phase.FORAGE:
 			return (
 				"%s  ·  Noise [%s]  ·  Hordes %d  ·  %s  ·  %d:%02d"
 				% [
 					materials,
-					_noise_bar(),
+					noise_bar,
 					hordes,
-					squad,
+					squad_line,
 					floori(time_left / 60.0),
 					int(time_left) % 60,
 				]
@@ -513,19 +400,14 @@ func _status_text() -> String:
 		Phase.INBOUND:
 			return (
 				"%s  ·  Noise [%s]  ·  %s  ·  Dragonfly heading for the beacon"
-				% [materials, _noise_bar(), squad]
+				% [materials, noise_bar, squad_line]
 			)
 		Phase.BOARDING:
 			return (
 				"%s  ·  %s  ·  Board now! %ds  ·  Aboard %d"
-				% [materials, squad, ceili(window_left), aboard.size()]
+				% [materials, squad_line, ceili(window_left), aboard.size()]
 			)
 	return "%s  ·  Dragonfly leaving  ·  Aboard %d" % [materials, aboard.size()]
-
-
-func _noise_bar() -> String:
-	var filled: int = ceili(noise / NOISE_HORDE * NOISE_CELLS)
-	return "#".repeat(filled) + ".".repeat(NOISE_CELLS - filled)
 
 
 func _present() -> void:

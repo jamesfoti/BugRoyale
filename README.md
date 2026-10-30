@@ -134,6 +134,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_block_snapping.gd` | Where the block tool lands a block for a hit: ground, stacked faces, side faces, odd and one-voxel sizes, 2 m voxels with an offset origin |
 | `test_mode_state.gd` | Every mode's state snapshot survives a round trip onto a fresh mode (what a client will show the match from) |
 | `test_damageable.gd` | Health rules: team immunity, the no-team case, dying once, kill credit, the host-only authority gate, revive |
+| `test_horde_director.gd` | The noise meter: what fills it, how it fades, bot shots at a fraction, hordes on a full meter, after a lull and during a finale, growth up to the cap |
 
 GUT and `test/` are excluded from both export presets, so nothing test-related ships.
 

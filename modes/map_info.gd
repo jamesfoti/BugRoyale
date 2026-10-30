@@ -229,6 +229,36 @@ func ground_point_near(
 	return ground.position + up_at(ground.position) * clearance
 
 
+## Heights above the ground flyers keep to (hornets, the dragonfly on station): low under the
+## terrarium glass, lower still under a crawlspace's joists.
+func flight_band() -> Vector2:
+	var band := Vector2(8.0, 16.0)
+	match kind:
+		Kind.TERRARIUM:
+			band = Vector2(3.0, 9.0)
+		Kind.CELESTIAL_BODY:
+			band = Vector2(6.0, 13.0)
+	if ceiling_y < INF:
+		var dirt: Dictionary = ground_hit(center())
+		var dirt_y: float = dirt.position.y if not dirt.is_empty() else bounds.position.y
+		band = Vector2(2.0, clampf(ceiling_y - dirt_y - 3.0, 3.0, 40.0))
+	return band
+
+
+## Solid boxes flyers steer around and are pushed out of: a crawlspace's ducts, furnace and
+## piers. Empty on open maps.
+func flying_obstacles() -> Array[AABB]:
+	var result: Array[AABB] = []
+	if world == null or not world.is_inside_tree():
+		return result
+	var network: DuctNetwork = (
+		world.get_tree().get_first_node_in_group("duct_network") as DuctNetwork
+	)
+	if network != null:
+		result.assign(network.obstacles)
+	return result
+
+
 func water_surface_y() -> float:
 	return water.get_water_surface_y() if water != null else -INF
 
