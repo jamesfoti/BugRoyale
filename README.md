@@ -20,7 +20,8 @@ Play
 - **Maps:** Celestial Body, Terrarium, Fish Bowl, Crawlspace, Backyard Garden.
 - **Modes:** Attack of the Hornets (co-op waves), Ants vs Ants (team deathmatch),
   Battle Royale (rising flood), Cordyceps Royale (a spore storm turns the fallen into husks
-  that hunt you), Explore.
+  that hunt you), Forage (extraction: a dragonfly drops your squad on hostile ground; gather
+  the quota quietly, because noise brings the horde, and ride the dragonfly out), Explore.
 
 Controls are listed under Settings in the main and pause menus.
 
@@ -60,7 +61,7 @@ single-player game, and the bots stay as backfill for lobbies that do not fill.
   bots when short of players.
 - [ ] Per-mode stats that survive a restart (best hornet wave per map, royale wins, colony
   records) shown on the mode picker.
-- [ ] A pass through every mode on every map (twenty-five combinations) before any release.
+- [ ] A pass through every mode on every map (thirty combinations) before any release.
 - [ ] Store text that says plainly which modes are online and which are versus AI.
 - [ ] NAT traversal (a relay, or Steam networking via GodotSteam) once the game logic is
   replicated over plain ENet on a LAN.
@@ -178,7 +179,7 @@ godot --headless --path . res://tools/smoke_test.tscn -- map=crawlspace mode=cor
 ```
 
 Map ids: `battlefield`, `celestial_body`, `terrarium`, `fishbowl`, `crawlspace`. Mode ids:
-`hornets`, `ants_vs_ants`, `battle_royale`, `cordyceps_royale`, `explore`. Add `drive=1` to
+`hornets`, `ants_vs_ants`, `battle_royale`, `cordyceps_royale`, `forage`, `explore`. Add `drive=1` to
 work the local player's controls as well. The result line starts with `SMOKE RESULT`. Headless
 Godot cannot capture the mouse, so the local player's trigger is the one thing it never fires.
 

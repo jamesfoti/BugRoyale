@@ -215,6 +215,20 @@ func random_surface_point(
 	return best
 
 
+## A spot on the ground a few metres from a point (clearance above the ground).
+func ground_point_near(
+	point: Vector3, min_distance: float, max_distance: float, clearance: float
+) -> Vector3:
+	var up: Vector3 = up_at(point)
+	var offset: Vector3 = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
+	offset = offset.normalized().rotated(up, randf_range(0.0, TAU))
+	offset *= randf_range(min_distance, max_distance)
+	var ground: Dictionary = ground_hit(point + offset)
+	if ground.is_empty():
+		return point + up * clearance
+	return ground.position + up_at(ground.position) * clearance
+
+
 func water_surface_y() -> float:
 	return water.get_water_surface_y() if water != null else -INF
 

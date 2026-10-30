@@ -9,6 +9,7 @@ const MODE_SCRIPTS: Dictionary = {
 	"battle_royale": "res://modes/battle_royale.gd",
 	"cordyceps_royale": "res://modes/cordyceps_royale.gd",
 	"explore": "res://modes/explore.gd",
+	"forage": "res://modes/forage.gd",
 }
 
 ## A state per mode that exercises every field the mode snapshots.
@@ -26,6 +27,19 @@ const SAMPLE_STATES: Dictionary = {
 		"turned_count": 3,
 	},
 	"explore": {"map_name": "Fish Bowl"},
+	"forage":
+	{
+		"phase": 1,
+		"banked": 2,
+		"carried": {1: 3, 2: 0, 3: 1},
+		"noise": 37.5,
+		"hordes": 2,
+		"time_left": 200.0,
+		"window_left": 0.0,
+		"aboard": [2],
+		"landing_zone": Vector3(1, 2, 3),
+		"extraction": Vector3(10, 2, -4),
+	},
 }
 
 
@@ -97,3 +111,8 @@ func test_status_text_reads_from_state_alone() -> void:
 	var explore: GameMode = _new_mode("explore")
 	explore.apply_state(SAMPLE_STATES["explore"])
 	assert_string_contains(explore._status_text(), "Fish Bowl")
+
+	var forage: GameMode = _new_mode("forage")
+	forage.apply_state(SAMPLE_STATES["forage"])
+	assert_string_contains(forage._status_text(), "Materials 6/10", "banked plus carried")
+	assert_string_contains(forage._status_text(), "3:20")

@@ -8,6 +8,10 @@ extends Node
 ## bot's brain, later a network peer) hands its FighterInput to handle_input each physics frame:
 ## the trigger edge or hold, and the ray the shot follows.
 
+## A shot left the gun (and hit something), with the blast radius of its impact; Forage's
+## noise meter listens.
+signal fired(explosion_radius: float)
+
 const SHOOT_ACTION: StringName = &"shoot"
 const ShootProjectileVisualScene: PackedScene = preload("res://combat/shoot_projectile_visual.tscn")
 
@@ -345,6 +349,7 @@ func _try_shoot() -> void:
 	if raycast_hit.is_empty():
 		return
 	shots_fired += 1
+	fired.emit(explosion_radius)
 
 	var hit_position: Vector3 = raycast_hit.position
 	_spawn_projectile_visual(

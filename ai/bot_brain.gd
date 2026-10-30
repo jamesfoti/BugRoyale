@@ -19,6 +19,10 @@ const _STORM_MARGIN: float = 6.0
 
 ## Group whose members this bot hunts: "fighter" (players and bots of other teams) or "bird".
 var target_group: StringName = &"fighter"
+## A second group hunted alongside the first (Forage squadmates fight hornets and husks).
+var secondary_target_group: StringName = &""
+## Group of pickups the bot detours for when nothing is in range (Forage materials).
+var gather_group: StringName = &""
 ## Optional squad leader to stay near when nothing is in range (Attack of the Hornets).
 var leader: Node3D
 ## Head for high ground when rising water gets close (Battle Royale).
@@ -177,9 +181,27 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 func _find_target() -> Node3D:
 	var best: Node3D = null
 	var best_distance: float = detection_range
-	for node: Node in get_tree().get_nodes_in_group(target_group):
+	for group: StringName in [target_group, secondary_target_group]:
+		if group == &"":
+			continue
+		for node: Node in get_tree().get_nodes_in_group(group):
+			var candidate: Node3D = node as Node3D
+			if candidate == null or not _is_valid_target(candidate):
+				continue
+			var distance: float = _body.global_position.distance_to(candidate.global_position)
+			if distance < best_distance:
+				best_distance = distance
+				best = candidate
+	return best
+
+
+## The nearest member of a group within a distance (a pickup to walk over), or null.
+func _nearest_in_group(group: StringName, max_distance: float) -> Node3D:
+	var best: Node3D = null
+	var best_distance: float = max_distance
+	for node: Node in get_tree().get_nodes_in_group(group):
 		var candidate: Node3D = node as Node3D
-		if candidate == null or not _is_valid_target(candidate):
+		if candidate == null or not candidate.is_inside_tree():
 			continue
 		var distance: float = _body.global_position.distance_to(candidate.global_position)
 		if distance < best_distance:
@@ -239,6 +261,10 @@ func _choose_goal(up: Vector3) -> Vector3:
 			_strafe_timer = randf_range(1.2, 2.8)
 			_strafe_sign = -_strafe_sign
 		return position_now + to_target.cross(up).normalized() * 4.0 * _strafe_sign
+	if gather_group != &"":
+		var pickup: Node3D = _nearest_in_group(gather_group, 18.0)
+		if pickup != null:
+			return pickup.global_position
 	if leader != null and is_instance_valid(leader) and leader.visible:
 		# "Close enough" only counts on the same side of the ductwork; 5 m through sheet metal
 		# is not with the leader.

@@ -43,7 +43,8 @@ if ($Smoke) {
 		@{ map = "terrarium"; mode = "battle_royale"; frames = 600 },
 		@{ map = "fishbowl"; mode = "hornets"; frames = 900 },
 		@{ map = "crawlspace"; mode = "cordyceps_royale"; frames = 900 },
-		@{ map = "celestial_body"; mode = "explore"; frames = 300 }
+		@{ map = "celestial_body"; mode = "explore"; frames = 300 },
+		@{ map = "battlefield"; mode = "forage"; frames = 1200 }
 	)
 	foreach ($run in $runs) {
 		Write-Host ("== Smoke: {0} on {1}" -f $run.mode, $run.map)

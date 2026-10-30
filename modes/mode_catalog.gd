@@ -52,6 +52,17 @@ const MODES: Dictionary = {
 		"script": "res://modes/cordyceps_royale.gd",
 		"maps": ["battlefield", "terrarium", "fishbowl", "crawlspace"],
 	},
+	"forage":
+	{
+		"name": "Forage",
+		"description":
+		(
+			"Extraction. A dragonfly drops your squad of 4 on hostile ground. Gather the quota, "
+			+ "stay quiet (noise brings the horde) and ride the dragonfly out from the beacon."
+		),
+		"script": "res://modes/forage.gd",
+		"maps": ["battlefield", "celestial_body", "terrarium", "fishbowl", "crawlspace"],
+	},
 	"explore":
 	{
 		"name": "Explore",
