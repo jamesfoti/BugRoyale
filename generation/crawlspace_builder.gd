@@ -16,9 +16,7 @@ extends Node3D
 ## climb them), but ground probes (spawns, hornet altitude) look straight through to the dirt.
 ##
 ## A storm rages outside: rain streaks across every vent, water streams in over the sills and
-## lightning flashes through the openings. Flood water sits dormant under the dirt until a mode
-## (Battle Royale) raises it; as it climbs, bulbs it reaches short out with a shock, and
-## start_sewage_backup() makes the drains vent sewage onto the surface.
+## lightning flashes through the openings.
 
 ## Surface detail the toon shader paints on: see toon_detail.gdshaderinc.
 enum Detail { NONE, WOOD, CONCRETE, BLOCK, BRICK, POURED }
@@ -106,13 +104,8 @@ var _wall: float
 var _ceiling: float
 var _rng := RandomNumberGenerator.new()
 var _materials: Dictionary = {}
-var _water: TerrariumWater
 ## Vent and hatch openings: glow panel, spotlight and geometry, for the storm and lightning.
 var _openings: Array[Dictionary] = []
-## Bare bulbs: light, mesh and position, so the flood can short them.
-var _bulbs: Array[Dictionary] = []
-## Each drain line's height and z, where sewage backs up into a flood.
-var _drain_lines: Array[Dictionary] = []
 ## Pier row z positions and pier x positions, so the ductwork can thread between them.
 var _pier_rows: Array = []
 var _pier_xs: Array = []
@@ -125,7 +118,6 @@ var _network: DuctNetwork
 var _lightning_in: float = 4.0
 var _flash_left: float = 0.0
 var _flashes_queued: int = 0
-var _sewage_started: bool = false
 
 ## The next column for a fixture branch; the columns are reused (on different mains) once
 ## every one has been taken.
@@ -181,18 +173,6 @@ func _process(delta: float) -> void:
 			_lightning_in = _rng.randf_range(5.0, 14.0)
 
 
-## Bulbs the flood reaches short out.
-func _physics_process(_delta: float) -> void:
-	if _water == null or _bulbs.is_empty():
-		return
-	var surface: float = _water.get_water_surface_y()
-	for bulb: Dictionary in _bulbs:
-		if not bulb["live"]:
-			continue
-		if surface >= bulb["position"].y - 0.03 * _s:
-			_short_bulb(bulb)
-
-
 func build() -> void:
 	_terrain = get_node_or_null(terrain_path) as OpenTerrain
 	if _terrain == null:
@@ -237,7 +217,6 @@ func build() -> void:
 	_build_bulbs(extents)
 	_build_debris()
 	_build_mushrooms()
-	_build_flood_water(extents)
 	_build_storm()
 	print(
 		(
@@ -262,33 +241,7 @@ func build() -> void:
 	)
 
 
-# --- Flood and storm --------------------------------------------------------------------------
-
-
-## Flood water filling the foundation box, parked under the lowest dirt until a mode raises it.
-## Its height range runs from under the dirt to just below the joists, so Battle Royale's level
-## fractions mean the same thing here as in the terrarium. Tinted to murky storm runoff.
-func _build_flood_water(extents: Vector3) -> void:
-	var floor_y: float = _center.y - 0.15 * _s
-	var size := Vector3(
-		extents.x - _wall * 2.0,
-		(_ceiling - _joist_depth - 0.06 * _s) - floor_y,
-		extents.z - _wall * 2.0
-	)
-	_water = TerrariumWater.create(size, 0.05)
-	_water.position = Vector3(_center.x, floor_y, _center.z)
-	add_child(_water)
-	var surface: MeshInstance3D = _water.get_node_or_null("WaterSurface") as MeshInstance3D
-	if surface != null and surface.material_override is ShaderMaterial:
-		var material: ShaderMaterial = surface.material_override as ShaderMaterial
-		material.set_shader_parameter("base_color", Color(0.24, 0.28, 0.18))
-		material.set_shader_parameter("shine_color", Color(0.6, 0.62, 0.5))
-	var volume: MeshInstance3D = _water.get_node_or_null("WaterVolume") as MeshInstance3D
-	if volume != null and volume.material_override is ShaderMaterial:
-		var material: ShaderMaterial = volume.material_override as ShaderMaterial
-		material.set_shader_parameter("base_color", Color(0.18, 0.21, 0.13))
-		material.set_shader_parameter("deep_color", Color(0.08, 0.1, 0.06))
-		material.set_shader_parameter("surface_alpha", 0.5)
+# --- Storm ------------------------------------------------------------------------------------
 
 
 ## Rain across every opening and water streaming in over each sill.
@@ -406,48 +359,6 @@ func _set_lightning(on: bool) -> void:
 		var light: SpotLight3D = opening["light"]
 		if light != null:
 			light.light_energy = opening["light_energy"] * (5.0 if on else 1.0)
-
-
-## A flooded bulb pops: a flash, then dark, with a brief shock on the water around it.
-func _short_bulb(bulb: Dictionary) -> void:
-	bulb["live"] = false
-	var light: OmniLight3D = bulb["light"]
-	var tween: Tween = create_tween()
-	tween.tween_property(light, "light_energy", 7.0, 0.08)
-	tween.tween_property(light, "light_energy", 0.0, 0.25)
-	var mesh: MeshInstance3D = bulb["mesh"]
-	var dead := StandardMaterial3D.new()
-	dead.albedo_color = Color(0.22, 0.22, 0.2)
-	mesh.material_override = dead
-	var shock: FluidPool = FluidPool.create(0.5 * _s, 15.0, 1.5, Color(0.7, 0.85, 1.0), true)
-	shock.grow_seconds = 0.2
-	shock.surface_water = _water
-	add_child(shock)
-	shock.global_position = Vector3(
-		bulb["position"].x, _water.get_water_surface_y(), bulb["position"].z
-	)
-
-
-## The drains back up: sewage spreads over the flood surface along each drain line, hurting
-## anyone swimming through it. Called by Battle Royale once the water is well up.
-func start_sewage_backup() -> void:
-	if _sewage_started or _water == null:
-		return
-	_sewage_started = true
-	var span: float = _half.x * 2.0 - _wall * 2.0
-	for line: Dictionary in _drain_lines:
-		for index: int in 4:
-			var x: float = (
-				_center.x
-				- span * 0.5
-				+ span * (index + 0.5) / 4.0
-				+ _rng.randf_range(-0.3, 0.3) * _s
-			)
-			var pool: FluidPool = FluidPool.create(0.55 * _s, 5.0, 600.0, Color(0.27, 0.3, 0.12))
-			pool.grow_seconds = 12.0
-			pool.surface_water = _water
-			add_child(pool)
-			pool.global_position = Vector3(x, _water.get_water_surface_y(), line["z"])
 
 
 # --- Framing ----------------------------------------------------------------------------------
@@ -939,7 +850,6 @@ func _build_services(extents: Vector3) -> void:
 		var z: float = _pick_main_z(
 			edges, 0 if index == 0 else gap_count - 1, DRAIN_RADIUS * s, riser_zs, [furnace_band]
 		)
-		_drain_lines.append({"z": z, "y": drain_y})
 		_run_line(
 			services,
 			UtilityPipe.Fluid.SEWAGE,
@@ -1327,7 +1237,6 @@ func _build_bulbs(extents: Vector3) -> void:
 			light.shadow_enabled = false
 			light.position = position
 			lights.add_child(light)
-			_bulbs.append({"light": light, "mesh": bulb, "position": position, "live": true})
 
 
 # --- Debris -----------------------------------------------------------------------------------

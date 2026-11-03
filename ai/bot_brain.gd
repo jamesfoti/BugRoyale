@@ -3,7 +3,7 @@ extends FighterController
 ## AI pilot for a FighterBody: the bot stands in for another player on the same body a human
 ## would use, so it walks, climbs, animates and shoots exactly as a player does. It hunts the
 ## nearest enemy, keeps to its weapon's preferred range, strafes, and fires with its own cadence
-## and spread. Modes can make it follow a squad leader, flee rising water or fear a spore cloud.
+## and spread. Modes can make it follow a squad leader, keep out of the water or fear a spore cloud.
 ## Bot shots never dig terrain or spawn impact effects (dozens of bots would wreck the map and
 ## the frame rate); the body's weapon is set up that way by the spawner.
 
@@ -34,7 +34,7 @@ var objective_focus: float = 14.0
 var leader: Node3D
 ## Runs when the leader gets far ahead (Burrow's workers), instead of trailing at a walk.
 var runs_to_keep_up: bool = false
-## Head for high ground when rising water gets close (a royale's flood).
+## Keeps out of the water (a bug under the surface drowns; Cordyceps Royale's clean bots).
 var avoid_water: bool = false
 ## Spore cloud (Cordyceps Royale): a clean bot keeps inside this circle, planar. INF = no cloud.
 var storm_center: Vector3 = Vector3.INF
@@ -400,8 +400,8 @@ func _wander_goal(min_height: float) -> Vector3:
 	var too_low: bool = _wander_point != Vector3.INF and _wander_point.y < min_height
 	if _wander_point == Vector3.INF or reached or too_low or _wander_timer <= 0.0:
 		var network: DuctNetwork = _find_duct_network()
-		# Now and then, wander into the ductwork instead (not while fleeing water, and not through
-		# a flooded entry).
+		# Now and then, wander into the ductwork instead (not while keeping out of the water, and
+		# not through a flooded entry).
 		if network != null and min_height == -INF and _duct_cooldown <= 0.0 and randf() < 0.35:
 			var inside_spot: Vector3 = network.random_interior_point()
 			var in_storm: bool = (
@@ -515,7 +515,7 @@ func _can_see(target: Node3D) -> bool:
 	return sight.is_empty() or sight.collider == target
 
 
-## True when the ground a step ahead sits at or near the water (a drop into the flood).
+## True when the ground a step ahead sits at or near the water (a drop into the pool).
 func _step_leads_into_water(direction: Vector3) -> bool:
 	if map.water == null:
 		return false

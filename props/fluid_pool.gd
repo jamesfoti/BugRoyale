@@ -9,7 +9,6 @@ extends Area3D
 ## only into cells it can reach without climbing more than a gentle rise, and its surface sits
 ## on the terrain under every cell (so it runs down into dips and stops at mounds instead of
 ## hanging as a flat disc you can walk under). Each flooded cell carries its own box collider.
-## When `surface_water` is set the pool rides that flat water surface as a disc instead.
 
 const PULSE_SECONDS: float = 0.5
 const DRY_SECONDS: float = 4.0
@@ -27,9 +26,6 @@ var lifetime: float = 30.0
 var color: Color = Color(0.27, 0.3, 0.12)
 ## Burning gas: the patch glows and flickers with flame particles.
 var burning: bool = false
-## When set, the pool rides this water's surface instead of sitting on the dirt (sewage backing
-## up into a flood, a shorted bulb's shock).
-var surface_water: TerrariumWater
 
 var _radius: float = 0.5
 var _age: float = 0.0
@@ -37,8 +33,6 @@ var _pulse: float = 0.0
 var _drying: float = -1.0
 var _mesh: MeshInstance3D
 var _material: StandardMaterial3D
-## Flat disc (on water).
-var _disc_shape: CylinderShape3D
 ## Terrain-following flood: cell size, corner heights, and each flooded cell's path distance
 ## from the spill point, plus one collider per cell.
 var _cell: float = 1.0
@@ -81,20 +75,6 @@ func _ready() -> void:
 	_mesh.material_override = _material
 	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_mesh)
-	if surface_water != null:
-		var shape_node := CollisionShape3D.new()
-		_disc_shape = CylinderShape3D.new()
-		_disc_shape.height = DEPTH
-		shape_node.shape = _disc_shape
-		shape_node.position = Vector3(0.0, DEPTH * 0.5, 0.0)
-		add_child(shape_node)
-		var disc := CylinderMesh.new()
-		disc.top_radius = 1.0
-		disc.bottom_radius = 1.0
-		disc.height = 0.12
-		disc.radial_segments = 24
-		_mesh.mesh = disc
-		_mesh.position = Vector3(0.0, 0.06, 0.0)
 	if burning:
 		add_child(_make_flames())
 		var light := OmniLight3D.new()
@@ -148,9 +128,7 @@ func spread(pool_radius: float, damage: float, seconds: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	_age += delta
-	if surface_water != null and is_instance_valid(surface_water):
-		global_position.y = surface_water.get_water_surface_y() - 0.05
-	elif _flood_radius < target_radius:
+	if _flood_radius < target_radius:
 		# The spill point is known only once the creator has placed the pool, so the flood is
 		# worked out here (and again after a spread).
 		_flood(target_radius)
@@ -182,10 +160,6 @@ func _physics_process(delta: float) -> void:
 
 func _apply_radius() -> void:
 	var safe: float = maxf(_radius, 0.01)
-	if surface_water != null:
-		_disc_shape.radius = safe
-		_mesh.scale = Vector3(safe, 1.0, safe)
-		return
 	if _flooded.is_empty():
 		return
 	if (

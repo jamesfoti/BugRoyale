@@ -83,7 +83,7 @@ static func from_scene(scene_root: Node) -> MapInfo:
 			)
 			if info.ceiling_y > info.bounds.end.y:
 				info.bounds.size.y = info.ceiling_y - info.bounds.position.y
-	# Any map may carry a body of water (the terrariums' pools, the crawlspace's flood).
+	# A map may carry a body of water (the terrarium's pool).
 	var waters: Array[Node] = scene_root.find_children("*", "TerrariumWater", true, false)
 	if not waters.is_empty():
 		info.water = waters[0] as TerrariumWater

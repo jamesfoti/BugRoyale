@@ -73,8 +73,8 @@ single-player game, and the bots stay as backfill for lobbies that do not fill.
 - [ ] Terrain edits as an ordered log from the host: clients request a brush or block stamp,
   the host validates it (player clearance against every fighter), broadcasts it, and late
   joiners receive the full override set.
-- [ ] Host-authoritative combat and mode state: damage, deaths, scores, hornet waves, the flood
-  height, the spore circle and husk conversions all decided once and replicated. Clients show
+- [ ] Host-authoritative combat and mode state: damage, deaths, scores, hornet waves,
+  the spore circle and husk conversions all decided once and replicated. Clients show
   shot visuals immediately and accept the verdict.
 - [ ] Bots run only on the host and are replicated like any other fighter; lobbies fill with
   bots when short of players.
