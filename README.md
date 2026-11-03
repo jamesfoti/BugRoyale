@@ -32,6 +32,14 @@ Play
   meter) and Cordyceps Royale. Each still runs headless by id.
 - **Burrow saves as you go**, under `user://worlds`, and the world is there next time, with a
   Start over button on the map page to wipe it.
+- **What the ground is made of.** Under the topsoil the ground is stone with veins of sand,
+  clay and gravel, and pockets of ore: 42 chemical elements, every one that is dug out of the
+  Earth's crust as an ore or found native in it (no gases, nothing made only in a reactor).
+  Each lies from a depth of its own, carbon, sulfur, calcium and the like from two metres down,
+  iron, copper, lead and tin from seven, silver and tungsten from fourteen, gold, platinum and
+  uranium from twenty, and the pickaxe pays out whatever it cuts through. Every dug material,
+  element or ground, is then something to build with: the inventory lists an element the first
+  time you hold some, and the Dug panel shows what is in hand.
 
 Controls are listed under Settings in the main and pause menus.
 
@@ -153,6 +161,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_day_cycle.gd` | The day cycle's clock: daylight by the hour, twilight, dusk and dawn crossings, the time to the next change, where the sun stands |
 | `test_world_save.gd` | Worlds on disk: a save round-trips with its voxel keys, seed and summary; delete removes it; nothing is written while saving is off |
 | `test_queen_ant.gd` | The queen's nest plan: a shaft of carves stepping down and away from the entrance, the chamber below it, every carve the pickaxe's; the way she goes down ends on the chamber floor |
+| `test_elements.gd` | The elements in the ground: the table lists each once with its symbol, number, depth and colour; under the topsoil the stone has ore pockets, each element only from its own depth down and the pockets a share of the stone; a seed always draws the same ore; a dug element lands in the stock and builds |
 | `test_cave_carver.gd` | The seeded underworld: a seed always carves the same caves and every number lands in range; under a solid open terrain the surface is still the surface, there is air in the tunnels but the ground is mostly ground, and bedrock is solid |
 
 GUT and `test/` are excluded from both export presets, so nothing test-related ships.

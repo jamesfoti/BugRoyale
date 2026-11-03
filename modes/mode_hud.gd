@@ -61,6 +61,12 @@ func set_stock(counts: Dictionary) -> void:
 	var terrain_hud: Node = get_tree().get_first_node_in_group("terrain_hud")
 	if terrain_hud != null and terrain_hud.has_method("get_add_material"):
 		selected = int(terrain_hud.call("get_add_material"))
+	if terrain_hud != null and terrain_hud.has_method("set_known_materials"):
+		var in_hand: Array = []
+		for kind: Variant in counts:
+			if int(counts[kind]) > 0:
+				in_hand.append(int(kind))
+		terrain_hud.call("set_known_materials", in_hand)
 	_stock_panel.show_stock(counts, selected)
 
 

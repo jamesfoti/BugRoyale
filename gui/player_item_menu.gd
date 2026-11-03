@@ -17,6 +17,8 @@ var _shape_button: Button
 var _weapon_buttons: Dictionary = {}
 ## TerrainMaterials.Kind -> its "Pickaxe — add" button (NATURAL is the scene's PickaxeAddButton).
 var _material_buttons: Dictionary = {}
+## Element kind -> its row, listed only while the element is in hand (see set_known_materials).
+var _element_rows: Dictionary = {}
 
 @onready var _toggle_button: Button = $ToggleButton
 @onready var _popup: PanelContainer = $Popup
@@ -73,6 +75,18 @@ func set_add_material(material: TerrainMaterials.Kind) -> void:
 
 func get_add_material() -> TerrainMaterials.Kind:
 	return _add_material
+
+
+## Lists the elements among `kinds` (TerrainMaterials.Kind values) and hides the rest: a mode
+## with a stock passes what has been dug, so the menu grows as the digging goes deeper. The
+## grounds are always listed. Without a call every element is listed (no stock: nothing gates).
+func set_known_materials(kinds: Array) -> void:
+	for kind: TerrainMaterials.Kind in _element_rows:
+		var row: HBoxContainer = _element_rows[kind] as HBoxContainer
+		row.visible = (
+			kinds.has(kind)
+			or (_active_item == PlayerItems.Item.PICKAXE_ADD and _add_material == kind)
+		)
 
 
 func set_brush_shape(shape: TerrainBrush.Shape) -> void:
@@ -175,6 +189,15 @@ func _build_material_buttons() -> void:
 		buttons.move_child(row, insert_index)
 		insert_index += 1
 		_material_buttons[material] = material_button
+		if TerrainMaterials.is_element(material):
+			material_button.text = (
+				"Pickaxe — add %s (%s)"
+				% [
+					TerrainMaterials.display_name(material).to_lower(),
+					TerrainMaterials.symbol(material)
+				]
+			)
+			_element_rows[material] = row
 	# The shape toggle stays open so the player can flip it and pick a material in one visit.
 	_shape_button = Button.new()
 	_shape_button.focus_mode = Control.FOCUS_NONE

@@ -160,6 +160,13 @@ func set_block_size(size: int) -> void:
 func set_add_material(material: TerrainMaterials.Kind) -> void:
 	_add_material = material
 	_item_menu.set_add_material(material)
+
+
+## The materials in hand (TerrainMaterials.Kind values): the inventory lists the elements
+## among them and no others (see PlayerItemMenu.set_known_materials).
+func set_known_materials(kinds: Array) -> void:
+	if _item_menu != null:
+		_item_menu.set_known_materials(kinds)
 	_update_edit_mode_ui()
 	_apply_edit_mode_to_brush()
 

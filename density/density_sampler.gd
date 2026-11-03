@@ -47,6 +47,7 @@ static func create_open_terrain_world_density(
 		density._init_boxed_in_terrain_noise(
 			noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
 		)
+	density._init_ground_noises(noise_seed)
 	return density
 
 
@@ -75,6 +76,7 @@ static func create_boxed_in_terrain_world_density(
 	density._init_boxed_in_terrain_noise(
 		noise_seed, noise_frequency, noise_octaves, noise_lacunarity, noise_gain
 	)
+	density._init_ground_noises(noise_seed)
 	return density
 
 
@@ -471,6 +473,11 @@ class WorldDensity:
 	## of sand, clay and gravel where the vein noise runs high.
 	const TOPSOIL_DEPTH: float = 1.5
 	const VEIN_THRESHOLD: float = 0.42
+	## Stone whose ore noise runs above this is an element's pocket (about a twelfth of it).
+	const ORE_THRESHOLD: float = 0.4
+	## Pockets are drawn from cells this many metres on a side, one element per cell, so a
+	## pocket is one ore and not a speckle of every element in reach.
+	const ORE_POCKET_SIZE: float = 6.0
 
 	var sphere_enabled: bool = true
 	var sphere_center: Vector3 = Vector3.ZERO
@@ -506,8 +513,11 @@ class WorldDensity:
 	## Carves tunnels, caverns and bedrock under a solid-filled open terrain (null: none).
 	var caves: CaveCarver = null
 	var terrain_edits: TerrainEdits = null
+	## Seeds which element each ore pocket is (with the vein and ore noises, the map's seed).
+	var ore_seed: int = 0
 
 	var _vein_noise: FastNoiseLite
+	var _ore_noise: FastNoiseLite
 
 	var _macro_noise: FastNoiseLite
 	var _height_noise: FastNoiseLite
@@ -555,21 +565,23 @@ class WorldDensity:
 			density._noise.seed = noise_seed
 			density._noise.noise_type = FastNoiseLite.TYPE_PERLIN
 			density._noise.frequency = noise_frequency
-		density._vein_noise = FastNoiseLite.new()
-		density._vein_noise.seed = noise_seed + 77
-		density._vein_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-		density._vein_noise.frequency = 0.09
+		density._init_ground_noises(noise_seed)
 		return density
 
 	## What a natural voxel is made of, from how deep it lies (density is roughly metres below
-	## the surface, negative inside) and the vein noise: the mesher colours dug faces with it
-	## and the pickaxe pays it out. NATURAL means the map's own ground, which digs as dirt.
+	## the surface, negative inside), the vein noise and the ore noise: the mesher colours dug
+	## faces with it and the pickaxe pays it out. NATURAL means the map's own ground, which
+	## digs as dirt. Below the topsoil the ground is stone, with veins of sand, clay and gravel
+	## where the vein noise runs high and pockets of an element where the ore noise does.
 	func natural_material(world_position: Vector3, density_value: float) -> TerrainMaterials.Kind:
-		if -density_value < TOPSOIL_DEPTH or _vein_noise == null:
+		var depth: float = -density_value
+		if depth < TOPSOIL_DEPTH or _vein_noise == null:
 			return TerrainMaterials.Kind.NATURAL
 		var vein: float = _vein_noise.get_noise_3dv(world_position)
 		if vein < VEIN_THRESHOLD:
-			return TerrainMaterials.Kind.STONE
+			if _ore_noise.get_noise_3dv(world_position) < ORE_THRESHOLD:
+				return TerrainMaterials.Kind.STONE
+			return ore_at(world_position, depth)
 		# Which vein: a second, offset read of the same noise splits the veins three ways.
 		var which: float = _vein_noise.get_noise_3dv(world_position + Vector3(131.0, 71.0, 17.0))
 		if which < -0.15:
@@ -582,6 +594,40 @@ class WorldDensity:
 	## ground, tinted by it). Plain white unless a world colours its ground by place.
 	func natural_tint(_world_position: Vector3, _density_value: float) -> Color:
 		return TerrainMaterials.NATURAL_VERTEX_COLOR
+
+	## The element of the ore pocket at a point this deep: every element whose depth is reached
+	## is a candidate, and the pocket's cell draws one of them by weight. Stone where nothing
+	## is in reach yet (just under the topsoil, above the shallowest ore).
+	func ore_at(world_position: Vector3, depth: float) -> TerrainMaterials.Kind:
+		var total: int = 0
+		for kind: TerrainMaterials.Kind in TerrainMaterials.ELEMENT_KINDS:
+			if depth >= TerrainMaterials.ore_depth(kind):
+				total += TerrainMaterials.ore_weight(kind)
+		if total <= 0:
+			return TerrainMaterials.Kind.STONE
+		var cell: Vector3i = Vector3i((world_position / ORE_POCKET_SIZE).floor())
+		var draw: int = (hash(Vector4i(cell.x, cell.y, cell.z, ore_seed)) & 0x7FFFFFFF) % total
+		for kind: TerrainMaterials.Kind in TerrainMaterials.ELEMENT_KINDS:
+			if depth < TerrainMaterials.ore_depth(kind):
+				continue
+			draw -= TerrainMaterials.ore_weight(kind)
+			if draw < 0:
+				return kind
+		return TerrainMaterials.Kind.STONE
+
+	## The noises that say what the ground under the topsoil is made of (every world has them,
+	## whatever shapes its surface): the vein noise for sand, clay and gravel, the ore noise for
+	## the elements' pockets.
+	func _init_ground_noises(noise_seed: int) -> void:
+		ore_seed = noise_seed
+		_vein_noise = FastNoiseLite.new()
+		_vein_noise.seed = noise_seed + 77
+		_vein_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_vein_noise.frequency = 0.09
+		_ore_noise = FastNoiseLite.new()
+		_ore_noise.seed = noise_seed + 88
+		_ore_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_ore_noise.frequency = 0.14
 
 	func _init_body_feature_noises(body_seed: int) -> void:
 		if ravines_enabled:

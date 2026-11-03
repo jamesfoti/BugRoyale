@@ -1,8 +1,10 @@
 class_name StockPanel
 extends PanelContainer
 ## What the pickaxe has to build with: one row per material with its swatch and voxel count,
-## the material the brush is set to marked, empty kinds dimmed. Sits at the right edge of the
-## mode HUD and redraws only when the numbers change.
+## the material the brush is set to marked, empty grounds dimmed and empty elements hidden (an
+## element's row appears the first time it is dug, so the panel is a short list of the common
+## grounds until the digging goes deep). Sits at the right edge of the mode HUD and redraws
+## only when the numbers change.
 
 var _rows: Dictionary = {}
 var _title: Label
@@ -45,10 +47,11 @@ func _ready() -> void:
 		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(swatch)
 		var label := Label.new()
-		label.custom_minimum_size = Vector2(110, 0)
+		label.custom_minimum_size = Vector2(130, 0)
 		label.add_theme_font_size_override("font_size", 15)
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(label)
+		row.visible = not TerrainMaterials.is_element(kind)
 		column.add_child(row)
 		_rows[kind] = row
 
@@ -64,8 +67,16 @@ func show_stock(counts: Dictionary, selected: int) -> void:
 		var row: HBoxContainer = _rows[kind]
 		var count: int = int(counts.get(kind, 0))
 		var label: Label = row.get_child(1) as Label
-		label.text = "%s  %d" % [TerrainMaterials.display_name(kind), count]
+		label.text = "%s  %d" % [row_name(kind), count]
 		var tint: Color = Color(0.55, 1.0, 0.65) if kind == marked else Color.WHITE
 		if count == 0:
 			tint.a = 0.45
 		row.modulate = tint
+		row.visible = count > 0 or kind == marked or not TerrainMaterials.is_element(kind)
+
+
+## "Stone" for a ground, "Fe Iron" for an element.
+static func row_name(kind: TerrainMaterials.Kind) -> String:
+	if TerrainMaterials.is_element(kind):
+		return "%s %s" % [TerrainMaterials.symbol(kind), TerrainMaterials.display_name(kind)]
+	return TerrainMaterials.display_name(kind)
