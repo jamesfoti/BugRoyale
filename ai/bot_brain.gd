@@ -16,6 +16,8 @@ const HUSK_WEAPON: Dictionary = {
 }
 ## How far inside the spore cloud's edge a clean bot likes to stay.
 const _STORM_MARGIN: float = 6.0
+## How far behind the leader a bot that keeps up (runs_to_keep_up) breaks into a run.
+const KEEP_UP_DISTANCE: float = 10.0
 
 ## Group whose members this bot hunts: "fighter" (players and bots of other teams) or "bird".
 var target_group: StringName = &"fighter"
@@ -23,9 +25,16 @@ var target_group: StringName = &"fighter"
 var secondary_target_group: StringName = &""
 ## Group of pickups the bot detours for when nothing is in range (Forage materials).
 var gather_group: StringName = &""
+## Where the mode wants the bot (a hill, an egg, its nest); INF for none. The bot heads there
+## and holds within objective_radius, fighting whatever comes within objective_focus on the way.
+var objective: Vector3 = Vector3.INF
+var objective_radius: float = 2.5
+var objective_focus: float = 14.0
 ## Optional squad leader to stay near when nothing is in range (Attack of the Hornets).
 var leader: Node3D
-## Head for high ground when rising water gets close (Battle Royale).
+## Runs when the leader gets far ahead (Burrow's workers), instead of trailing at a walk.
+var runs_to_keep_up: bool = false
+## Head for high ground when rising water gets close (a royale's flood).
 var avoid_water: bool = false
 ## Spore cloud (Cordyceps Royale): a clean bot keeps inside this circle, planar. INF = no cloud.
 var storm_center: Vector3 = Vector3.INF
@@ -170,6 +179,12 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 		if not _can_strafe:
 			input.move = Vector2(0.0, 1.0)
 	input.aiming = _target != null and _can_strafe
+	input.run = (
+		runs_to_keep_up
+		and leader != null
+		and is_instance_valid(leader)
+		and position_now.distance_to(leader.global_position) > KEEP_UP_DISTANCE
+	)
 	# A wall in the way: hop. Only from the ground, so a flyer never takes off by accident.
 	input.jump_pressed = move_direction != Vector3.ZERO and body.is_on_floor() and body.is_on_wall()
 
@@ -236,6 +251,14 @@ func _choose_goal(up: Vector3) -> Vector3:
 	var target_in_storm: bool = (
 		_fears_storm() and _target != null and _storm_depth(_target.global_position) > 1.0
 	)
+	if objective != Vector3.INF:
+		var target_close: bool = (
+			_target != null and position_now.distance_to(_target.global_position) < objective_focus
+		)
+		if not target_close:
+			if position_now.distance_to(objective) > objective_radius:
+				return _via_ducts(objective)
+			return position_now
 	if _target != null and not target_too_low and not target_in_storm:
 		var to_target: Vector3 = (_target.global_position - position_now).slide(up)
 		var distance: float = to_target.length()

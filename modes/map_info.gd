@@ -95,6 +95,18 @@ static func from_scene(scene_root: Node) -> MapInfo:
 	return info
 
 
+## The terrain the pickaxe edits on this map: the world itself, a terrarium's playable
+## terrain, or whatever is in the terrain_world group. Null on a map without one.
+func editable_terrain() -> ChunkedTerrainWorld:
+	if world is ChunkedTerrainWorld:
+		return world as ChunkedTerrainWorld
+	if world is TerrariumRoom:
+		return (world as TerrariumRoom).get_playable_terrain()
+	if world != null and world.is_inside_tree():
+		return world.get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
+	return null
+
+
 func up_at(position: Vector3) -> Vector3:
 	if kind == Kind.CELESTIAL_BODY:
 		var radial: Vector3 = position - body_center
@@ -137,6 +149,14 @@ func ground_hit(position: Vector3) -> Dictionary:
 		from = Vector3(position.x, top, position.z)
 		to = Vector3(position.x, bottom, position.z)
 	return _cast(from, to)
+
+
+## The ground directly under a point (a short cast down from just above it), empty if there is
+## none within reach. Unlike ground_hit this starts at the point, so a tree canopy or a joist
+## overhead is not mistaken for the ground.
+func ground_below(position: Vector3, reach: float = 6.0) -> Dictionary:
+	var up: Vector3 = up_at(position)
+	return _cast(position + up * 0.5, position - up * reach)
 
 
 ## Height of a fish bowl's inner glass above a column, or -INF when the column misses the bowl.

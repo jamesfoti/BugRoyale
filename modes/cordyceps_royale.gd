@@ -1,5 +1,5 @@
 extends GameMode
-## Cordyceps Royale: Battle Royale with a Cordyceps cloud for a storm. 12 bugs of mixed classes
+## Cordyceps Royale: a royale with a Cordyceps cloud for a storm. 12 bugs of mixed classes
 ## (humans plus bots), every bug for itself, no respawns. Spores fill everything outside a safe
 ## circle that closes in stages; a few seconds in them and a bug turns: it rises again as a husk
 ## on the fungus team, slow and unarmed but biting, immune to the spores, and it walks out of the

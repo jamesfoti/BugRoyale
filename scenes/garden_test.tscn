@@ -15,9 +15,10 @@
 [node name="TerrainWorld" type="Node3D" parent="."]
 script = ExtResource("1")
 chunks_x = 16
-chunks_y = 1
+chunks_y = 3
 chunks_z = 16
 solid_underside = true
+caves_enabled = true
 chunk_size = 32.0
 voxel_size = 2.0
 noise_seed = 21

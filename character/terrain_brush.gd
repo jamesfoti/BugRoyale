@@ -30,6 +30,8 @@ const MAX_BLOCK_SIZE: int = 6
 ## A ray hitting a block lands a hair outside its face; this much slack (fraction of a voxel)
 ## snaps such hits to that face rather than the next plane out.
 const BLOCK_SNAP_SLACK: float = 0.1
+## The value of edit["tool"] on every edit this brush makes.
+const PICKAXE_TOOL: String = "pickaxe"
 
 @export var edit_distance: float = 20.0
 @export var brush_radius: float = 1.5
@@ -219,18 +221,23 @@ func _apply_block() -> void:
 	_terrain.apply_edit(_block_edit())
 
 
-## The sphere stamp the next stroke would apply, as the terrain's edit dictionary.
+## The sphere stamp the next stroke would apply, as the terrain's edit dictionary. Marked as
+## the pickaxe's, so a mode that pays for digging (MaterialStock) knows it was dug, not blasted.
 func _sphere_edit() -> Dictionary:
-	return ChunkedTerrainWorld.sphere_edit(
+	var edit: Dictionary = ChunkedTerrainWorld.sphere_edit(
 		_hover_hit.position, brush_radius, _mode == EditMode.ADD, add_material
 	)
+	edit["tool"] = PICKAXE_TOOL
+	return edit
 
 
 ## The block the next click would place or remove, as the terrain's edit dictionary.
 func _block_edit() -> Dictionary:
-	return ChunkedTerrainWorld.box_edit(
+	var edit: Dictionary = ChunkedTerrainWorld.box_edit(
 		_block_center, Vector3.ONE * _block_half_extent(), _mode == EditMode.ADD, add_material
 	)
+	edit["tool"] = PICKAXE_TOOL
+	return edit
 
 
 # --- Preview --------------------------------------------------------------------------------
@@ -240,12 +247,19 @@ func _show_preview() -> void:
 	if shape == Shape.BLOCK and _terrain != null:
 		_cursor.hide_cursor()
 		_block_center = _block_center_for_hit()
-		_blocked = _mode == EditMode.ADD and _terrain.buries_fighter(_block_edit())
+		var block: Dictionary = _block_edit()
+		_blocked = (
+			_mode == EditMode.ADD
+			and (_terrain.buries_fighter(block) or not _terrain.allows_edit(block))
+		)
 		_show_ghost(_block_center, _terrain.get_voxel_size() * float(block_size))
 		return
 	_hide_ghost()
+	var sphere: Dictionary = _sphere_edit()
 	_blocked = (
-		_mode == EditMode.ADD and _terrain != null and _terrain.buries_fighter(_sphere_edit())
+		_mode == EditMode.ADD
+		and _terrain != null
+		and (_terrain.buries_fighter(sphere) or not _terrain.allows_edit(sphere))
 	)
 	_cursor.show_at(
 		_hover_hit.position, _hover_hit.normal, _mode == EditMode.ADD, add_material, _blocked

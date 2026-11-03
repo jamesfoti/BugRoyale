@@ -1,14 +1,19 @@
 extends Node
 ## Autoload: Low / High graphics toggle, saved to user:// and applied to every loaded scene.
-## Low renders 3D at reduced resolution with plain bilinear upscaling (FSR costs more than it
-## saves on integrated GPUs), disables glow and SSAO-style post effects, drops omni/spot
+## Both render 3D at a capped height (720 lines on Low, 1080 on High) with plain bilinear
+## upscaling (FSR costs more than it saves on integrated GPUs), so a high-resolution screen
+## never draws the world at its native pixel count. Low also disables glow and SSAO-style post
+## effects, drops omni/spot
 ## shadows, shortens directional shadows, and sets the graphics_low_quality global shader
 ## uniform (cheaper water / sky paths). High restores scene values.
 
 signal low_quality_changed(enabled: bool)
 
 const SETTINGS_PATH: String = "user://graphics_settings.cfg"
-const LOW_3D_SCALE: float = 0.65
+## The 3D view renders at no more than this many lines high (the UI stays at native size); a
+## Surface or 4K screen would otherwise draw several times the pixels of a 1080p laptop.
+const LOW_RENDER_HEIGHT: float = 720.0
+const HIGH_RENDER_HEIGHT: float = 1080.0
 const LOW_DIRECTIONAL_SHADOW_DISTANCE: float = 60.0
 const LOW_DIRECTIONAL_ATLAS_SIZE: int = 2048
 const LOW_POSITIONAL_ATLAS_SIZE: int = 1024
@@ -31,9 +36,15 @@ func _ready() -> void:
 		"rendering/lights_and_shadows/positional_shadow/atlas_size", 4096
 	)
 	var config := ConfigFile.new()
-	if config.load(SETTINGS_PATH) == OK:
+	if config.load(SETTINGS_PATH) == OK and config.has_section_key("graphics", "low_quality"):
 		low_quality = bool(config.get_value("graphics", "low_quality", false))
+	else:
+		# No choice saved yet: an integrated GPU (most laptops) starts on Low.
+		low_quality = (
+			RenderingServer.get_video_adapter_type() == RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU
+		)
 	get_tree().node_added.connect(_on_node_added)
+	get_tree().root.size_changed.connect(_apply_viewport)
 	_apply_viewport()
 	_apply_to_tree()
 
@@ -52,17 +63,24 @@ func set_low_quality(enabled: bool) -> void:
 
 func _apply_viewport() -> void:
 	RenderingServer.global_shader_parameter_set(&"graphics_low_quality", low_quality)
-	var root: Viewport = get_tree().root
+	var root: Window = get_tree().root
+	root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	root.scaling_3d_scale = _render_scale_for(
+		root.size, LOW_RENDER_HEIGHT if low_quality else HIGH_RENDER_HEIGHT
+	)
 	if low_quality:
-		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
-		root.scaling_3d_scale = LOW_3D_SCALE
 		root.positional_shadow_atlas_size = LOW_POSITIONAL_ATLAS_SIZE
 		RenderingServer.directional_shadow_atlas_set_size(LOW_DIRECTIONAL_ATLAS_SIZE, true)
 	else:
-		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
-		root.scaling_3d_scale = 1.0
 		root.positional_shadow_atlas_size = _default_positional_atlas_size
 		RenderingServer.directional_shadow_atlas_set_size(_default_directional_atlas_size, true)
+
+
+## The 3D scale that renders a window at no more than a target height (never upscaled).
+static func _render_scale_for(window_size: Vector2i, target_height: float) -> float:
+	if window_size.y <= 0:
+		return 1.0
+	return clampf(target_height / float(window_size.y), 0.25, 1.0)
 
 
 func _apply_to_tree() -> void:

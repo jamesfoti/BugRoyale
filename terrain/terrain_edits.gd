@@ -3,6 +3,11 @@ extends RefCounted
 ## Baked voxel density overrides. Negative density = solid. Voxels built from a placed material
 ## (see TerrainMaterials) also remember which one, so the mesher can colour them.
 
+## What the last stamp dug out, TerrainMaterials.Kind -> voxels (a mode pays it out), and how
+## many voxels it turned solid (what building costs).
+var last_removed: Dictionary = {}
+var last_added: int = 0
+
 var _voxel_size: float = 1.0
 ## World position of voxel key (0, 0, 0): the sample lattice of the terrain, so keys land on
 ## samples.
@@ -43,11 +48,18 @@ func add_brush(
 	radius: float,
 	add_solid: bool,
 	procedural_density: Callable,
-	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
+	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL,
+	natural_material: Callable = Callable()
 ) -> bool:
 	var brush_radius: float = maxf(radius, 0.1)
 	return _stamp(
-		world_position, Vector3.ONE * brush_radius, false, add_solid, procedural_density, material
+		world_position,
+		Vector3.ONE * brush_radius,
+		false,
+		add_solid,
+		procedural_density,
+		material,
+		natural_material
 	)
 
 
@@ -59,7 +71,8 @@ func add_box(
 	half_extents: Vector3,
 	add_solid: bool,
 	procedural_density: Callable,
-	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
+	material: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL,
+	natural_material: Callable = Callable()
 ) -> bool:
 	return _stamp(
 		center,
@@ -67,19 +80,25 @@ func add_box(
 		true,
 		add_solid,
 		procedural_density,
-		material
+		material,
+		natural_material
 	)
 
 
 ## Shared stamp: half_extents is the sphere radius on every axis, or the half size of the box.
+## natural_material (world position, density -> TerrainMaterials.Kind) says what untagged
+## ground is made of, for the tally of what a carve dug out; without it, everything is dirt.
 func _stamp(
 	center: Vector3,
 	half_extents: Vector3,
 	box: bool,
 	add_solid: bool,
 	procedural_density: Callable,
-	material: TerrainMaterials.Kind
+	material: TerrainMaterials.Kind,
+	natural_material: Callable = Callable()
 ) -> bool:
+	last_removed = {}
+	last_added = 0
 	var reach: Vector3 = half_extents + Vector3.ONE * _voxel_size
 	var extent_voxels: Vector3i = Vector3i((reach / _voxel_size).ceil()) + Vector3i.ONE
 	var center_key: Vector3i = _world_to_key(center)
@@ -114,6 +133,17 @@ func _stamp(
 				var voxel_changed: bool = not is_equal_approx(new_density_value, density_value)
 				if voxel_changed:
 					_overrides[voxel_key] = new_density_value
+					if density_value < 0.0 and new_density_value >= 0.0:
+						var dug: TerrainMaterials.Kind = _materials.get(
+							voxel_key, TerrainMaterials.Kind.NATURAL
+						)
+						if dug == TerrainMaterials.Kind.NATURAL and natural_material.is_valid():
+							dug = natural_material.call(sample_position, density_value)
+						if dug == TerrainMaterials.Kind.NATURAL:
+							dug = TerrainMaterials.Kind.DIRT
+						last_removed[dug] = int(last_removed.get(dug, 0)) + 1
+					elif density_value >= 0.0 and new_density_value < 0.0:
+						last_added += 1
 				# A voxel the fill leaves solid takes the brush's material; one the carve leaves
 				# as air forgets its material. Shell voxels that stay as they were keep theirs,
 				# so a stone block does not skin the ground around it stone.

@@ -104,6 +104,17 @@ func build_horde_flock() -> void:
 	_horde_flock.attack_damage = 8.0
 
 
+## The flock hordes arrive in (null before build_horde_flock).
+func horde_flock() -> BirdFlock:
+	return _horde_flock
+
+
+## The hornets out hunting go home (dawn in Burrow); the next horde starts from nothing.
+func disperse_hordes() -> void:
+	if _horde_flock != null:
+		_horde_flock.disperse()
+
+
 # --- Listening ---------------------------------------------------------------------------------
 
 
@@ -116,9 +127,7 @@ func listen_to(fighter: Fighter) -> void:
 
 ## Hears the pickaxe: any terrain edit on the map.
 func listen_to_terrain() -> void:
-	var terrain: ChunkedTerrainWorld = (
-		get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
-	)
+	var terrain: ChunkedTerrainWorld = map.editable_terrain() if map != null else null
 	if terrain != null:
 		terrain.edit_applied.connect(func(_edit: Dictionary) -> void: hear(noise_dig))
 

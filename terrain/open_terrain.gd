@@ -1,7 +1,8 @@
 @tool
 class_name OpenTerrain
 extends ChunkedTerrainWorld
-## Boxed-in style 3D noise clipped by a heightmap surface (open top, side/bottom walls).
+## Boxed-in style 3D noise clipped by a heightmap surface (open top, side/bottom walls), or
+## solid ground under the surface with a seeded underworld carved out of it (caves_enabled).
 
 @export_group("Open Terrain Grid")
 @export_range(1, 64, 1) var chunks_x: int = 5:
@@ -85,7 +86,7 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 func _build_world_density(
 	settings: ChunkedTerrainWorld.SettingsSnapshot
 ) -> DensitySampler.WorldDensity:
-	return DensitySampler.create_open_terrain_world_density(
+	var density: DensitySampler.WorldDensity = DensitySampler.create_open_terrain_world_density(
 		settings.noise_seed,
 		settings.noise_frequency,
 		settings.noise_amplitude,
@@ -101,6 +102,9 @@ func _build_world_density(
 		settings.open_terrain_solid_fill,
 		settings.open_terrain_bowl_radius
 	)
+	if settings.caves_enabled and settings.open_terrain_solid_fill:
+		density.caves = CaveCarver.for_settings(settings)
+	return density
 
 
 func _duplicate_heightmap_image() -> Image:

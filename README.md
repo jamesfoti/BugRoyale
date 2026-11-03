@@ -17,11 +17,21 @@ Play
 ----
 
 - **Bugs:** Ant Warrior, Termite Soldier, Wasp (flies), Trapdoor Spider.
-- **Maps:** Celestial Body, Terrarium, Fish Bowl, Crawlspace, Backyard Garden.
-- **Modes:** Attack of the Hornets (co-op waves), Ants vs Ants (team deathmatch),
-  Battle Royale (rising flood), Cordyceps Royale (a spore storm turns the fallen into husks
-  that hunt you), Forage (extraction: a dragonfly drops your squad on hostile ground; gather
-  the quota quietly, because noise brings the horde, and ride the dragonfly out), Explore.
+- **Maps:** Celestial Body, Terrarium, Fish Bowl, Crawlspace, Backyard Garden. The garden
+  and the crawlspace are three chunks deep, and every match's seed carves a new underworld
+  into them (CaveCarver): worm tunnels from a few metres down, caverns from twenty, a few
+  sinkholes open to the sky, and bedrock at the bottom.
+- **Three modes on the menu.** Burrow (survival as the colony's soldier: four workers carry
+  the queen and follow you, you pick the ground and give the word, they dig her chamber;
+  then dig by day, build with what you carve, hold the burrow after dark, and keep the queen
+  alive, because the colony dies with her; the map is saved as you go), Hold Out (you and 3 AI
+  squadmates against waves of hornets, husks and enemy ants) and Slayer (deathmatch, Solo,
+  Skirmish 4v4, Colony 12v12 or Big Colony 24v24, bots filling every empty slot).
+- **Shelved modes**, finished and tested but off the menu until there are players to fill
+  them: Capture the Egg, King of the Anthill, Forage (extraction with a dragonfly and a noise
+  meter) and Cordyceps Royale. Each still runs headless by id.
+- **Burrow saves as you go**, under `user://worlds`, and the world is there next time, with a
+  Start over button on the map page to wipe it.
 
 Controls are listed under Settings in the main and pause menus.
 
@@ -64,7 +74,7 @@ single-player game, and the bots stay as backfill for lobbies that do not fill.
   over the wire.
 - [ ] Per-mode stats that survive a restart (best hornet wave per map, royale wins, colony
   records) shown on the mode picker.
-- [ ] A pass through every mode on every map (thirty combinations) before any release.
+- [ ] A pass through every mode on every map and format before any release.
 - [ ] Store text that says plainly which modes are online and which are versus AI.
 - [ ] NAT traversal (a relay, or Steam networking via GodotSteam) once the game logic is
   replicated over plain ENet on a LAN.
@@ -137,7 +147,13 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_block_snapping.gd` | Where the block tool lands a block for a hit: ground, stacked faces, side faces, odd and one-voxel sizes, 2 m voxels with an offset origin |
 | `test_mode_state.gd` | Every mode's state snapshot survives a round trip onto a fresh mode (what a client will show the match from) |
 | `test_damageable.gd` | Health rules: team immunity, the no-team case, dying once, kill credit, the host-only authority gate, revive |
+| `test_control_zone.gd` | A control zone's capture rules: one team takes it over time, two freeze it, the owner keeps it, locked zones never change |
 | `test_horde_director.gd` | The noise meter: what fills it, how it fades, bot shots at a fraction, hordes on a full meter, after a lull and during a finale, growth up to the cap |
+| `test_material_stock.gd` | The pickaxe stock: a carve pays out by material, a build spends it (the map's ground is dirt), never negative, and a build needs half its voxels in hand |
+| `test_day_cycle.gd` | The day cycle's clock: daylight by the hour, twilight, dusk and dawn crossings, the time to the next change, where the sun stands |
+| `test_world_save.gd` | Worlds on disk: a save round-trips with its voxel keys, seed and summary; delete removes it; nothing is written while saving is off |
+| `test_queen_ant.gd` | The queen's nest plan: a shaft of carves stepping down and away from the entrance, the chamber below it, every carve the pickaxe's; the way she goes down ends on the chamber floor |
+| `test_cave_carver.gd` | The seeded underworld: a seed always carves the same caves and every number lands in range; under a solid open terrain the surface is still the surface, there is air in the tunnels but the ground is mostly ground, and bedrock is solid |
 
 GUT and `test/` are excluded from both export presets, so nothing test-related ships.
 
@@ -182,19 +198,22 @@ one match per mode, or run a single combination yourself:
 godot --headless --path . res://tools/smoke_test.tscn -- map=crawlspace mode=cordyceps_royale frames=1800
 ```
 
-Map ids: `battlefield`, `celestial_body`, `terrarium`, `fishbowl`, `crawlspace`. Mode ids:
-`hornets`, `ants_vs_ants`, `battle_royale`, `cordyceps_royale`, `forage`, `explore`. Add `drive=1` to
+Map ids: `battlefield`, `celestial_body`, `terrarium`, `fishbowl`, `crawlspace`.
+Mode ids:
+`hold_out`, `forage`, `slayer`, `capture_the_egg`, `king_of_the_anthill`, `cordyceps_royale`,
+`burrow`. Competitive modes take
+`format=solo|skirmish|colony|big_colony` (the mode's default otherwise). Add `drive=1` to
 work the local player's controls as well. The result line starts with `SMOKE RESULT`. Headless
 Godot cannot capture the mouse, so the local player's trigger is the one thing it never fires.
 
 **Scaling runs.** The same harness measures how the game copes with crowds. `fighters=<n>`
-overrides how many fighters Ants vs Ants, Battle Royale and Cordyceps Royale spawn, `brains=0`
+overrides how many fighters the colony, solo and royale modes spawn, `brains=0`
 switches the bots' AI off once the match starts, and `ghosts=0` keeps every far bot in its
 body. The result line carries `physics_ms` and `process_ms` as average/worst frame times in
 milliseconds after a warm-up, and `ghosts`, the number of bots currently without a body:
 
 ```powershell
-godot --headless --path . res://tools/smoke_test.tscn -- map=battlefield mode=ants_vs_ants frames=600 seed=7 fighters=96
+godot --headless --path . res://tools/smoke_test.tscn -- map=battlefield mode=slayer format=colony frames=600 seed=7 fighters=96
 ```
 
 Bots cost less the farther they are from every human: beyond 40 m their physics steps every

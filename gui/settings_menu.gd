@@ -7,11 +7,11 @@ signal closed
 enum GraphicsItem { HIGH, LOW }
 
 const _GRAPHICS_DESCRIPTIONS: Dictionary[GraphicsItem, String] = {
-	GraphicsItem.HIGH: "Full resolution, glow, ambient occlusion, and all shadows.",
+	GraphicsItem.HIGH: "3D at up to 1080 lines, glow, ambient occlusion, and all shadows.",
 	GraphicsItem.LOW:
 	(
-		"Half 3D resolution (upscaled), no glow or ambient occlusion, "
-		+ "fewer shadows, simpler water and sky."
+		"3D at 720 lines (upscaled), no glow or ambient occlusion, "
+		+ "fewer shadows, simpler water and sky. The default on laptops."
 	),
 }
 
@@ -28,6 +28,7 @@ const _CONTROLS_LINES: Array[String] = [
 	"Shift — Run",
 	"E — Inventory (torch, pickaxe, empty hands)",
 	"P — Pause menu",
+	"G — Found the colony where the queen is (Burrow, while the workers carry her)",
 	"Esc — Free / capture mouse (or stow item / exit terrain edit)",
 	"F3 — Debug overlay",
 	"Ctrl — Toggle terrain focus while editing (stay put, aim with mouse)",

@@ -50,7 +50,7 @@ static func build_mesh(
 	var stride_y: int = field.size.x
 	var stride_z: int = field.size.x * field.size.y
 
-	# Placed materials colour the surface; skipped (every vertex natural) while none are placed.
+	# Placed materials colour the surface; the natural ground colours what digging exposes.
 	var material_edits: TerrainEdits = null
 	if density != null and density.terrain_edits != null and density.terrain_edits.has_materials():
 		material_edits = density.terrain_edits
@@ -209,15 +209,25 @@ static func _create_edge_vertex(
 	var index: int = result.vertices.size()
 	result.vertices.append(grid_pos * world_step - center_offset)
 
-	# The vertex shows the material of the sample on its solid side.
+	# The vertex shows the material of the sample on its solid side: a placed one, else what
+	# the natural ground is made of there (stone and veins show where digging exposed them).
 	var vertex_color: Color = TerrainMaterials.NATURAL_VERTEX_COLOR
-	if material_edits != null:
+	if reader != null and reader.density != null:
 		var solid_corner: Vector3 = global_lower
+		var solid_value: float = lower_value
 		if lower_value >= iso:
 			solid_corner += Vector3(axis_step)
-		vertex_color = TerrainMaterials.vertex_color(
-			material_edits.material_at(grid_world_origin + solid_corner * world_step)
-		)
+			solid_value = upper_value
+		var solid_position: Vector3 = grid_world_origin + solid_corner * world_step
+		var kind: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
+		if material_edits != null:
+			kind = material_edits.material_at(solid_position)
+		if kind == TerrainMaterials.Kind.NATURAL:
+			kind = reader.density.natural_material(solid_position, solid_value)
+		if kind == TerrainMaterials.Kind.NATURAL:
+			vertex_color = reader.density.natural_tint(solid_position, solid_value)
+		else:
+			vertex_color = TerrainMaterials.vertex_color(kind)
 	result.colors.append(vertex_color)
 
 	if reader != null:

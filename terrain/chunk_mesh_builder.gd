@@ -51,7 +51,9 @@ static func build_chunk_into(
 	)
 	var sphere_world: Vector3 = settings.bounds_center + settings.sphere_center
 	var density: DensitySampler.WorldDensity
-	if settings.open_terrain_enabled:
+	if settings.density_factory.is_valid():
+		density = settings.density_factory.call(settings)
+	elif settings.open_terrain_enabled:
 		density = DensitySampler.create_open_terrain_world_density(
 			settings.noise_seed,
 			settings.noise_frequency,

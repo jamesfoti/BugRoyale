@@ -1,7 +1,7 @@
 class_name ModeHud
 extends CanvasLayer
-## Game mode overlay: a status line at the top, timed messages in the middle, and an end-of-match
-## panel with Play Again / Main Menu.
+## Game mode overlay: a status line at the top, timed messages in the middle, the pickaxe stock
+## at the right edge for modes that dig, and an end-of-match panel with Play Again / Main Menu.
 
 signal play_again_pressed
 signal main_menu_pressed
@@ -12,6 +12,7 @@ var _message_time_left: float = 0.0
 var _end_panel: PanelContainer
 var _end_title: Label
 var _end_subtitle: Label
+var _stock_panel: StockPanel
 
 
 func _ready() -> void:
@@ -47,6 +48,20 @@ func _process(delta: float) -> void:
 
 func set_status(text: String) -> void:
 	_status.text = text
+
+
+## Shows (and keeps current) what the pickaxe has to build with, TerrainMaterials.Kind ->
+## voxels, with the material the local brush is set to marked.
+func set_stock(counts: Dictionary) -> void:
+	if _stock_panel == null:
+		_stock_panel = StockPanel.new()
+		_stock_panel.name = "StockPanel"
+		add_child(_stock_panel)
+	var selected: int = TerrainMaterials.Kind.DIRT
+	var terrain_hud: Node = get_tree().get_first_node_in_group("terrain_hud")
+	if terrain_hud != null and terrain_hud.has_method("get_add_material"):
+		selected = int(terrain_hud.call("get_add_material"))
+	_stock_panel.show_stock(counts, selected)
 
 
 ## Shows a centered message; seconds <= 0 keeps it until replaced.

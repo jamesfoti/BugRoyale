@@ -49,7 +49,7 @@ var aboard: Array[int] = []
 var landing_zone: Vector3 = Vector3.INF
 var extraction: Vector3 = Vector3.INF
 
-var _beacon: MeshInstance3D
+var _beacon: Beacon
 var _leave_timer: float = 0.0
 
 # --- Deciding ---------------------------------------------------------------------------------
@@ -419,29 +419,7 @@ func _present() -> void:
 
 ## A tall green column of light over the extraction point.
 func _build_beacon() -> void:
-	var column := CylinderMesh.new()
-	column.top_radius = 2.5
-	column.bottom_radius = 2.5
-	column.height = 60.0
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.3, 1.0, 0.5, 0.22)
-	material.emission_enabled = true
-	material.emission = Color(0.3, 1.0, 0.5)
-	material.emission_energy_multiplier = 1.5
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	column.material = material
-	_beacon = MeshInstance3D.new()
-	_beacon.name = "ExtractionBeacon"
-	_beacon.mesh = column
-	_beacon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	get_parent().add_child(_beacon)
-	var up: Vector3 = map.up_at(extraction)
-	var side: Vector3 = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
-	_beacon.global_transform = Transform3D(
-		Basis(side.normalized(), up, side.cross(up).normalized()), extraction + up * 30.0
-	)
+	_beacon = Beacon.build(get_parent(), map, extraction, Color(0.3, 1.0, 0.5))
 
 
 func _snapshot_state() -> Dictionary:

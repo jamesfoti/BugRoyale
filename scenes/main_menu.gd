@@ -1,5 +1,6 @@
 extends Control
-## Entry menu. Play opens the mode page (every mode with its description), a mode opens the map
+## Entry menu. Play opens the mode page (the catalog's front door, each with its description), a
+## mode opens the map
 ## page (see ModeCatalog), and a map starts the match. Choose Player and Settings are their own
 ## pages. Each page hides the one beneath it and Escape steps back.
 
@@ -22,7 +23,11 @@ var _map_page: Control
 var _map_page_title: Label
 var _map_page_description: Label
 var _map_buttons: VBoxContainer
+var _format_row: HBoxContainer
+## Each page's scroll box, so a long list (the modes) scrolls instead of overflowing the window.
+var _page_scrolls: Dictionary = {}
 var _chosen_mode_id: String = ""
+var _chosen_format_id: String = ""
 
 ## The title and button column. Hidden while a page is open, the way the pause menu hides its
 ## own panel behind Settings, so nothing shows through.
@@ -71,6 +76,11 @@ func _ready() -> void:
 	_quit_button.pressed.connect(get_tree().quit)
 	_build_mode_page()
 	_build_map_page()
+	get_viewport().size_changed.connect(
+		func() -> void:
+			_fit_page(_mode_page)
+			_fit_page(_map_page)
+	)
 	_play_button.grab_focus()
 	# The preview character is only spawned while the Choose Player page is open.
 
@@ -269,6 +279,7 @@ func _set_preview_viewport_active(active: bool) -> void:
 func _open_mode_page() -> void:
 	_hide_main_page()
 	_mode_page.visible = true
+	_fit_page(_mode_page)
 	var first: Button = _mode_buttons.get(_chosen_mode_id, _mode_buttons.values().front()) as Button
 	if first != null:
 		first.grab_focus()
@@ -281,25 +292,83 @@ func _close_mode_page() -> void:
 
 func _on_mode_pressed(mode_id: String) -> void:
 	_chosen_mode_id = mode_id
+	_chosen_format_id = ModeCatalog.default_format(mode_id)
 	var mode_info: Dictionary = ModeCatalog.mode(mode_id)
-	var maps: Array = mode_info.get("maps", [])
-	if maps.size() == 1:
+	var maps: Array = ModeCatalog.maps_for(mode_id, _chosen_format_id)
+	if maps.size() == 1 and ModeCatalog.formats_for(mode_id).size() <= 1:
 		_start_match(maps[0])
 		return
 	_map_page_title.text = mode_info.get("name", "") + ": Choose a Map"
 	_map_page_description.text = mode_info.get("description", "")
+	_rebuild_format_row()
+	_rebuild_map_buttons()
+	_mode_page.visible = false
+	_map_page.visible = true
+	_fit_page(_map_page)
+	var first: Node = _map_buttons.get_child(0) if _map_buttons.get_child_count() > 0 else null
+	if first is HBoxContainer:
+		first = first.get_child(0)
+	if first is Button:
+		(first as Button).grab_focus()
+
+
+## One toggle per format the mode supports (hidden when there is no choice).
+func _rebuild_format_row() -> void:
+	for child: Node in _format_row.get_children():
+		child.queue_free()
+	var formats: Array = ModeCatalog.formats_for(_chosen_mode_id)
+	_format_row.visible = formats.size() > 1
+	for format_id: String in formats:
+		var info: Dictionary = ModeCatalog.format(format_id)
+		var button := Button.new()
+		button.text = "%s  %s" % [info.get("name", format_id), info.get("short", "")]
+		button.toggle_mode = true
+		button.button_pressed = format_id == _chosen_format_id
+		button.custom_minimum_size = Vector2(0, 36)
+		button.pressed.connect(_on_format_pressed.bind(format_id))
+		_format_row.add_child(button)
+
+
+func _on_format_pressed(format_id: String) -> void:
+	_chosen_format_id = format_id
+	_rebuild_format_row()
+	_rebuild_map_buttons()
+	_fit_page(_map_page)
+
+
+## The maps big enough for the chosen format. In a persistent mode a map with a saved world
+## says how far it got, with a button beside it to wipe the world and start over.
+func _rebuild_map_buttons() -> void:
 	for child: Node in _map_buttons.get_children():
 		child.queue_free()
-	for map_id: String in maps:
+	var persistent: bool = bool(ModeCatalog.mode(_chosen_mode_id).get("persistent", false))
+	for map_id: String in ModeCatalog.maps_for(_chosen_mode_id, _chosen_format_id):
 		var map_button := Button.new()
 		map_button.text = ModeCatalog.map_name(map_id)
 		map_button.custom_minimum_size = Vector2(280, 44)
 		map_button.pressed.connect(_start_match.bind(map_id))
-		_map_buttons.add_child(map_button)
-	_mode_page.visible = false
-	_map_page.visible = true
-	if _map_buttons.get_child_count() > 0:
-		(_map_buttons.get_child(0) as Button).grab_focus()
+		var summary: String = WorldSave.summary(_chosen_mode_id, map_id) if persistent else ""
+		if summary.is_empty():
+			_map_buttons.add_child(map_button)
+			continue
+		map_button.text = "%s  —  %s" % [ModeCatalog.map_name(map_id), summary]
+		map_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		row.add_child(map_button)
+		var start_over := Button.new()
+		start_over.text = "Start over"
+		start_over.tooltip_text = "Deletes the saved world on this map."
+		start_over.custom_minimum_size = Vector2(0, 44)
+		start_over.pressed.connect(_on_start_over_pressed.bind(map_id))
+		row.add_child(start_over)
+		_map_buttons.add_child(row)
+
+
+func _on_start_over_pressed(map_id: String) -> void:
+	WorldSave.delete(_chosen_mode_id, map_id)
+	_rebuild_map_buttons()
+	_fit_page(_map_page)
 
 
 func _close_map_page() -> void:
@@ -312,24 +381,26 @@ func _close_map_page() -> void:
 
 func _start_match(map_id: String) -> void:
 	var mode_info: Dictionary = ModeCatalog.mode(_chosen_mode_id)
-	if mode_info.has("forced_character"):
+	# Colony matches are ants against ants; a solo match keeps the chosen bug.
+	var solo: bool = int(ModeCatalog.format(_chosen_format_id).get("teams", 2)) == 0
+	if mode_info.has("forced_character") and not solo:
 		_set_selected_character(mode_info["forced_character"])
 	LoadingScreen.pending_mode_id = _chosen_mode_id
+	LoadingScreen.pending_format_id = _chosen_format_id
 	LoadingScreen.pending_scene_path = ModeCatalog.map_scene(map_id)
 	get_tree().change_scene_to_file(LOADING_SCREEN_SCENE_PATH)
 
 
-## One button per mode with its description underneath; Explore sits apart from the matches.
+## One button per mode with its description underneath; the persistent Burrow sits apart from
+## the matches.
 func _build_mode_page() -> void:
 	var column: VBoxContainer
 	var built: Array = _build_page("ModeSelectPage", 460)
 	_mode_page = built[0]
 	column = built[1]
 	column.add_child(_page_title("Choose a game mode"))
-	for mode_id: String in ModeCatalog.MODES:
-		var mode_info: Dictionary = ModeCatalog.MODES[mode_id]
-		if mode_id == "explore":
-			column.add_child(HSeparator.new())
+	for mode_id: String in ModeCatalog.front_door():
+		var mode_info: Dictionary = ModeCatalog.mode(mode_id)
 		var entry := VBoxContainer.new()
 		entry.add_theme_constant_override("separation", 2)
 		var button := Button.new()
@@ -364,6 +435,10 @@ func _build_map_page() -> void:
 	_map_page_description.custom_minimum_size = Vector2(380, 0)
 	_map_page_description.add_theme_color_override("font_color", PAGE_DESCRIPTION_COLOR)
 	column.add_child(_map_page_description)
+	_format_row = HBoxContainer.new()
+	_format_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_format_row.add_theme_constant_override("separation", 8)
+	column.add_child(_format_row)
 	_map_buttons = VBoxContainer.new()
 	_map_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	_map_buttons.add_theme_constant_override("separation", 8)
@@ -397,10 +472,28 @@ func _build_page(page_name: String, panel_width: float) -> Array:
 	for side: String in ["left", "right", "top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 20)
 	panel.add_child(margin)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	margin.add_child(scroll)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 12)
-	margin.add_child(column)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(column)
+	_page_scrolls[page] = scroll
 	return [page, column]
+
+
+## Caps a page's panel at the window height, so its list scrolls instead of running off screen.
+func _fit_page(page: Control) -> void:
+	var scroll: ScrollContainer = _page_scrolls.get(page) as ScrollContainer
+	if scroll == null or scroll.get_child_count() == 0:
+		return
+	var column: Control = scroll.get_child(0) as Control
+	var available: float = get_viewport_rect().size.y - 120.0
+	scroll.custom_minimum_size = Vector2(
+		0.0, minf(column.get_combined_minimum_size().y, maxf(available, 200.0))
+	)
 
 
 func _page_title(text: String) -> Label:

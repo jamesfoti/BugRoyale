@@ -5,8 +5,9 @@ extends Node3D
 
 ## A brush changed the terrain at a world position (only emitted when voxels actually changed).
 signal brush_applied(world_position: Vector3, radius: float)
-## An edit went through: the dictionary apply_edit took, with its "sequence" filled in. A host
-## broadcasts these; a client applies them in sequence order.
+## An edit went through: the dictionary apply_edit took, with its "sequence" filled in and
+## "removed" (TerrainMaterials.Kind -> voxels dug out) and "added" (voxels turned solid). A
+## host broadcasts these; a client applies them in sequence order.
 signal edit_applied(edit: Dictionary)
 
 const _CHUNK_SCRIPT = preload("res://terrain/terrain_chunk.gd")
@@ -63,6 +64,14 @@ const CAPSULE_SAMPLES: int = 6
 		noise_gain = clampf(value, 0.01, 1.0)
 		_request_rebuild()
 
+@export_group("Caves")
+## Carves a seeded underworld (CaveCarver) under a solid-filled open terrain: tunnels,
+## caverns, sinkholes and bedrock. The grid wants a few chunks of depth for it to show.
+@export var caves_enabled: bool = false:
+	set(value):
+		caves_enabled = value
+		_request_rebuild()
+
 @export_group("Meshing")
 @export var iso_level: float = 0.0:
 	set(value):
@@ -97,6 +106,9 @@ const CAPSULE_SAMPLES: int = 6
 
 ## Brush edits are refused outside this box (world space). Zero size: editable anywhere.
 var edit_bounds: AABB = AABB()
+## A mode's say over edits (edit: Dictionary -> bool): Hold Out refuses building it cannot pay
+## for. Invalid means everything goes.
+var edit_gate: Callable = Callable()
 
 var _chunks: Dictionary = {}
 
@@ -340,6 +352,17 @@ func end_continuous_edit() -> void:
 		_dispatch_pending_rebuilds()
 
 
+## Whether the ground is solid at a point: the map's own density with the players' edits on
+## top, so a dug hole reads as air and a built wall as solid. False above the surface, in a
+## cave, or on something that is not ground at all (a slab, a duct, a tree).
+func is_solid_at(world_position: Vector3) -> bool:
+	_prepare_edits()
+	var value: float = _get_bake_density().evaluate(world_position)
+	if _edits != null:
+		value = _edits.apply_to_density(value, world_position)
+	return value < iso_level
+
+
 ## Can the brush (dig, build, explosion) change the terrain here? A builder may fence off part
 ## of the map (the garden's chain-link) by setting edit_bounds; a zero-size box allows anywhere.
 func can_edit_at(world_position: Vector3) -> bool:
@@ -407,20 +430,30 @@ func apply_edit(edit: Dictionary) -> bool:
 		return false
 	if add_solid and buries_fighter(edit):
 		return false
+	if not allows_edit(edit):
+		return false
 	_prepare_edits()
-	var procedural_density: Callable = Callable(_get_bake_density(), "evaluate")
+	var density: DensitySampler.WorldDensity = _get_bake_density()
+	var procedural_density: Callable = Callable(density, "evaluate")
+	var natural_material: Callable = Callable(density, "natural_material")
 	var changed: bool
 	var reach: float
 	if str(edit.get("kind", "sphere")) == "box":
 		var half_extents: Vector3 = edit.get("half_extents", Vector3.ONE)
-		changed = _edits.add_box(position, half_extents, add_solid, procedural_density, material)
+		changed = _edits.add_box(
+			position, half_extents, add_solid, procedural_density, material, natural_material
+		)
 		reach = half_extents.length()
 	else:
 		var radius: float = float(edit.get("radius", 1.0))
-		changed = _edits.add_brush(position, radius, add_solid, procedural_density, material)
+		changed = _edits.add_brush(
+			position, radius, add_solid, procedural_density, material, natural_material
+		)
 		reach = radius
 	if not changed:
 		return false
+	edit["removed"] = _edits.last_removed.duplicate()
+	edit["added"] = _edits.last_added
 	if not edit.has("sequence"):
 		edit["sequence"] = _next_edit_sequence
 	_next_edit_sequence = maxi(_next_edit_sequence, int(edit["sequence"]) + 1)
@@ -429,6 +462,23 @@ func apply_edit(edit: Dictionary) -> bool:
 	brush_applied.emit(position, reach)
 	edit_applied.emit(edit)
 	return true
+
+
+## Whether the mode's gate lets an edit through (everything goes without one).
+func allows_edit(edit: Dictionary) -> bool:
+	return not edit_gate.is_valid() or bool(edit_gate.call(edit))
+
+
+## Roughly how many voxels an edit's shape covers, before knowing what is already solid.
+static func estimate_voxels(edit: Dictionary, voxel_size: float) -> int:
+	var volume: float
+	if str(edit.get("kind", "sphere")) == "box":
+		var half: Vector3 = edit.get("half_extents", Vector3.ONE)
+		volume = 8.0 * half.x * half.y * half.z
+	else:
+		var radius: float = float(edit.get("radius", 1.0))
+		volume = 4.0 / 3.0 * PI * radius * radius * radius
+	return maxi(ceili(volume / (voxel_size * voxel_size * voxel_size)), 1)
 
 
 ## Every edit applied so far, in sequence order.
@@ -563,6 +613,7 @@ func _make_settings_snapshot() -> SettingsSnapshot:
 	settings.noise_lacunarity = noise_lacunarity
 	settings.noise_gain = noise_gain
 	settings.generate_collision = generate_collision
+	settings.caves_enabled = caves_enabled
 	settings.material = _effective_material()
 	settings.bounds_center = global_position
 	settings.bounds_half = get_world_extents() * 0.5
@@ -848,6 +899,7 @@ class SettingsSnapshot:
 	var noise_lacunarity: float = 2.0
 	var noise_gain: float = 0.5
 	var generate_collision: bool = true
+	var caves_enabled: bool = false
 	var material: Material = null
 	var bounds_center: Vector3 = Vector3.ZERO
 	var bounds_half: Vector3 = Vector3.ZERO
@@ -870,3 +922,7 @@ class SettingsSnapshot:
 	var open_terrain_bowl_radius: float = 0.0
 	var terrain_edits: TerrainEdits = null
 	var rebuild_collision: bool = true
+	## A world with ground of its own kind builds its density here:
+	## a static function taking the snapshot, called on worker threads too. Invalid: the
+	## builder picks a density from the flags above.
+	var density_factory: Callable = Callable()

@@ -147,6 +147,13 @@ func alive_count() -> int:
 	return _birds.size()
 
 
+## Every bird goes, flying or falling: the flock is empty until the next spawn_wave.
+func disperse() -> void:
+	_clear_birds()
+	if _bird_multimesh_instance != null:
+		_bird_multimesh_instance.multimesh.instance_count = 0
+
+
 func _build_bird_multimesh() -> void:
 	if _bird_multimesh_instance == null:
 		var mesh: Mesh = _make_drone_mesh()

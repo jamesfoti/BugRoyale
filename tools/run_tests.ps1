@@ -39,16 +39,20 @@ if ($unitExit -ne 0) {
 $smokeExit = 0
 if ($Smoke) {
 	$runs = @(
-		@{ map = "battlefield"; mode = "ants_vs_ants"; frames = 600 },
-		@{ map = "terrarium"; mode = "battle_royale"; frames = 600 },
-		@{ map = "fishbowl"; mode = "hornets"; frames = 900 },
+		@{ map = "battlefield"; mode = "slayer"; frames = 600 },
+		@{ map = "terrarium"; mode = "capture_the_egg"; frames = 600 },
+		@{ map = "fishbowl"; mode = "king_of_the_anthill"; frames = 600 },
+		@{ map = "fishbowl"; mode = "hold_out"; frames = 4200 },
 		@{ map = "crawlspace"; mode = "cordyceps_royale"; frames = 900 },
-		@{ map = "celestial_body"; mode = "explore"; frames = 300 },
-		@{ map = "battlefield"; mode = "forage"; frames = 1200 }
+		@{ map = "celestial_body"; mode = "burrow"; frames = 1800; args = @("clock=20") },
+		@{ map = "battlefield"; mode = "forage"; frames = 1200 },
+		@{ map = "battlefield"; mode = "burrow"; frames = 1500; args = @("clock=20", "drive=1", "seed=7") }
 	)
 	foreach ($run in $runs) {
 		Write-Host ("== Smoke: {0} on {1}" -f $run.mode, $run.map)
-		$output = & $Godot --headless --path $root res://tools/smoke_test.tscn -- ("map=" + $run.map) ("mode=" + $run.mode) ("frames=" + $run.frames) 2>&1
+		$extra = @()
+		if ($run.ContainsKey("args")) { $extra = $run.args }
+		$output = & $Godot --headless --path $root res://tools/smoke_test.tscn -- ("map=" + $run.map) ("mode=" + $run.mode) ("frames=" + $run.frames) @extra 2>&1
 		$result = $output | Where-Object { $_ -match "^SMOKE (RESULT|FAIL|TERRAIN)" }
 		$result | ForEach-Object { Write-Host $_ }
 		$scriptErrors = @($output | Where-Object { $_ -match "SCRIPT ERROR" }).Count

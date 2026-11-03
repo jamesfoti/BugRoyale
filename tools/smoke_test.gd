@@ -5,19 +5,24 @@ extends Node
 ##
 ## Run without a window from the project folder:
 ##   godot --headless --path . res://tools/smoke_test.tscn \
-##       -- map=battlefield mode=ants_vs_ants frames=900
+##       -- map=battlefield mode=slayer format=colony frames=900
 ## Arguments (all optional): map=<ModeCatalog map id>, mode=<ModeCatalog mode id>,
-## frames=<physics frames to run after the match starts>, character=<0..3>, seed=<terrain seed>,
-## drive=1 to work the local player's controls too (run forward, jump, hold the trigger) so the
-## keyboard path is exercised, fighters=<n> to override how many fighters a mode with a free
-## count spawns (scaling runs), brains=0 to switch the bots' AI off once the match starts (what
-## the bodies alone cost), ghosts=0 to keep every far bot in its body. The result line starts
+## format=<ModeCatalog format id> (solo, skirmish, colony, big_colony; the mode's default
+## otherwise), frames=<physics frames to run after the match starts>, character=<0..3>,
+## seed=<terrain seed>,
+## drive=1 to work the local player's controls too (run forward, jump, hold the trigger, and
+## every ten seconds a stop to give Burrow's found order) so the keyboard path is exercised,
+## fighters=<n> to override how many fighters a mode with a free count spawns (scaling runs),
+## brains=0 to switch the bots' AI off once the match starts (what the bodies alone cost),
+## ghosts=0 to keep every far bot in its body, clock=<n> to run the day
+## cycle n times faster (Burrow's nights), save=1 to let a persistent mode write to the
+## player's worlds (off here by default: a smoke run must not touch them). The result line starts
 ## with "SMOKE RESULT" so a script can grep for it, and carries the average and worst physics
 ## and process frame times in milliseconds after a warm-up; "SMOKE FAIL" means the match never
 ## started.
 
 const DEFAULT_MAP: String = "battlefield"
-const DEFAULT_MODE: String = "ants_vs_ants"
+const DEFAULT_MODE: String = "slayer"
 const DEFAULT_FRAMES: int = 900
 ## Give up waiting for the match to start after this many physics frames.
 const START_TIMEOUT_FRAMES: int = 3600
@@ -38,7 +43,10 @@ func _ready() -> void:
 	LoadingScreen.pending_terrain_seed = int(options.get("seed", 0))
 	GameMode.fighter_count_override = int(options.get("fighters", 0))
 	GameMode.ghosts_enabled = str(options.get("ghosts", "1")) != "0"
+	DayCycle.speed = maxf(float(options.get("clock", "1")), 0.01)
+	WorldSave.enabled = str(options.get("save", "0")) == "1"
 	LoadingScreen.pending_mode_id = mode_id
+	LoadingScreen.pending_format_id = str(options.get("format", ""))
 	LoadingScreen.pending_scene_path = scene_path
 	var runner := Runner.new()
 	runner.name = "SmokeTestRunner"
@@ -117,14 +125,24 @@ class Runner:
 			get_tree().quit(0)
 
 	## Plays the local bug from the second second on: runs forward with the trigger held, and
-	## jumps now and then. Actions go through the Input singleton, so the local controller and
-	## the weapon read them exactly as they would a keyboard and mouse.
+	## jumps now and then. Every ten seconds it stands still for three and gives the found order
+	## (Burrow's workers, slower than a running soldier, catch up and set the queen down if the
+	## ground there will do; other modes ignore the key). Actions go through the Input singleton,
+	## so the local controller and the weapon read them exactly as they would a keyboard and mouse.
 	func _drive_local_player() -> void:
-		if _frames_run == 60:
+		if _frames_run == 60 or _frames_run % 600 == 520:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 			Input.action_press("move_forward")
 			Input.action_press("run")
 			Input.action_press("shoot")
+		if _frames_run % 600 == 300:
+			Input.action_release("move_forward")
+			Input.action_release("run")
+		if _frames_run % 600 == 480 and InputMap.has_action("found_colony"):
+			var found := InputEventAction.new()
+			found.action = "found_colony"
+			found.pressed = true
+			Input.parse_input_event(found)
 		if _frames_run > 60 and _frames_run % 240 == 0:
 			var jump := InputEventAction.new()
 			jump.action = "jump"
@@ -139,9 +157,7 @@ class Runner:
 	## refused (it would bury the bot), a carve well away from everyone must go through with a
 	## sequence number, and exporting then importing the edit state must keep every override.
 	func _test_terrain_edits() -> void:
-		var terrain: ChunkedTerrainWorld = (
-			get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
-		)
+		var terrain: ChunkedTerrainWorld = _mode.map.editable_terrain()
 		if terrain == null:
 			print("SMOKE TERRAIN: no ChunkedTerrainWorld on this map")
 			return
@@ -161,9 +177,12 @@ class Runner:
 		var ground: Dictionary = _mode.map.ground_hit(feet + Vector3(8.0, 0.0, 0.0))
 		if not ground.is_empty():
 			far = ground.position
-		var applied: bool = terrain.apply_edit(
-			ChunkedTerrainWorld.sphere_edit(far, 1.5, false, TerrainMaterials.Kind.NATURAL)
+		var carve: Dictionary = ChunkedTerrainWorld.sphere_edit(
+			far, 1.5, false, TerrainMaterials.Kind.NATURAL
 		)
+		# A pickaxe carve, so a mode that pays for digging shows the payout in its status line.
+		carve["tool"] = TerrainBrush.PICKAXE_TOOL
+		var applied: bool = terrain.apply_edit(carve)
 		var log_size: int = terrain.get_edit_log().size()
 		var sequence: int = (
 			int(terrain.get_edit_log().back().get("sequence", -1)) if log_size > 0 else -1
@@ -175,10 +194,18 @@ class Runner:
 		print(
 			(
 				(
-					"SMOKE TERRAIN: refused_burying_add=%s applied_far_carve=%s log=%d "
+					"SMOKE TERRAIN: refused_burying_add=%s applied_far_carve=%s dug=%s log=%d "
 					+ "last_sequence=%d overrides_before=%d after_roundtrip=%d"
 				)
-				% [str(refused), str(applied), log_size, sequence, before, after]
+				% [
+					str(refused),
+					str(applied),
+					str(carve.get("removed", {})),
+					log_size,
+					sequence,
+					before,
+					after,
+				]
 			)
 		)
 

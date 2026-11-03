@@ -27,6 +27,8 @@ static var ghosts_enabled: bool = true
 
 var map: MapInfo
 var hud: ModeHud
+## The match format (ModeCatalog.FORMATS entry): teams and sizes. Empty for a fixed mode.
+var format: Dictionary = {}
 ## Everyone in the match, humans first.
 var fighters: Array[Fighter] = []
 ## The human at this keyboard.
@@ -52,6 +54,7 @@ func _begin() -> void:
 			break
 		await get_tree().process_frame
 	map = MapInfo.from_scene(get_parent())
+	format = ModeCatalog.format(LoadingScreen.current_format_id)
 	# The map's ambient swarm (open battlefield) is replaced by whatever the mode spawns.
 	for flock: Node in get_tree().get_nodes_in_group("bird_flock"):
 		flock.queue_free()

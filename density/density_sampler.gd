@@ -467,6 +467,11 @@ static func grid_sample_position(
 class WorldDensity:
 	## Analytic density + gradient at any world position (seam-consistent normals).
 
+	## Topsoil this deep is the map's own ground (dirt when dug); below it lies stone, with veins
+	## of sand, clay and gravel where the vein noise runs high.
+	const TOPSOIL_DEPTH: float = 1.5
+	const VEIN_THRESHOLD: float = 0.42
+
 	var sphere_enabled: bool = true
 	var sphere_center: Vector3 = Vector3.ZERO
 	var sphere_radius: float = 18.0
@@ -498,7 +503,11 @@ class WorldDensity:
 	## Clips open terrain to a sphere of this radius around bounds_center (fish bowl); 0 = off.
 	var open_terrain_bowl_radius: float = 0.0
 	var surface_height_offset: float = 0.0
+	## Carves tunnels, caverns and bedrock under a solid-filled open terrain (null: none).
+	var caves: CaveCarver = null
 	var terrain_edits: TerrainEdits = null
+
+	var _vein_noise: FastNoiseLite
 
 	var _macro_noise: FastNoiseLite
 	var _height_noise: FastNoiseLite
@@ -546,7 +555,33 @@ class WorldDensity:
 			density._noise.seed = noise_seed
 			density._noise.noise_type = FastNoiseLite.TYPE_PERLIN
 			density._noise.frequency = noise_frequency
+		density._vein_noise = FastNoiseLite.new()
+		density._vein_noise.seed = noise_seed + 77
+		density._vein_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		density._vein_noise.frequency = 0.09
 		return density
+
+	## What a natural voxel is made of, from how deep it lies (density is roughly metres below
+	## the surface, negative inside) and the vein noise: the mesher colours dug faces with it
+	## and the pickaxe pays it out. NATURAL means the map's own ground, which digs as dirt.
+	func natural_material(world_position: Vector3, density_value: float) -> TerrainMaterials.Kind:
+		if -density_value < TOPSOIL_DEPTH or _vein_noise == null:
+			return TerrainMaterials.Kind.NATURAL
+		var vein: float = _vein_noise.get_noise_3dv(world_position)
+		if vein < VEIN_THRESHOLD:
+			return TerrainMaterials.Kind.STONE
+		# Which vein: a second, offset read of the same noise splits the veins three ways.
+		var which: float = _vein_noise.get_noise_3dv(world_position + Vector3(131.0, 71.0, 17.0))
+		if which < -0.15:
+			return TerrainMaterials.Kind.SAND
+		if which < 0.15:
+			return TerrainMaterials.Kind.CLAY
+		return TerrainMaterials.Kind.GRAVEL
+
+	## The vertex colour of natural ground here (alpha 1: the terrain shader draws its own
+	## ground, tinted by it). Plain white unless a world colours its ground by place.
+	func natural_tint(_world_position: Vector3, _density_value: float) -> Color:
+		return TerrainMaterials.NATURAL_VERTEX_COLOR
 
 	func _init_body_feature_noises(body_seed: int) -> void:
 		if ravines_enabled:
@@ -640,6 +675,8 @@ class WorldDensity:
 		var value: float
 		if open_terrain_solid_fill:
 			value = above_surface
+			if caves != null:
+				value = caves.carve(value, world_pos, surface_height)
 		elif above_surface >= OPEN_TERRAIN_NOISE_SKIP_HEIGHT:
 			# FBM noise stays within [-1, 1], so max(noise, above_surface) is exactly above_surface.
 			value = above_surface

@@ -23,7 +23,7 @@ foreach ($tool in "gdlint", "gdformat") {
 # Tracked and untracked scripts alike (a new file must pass before it is committed).
 $scripts = @(
 	git -C $root ls-files --cached --others --exclude-standard "*.gd" |
-		Where-Object { $_ -notlike "addons/*" }
+		Where-Object { $_ -notlike "addons/*" -and (Test-Path (Join-Path $root $_)) }
 )
 Push-Location $root
 try {

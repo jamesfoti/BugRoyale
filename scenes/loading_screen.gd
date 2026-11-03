@@ -14,8 +14,11 @@ const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/celestial_body_test.tscn"
 static var pending_scene_path: String = ""
 ## Game mode to start on the next loaded map (see ModeCatalog); empty = free roam.
 static var pending_mode_id: String = ""
-## Mode and map of the running match, for Play Again.
+## Format (ModeCatalog.FORMATS) for the next match; empty = the mode's default.
+static var pending_format_id: String = ""
+## Mode, format and map of the running match, for Play Again.
 static var current_mode_id: String = ""
+static var current_format_id: String = ""
 static var current_scene_path: String = ""
 static var selected_player_character: PlayerCharacter = PlayerCharacter.ANT_WARRIOR
 ## Noise seed rolled for the match being loaded (shown in the debug HUD); 0 before any match.
@@ -135,6 +138,12 @@ func _start_game(game_scene: PackedScene) -> void:
 func _add_game_mode(game_root: Node) -> void:
 	current_mode_id = pending_mode_id
 	pending_mode_id = ""
+	current_format_id = (
+		pending_format_id
+		if not pending_format_id.is_empty()
+		else ModeCatalog.default_format(current_mode_id)
+	)
+	pending_format_id = ""
 	var mode_info: Dictionary = ModeCatalog.mode(current_mode_id)
 	if mode_info.is_empty():
 		return
@@ -148,6 +157,7 @@ func _add_game_mode(game_root: Node) -> void:
 static func restart_current(tree: SceneTree) -> void:
 	pending_scene_path = current_scene_path
 	pending_mode_id = current_mode_id
+	pending_format_id = current_format_id
 	tree.change_scene_to_file("res://scenes/loading_screen.tscn")
 
 
@@ -171,7 +181,13 @@ func _resolve_pending_scene_path() -> String:
 ## Every match gets fresh ground: one new noise seed for the map's terrain (the terrarium's
 ## garden derives its own seed from it). Set before the scene enters the tree, so the terrain's
 ## single rebuild on ready already uses it. Rooms keep their seed so the furniture stays put.
+## A persistent mode's saved world (WorldSave) comes back on the ground it was dug in.
 func _randomize_terrain_seeds(game_root: Node) -> void:
+	var persistent: bool = bool(ModeCatalog.mode(pending_mode_id).get("persistent", false))
+	if pending_terrain_seed == 0 and persistent:
+		pending_terrain_seed = WorldSave.saved_seed(
+			pending_mode_id, ModeCatalog.map_id_for_scene(_resolved_scene_path)
+		)
 	if pending_terrain_seed != 0:
 		last_terrain_seed = pending_terrain_seed
 		pending_terrain_seed = 0

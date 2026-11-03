@@ -128,6 +128,31 @@ func test_export_and_import_keep_every_voxel_and_material() -> void:
 	assert_eq(copy.material_at(Vector3(0, 3, 0)), TerrainMaterials.Kind.STONE)
 
 
+## What a natural voxel is made of for these tests: stone everywhere.
+func stone_everywhere(_position: Vector3, _density: float) -> TerrainMaterials.Kind:
+	return TerrainMaterials.Kind.STONE
+
+
+func test_a_carve_tallies_what_it_dug_out() -> void:
+	_edits.add_brush(Vector3(0, -3, 0), 1.5, false, _density())
+	var dug: Dictionary = _edits.last_removed
+	assert_true(dug.get(TerrainMaterials.Kind.DIRT, 0) > 0, "untagged ground digs as dirt")
+	assert_eq(_edits.last_added, 0)
+	_edits.add_brush(
+		Vector3(10, -3, 0), 1.5, false, _density(), TerrainMaterials.Kind.NATURAL, stone_everywhere
+	)
+	assert_true(_edits.last_removed.get(TerrainMaterials.Kind.STONE, 0) > 0, "the field decides")
+	assert_false(_edits.last_removed.has(TerrainMaterials.Kind.DIRT))
+
+
+func test_a_fill_counts_the_voxels_it_turns_solid_and_a_placed_block_digs_as_itself() -> void:
+	_edits.add_brush(Vector3(0, 3, 0), 2.0, true, _density(), TerrainMaterials.Kind.CLAY)
+	assert_true(_edits.last_added > 0)
+	assert_true(_edits.last_removed.is_empty())
+	_edits.add_brush(Vector3(0, 3, 0), 2.0, false, _density())
+	assert_true(_edits.last_removed.get(TerrainMaterials.Kind.CLAY, 0) > 0, "clay comes back out")
+
+
 func test_all_bounds_enclose_every_stamp() -> void:
 	assert_eq(_edits.get_all_bounds().size, Vector3.ZERO, "no edits, no bounds")
 	_edits.add_brush(Vector3(0, 3, 0), 2.0, true, _density())
