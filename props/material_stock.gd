@@ -2,7 +2,7 @@ class_name MaterialStock
 extends RefCounted
 ## What a bug has dug and not yet built with, by TerrainMaterials.Kind, and the rules that tie
 ## the stock to the pickaxe: a pickaxe carve pays out what it removed (the map's own ground
-## counts as dirt; a crater blasted by a shot or an asteroid pays nothing), building spends the
+## counts as dirt; a crater blasted by a shot pays nothing), building spends the
 ## stock of the brush's material, and a build the stock cannot cover is refused through the
 ## terrain's edit gate. Hold Out and Burrow share it.
 

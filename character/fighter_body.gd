@@ -3,7 +3,7 @@ extends CharacterBody3D
 ## A bug on the map: the player at this keyboard, a bot, or (later) a remote player. The body
 ## moves, climbs, shoots and animates; what it does each physics frame comes from its
 ## FighterController child as a FighterInput, so one body serves every kind of pilot. The
-## subclasses (GroundPlayer, CelestialBodyPlayer) supply the movement for their world. Everything
+## GroundPlayer subclass supplies the movement. Everything
 ## that belongs to the one human at this machine (HUD, inventory, terrain focus, mouse capture)
 ## only runs when is_local.
 
@@ -148,7 +148,7 @@ func get_view_flat_right() -> Vector3:
 	return forward.cross(get_surface_up()).normalized()
 
 
-## Up of whatever the body stands on (world up, a climbed wall, the celestial body's radial).
+## Up of whatever the body stands on (world up, or a climbed wall).
 func get_surface_up() -> Vector3:
 	return Vector3.UP
 

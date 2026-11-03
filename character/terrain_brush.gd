@@ -406,10 +406,6 @@ func _hide_ghost() -> void:
 func _cache_terrain() -> void:
 	_terrain = null
 	var parent: Node = get_parent()
-	if parent is CelestialBodyPlayer:
-		_terrain = _resolve_chunked_terrain((parent as CelestialBodyPlayer).celestial_body)
-		if _terrain != null:
-			return
 	if parent is BoxedInTerrainPlayer:
 		_terrain = _resolve_chunked_terrain((parent as BoxedInTerrainPlayer).terrain)
 		if _terrain != null:
@@ -484,8 +480,6 @@ func _is_camera_orbiting(player: Node) -> bool:
 
 
 func _is_terrain_focus_active(player: Node) -> bool:
-	if player is CelestialBodyPlayer:
-		return (player as CelestialBodyPlayer).is_terrain_focus_active()
 	if player is BoxedInTerrainPlayer:
 		return (player as BoxedInTerrainPlayer).is_terrain_focus_active()
 	if player is OpenTerrainPlayer:

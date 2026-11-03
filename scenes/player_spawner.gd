@@ -4,16 +4,14 @@ extends Node
 ## builds bodies for everyone else (bots now, remote players later) from the same player scene,
 ## so every fighter on the map is the same kind of body.
 
-enum WorldKind { CELESTIAL_BODY, OPEN_TERRAIN, BOXED_IN_TERRAIN }
+enum WorldKind { OPEN_TERRAIN, BOXED_IN_TERRAIN }
 
 ## Nodes only the local player needs: the camera rig and the terrain editing tools.
 const _LOCAL_ONLY_NODES: Array[String] = ["OrbitCamera", "TerrainBrush"]
 
 @export var world_kind: WorldKind = WorldKind.OPEN_TERRAIN
-@export var celestial_body_path: NodePath = ^"../TerrainWorld"
 @export var terrain_path: NodePath = ^"../TerrainWorld"
 
-@export var celestial_body_player_scene: PackedScene = preload("res://character/player.tscn")
 @export
 var open_terrain_player_scene: PackedScene = preload("res://character/open_terrain_player.tscn")
 @export var boxed_in_terrain_player_scene: PackedScene = preload(
@@ -78,8 +76,6 @@ func create_fighter_body(
 
 func _pick_player_scene() -> PackedScene:
 	match world_kind:
-		WorldKind.CELESTIAL_BODY:
-			return celestial_body_player_scene
 		WorldKind.OPEN_TERRAIN:
 			return open_terrain_player_scene
 		WorldKind.BOXED_IN_TERRAIN:
@@ -88,17 +84,11 @@ func _pick_player_scene() -> PackedScene:
 
 
 func _bind_world_references(player: Node) -> void:
-	match world_kind:
-		WorldKind.CELESTIAL_BODY:
-			var body_node: Node3D = get_node_or_null(celestial_body_path) as Node3D
-			if player is CelestialBodyPlayer:
-				(player as CelestialBodyPlayer).celestial_body = body_node
-		WorldKind.OPEN_TERRAIN, WorldKind.BOXED_IN_TERRAIN:
-			var terrain_node: Node3D = get_node_or_null(terrain_path) as Node3D
-			if player is OpenTerrainPlayer:
-				(player as OpenTerrainPlayer).terrain = terrain_node
-			elif player is BoxedInTerrainPlayer:
-				(player as BoxedInTerrainPlayer).terrain = terrain_node
+	var terrain_node: Node3D = get_node_or_null(terrain_path) as Node3D
+	if player is OpenTerrainPlayer:
+		(player as OpenTerrainPlayer).terrain = terrain_node
+	elif player is BoxedInTerrainPlayer:
+		(player as BoxedInTerrainPlayer).terrain = terrain_node
 
 
 func _wait_for_world_ready() -> void:

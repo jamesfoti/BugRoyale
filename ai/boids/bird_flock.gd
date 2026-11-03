@@ -59,7 +59,7 @@ var drone_scene: PackedScene = preload("res://character/wasp/models/yellowjacket
 @export var attack_weight: float = 2.4
 @export var obstacle_weight: float = 2.5
 
-## Set by game modes so the flock flies correctly on any map (celestial body up, terrarium glass).
+## Set by game modes so the flock flies correctly on any map (terrarium glass, crawlspace joists).
 var map: MapInfo
 ## Solid boxes (world space) the flock steers around and is pushed out of: the crawlspace's
 ## ducts, furnace and piers. Set by game modes from the map's DuctNetwork.
@@ -444,7 +444,7 @@ func _compute_height_steering(position: Vector3, altitude: float) -> Vector3:
 	return Vector3.ZERO
 
 
-## Up at a point: the map's (radial on the celestial body), else world up.
+## Up at a point: the map's, else world up.
 func _up(position: Vector3) -> Vector3:
 	return map.up_at(position) if map != null else Vector3.UP
 

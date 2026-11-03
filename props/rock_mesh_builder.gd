@@ -1,6 +1,7 @@
-class_name AsteroidMeshBuilder
+class_name RockMeshBuilder
 extends RefCounted
-## Builds a noisy icosphere mesh and matching convex collision shape.
+## Builds a noisy icosphere mesh and matching convex collision shape: the rocks, debris and
+## leaf blobs the maps are dressed with.
 
 const _ICO_INDICES: Array[int] = [
 	0,

@@ -343,16 +343,9 @@ func _update_body_debug_labels() -> void:
 		]
 	)
 	_chunk_size.text = "Chunk size: %.1f" % chunk_extent
-	if terrain_world is CelestialBody:
-		var celestial_body: CelestialBody = terrain_world as CelestialBody
-		var body_radius: float = celestial_body.get_sphere_radius()
-		_body_size.text = (
-			"Body size: %.1f radius (%.1f diameter)" % [body_radius, body_radius * 2.0]
-		)
-	else:
-		_body_size.text = (
-			"World size: %.0f × %.0f × %.0f" % [world_extents.x, world_extents.y, world_extents.z]
-		)
+	_body_size.text = (
+		"World size: %.0f × %.0f × %.0f" % [world_extents.x, world_extents.y, world_extents.z]
+	)
 	_vertex_count.text = (
 		"Mesh: %s verts / %s tris (edited voxels: %s)"
 		% [_format_count(vertex_count), _format_count(triangle_count), _format_count(edited_voxels)]

@@ -1,7 +1,7 @@
 @tool
 class_name ChunkedTerrainWorld
 extends Node3D
-## Shared chunked voxel terrain orchestration for celestial bodies and flat worlds.
+## Shared chunked voxel terrain orchestration for the open and boxed-in worlds.
 
 ## A brush changed the terrain at a world position (only emitted when voxels actually changed).
 signal brush_applied(world_position: Vector3, radius: float)
@@ -83,20 +83,6 @@ const CAPSULE_SAMPLES: int = 6
 		_request_rebuild()
 @export var terrain_material: Material
 
-@export_group("Bounds")
-@export var bounds_falloff_enabled: bool = true:
-	set(value):
-		bounds_falloff_enabled = value
-		_request_rebuild()
-@export var bounds_falloff_distance: float = 8.0:
-	set(value):
-		bounds_falloff_distance = maxf(value, 0.0)
-		_request_rebuild()
-@export var bounds_falloff_strength: float = 5.0:
-	set(value):
-		bounds_falloff_strength = maxf(value, 0.0)
-		_request_rebuild()
-
 @export_group("Runtime")
 @export var is_playable_world: bool = true
 @export var rebuild_on_ready: bool = true
@@ -127,7 +113,6 @@ var _async_rebuild_requested: bool = false
 var _async_jobs: Dictionary = {}
 var _running_async_tasks: int = 0
 var _inflight_chunk_coordinates: Dictionary = {}
-var _runtime_shader_material: ShaderMaterial
 
 
 func _ready() -> void:
@@ -137,13 +122,6 @@ func _ready() -> void:
 		_register_playable_groups()
 	if rebuild_on_ready and not Engine.is_editor_hint():
 		call_deferred("rebuild_all")
-	elif terrain_material != null:
-		_refresh_shader_material_uniforms()
-
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_TRANSFORM_CHANGED and _runtime_shader_material != null:
-		_sync_terrain_shader_uniforms(_runtime_shader_material)
 
 
 func _process(_delta: float) -> void:
@@ -617,9 +595,6 @@ func _make_settings_snapshot() -> SettingsSnapshot:
 	settings.material = _effective_material()
 	settings.bounds_center = global_position
 	settings.bounds_half = get_world_extents() * 0.5
-	settings.bounds_falloff_enabled = bounds_falloff_enabled
-	settings.bounds_falloff_distance = bounds_falloff_distance
-	settings.bounds_falloff_strength = bounds_falloff_strength
 	settings.terrain_edits = _edits
 	settings.rebuild_collision = settings.generate_collision
 	_apply_world_specific_settings(settings)
@@ -759,9 +734,6 @@ func _make_thread_settings_snapshot() -> SettingsSnapshot:
 
 func _build_world_density(settings: SettingsSnapshot) -> DensitySampler.WorldDensity:
 	return DensitySampler.WorldDensity.create(
-		settings.sphere_enabled,
-		settings.bounds_center + settings.sphere_center,
-		settings.sphere_radius,
 		settings.noise_enabled,
 		settings.noise_seed,
 		settings.noise_frequency,
@@ -771,9 +743,6 @@ func _build_world_density(settings: SettingsSnapshot) -> DensitySampler.WorldDen
 		settings.noise_gain,
 		settings.bounds_center,
 		settings.bounds_half,
-		settings.bounds_falloff_enabled,
-		settings.bounds_falloff_distance,
-		settings.bounds_falloff_strength,
 		settings.bounds_clip_inset
 	)
 
@@ -840,25 +809,7 @@ func _chunk_corner_local(chunk_coordinate: Vector3i, settings: SettingsSnapshot)
 
 
 func _effective_material() -> Material:
-	return _refresh_shader_material_uniforms()
-
-
-func _refresh_shader_material_uniforms() -> Material:
-	if terrain_material == null:
-		return null
-	var source: ShaderMaterial = terrain_material as ShaderMaterial
-	if source == null or source.shader == null:
-		return terrain_material
-	if source.shader.resource_path != "res://shaders/terrain_spherical.gdshader":
-		return terrain_material
-	if _runtime_shader_material == null:
-		_runtime_shader_material = source.duplicate() as ShaderMaterial
-	_sync_terrain_shader_uniforms(_runtime_shader_material)
-	return _runtime_shader_material
-
-
-func _sync_terrain_shader_uniforms(_material: Material) -> void:
-	pass
+	return terrain_material
 
 
 func _register_editor_scene_node(node: Node) -> void:
@@ -885,10 +836,6 @@ class SettingsSnapshot:
 	var voxel_size: float = 1.0
 	var iso_level: float = 0.0
 	var world_origin: Vector3 = Vector3.ZERO
-	var sphere_enabled: bool = true
-	var sphere_center: Vector3 = Vector3.ZERO
-	var sphere_radius: float = 18.0
-	var body_radius_chunks: float = 1.5
 	var chunk_world_size: float = 12.0
 	var chunk_resolution: int = 1
 	var noise_enabled: bool = true
@@ -903,15 +850,7 @@ class SettingsSnapshot:
 	var material: Material = null
 	var bounds_center: Vector3 = Vector3.ZERO
 	var bounds_half: Vector3 = Vector3.ZERO
-	var bounds_falloff_enabled: bool = true
-	var bounds_falloff_distance: float = 8.0
-	var bounds_falloff_strength: float = 5.0
 	var bounds_clip_inset: float = 0.5
-	var body_features_enabled: bool = false
-	var body_ravines_enabled: bool = true
-	var body_caves_enabled: bool = true
-	var body_ravine_depth: float = 12.0
-	var body_ravine_width: float = 0.08
 	var boxed_in_terrain_enabled: bool = false
 	var boxed_in_edges_enabled: bool = true
 	var open_terrain_enabled: bool = false

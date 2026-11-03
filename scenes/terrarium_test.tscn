@@ -38,7 +38,7 @@ terrarium_noise_seed = 54
 
 [node name="PlayerSpawner" type="Node" parent="."]
 script = ExtResource("6")
-world_kind = 2
+world_kind = 1
 terrain_path = NodePath("../TerrariumRoom")
 
 [node name="HUD" type="CanvasLayer" parent="."]

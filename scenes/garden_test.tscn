@@ -25,7 +25,6 @@ noise_seed = 21
 noise_frequency = 0.008
 noise_amplitude = 1.6
 terrain_material = ExtResource("2")
-bounds_falloff_enabled = false
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("4")

@@ -18,7 +18,6 @@ func _request_rebuild() -> void:
 
 func _apply_defaults_without_rebuild() -> void:
 	is_playable_world = false
-	bounds_falloff_enabled = false
 	boxed_edges_enabled = true
 	chunk_resolution = 1
 	use_threaded_rebuild = true
@@ -80,7 +79,6 @@ static func create_configured(
 	terrain.chunk_size = grid_config.chunk_size
 	terrain.voxel_size = grid_config.voxel_size
 	terrain.chunk_resolution = 1
-	terrain.bounds_falloff_enabled = false
 	terrain.boxed_edges_enabled = boxed_edges_enabled
 	terrain.heightmap = heightmap
 	terrain.surface_height_offset = surface_height_offset

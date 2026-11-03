@@ -14,9 +14,6 @@ var move: Vector2 = Vector2.ZERO
 ## wants) and the matching up; the body flattens both onto the surface it stands on.
 var view_forward: Vector3 = Vector3.FORWARD
 var view_up: Vector3 = Vector3.UP
-## Radians to turn the body about its up this frame (the mouse on the celestial body, where the
-## body itself yaws; the flat worlds turn the camera instead and leave this zero).
-var yaw_delta: float = 0.0
 var run: bool = false
 ## Edge: pressed this frame. Jump on the ground, take off in the air (flyers), rise while flying.
 var jump_pressed: bool = false

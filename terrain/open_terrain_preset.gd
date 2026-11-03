@@ -22,4 +22,3 @@ static func apply_to(terrain: OpenTerrain) -> void:
 	terrain.noise_gain = NOISE_GAIN
 	terrain.surface_height_offset = SURFACE_HEIGHT_OFFSET
 	terrain.boxed_edges_enabled = BOXED_EDGES_ENABLED
-	terrain.bounds_falloff_enabled = false

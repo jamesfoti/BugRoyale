@@ -1247,7 +1247,7 @@ func _build_debris() -> void:
 	var debris := Node3D.new()
 	debris.name = "Debris"
 	add_child(debris)
-	var rock: Dictionary = AsteroidMeshBuilder.build(_seed, 1.0, 1, 0.35)
+	var rock: Dictionary = RockMeshBuilder.build(_seed, 1.0, 1, 0.35)
 	var rock_mesh: Mesh = rock["mesh"]
 	for _rock: int in rock_count:
 		var size: float = _rng.randf_range(0.015, 0.08) * _s

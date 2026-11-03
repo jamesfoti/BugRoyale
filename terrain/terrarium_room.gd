@@ -536,7 +536,6 @@ func _apply_terrarium_terrain_settings(terrain: TerrariumTerrain) -> void:
 	terrain.chunk_size = grid_config.chunk_size
 	terrain.voxel_size = grid_config.voxel_size
 	terrain.chunk_resolution = 1
-	terrain.bounds_falloff_enabled = false
 	terrain.use_threaded_rebuild = true
 	terrain.is_playable_world = false
 	terrain.noise_enabled = true

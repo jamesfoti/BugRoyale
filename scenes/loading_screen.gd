@@ -9,7 +9,7 @@ enum PlayerCharacter {
 	TRAPDOOR_SPIDER,
 }
 
-const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/celestial_body_test.tscn"
+const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/garden_test.tscn"
 
 static var pending_scene_path: String = ""
 ## Game mode to start on the next loaded map (see ModeCatalog); empty = free roam.

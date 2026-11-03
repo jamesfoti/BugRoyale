@@ -179,13 +179,7 @@ func _lay_lawn() -> void:
 	var terrain: OpenTerrain = get_node_or_null(terrain_path) as OpenTerrain
 	if terrain == null or lawn_material == null:
 		return
-	var current: ShaderMaterial = terrain.terrain_material as ShaderMaterial
-	var planet: bool = (
-		current != null
-		and current.shader != null
-		and current.shader.resource_path == "res://shaders/terrain_spherical.gdshader"
-	)
-	if terrain.terrain_material == null or planet:
+	if terrain.terrain_material == null:
 		terrain.terrain_material = lawn_material
 
 

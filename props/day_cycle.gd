@@ -37,8 +37,6 @@ var time: float = DAY_SECONDS * 0.25
 var running: bool = true
 
 var _sun: DirectionalLight3D
-## A sun that is a body in the sky (the celestial map's) keeps its aim and only dims.
-var _sun_rotates: bool = true
 var _sun_energy: float = 1.0
 var _sun_color: Color = Color.WHITE
 var _sun_east: Vector3 = Vector3.RIGHT
@@ -141,7 +139,6 @@ func attach(scene_root: Node) -> void:
 		if _sun == null or light.get_parent() == scene_root:
 			_sun = light
 	if _sun != null:
-		_sun_rotates = not (_sun.get_parent() is SunBody)
 		_sun_energy = _sun.light_energy
 		_sun_color = _sun.light_color
 		var toward_sun: Vector3 = _sun.global_basis.z
@@ -173,15 +170,10 @@ func _apply() -> void:
 	if _sun != null and is_instance_valid(_sun):
 		var sun_up: float = clampf(sun_direction.y / HORIZON_FADE, 0.0, 1.0)
 		var moon_up: float = clampf(-sun_direction.y / HORIZON_FADE, 0.0, 1.0)
-		if _sun_rotates:
-			var toward: Vector3 = sun_direction if sun_direction.y >= 0.0 else -sun_direction
-			_sun.look_at(_sun.global_position - toward, Vector3.UP)
-			_sun.light_energy = _sun_energy * sun_up + MOON_ENERGY * moon_up
-			_sun.light_color = _sun_color.lerp(MOON_COLOR, moon_up)
-		else:
-			_sun.light_energy = (
-				_sun_energy * lerpf(MOON_ENERGY / maxf(_sun_energy, 0.01), 1.0, light)
-			)
+		var toward: Vector3 = sun_direction if sun_direction.y >= 0.0 else -sun_direction
+		_sun.look_at(_sun.global_position - toward, Vector3.UP)
+		_sun.light_energy = _sun_energy * sun_up + MOON_ENERGY * moon_up
+		_sun.light_color = _sun_color.lerp(MOON_COLOR, moon_up)
 	if _environment != null:
 		_environment.ambient_light_energy = _ambient_energy * lerpf(NIGHT_AMBIENT, 1.0, light)
 		if _environment.background_mode == Environment.BG_COLOR:

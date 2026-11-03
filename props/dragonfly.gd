@@ -3,8 +3,8 @@ extends Node3D
 ## The squad's transport in Forage: a dragonfly the size of a bus that flies in from the edge of
 ## the map, hovers over a landing zone while bugs drop off or climb aboard, and flies out again.
 ## It has no physics. It follows the ground at a set height and stays under any lid or ceiling,
-## so it works on every map: radial up on the celestial body, under the terrarium glass, beneath
-## a crawlspace's joists. The model is built from primitives here; the wings beat in _process.
+## so it works on every map: out in the open garden, under the terrarium glass, beneath a
+## crawlspace's joists. The model is built from primitives here; the wings beat in _process.
 
 ## On station over the landing zone (hovering).
 signal arrived
@@ -136,8 +136,6 @@ func _at_height(point: Vector3, height: float) -> Vector3:
 ## The height to fly at over a point: the wanted one, lowered to fit under a terrarium lid or a
 ## crawlspace ceiling.
 func _allowed_height(point: Vector3, height: float) -> float:
-	if map.kind == MapInfo.Kind.CELESTIAL_BODY:
-		return height
 	var ground_y: float = point.y - map.altitude(point)
 	var room: float = map.bounds.end.y - 1.5 - ground_y
 	if map.ceiling_y < INF:

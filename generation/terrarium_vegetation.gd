@@ -378,7 +378,7 @@ func _add_mushroom_collision(transform: Transform3D, built: Dictionary, scale: V
 
 ## Slate rocks: noisy icospheres, flattened and half-buried, with convex collision.
 func _grow_rocks(count: int) -> void:
-	var rock: Dictionary = AsteroidMeshBuilder.build(_rng.randi(), 1.0, 2, 0.3)
+	var rock: Dictionary = RockMeshBuilder.build(_rng.randi(), 1.0, 2, 0.3)
 	var rock_mesh: ArrayMesh = rock["mesh"] as ArrayMesh
 	var rock_points: PackedVector3Array = (rock["shape"] as ConvexPolygonShape3D).points
 	var patch: Patch = _patch(&"Rocks", rock_mesh, _make_material(false, ROCK_COLOR), true)
@@ -838,7 +838,7 @@ func _make_nerve_plant_mesh() -> ArrayMesh:
 
 ## Leaf cluster: a lumpy sphere, a little brighter on top.
 func _make_canopy_mesh() -> ArrayMesh:
-	var blob: ArrayMesh = AsteroidMeshBuilder.build(5, 1.0, 1, 0.28)["mesh"] as ArrayMesh
+	var blob: ArrayMesh = RockMeshBuilder.build(5, 1.0, 1, 0.28)["mesh"] as ArrayMesh
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var arrays: Array = blob.surface_get_arrays(0)

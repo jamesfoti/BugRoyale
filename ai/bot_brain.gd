@@ -50,12 +50,8 @@ var weapon: Dictionary = {}
 
 var _body: FighterBody
 var _damageable: Damageable
-## The celestial body's controller only moves along its view, so a bot there cannot strafe
-## while facing a target; it turns toward wherever it is going instead.
-var _can_strafe: bool = true
 var _target: Node3D
-## Whether the current target was visible at the last check (hills, or the celestial body's curve,
-## hide it).
+## Whether the current target was visible at the last check (hills hide it).
 var _target_in_sight: bool = false
 var _retarget_timer: float = 0.0
 var _reaction_timer: float = 0.0
@@ -80,7 +76,6 @@ var _strafe_timer: float = 0.0
 func _ready() -> void:
 	_body = get_parent() as FighterBody
 	_damageable = get_parent().get_node_or_null("Damageable") as Damageable
-	_can_strafe = not (_body is CelestialBodyPlayer)
 	_strafe_sign = 1.0 if randf() < 0.5 else -1.0
 	# Spread the bots' target searches (and sight rays) over the frames, not all on one.
 	_retarget_timer = randf() * _RETARGET_SECONDS
@@ -153,9 +148,8 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 	var planar: Vector3 = to_goal.slide(up)
 	var move_direction: Vector3 = Vector3.ZERO
 	if to_goal.length() > 0.6:
-		# Walk along the ground toward the goal. On the celestial body a goal far around the curve
-		# projects to a tiny (or zero, if straight through) ground vector, so only its direction is
-		# used.
+		# Walk along the ground toward the goal (a goal straight overhead or underfoot projects
+		# to nothing on the ground, so any direction does).
 		if planar.length_squared() < 0.0001:
 			planar = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
 		move_direction = planar.normalized()
@@ -165,7 +159,7 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 	# Facing: the target when there is one, else the way the legs go. With a target the body
 	# squares up to it (aiming) and the legs strafe relative to that view.
 	var facing: Vector3 = move_direction
-	if _target != null and _can_strafe:
+	if _target != null:
 		facing = (_target.global_position - position_now).slide(up)
 	if facing.length_squared() < 0.0001:
 		facing = (-body.global_basis.z).slide(up)
@@ -176,9 +170,7 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 	if move_direction != Vector3.ZERO:
 		var right: Vector3 = facing.cross(up).normalized()
 		input.move = Vector2(move_direction.dot(right), move_direction.dot(facing))
-		if not _can_strafe:
-			input.move = Vector2(0.0, 1.0)
-	input.aiming = _target != null and _can_strafe
+	input.aiming = _target != null
 	input.run = (
 		runs_to_keep_up
 		and leader != null

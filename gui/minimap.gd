@@ -9,7 +9,7 @@ extends Control
 const SIZE_PX: float = 200.0
 const MARGIN_PX: float = 16.0
 const RENDER_PX: int = 256
-## Metres from the centre of the map to its rim (smaller on a tiny celestial body).
+## Metres from the centre of the map to its rim.
 const VIEW_RADIUS: float = 45.0
 const CAMERA_HEIGHT: float = 30.0
 ## The map re-renders every this many frames (markers update every frame).
@@ -87,9 +87,6 @@ func _ready() -> void:
 	offset_right = MARGIN_PX + SIZE_PX
 	offset_top = -(MARGIN_PX + SIZE_PX)
 	offset_bottom = -MARGIN_PX
-	if map != null and map.kind == MapInfo.Kind.CELESTIAL_BODY:
-		_view_radius = minf(VIEW_RADIUS, map.body_radius * 0.9)
-		_camera_height = minf(CAMERA_HEIGHT, map.body_radius * 0.6)
 	_player_health = player.get_node_or_null("Damageable") as Damageable
 	_build_viewport()
 	_build_frame()

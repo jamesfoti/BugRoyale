@@ -49,7 +49,6 @@ static func build_chunk_into(
 		chunk_coordinate.y * cells_per_axis,
 		chunk_coordinate.z * cells_per_axis
 	)
-	var sphere_world: Vector3 = settings.bounds_center + settings.sphere_center
 	var density: DensitySampler.WorldDensity
 	if settings.density_factory.is_valid():
 		density = settings.density_factory.call(settings)
@@ -81,29 +80,8 @@ static func build_chunk_into(
 			settings.bounds_clip_inset,
 			settings.boxed_in_edges_enabled
 		)
-	elif settings.body_features_enabled and settings.sphere_enabled:
-		density = DensitySampler.create_celestial_body_world_density(
-			sphere_world,
-			settings.sphere_radius,
-			settings.noise_seed,
-			-1.0,
-			-1.0,
-			settings.body_ravines_enabled,
-			settings.body_caves_enabled,
-			settings.bounds_center,
-			settings.bounds_half,
-			settings.bounds_falloff_enabled,
-			settings.bounds_falloff_distance,
-			settings.bounds_falloff_strength,
-			settings.bounds_clip_inset,
-			settings.body_ravine_depth,
-			settings.body_ravine_width
-		)
 	else:
 		density = DensitySampler.WorldDensity.create(
-			settings.sphere_enabled,
-			sphere_world,
-			settings.sphere_radius,
 			settings.noise_enabled,
 			settings.noise_seed,
 			settings.noise_frequency,
@@ -113,9 +91,6 @@ static func build_chunk_into(
 			settings.noise_gain,
 			settings.bounds_center,
 			settings.bounds_half,
-			settings.bounds_falloff_enabled,
-			settings.bounds_falloff_distance,
-			settings.bounds_falloff_strength,
 			settings.bounds_clip_inset
 		)
 	if settings.terrain_edits != null:

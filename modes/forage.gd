@@ -329,10 +329,6 @@ func _sky_edge(from: Vector3) -> Vector3:
 	var up: Vector3 = map.up_at(from)
 	var direction: Vector3 = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
 	direction = direction.rotated(up, randf_range(0.0, TAU)).normalized()
-	if map.kind == MapInfo.Kind.CELESTIAL_BODY:
-		var radial: Vector3 = (from - map.body_center).normalized()
-		var axis: Vector3 = radial.cross(direction).normalized()
-		return map.body_center + radial.rotated(axis, deg_to_rad(55.0)) * map.body_radius
 	var edge: Vector3 = map.clamp_to_bounds(from + direction * 1000.0)
 	if edge.distance_to(from) > APPROACH_DISTANCE:
 		edge = from + direction * APPROACH_DISTANCE

@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://1fmftq3yquba"]
 
 [ext_resource type="Script" uid="uid://do1tr4hqftqvo" path="res://terrain/boxed_in_terrain.gd" id="1"]
-[ext_resource type="Material" uid="uid://ct8q5pbs54ajt" path="res://materials/terrain_procedural.tres" id="2"]
+[ext_resource type="Material" path="res://materials/terrain_default.tres" id="2"]
 [ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="3"]
-[ext_resource type="Environment" uid="uid://c8gcug836onl0" path="res://materials/terrain_env.tres" id="4"]
+[ext_resource type="Environment" uid="uid://brcqpo8f7y5it" path="res://materials/battlefield_env.tres" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="6"]
 [ext_resource type="PackedScene" uid="uid://dnitu1aqqnorc" path="res://gui/player_item_menu.tscn" id="7"]
 [ext_resource type="Script" uid="uid://c6nhltrtsmske" path="res://scenes/player_spawner.gd" id="8"]
@@ -25,11 +25,10 @@ noise_frequency = 0.035
 noise_amplitude = 5.0
 noise_octaves = 4
 terrain_material = ExtResource("2")
-bounds_falloff_enabled = false
 
 [node name="PlayerSpawner" type="Node" parent="." unique_id=570467298]
 script = ExtResource("8")
-world_kind = 2
+world_kind = 1
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=292727690]
 script = ExtResource("3")

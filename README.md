@@ -17,11 +17,11 @@ Play
 ----
 
 - **Bugs:** Ant Warrior, Termite Soldier, Wasp (flies), Trapdoor Spider.
-- **Maps:** Celestial Body, Terrarium, Crawlspace, Backyard Garden. The garden, the
-  crawlspace and the terrarium are the same size (512 m across, three chunks deep), and
-  every match's seed carves a new underworld into them (CaveCarver): worm tunnels from a few
-  metres down, caverns from twenty, a few sinkholes open to the sky, and bedrock at the
-  bottom. The terrarium is a 5 m tank on a coffee table in a room scaled to match.
+- **Maps:** Backyard Garden, Crawlspace, Terrarium. All three are the same size (512 m
+  across, three chunks deep), and every match's seed carves a new underworld into them
+  (CaveCarver): worm tunnels from a few metres down, caverns from twenty, a few sinkholes
+  open to the sky, and bedrock at the bottom. The terrarium is a 5 m tank on a coffee
+  table in a room scaled to match.
 - **Three modes on the menu.** Burrow (survival as the colony's soldier: four workers carry
   the queen and follow you, you pick the ground and give the word, they dig her chamber;
   then dig by day, build with what you carve, hold the burrow after dark, and keep the queen
@@ -208,7 +208,7 @@ one match per mode, or run a single combination yourself:
 godot --headless --path . res://tools/smoke_test.tscn -- map=crawlspace mode=cordyceps_royale frames=1800
 ```
 
-Map ids: `battlefield`, `celestial_body`, `terrarium`, `crawlspace`.
+Map ids: `battlefield`, `terrarium`, `crawlspace`.
 Mode ids:
 `hold_out`, `forage`, `slayer`, `capture_the_egg`, `king_of_the_anthill`, `cordyceps_royale`,
 `burrow`. Competitive modes take

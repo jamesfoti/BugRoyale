@@ -12,7 +12,7 @@ const GROUP: StringName = &"forage_material"
 const PICKUP_RADIUS: float = 1.1
 
 var kind: Kind = Kind.CRUMB
-## Up at this spot (radial on the celestial body), for the bob and the spin.
+## Up at this spot, for the bob and the spin.
 var up: Vector3 = Vector3.UP
 
 var _mesh: MeshInstance3D

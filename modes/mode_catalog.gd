@@ -7,8 +7,6 @@ extends RefCounted
 const MAPS: Dictionary = {
 	"battlefield":
 	{"name": "Backyard Garden", "scene": "res://scenes/garden_test.tscn", "size": "large"},
-	"celestial_body":
-	{"name": "Celestial Body", "scene": "res://scenes/celestial_body_test.tscn", "size": "small"},
 	"terrarium":
 	{"name": "Terrarium", "scene": "res://scenes/terrarium_test.tscn", "size": "large"},
 	"crawlspace":
@@ -29,7 +27,7 @@ const FORMATS: Dictionary = {
 	{"name": "Big Colony", "short": "24v24", "teams": 2, "team_size": 24, "map_size": "large"},
 }
 
-const ALL_MAPS: Array = ["battlefield", "celestial_body", "terrarium", "crawlspace"]
+const ALL_MAPS: Array = ["battlefield", "terrarium", "crawlspace"]
 const TEAM_FORMATS: Array = ["skirmish", "colony", "big_colony"]
 const EVERY_FORMAT: Array = ["solo", "skirmish", "colony", "big_colony"]
 

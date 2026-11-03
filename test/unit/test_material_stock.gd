@@ -37,7 +37,7 @@ func test_a_carve_pays_out_what_it_removed() -> void:
 
 func test_a_blast_pays_nothing() -> void:
 	_stock.on_edit_applied({"add": false, "removed": {TerrainMaterials.Kind.DIRT: 7}})
-	assert_eq(_stock.count(TerrainMaterials.Kind.DIRT), 0, "no tool: a shot or an asteroid")
+	assert_eq(_stock.count(TerrainMaterials.Kind.DIRT), 0, "no tool: a shot")
 	assert_signal_not_emitted(_stock, "changed")
 
 
