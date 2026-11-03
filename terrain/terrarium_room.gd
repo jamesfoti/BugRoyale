@@ -97,6 +97,13 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.
 			value, TerrariumBudget.MIN_CHUNK_SIZE, TerrariumBudget.MAX_CHUNK_SIZE
 		)
 		_request_rebuild()
+## Metres per voxel of the terrarium's terrain (the crawlspace digs at 2 m).
+@export_range(0.25, 8.0, 0.25, "suffix:m") var terrarium_voxel_size: float = 1.0:
+	set(value):
+		terrarium_voxel_size = clampf(
+			value, TerrariumBudget.MIN_VOXEL_SIZE, TerrariumBudget.MAX_VOXEL_SIZE
+		)
+		_request_rebuild()
 
 @export_subgroup("Terrain")
 @export var terrarium_material: Material
@@ -116,6 +123,17 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.
 @export var terrarium_boxed_edges_enabled: bool = OpenTerrainPreset.BOXED_EDGES_ENABLED:
 	set(value):
 		terrarium_boxed_edges_enabled = value
+		_request_rebuild()
+## Solid ground under the surface (the crawlspace's), instead of 3D cave noise: builds in
+## half the time on a big grid, and the seeded underworld can be carved out of it.
+@export var terrarium_solid_underside: bool = false:
+	set(value):
+		terrarium_solid_underside = value
+		_request_rebuild()
+## Carves the seeded underworld (tunnels, caverns, sinkholes, bedrock) out of a solid underside.
+@export var terrarium_caves_enabled: bool = false:
+	set(value):
+		terrarium_caves_enabled = value
 		_request_rebuild()
 @export var terrarium_noise_amplitude: float = OpenTerrainPreset.NOISE_AMPLITUDE:
 	set(value):
@@ -213,7 +231,10 @@ func get_bowl_center() -> Vector3:
 	if _glass_box_root != null:
 		return (
 			_glass_box_root.global_position
-			+ Vector3.UP * TerrariumBudget.get_terrain_floor_offset(get_terrarium_world_size())
+			+ (
+				Vector3.UP
+				* TerrariumBudget.get_terrain_floor_offset(get_terrarium_world_size(), _bowl_radius)
+			)
 		)
 	return global_position
 
@@ -286,7 +307,9 @@ func get_terrarium_chunks() -> Vector3i:
 
 
 func get_terrarium_grid_config() -> TerrariumBudget.GridConfig:
-	return TerrariumBudget.derive_grid_from_chunks(get_terrarium_chunks(), terrarium_chunk_size)
+	return TerrariumBudget.derive_grid_from_chunks(
+		get_terrarium_chunks(), terrarium_chunk_size, terrarium_voxel_size
+	)
 
 
 func get_terrarium_world_size() -> Vector3:
@@ -545,9 +568,10 @@ func _apply_terrarium_terrain_settings(terrain: TerrariumTerrain) -> void:
 	terrain.chunks_y = grid_config.chunks.y
 	terrain.chunks_z = grid_config.chunks.z
 	terrain.chunk_size = grid_config.chunk_size
+	terrain.voxel_size = grid_config.voxel_size
 	terrain.chunk_resolution = 1
 	terrain.bounds_falloff_enabled = false
-	terrain.use_threaded_rebuild = false
+	terrain.use_threaded_rebuild = true
 	terrain.is_playable_world = false
 	terrain.noise_enabled = true
 	terrain.noise_seed = terrarium_noise_seed
@@ -559,6 +583,8 @@ func _apply_terrarium_terrain_settings(terrain: TerrariumTerrain) -> void:
 	terrain.surface_height_offset = terrarium_surface_height_offset
 	terrain.heightmap = terrarium_heightmap
 	terrain.boxed_edges_enabled = terrarium_boxed_edges_enabled
+	terrain.solid_underside = terrarium_solid_underside
+	terrain.caves_enabled = terrarium_caves_enabled
 	var material: Material = terrarium_material
 	if material == null and ResourceLoader.exists(DEFAULT_TERRAIN_MATERIAL_PATH):
 		material = load(DEFAULT_TERRAIN_MATERIAL_PATH) as Material
@@ -587,6 +613,8 @@ func _ensure_export_defaults() -> void:
 		terrarium_noise_gain = OpenTerrainPreset.NOISE_GAIN
 	if get("terrarium_noise_seed") == null:
 		terrarium_noise_seed = OpenTerrainPreset.NOISE_SEED
+	if get("terrarium_voxel_size") == null:
+		terrarium_voxel_size = TerrariumBudget.DEFAULT_VOXEL_SIZE
 	if get("glass_box_size") == null:
 		glass_box_size = Vector3(1.5, 1.5, 1.5)
 	if get("room_scale") == null:

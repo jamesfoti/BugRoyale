@@ -10,8 +10,8 @@ const MAPS: Dictionary = {
 	"celestial_body":
 	{"name": "Celestial Body", "scene": "res://scenes/celestial_body_test.tscn", "size": "small"},
 	"terrarium":
-	{"name": "Terrarium", "scene": "res://scenes/terrarium_test.tscn", "size": "small"},
-	"fishbowl": {"name": "Fish Bowl", "scene": "res://scenes/fishbowl_test.tscn", "size": "small"},
+	{"name": "Terrarium", "scene": "res://scenes/terrarium_test.tscn", "size": "large"},
+	"fishbowl": {"name": "Fish Bowl", "scene": "res://scenes/fishbowl_test.tscn", "size": "large"},
 	"crawlspace":
 	{"name": "Crawlspace", "scene": "res://scenes/crawlspace_test.tscn", "size": "large"},
 }

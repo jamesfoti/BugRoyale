@@ -6,13 +6,18 @@ const MIN_CHUNKS_PER_AXIS: int = 1
 const MAX_CHUNKS_PER_AXIS: int = 16
 const MIN_CHUNK_SIZE: float = 1.0
 const MAX_CHUNK_SIZE: float = 64.0
+const MIN_VOXEL_SIZE: float = 0.25
+const MAX_VOXEL_SIZE: float = 8.0
 const GLASS_WALL_INSET: float = 0.05
 const GLASS_HEADROOM: float = 0.3
 const DEFAULT_CHUNKS: Vector3i = Vector3i(1, 1, 1)
 const DEFAULT_CHUNK_SIZE: float = 5.0
+const DEFAULT_VOXEL_SIZE: float = 1.0
 
 
-static func derive_grid_from_chunks(chunks: Vector3i, chunk_size_requested: float) -> GridConfig:
+static func derive_grid_from_chunks(
+	chunks: Vector3i, chunk_size_requested: float, voxel_size_requested: float = DEFAULT_VOXEL_SIZE
+) -> GridConfig:
 	var config := GridConfig.new()
 	var safe_chunks := Vector3i(
 		clampi(chunks.x, MIN_CHUNKS_PER_AXIS, MAX_CHUNKS_PER_AXIS),
@@ -20,15 +25,17 @@ static func derive_grid_from_chunks(chunks: Vector3i, chunk_size_requested: floa
 		clampi(chunks.z, MIN_CHUNKS_PER_AXIS, MAX_CHUNKS_PER_AXIS)
 	)
 	var safe_chunk_size: float = clampf(chunk_size_requested, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE)
+	var safe_voxel_size: float = clampf(voxel_size_requested, MIN_VOXEL_SIZE, MAX_VOXEL_SIZE)
 	config.chunks = safe_chunks
 	config.chunk_size = safe_chunk_size
+	config.voxel_size = safe_voxel_size
 	config.world_size = Vector3(
 		safe_chunk_size * float(safe_chunks.x),
 		safe_chunk_size * float(safe_chunks.y),
 		safe_chunk_size * float(safe_chunks.z)
 	)
 	config.total_chunks = safe_chunks.x * safe_chunks.y * safe_chunks.z
-	var cells_per_axis: int = maxi(1, int(round(safe_chunk_size)))
+	var cells_per_axis: int = maxi(1, int(round(safe_chunk_size / safe_voxel_size)))
 	config.total_voxels = config.total_chunks * cells_per_axis * cells_per_axis * cells_per_axis
 	return config
 
@@ -41,13 +48,26 @@ static func derive_glass_box_size(terrarium_world_size: Vector3) -> Vector3:
 	)
 
 
-static func get_terrain_floor_offset(world_size: Vector3) -> float:
+## Sphere radius of a fish bowl around a terrain grid: half the grid's footprint, so the
+## ground (at the grid's centre height) runs the bowl's full width at its equator. A grid
+## thinner than it is wide is a band of ground through the middle of the sphere.
+static func derive_bowl_radius(terrarium_world_size: Vector3) -> float:
+	return minf(terrarium_world_size.x, terrarium_world_size.z) * 0.5
+
+
+## Height of the terrain grid's centre above the floor it stands on: half the grid's height
+## for a box, the sphere's radius for a bowl (the bowl rests on the floor, the ground sits at
+## its equator).
+static func get_terrain_floor_offset(world_size: Vector3, bowl_radius: float = 0.0) -> float:
+	if bowl_radius > 0.0:
+		return bowl_radius
 	return world_size.y * 0.5
 
 
 class GridConfig:
 	var chunks: Vector3i = DEFAULT_CHUNKS
 	var chunk_size: float = DEFAULT_CHUNK_SIZE
+	var voxel_size: float = DEFAULT_VOXEL_SIZE
 	var world_size: Vector3 = Vector3.ONE * DEFAULT_CHUNK_SIZE
 	var total_chunks: int = 1
 	var total_voxels: int = 0

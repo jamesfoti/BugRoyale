@@ -1,7 +1,9 @@
 @tool
 class_name TerrariumTerrain
 extends OpenTerrain
-## Small open heightmap terrain sized to fit inside a glass terrarium.
+## Open heightmap terrain sized to fit inside a glass terrarium. Its first build runs on the
+## worker threads like any world's (rebuild_all blocks until every chunk exists either way),
+## which is what makes a terrarium the size of the crawlspace load in seconds, not tens.
 
 
 func _ready() -> void:
@@ -19,7 +21,7 @@ func _apply_defaults_without_rebuild() -> void:
 	bounds_falloff_enabled = false
 	boxed_edges_enabled = true
 	chunk_resolution = 1
-	use_threaded_rebuild = false
+	use_threaded_rebuild = true
 	chunks_x = mini(maxi(chunks_x, 1), TerrariumBudget.MAX_CHUNKS_PER_AXIS)
 	chunks_y = mini(maxi(chunks_y, 1), TerrariumBudget.MAX_CHUNKS_PER_AXIS)
 	chunks_z = mini(maxi(chunks_z, 1), TerrariumBudget.MAX_CHUNKS_PER_AXIS)
@@ -78,6 +80,7 @@ static func create_configured(
 	terrain.chunks_y = grid_config.chunks.y
 	terrain.chunks_z = grid_config.chunks.z
 	terrain.chunk_size = grid_config.chunk_size
+	terrain.voxel_size = grid_config.voxel_size
 	terrain.chunk_resolution = 1
 	terrain.bounds_falloff_enabled = false
 	terrain.boxed_edges_enabled = boxed_edges_enabled
@@ -89,7 +92,7 @@ static func create_configured(
 	terrain.noise_octaves = noise_octaves
 	terrain.noise_lacunarity = noise_lacunarity
 	terrain.noise_gain = noise_gain
-	terrain.use_threaded_rebuild = false
+	terrain.use_threaded_rebuild = true
 	if terrain_material != null:
 		terrain.terrain_material = terrain_material
 	return terrain

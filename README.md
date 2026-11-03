@@ -17,10 +17,12 @@ Play
 ----
 
 - **Bugs:** Ant Warrior, Termite Soldier, Wasp (flies), Trapdoor Spider.
-- **Maps:** Celestial Body, Terrarium, Fish Bowl, Crawlspace, Backyard Garden. The garden
-  and the crawlspace are three chunks deep, and every match's seed carves a new underworld
-  into them (CaveCarver): worm tunnels from a few metres down, caverns from twenty, a few
-  sinkholes open to the sky, and bedrock at the bottom.
+- **Maps:** Celestial Body, Terrarium, Fish Bowl, Crawlspace, Backyard Garden. The garden,
+  the crawlspace, the terrarium and the fish bowl are the same size (512 m across, three
+  chunks deep), and every match's seed carves a new underworld into them (CaveCarver): worm
+  tunnels from a few metres down, caverns from twenty, a few sinkholes open to the sky, and
+  bedrock at the bottom. The terrarium is a 5 m tank on a coffee table in a room scaled to
+  match; the fish bowl is a 512 m sphere with the ground running through its equator.
 - **Three modes on the menu.** Burrow (survival as the colony's soldier: four workers carry
   the queen and follow you, you pick the ground and give the word, they dig her chamber;
   then dig by day, build with what you carve, hold the burrow after dark, and keep the queen

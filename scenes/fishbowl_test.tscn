@@ -24,13 +24,17 @@ shadow_opacity = 0.5
 script = ExtResource("1")
 room_seed = 106
 room_type = 1
-room_scale = 100.0
-furniture_scale = 100.0
+room_scale = 700.0
+furniture_scale = 700.0
 terrarium_shape = 1
-terrarium_chunks_x = 3
+terrarium_chunks_x = 16
 terrarium_chunks_y = 3
-terrarium_chunks_z = 3
-terrarium_chunk_size = 16.0
+terrarium_chunks_z = 16
+terrarium_chunk_size = 32.0
+terrarium_voxel_size = 2.0
+terrarium_vegetation_density = 0.3
+terrarium_solid_underside = true
+terrarium_caves_enabled = true
 terrarium_noise_seed = 71
 
 [node name="PlayerSpawner" type="Node" parent="."]

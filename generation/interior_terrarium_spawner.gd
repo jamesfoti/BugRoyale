@@ -117,18 +117,22 @@ static func _build_at(
 	result.terrarium_world_size = grid_config.world_size
 	result.glass_box_size = TerrariumBudget.derive_glass_box_size(grid_config.world_size)
 	result.floor_position = spawn_position
-	# The terrain grid is centered this high above the floor; a bowl's sphere shares that center.
-	var center_height: float = TerrariumBudget.get_terrain_floor_offset(grid_config.world_size)
+	if bowl:
+		result.bowl_radius = TerrariumBudget.derive_bowl_radius(grid_config.world_size)
+	# The terrain grid is centered this high above the floor; a bowl's sphere shares that center
+	# and rests on the floor, so a grid thinner than the bowl is wide floats at its equator.
+	var center_height: float = TerrariumBudget.get_terrain_floor_offset(
+		grid_config.world_size, result.bowl_radius
+	)
+	# How far the grid's bottom sits above the floor (zero for a box): what stands relative to
+	# the grid, like the water, is lifted by it.
+	var grid_lift: float = center_height - grid_config.world_size.y * 0.5
 
 	var root := Node3D.new()
 	root.name = "GlassBoxProp"
 	root.position = spawn_position
 
 	if bowl:
-		result.bowl_radius = (
-			minf(grid_config.world_size.x, minf(grid_config.world_size.y, grid_config.world_size.z))
-			* 0.5
-		)
 		var glass_bowl: GlassBowl = GlassBowl.create(
 			result.bowl_radius + TerrariumBudget.GLASS_WALL_INSET
 		)
@@ -165,9 +169,12 @@ static func _build_at(
 		result.terrain = terrain
 
 	if spawn_water:
+		# The water's levels are measured from the grid's bottom, and a bowl's sphere centre is
+		# in the water's own frame.
 		var water: TerrariumWater = TerrariumWater.create(
-			grid_config.world_size, water_level_ratio, result.bowl_radius, center_height
+			grid_config.world_size, water_level_ratio, result.bowl_radius, center_height - grid_lift
 		)
+		water.position = Vector3(0.0, grid_lift, 0.0)
 		root.add_child(water)
 		result.water = water
 	result.root = root
