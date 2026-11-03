@@ -137,8 +137,7 @@ func _add_panel_collider(panel_name: String, size: Vector3, position: Vector3) -
 
 ## Glass tint. Shaded per vertex and (for box panels, whose inner faces point inward) back-face
 ## culled: a transparent panel is a full-screen layer from inside the terrarium, and per-pixel
-## lighting on several of them costs an integrated GPU 10 ms a frame. The bowl's single-sided
-## sphere keeps both faces so it is visible from inside.
+## lighting on several of them costs an integrated GPU 10 ms a frame.
 static func _create_glass_material(two_sided: bool = false) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

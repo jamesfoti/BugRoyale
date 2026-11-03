@@ -23,9 +23,6 @@ var body_radius: float = 18.0
 ## Playable box for flat maps and the terrarium (unused on the celestial body).
 var bounds: AABB = AABB()
 var water: TerrariumWater
-## Fish-bowl terrarium: the glass sphere (radius 0 on a box terrarium or other maps).
-var bowl_radius: float = 0.0
-var bowl_center: Vector3 = Vector3.ZERO
 ## World Y of an overhead ceiling (a crawlspace's joists), INF on open maps. Flyers stay under it.
 var ceiling_y: float = INF
 
@@ -64,8 +61,6 @@ static func from_scene(scene_root: Node) -> MapInfo:
 		var size: Vector3 = room.get_world_extents()
 		# Slightly inside the glass walls.
 		info.bounds = AABB(terrain_center - size * 0.5, size).grow(-0.6)
-		info.bowl_radius = room.get_bowl_radius()
-		info.bowl_center = room.get_bowl_center()
 	elif info.world != null and info.world.has_method("get_world_extents"):
 		var size: Vector3 = info.world.get_world_extents()
 		info.bounds = AABB(info.world.global_position - size * 0.5, size).grow(-1.0)
@@ -137,12 +132,6 @@ func ground_hit(position: Vector3) -> Dictionary:
 		if kind == Kind.TERRARIUM:
 			# Start under the glass lid, which would otherwise count as "ground".
 			top = bounds.end.y
-			if bowl_radius > 0.0:
-				# Fish bowl: start just inside the curved glass over this column.
-				var inner_top: float = bowl_inner_top(position)
-				if inner_top == -INF:
-					return {}
-				top = minf(top, inner_top)
 		var bottom: float = (
 			bounds.position.y - 40.0 if bounds.size != Vector3.ZERO else position.y - 200.0
 		)
@@ -157,14 +146,6 @@ func ground_hit(position: Vector3) -> Dictionary:
 func ground_below(position: Vector3, reach: float = 6.0) -> Dictionary:
 	var up: Vector3 = up_at(position)
 	return _cast(position + up * 0.5, position - up * reach)
-
-
-## Height of a fish bowl's inner glass above a column, or -INF when the column misses the bowl.
-func bowl_inner_top(position: Vector3) -> float:
-	var horizontal: float = Vector2(position.x - bowl_center.x, position.z - bowl_center.z).length()
-	if horizontal >= bowl_radius - 0.3:
-		return -INF
-	return bowl_center.y + sqrt(bowl_radius * bowl_radius - horizontal * horizontal) - 0.3
 
 
 ## Center of the playable area (on the celestial body: the point on the surface facing +Y).
@@ -213,17 +194,6 @@ func random_surface_point(
 					lerpf(bounds.position.z, bounds.end.z, 1.0 - margin)
 				)
 			)
-			if bowl_radius > 0.0:
-				# Fish bowl: columns inside the opening, so the probe enters through the top.
-				var angle: float = randf_range(0.0, TAU)
-				var distance: float = sqrt(randf()) * bowl_radius * 0.75
-				column = Vector3(
-					bowl_center.x + cos(angle) * distance,
-					0.0,
-					bowl_center.z + sin(angle) * distance
-				)
-				if side != 0.0:
-					column.x = bowl_center.x + absf(column.x - bowl_center.x) * side
 			hit = ground_hit(column)
 		if hit.is_empty():
 			continue
@@ -293,11 +263,6 @@ func clamp_to_bounds(position: Vector3) -> Vector3:
 	if kind == Kind.CELESTIAL_BODY or bounds.size == Vector3.ZERO:
 		return position
 	var clamped: Vector3 = position.clamp(bounds.position, bounds.end)
-	if bowl_radius > 0.0:
-		var offset: Vector3 = clamped - bowl_center
-		var limit: float = bowl_radius - 0.8
-		if offset.length() > limit:
-			clamped = bowl_center + offset.normalized() * limit
 	return clamped
 
 

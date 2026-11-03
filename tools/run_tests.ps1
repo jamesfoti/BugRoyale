@@ -41,8 +41,8 @@ if ($Smoke) {
 	$runs = @(
 		@{ map = "battlefield"; mode = "slayer"; frames = 600 },
 		@{ map = "terrarium"; mode = "capture_the_egg"; frames = 600 },
-		@{ map = "fishbowl"; mode = "king_of_the_anthill"; frames = 600 },
-		@{ map = "fishbowl"; mode = "hold_out"; frames = 4200 },
+		@{ map = "terrarium"; mode = "king_of_the_anthill"; frames = 600 },
+		@{ map = "terrarium"; mode = "hold_out"; frames = 4200 },
 		@{ map = "crawlspace"; mode = "cordyceps_royale"; frames = 900 },
 		@{ map = "celestial_body"; mode = "burrow"; frames = 1800; args = @("clock=20") },
 		@{ map = "battlefield"; mode = "forage"; frames = 1200 },

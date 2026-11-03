@@ -48,19 +48,8 @@ static func derive_glass_box_size(terrarium_world_size: Vector3) -> Vector3:
 	)
 
 
-## Sphere radius of a fish bowl around a terrain grid: half the grid's footprint, so the
-## ground (at the grid's centre height) runs the bowl's full width at its equator. A grid
-## thinner than it is wide is a band of ground through the middle of the sphere.
-static func derive_bowl_radius(terrarium_world_size: Vector3) -> float:
-	return minf(terrarium_world_size.x, terrarium_world_size.z) * 0.5
-
-
-## Height of the terrain grid's centre above the floor it stands on: half the grid's height
-## for a box, the sphere's radius for a bowl (the bowl rests on the floor, the ground sits at
-## its equator).
-static func get_terrain_floor_offset(world_size: Vector3, bowl_radius: float = 0.0) -> float:
-	if bowl_radius > 0.0:
-		return bowl_radius
+## Height of the terrain grid's centre above the floor it stands on: half the grid's height.
+static func get_terrain_floor_offset(world_size: Vector3) -> float:
 	return world_size.y * 0.5
 
 

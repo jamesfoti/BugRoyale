@@ -5,8 +5,6 @@ extends Node3D
 
 signal content_rebuilt
 
-enum TerrariumShape { BOX, BOWL }
-
 const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.tres"
 
 @export_group("Room")
@@ -71,11 +69,6 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.
 @export var spawn_terrarium_terrain: bool = true:
 	set(value):
 		spawn_terrarium_terrain = value
-		_request_rebuild()
-## A glass box, or a round fish bowl (terrain and water are clipped to the sphere).
-@export var terrarium_shape: TerrariumShape = TerrariumShape.BOX:
-	set(value):
-		terrarium_shape = value
 		_request_rebuild()
 
 @export_subgroup("Grid")
@@ -194,7 +187,6 @@ var _light_root: Node3D
 var _glass_box_root: Node3D
 var _terrarium_terrain: TerrariumTerrain
 var _terrarium_water: TerrariumWater
-var _bowl_radius: float = 0.0
 var _dirty: bool = true
 var _is_rebuilding: bool = false
 var _force_sync_rebuild: bool = false
@@ -216,27 +208,6 @@ func get_playable_terrain() -> TerrariumTerrain:
 	if _terrarium_terrain != null and is_instance_valid(_terrarium_terrain):
 		return _terrarium_terrain
 	return null
-
-
-## Sphere radius of a fish-bowl terrarium, 0 for a glass box.
-func get_bowl_radius() -> float:
-	return _bowl_radius
-
-
-## World center of the fish bowl's sphere (the terrain grid's center).
-func get_bowl_center() -> Vector3:
-	var playable: TerrariumTerrain = get_playable_terrain()
-	if playable != null:
-		return playable.global_position
-	if _glass_box_root != null:
-		return (
-			_glass_box_root.global_position
-			+ (
-				Vector3.UP
-				* TerrariumBudget.get_terrain_floor_offset(get_terrarium_world_size(), _bowl_radius)
-			)
-		)
-	return global_position
 
 
 func get_surface_height_at(_world_position: Vector3) -> float:
@@ -447,8 +418,7 @@ func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement
 			terrarium_boxed_edges_enabled,
 			furniture_scale,
 			spawn_terrarium_water,
-			terrarium_water_level,
-			terrarium_shape == TerrariumShape.BOWL
+			terrarium_water_level
 		)
 		if spawn_result == null:
 			return
@@ -458,7 +428,6 @@ func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement
 		_glass_box_root = result.root
 		_terrarium_terrain = result.terrain as TerrariumTerrain
 		_terrarium_water = result.water
-		_bowl_radius = result.bowl_radius
 		add_child(_glass_box_root)
 		if _terrarium_terrain != null:
 			_apply_terrarium_terrain_settings(_terrarium_terrain)
@@ -480,7 +449,6 @@ func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement
 func _clear_content() -> void:
 	_terrarium_terrain = null
 	_terrarium_water = null
-	_bowl_radius = 0.0
 	_free_generated_root(_shell_root)
 	_shell_root = null
 	_free_generated_root(_furniture_root)
@@ -556,8 +524,6 @@ func _grow_terrarium_vegetation() -> void:
 		terrarium_noise_seed * 31 + room_seed,
 		terrarium_vegetation_density
 	)
-	if _bowl_radius > 0.0:
-		vegetation.set_bowl(get_bowl_center(), _bowl_radius)
 	_glass_box_root.add_child(vegetation)
 	vegetation.grow_when_ready()
 

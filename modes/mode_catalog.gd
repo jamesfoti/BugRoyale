@@ -11,7 +11,6 @@ const MAPS: Dictionary = {
 	{"name": "Celestial Body", "scene": "res://scenes/celestial_body_test.tscn", "size": "small"},
 	"terrarium":
 	{"name": "Terrarium", "scene": "res://scenes/terrarium_test.tscn", "size": "large"},
-	"fishbowl": {"name": "Fish Bowl", "scene": "res://scenes/fishbowl_test.tscn", "size": "large"},
 	"crawlspace":
 	{"name": "Crawlspace", "scene": "res://scenes/crawlspace_test.tscn", "size": "large"},
 }
@@ -30,7 +29,7 @@ const FORMATS: Dictionary = {
 	{"name": "Big Colony", "short": "24v24", "teams": 2, "team_size": 24, "map_size": "large"},
 }
 
-const ALL_MAPS: Array = ["battlefield", "celestial_body", "terrarium", "fishbowl", "crawlspace"]
+const ALL_MAPS: Array = ["battlefield", "celestial_body", "terrarium", "crawlspace"]
 const TEAM_FORMATS: Array = ["skirmish", "colony", "big_colony"]
 const EVERY_FORMAT: Array = ["solo", "skirmish", "colony", "big_colony"]
 
@@ -124,7 +123,7 @@ const MODES: Dictionary = {
 			+ "Bugs it takes come back as husks and hunt the clean. Last clean bug wins."
 		),
 		"script": "res://modes/cordyceps_royale.gd",
-		"maps": ["battlefield", "terrarium", "fishbowl", "crawlspace"],
+		"maps": ["battlefield", "terrarium", "crawlspace"],
 		"shelved": true,
 	},
 }

@@ -919,7 +919,6 @@ class SettingsSnapshot:
 	var open_terrain_solid_fill: bool = false
 	var open_terrain_heightmap_image: Image = null
 	var open_terrain_surface_offset: float = 0.0
-	var open_terrain_bowl_radius: float = 0.0
 	var terrain_edits: TerrainEdits = null
 	var rebuild_collision: bool = true
 	## A world with ground of its own kind builds its density here:

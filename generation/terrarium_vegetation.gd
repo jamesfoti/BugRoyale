@@ -43,9 +43,6 @@ var _patches: Dictionary = {}
 var _props: Array[Prop] = []
 ## Collision bodies of placed props, skipped by ground probes.
 var _exclude: Array[RID] = []
-## Fish bowl glass sphere (radius 0 for a box terrarium): probes start inside it.
-var _bowl_radius: float = 0.0
-var _bowl_center: Vector3 = Vector3.ZERO
 
 
 ## Configures a garden for a terrain; add it to the tree, then call grow().
@@ -59,12 +56,6 @@ static func build(
 	vegetation._density = maxf(density, 0.0)
 	vegetation._rng.seed = garden_seed
 	return vegetation
-
-
-## Fish bowl terrariums: keep plants inside the sphere and probe from under its glass.
-func set_bowl(center: Vector3, radius: float) -> void:
-	_bowl_center = center
-	_bowl_radius = maxf(radius, 0.0)
 
 
 ## Grows once the terrain's fresh collision is queryable (the physics server registers new
@@ -121,12 +112,7 @@ func _find_spot(
 	for _try: int in PLACEMENT_TRIES:
 		var x: float
 		var z: float
-		if near == Vector3.INF and _bowl_radius > 0.0:
-			var angle: float = _rng.randf() * TAU
-			var distance: float = sqrt(_rng.randf()) * maxf(_bowl_radius - margin, 0.0)
-			x = _bowl_center.x + cos(angle) * distance
-			z = _bowl_center.z + sin(angle) * distance
-		elif near == Vector3.INF:
+		if near == Vector3.INF:
 			x = _rng.randf_range(_bounds.position.x + margin, _bounds.end.x - margin)
 			z = _rng.randf_range(_bounds.position.z + margin, _bounds.end.z - margin)
 		else:
@@ -173,13 +159,6 @@ func _footprint_supported(position: Vector3, footprint: float) -> bool:
 ## excluded so later plants don't land on a rock or a trunk.
 func _ground(x: float, z: float) -> Dictionary:
 	var top: float = _bounds.end.y - 0.5
-	if _bowl_radius > 0.0:
-		var horizontal: float = Vector2(x - _bowl_center.x, z - _bowl_center.z).length()
-		if horizontal >= _bowl_radius - 1.0:
-			return {}
-		top = minf(
-			top, _bowl_center.y + sqrt(_bowl_radius * _bowl_radius - horizontal * horizontal) - 0.3
-		)
 	var from := Vector3(x, top, z)
 	var to := Vector3(x, _bounds.position.y - 1.0, z)
 	var query := PhysicsRayQueryParameters3D.create(from, to, MapInfo.TERRAIN_LAYER, _exclude)

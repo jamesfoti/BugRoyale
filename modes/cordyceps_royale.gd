@@ -144,11 +144,7 @@ func uses_ghosts() -> bool:
 
 func _build_storm() -> void:
 	var center: Vector3 = map.center()
-	if map.bowl_radius > 0.0:
-		center = Vector3(map.bowl_center.x, center.y, map.bowl_center.z)
-		_full_radius = map.bowl_radius
-	else:
-		_full_radius = Vector2(map.bounds.size.x, map.bounds.size.z).length() * 0.5
+	_full_radius = Vector2(map.bounds.size.x, map.bounds.size.z).length() * 0.5
 	storm = SporeStorm.create(center, _full_radius, map.bounds.position.y, map.bounds.end.y)
 	get_parent().add_child(storm)
 	var environments: Array[Node] = get_parent().find_children("*", "WorldEnvironment", true, false)
@@ -193,24 +189,9 @@ func _pick_center(next_radius: float) -> Vector3:
 		var angle: float = randf() * TAU
 		var offset := Vector3(cos(angle), 0.0, sin(angle)) * randf_range(0.0, slack)
 		var candidate: Vector3 = storm.center + offset
-		if map.bowl_radius > 0.0:
-			var from_bowl: Vector3 = (
-				candidate - Vector3(map.bowl_center.x, candidate.y, map.bowl_center.z)
-			)
-			var limit: float = maxf(map.bowl_radius - next_radius, 0.0)
-			if from_bowl.length() > limit:
-				candidate = (
-					Vector3(map.bowl_center.x, candidate.y, map.bowl_center.z)
-					+ from_bowl.normalized() * limit
-				)
-		else:
-			var inset: float = next_radius * 0.5
-			candidate.x = clampf(
-				candidate.x, map.bounds.position.x + inset, map.bounds.end.x - inset
-			)
-			candidate.z = clampf(
-				candidate.z, map.bounds.position.z + inset, map.bounds.end.z - inset
-			)
+		var inset: float = next_radius * 0.5
+		candidate.x = clampf(candidate.x, map.bounds.position.x + inset, map.bounds.end.x - inset)
+		candidate.z = clampf(candidate.z, map.bounds.position.z + inset, map.bounds.end.z - inset)
 		best = candidate
 		var ground: Dictionary = map.ground_hit(candidate)
 		if not ground.is_empty() and ground.position.y > map.water_surface_y() + 1.0:
