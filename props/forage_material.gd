@@ -1,8 +1,8 @@
 class_name ForageMaterial
 extends Area3D
-## Something worth carrying home in Forage: a crumb, a grain of sugar or a seed lying on the
-## ground. Any bug in play that walks into it reports the pickup; the mode (the host) decides
-## whether it counts and takes the material off the map.
+## Food for the colony in Burrow: a crumb, a grain of sugar or a seed lying on the ground. Any
+## bug in play that walks into it reports the pickup; the mode (the host) decides whether it
+## counts and takes the material off the map.
 
 signal picked_up(material: ForageMaterial, body: FighterBody)
 

@@ -3,7 +3,7 @@ extends FighterController
 ## AI pilot for a FighterBody: the bot stands in for another player on the same body a human
 ## would use, so it walks, climbs, animates and shoots exactly as a player does. It hunts the
 ## nearest enemy, keeps to its weapon's preferred range, strafes, and fires with its own cadence
-## and spread. Modes can make it follow a squad leader, keep out of the water or fear a spore cloud.
+## and spread. Modes can make it follow a squad leader or hold an objective.
 ## Bot shots never dig terrain or spawn impact effects (dozens of bots would wreck the map and
 ## the frame rate); the body's weapon is set up that way by the spawner.
 
@@ -14,33 +14,23 @@ const _REACTION_SECONDS: float = 0.55
 const HUSK_WEAPON: Dictionary = {
 	"damage": 9.0, "cooldown": 0.8, "range": 2.4, "spread_degrees": 0.0, "melee": true
 }
-## How far inside the spore cloud's edge a clean bot likes to stay.
-const _STORM_MARGIN: float = 6.0
 ## How far behind the leader a bot that keeps up (runs_to_keep_up) breaks into a run.
 const KEEP_UP_DISTANCE: float = 10.0
 
 ## Group whose members this bot hunts: "fighter" (players and bots of other teams) or "bird".
 var target_group: StringName = &"fighter"
-## A second group hunted alongside the first (Forage squadmates fight hornets and husks).
+## A second group hunted alongside the first (Hold Out squadmates fight hornets and husks).
 var secondary_target_group: StringName = &""
-## Group of pickups the bot detours for when nothing is in range (Forage materials).
-var gather_group: StringName = &""
-## Where the mode wants the bot (a hill, an egg, its nest); INF for none. The bot heads there
+## Where the mode wants the bot (the entrance, a crumb, the fort); INF for none. The bot heads there
 ## and holds within objective_radius, fighting whatever comes within objective_focus on the way.
 var objective: Vector3 = Vector3.INF
 var objective_radius: float = 2.5
 var objective_focus: float = 14.0
-## Optional squad leader to stay near when nothing is in range (Attack of the Hornets).
+## Optional squad leader to stay near when nothing is in range (Hold Out, Burrow's march).
 var leader: Node3D
 ## Runs when the leader gets far ahead (Burrow's workers), instead of trailing at a walk.
 var runs_to_keep_up: bool = false
-## Keeps out of the water (a bug under the surface drowns; Cordyceps Royale's clean bots).
-var avoid_water: bool = false
-## Spore cloud (Cordyceps Royale): a clean bot keeps inside this circle, planar. INF = no cloud.
-var storm_center: Vector3 = Vector3.INF
-var storm_radius: float = INF
-## Taken by the fungus: slow, unarmed, bites anything clean, and walks straight through the
-## spores and the water.
+## Taken by the fungus: slow, unarmed, and bites anything clean.
 var husk: bool = false
 var detection_range: float = 70.0
 var map: MapInfo
@@ -93,9 +83,9 @@ func on_respawn() -> void:
 	_clear_route()
 
 
-## The fungus takes the bot (Cordyceps Royale): it rises again on the fungus team at a fraction of
-## its speed, drops its gun for a bite, forgets the storm and the water, and senses the clean
-## from far off. Works on a bot that just died as well as a live one.
+## The fungus takes the bot (the night enemy of Burrow and Hold Out): it rises again on the
+## fungus team at a fraction of its speed, drops its gun for a bite, and senses the clean from
+## far off. Works on a bot that just died as well as a live one.
 func become_husk(fungus_team: int, speed_scale: float) -> void:
 	husk = true
 	_damageable.team = fungus_team
@@ -104,10 +94,7 @@ func become_husk(fungus_team: int, speed_scale: float) -> void:
 	weapon = HUSK_WEAPON
 	_body.apply_hand_item(PlayerItems.Item.NONE)
 	_body.scale_speed(speed_scale)
-	avoid_water = false
 	leader = null
-	storm_center = Vector3.INF
-	storm_radius = INF
 	detection_range = maxf(detection_range, 60.0)
 	_target = null
 	_wander_point = Vector3.INF
@@ -158,8 +145,6 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 		if planar.length_squared() < 0.0001:
 			planar = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
 		move_direction = planar.normalized()
-	if avoid_water and move_direction != Vector3.ZERO and _step_leads_into_water(move_direction):
-		move_direction = Vector3.ZERO
 
 	# Facing: the target when there is one, else the way the legs go. With a target the body
 	# squares up to it (aiming) and the legs strafe relative to that view.
@@ -259,21 +244,6 @@ func _is_valid_target(candidate: Node3D) -> bool:
 
 func _choose_goal(up: Vector3) -> Vector3:
 	var position_now: Vector3 = _body.global_position
-	if avoid_water and map.water != null and position_now.y < map.water_surface_y() + 3.0:
-		return _wander_goal(map.water_surface_y() + 4.0)
-	# In (or nearly in) the spore cloud: nothing matters but getting back inside the circle.
-	if _fears_storm() and _storm_depth(position_now) > -_STORM_MARGIN:
-		return _via_ducts(_storm_refuge(up))
-	var target_too_low: bool = (
-		avoid_water
-		and _target != null
-		and map.water != null
-		and _target.global_position.y < map.water_surface_y() + 2.0
-	)
-	# No chasing a husk into the spores.
-	var target_in_storm: bool = (
-		_fears_storm() and _target != null and _storm_depth(_target.global_position) > 1.0
-	)
 	if objective != Vector3.INF:
 		var target_close: bool = (
 			_target != null and position_now.distance_to(_target.global_position) < objective_focus
@@ -282,7 +252,7 @@ func _choose_goal(up: Vector3) -> Vector3:
 			if position_now.distance_to(objective) > objective_radius:
 				return _via_ducts(objective)
 			return position_now
-	if _target != null and not target_too_low and not target_in_storm:
+	if _target != null:
 		var to_target: Vector3 = (_target.global_position - position_now).slide(up)
 		var distance: float = to_target.length()
 		var melee: bool = bool(weapon.get("melee", false))
@@ -302,10 +272,6 @@ func _choose_goal(up: Vector3) -> Vector3:
 			_strafe_timer = randf_range(1.2, 2.8)
 			_strafe_sign = -_strafe_sign
 		return position_now + to_target.cross(up).normalized() * 4.0 * _strafe_sign
-	if gather_group != &"":
-		var pickup: Node3D = _nearest_in_group(gather_group, 18.0)
-		if pickup != null:
-			return pickup.global_position
 	if leader != null and is_instance_valid(leader) and leader.visible:
 		# "Close enough" only counts on the same side of the ductwork; 5 m through sheet metal
 		# is not with the leader.
@@ -315,45 +281,7 @@ func _choose_goal(up: Vector3) -> Vector3:
 		):
 			return _via_ducts(leader.global_position)
 		return position_now
-	return _wander_goal(-INF)
-
-
-## Clean bots mind the spore cloud; husks walk through it.
-func _fears_storm() -> bool:
-	return not husk and storm_radius < INF and storm_center != Vector3.INF
-
-
-## How far into the spores a point is: positive outside the safe circle, negative inside.
-func _storm_depth(point: Vector3) -> float:
-	return Vector2(point.x - storm_center.x, point.z - storm_center.z).length() - storm_radius
-
-
-## A spot well inside the safe circle, straight in from where the bot stands.
-func _storm_refuge(up: Vector3) -> Vector3:
-	var outward: Vector3 = (_body.global_position - storm_center).slide(up)
-	if outward.length_squared() < 0.01:
-		outward = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
-	var inside: float = maxf(storm_radius - _STORM_MARGIN * 2.0, 0.0)
-	var refuge: Vector3 = storm_center + outward.normalized() * inside
-	refuge.y = _body.global_position.y
-	return refuge
-
-
-## A random ground point, the best of several at staying inside the spore cloud's safe circle.
-func _random_point(min_height: float) -> Vector3:
-	if not _fears_storm():
-		return map.random_surface_point(0.0, 0.0, min_height)
-	var best: Vector3 = Vector3.INF
-	var best_depth: float = INF
-	for _attempt: int in 6:
-		var candidate: Vector3 = map.random_surface_point(0.0, 0.0, min_height)
-		var candidate_depth: float = _storm_depth(candidate)
-		if candidate_depth < best_depth:
-			best_depth = candidate_depth
-			best = candidate
-		if candidate_depth < -_STORM_MARGIN * 2.0:
-			break
-	return best
+	return _wander_goal()
 
 
 ## True when the bot and a point are on different sides of the ductwork (one inside, one out).
@@ -413,33 +341,26 @@ func _watch_route_progress(delta: float) -> void:
 	_route_check_position = _body.global_position
 
 
-func _wander_goal(min_height: float) -> Vector3:
+func _wander_goal() -> Vector3:
 	if not _route.is_empty():
 		return _follow_route()
 	var position_now: Vector3 = _body.global_position
 	var reached: bool = (
 		_wander_point != Vector3.INF and position_now.distance_to(_wander_point) < 2.0
 	)
-	var too_low: bool = _wander_point != Vector3.INF and _wander_point.y < min_height
-	if _wander_point == Vector3.INF or reached or too_low or _wander_timer <= 0.0:
+	if _wander_point == Vector3.INF or reached or _wander_timer <= 0.0:
 		var network: DuctNetwork = _find_duct_network()
-		# Now and then, wander into the ductwork instead (not while keeping out of the water, and
-		# not through a flooded entry).
-		if network != null and min_height == -INF and _duct_cooldown <= 0.0 and randf() < 0.35:
+		# Now and then, wander into the ductwork instead (not through a flooded entry).
+		if network != null and _duct_cooldown <= 0.0 and randf() < 0.35:
 			var inside_spot: Vector3 = network.random_interior_point()
-			var in_storm: bool = (
-				inside_spot != Vector3.INF
-				and _fears_storm()
-				and _storm_depth(inside_spot) > -_STORM_MARGIN
-			)
-			if inside_spot != Vector3.INF and not in_storm:
+			if inside_spot != Vector3.INF:
 				var route: PackedVector3Array = network.route(position_now, inside_spot)
 				if not route.is_empty() and not map.is_underwater(route[0] + Vector3.UP * 0.5):
 					_wander_point = inside_spot
 					_wander_timer = randf_range(12.0, 20.0)
 					_start_route(route, inside_spot)
 					return _follow_route()
-		_wander_point = _random_point(min_height)
+		_wander_point = map.random_surface_point(0.0)
 		_wander_timer = randf_range(6.0, 11.0)
 		# Leaving the ducts means walking out the way in, not through a wall.
 		if network != null and network.is_inside(position_now + Vector3.UP * 0.6):
@@ -536,15 +457,3 @@ func _can_see(target: Node3D) -> bool:
 	var eye: Vector3 = _body.global_position + map.up_at(_body.global_position) * _EYE_HEIGHT
 	var sight: Dictionary = _cast(eye, _aim_point(target))
 	return sight.is_empty() or sight.collider == target
-
-
-## True when the ground a step ahead sits at or near the water (a drop into the pool).
-func _step_leads_into_water(direction: Vector3) -> bool:
-	if map.water == null:
-		return false
-	var ahead: Dictionary = map.ground_hit(_body.global_position + direction * 1.5)
-	var safe_height: float = map.water_surface_y() + 1.5
-	return (
-		ahead.is_empty()
-		or (ahead.position.y < safe_height and _body.global_position.y >= safe_height)
-	)

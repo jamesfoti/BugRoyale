@@ -41,8 +41,10 @@ func _ready() -> void:
 		int(options.get("character", 0)) as LoadingScreen.PlayerCharacter
 	)
 	LoadingScreen.pending_terrain_seed = int(options.get("seed", 0))
+	# The same seed also fixes every other roll (spawn spots, the queen's start) so a run repeats.
+	if options.has("seed"):
+		seed(int(options.get("seed", 0)))
 	GameMode.fighter_count_override = int(options.get("fighters", 0))
-	GameMode.ghosts_enabled = str(options.get("ghosts", "1")) != "0"
 	DayCycle.speed = maxf(float(options.get("clock", "1")), 0.01)
 	WorldSave.enabled = str(options.get("save", "0")) == "1"
 	LoadingScreen.pending_mode_id = mode_id
@@ -163,7 +165,7 @@ class Runner:
 			return
 		var victim: Fighter = null
 		for fighter: Fighter in _mode.fighters:
-			if fighter.is_alive() and not fighter.ghost:
+			if fighter.is_alive():
 				victim = fighter
 				break
 		if victim == null:
@@ -295,7 +297,7 @@ class Runner:
 			(
 				(
 					"SMOKE RESULT: fighters=%d alive=%d moved=%d shooters=%d shots=%d deaths=%d "
-					+ "over=%s state_roundtrip=%s ghosts=%d physics_ms=%.2f/%.1f "
+					+ "over=%s state_roundtrip=%s physics_ms=%.2f/%.1f "
 					+ "process_ms=%.2f/%.1f status='%s'"
 				)
 				% [
@@ -307,7 +309,6 @@ class Runner:
 					total_deaths,
 					str(_mode.match_over),
 					roundtrip,
-					_mode.ghost_count(),
 					_physics_total / maxi(_frames_run - WARM_UP_FRAMES, 1) * 1000.0,
 					_physics_peak * 1000.0,
 					_process_total / maxi(_frames_run - WARM_UP_FRAMES, 1) * 1000.0,

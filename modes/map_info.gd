@@ -186,7 +186,7 @@ func ground_point_near(
 	return ground.position + up_at(ground.position) * clearance
 
 
-## Heights above the ground flyers keep to (hornets, the dragonfly on station): low under the
+## Heights above the ground flyers keep to (hornets): low under the
 ## terrarium glass, lower still under a crawlspace's joists.
 func flight_band() -> Vector2:
 	var band := Vector2(8.0, 16.0)

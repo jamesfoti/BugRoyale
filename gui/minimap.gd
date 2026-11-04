@@ -3,8 +3,8 @@ extends Control
 ## Bottom-left minimap. A small orthographic camera looks straight down at the real map around
 ## the player and renders it into a round viewport, so any map, present or future, shows up with
 ## no per-map data: terrain, water, piers, ducts, mushrooms, whatever is there. Markers go on
-## top: you at the centre, other bugs coloured by side, hornets, and the Cordyceps Royale spore
-## circle. The map turns with your camera, so up on the map is always straight ahead.
+## top: you at the centre, other bugs coloured by side, and hornets. The map turns with your
+## camera, so up on the map is always straight ahead.
 
 const SIZE_PX: float = 200.0
 const MARGIN_PX: float = 16.0
@@ -15,8 +15,6 @@ const CAMERA_HEIGHT: float = 30.0
 ## The map re-renders every this many frames (markers update every frame).
 const RENDER_EVERY_FRAMES: int = 2
 const MARKER_RADIUS: float = 4.0
-## How strongly the spores wash over the map outside the safe circle (0 = map only, 1 = solid).
-const STORM_FILL: float = 0.55
 
 const COLOR_SELF := Color(0.15, 0.95, 1.0)
 const COLOR_FRIEND := Color(0.35, 0.9, 0.4)
@@ -30,19 +28,11 @@ shader_type canvas_item;
 
 uniform vec4 rim_color : source_color = vec4(0.92, 0.92, 0.86, 0.95);
 uniform float rim_width = 0.03;
-// Cordyceps Royale: everything outside the safe circle (in map UV space) is washed with spores.
-uniform vec2 storm_center_uv = vec2(0.5);
-uniform float storm_radius_uv = 10.0;
-uniform float storm_strength : hint_range(0.0, 1.0) = 0.0;
-uniform vec3 spore_color : source_color = vec3(0.62, 0.7, 0.34);
 
 void fragment() {
 	vec2 p = UV - 0.5;
 	float r = length(p) * 2.0;
 	vec4 map = texture(TEXTURE, UV);
-	float storm_distance = length(UV - storm_center_uv);
-	float in_storm = smoothstep(storm_radius_uv - 0.01, storm_radius_uv + 0.01, storm_distance);
-	map.rgb = mix(map.rgb, spore_color, in_storm * storm_strength);
 	float rim = smoothstep(1.0 - rim_width * 2.0, 1.0 - rim_width, r);
 	float inside = 1.0 - smoothstep(0.985, 1.0, r);
 	COLOR = vec4(mix(map.rgb, rim_color.rgb, rim * rim_color.a), inside);
@@ -163,7 +153,6 @@ func _build_frame() -> void:
 	shader.code = MASK_SHADER_CODE
 	_frame_material = ShaderMaterial.new()
 	_frame_material.shader = shader
-	_frame_material.set_shader_parameter("spore_color", SporeStorm.SPORE_COLOR)
 	frame.material = _frame_material
 	add_child(frame)
 	# Markers get a control of their own, added after the frame so they draw on top of the map.
@@ -204,7 +193,6 @@ func _draw_markers() -> void:
 	var center: Vector2 = size * 0.5
 	var rim: float = size.x * 0.5
 	var scale_px: float = rim / _view_radius
-	_draw_spore_circle(center, rim, scale_px)
 	if _player_health != null:
 		_player_team = _player_health.team
 	for node: Node in get_tree().get_nodes_in_group("bird"):
@@ -261,42 +249,6 @@ func _draw_self(center: Vector2) -> void:
 	outline.append(points[0])
 	_markers.draw_polyline(outline, COLOR_OUTLINE, 5.0, true)
 	_markers.draw_colored_polygon(points, COLOR_SELF)
-
-
-## The edge of a Cordyceps Royale safe circle, where it crosses the map.
-func _draw_spore_circle(center: Vector2, rim: float, scale_px: float) -> void:
-	var storm: Node = get_tree().get_first_node_in_group("spore_storm")
-	if storm == null or not ("center" in storm) or not ("radius" in storm):
-		_frame_material.set_shader_parameter("storm_strength", 0.0)
-		return
-	var storm_center: Vector3 = storm.get("center")
-	var storm_radius: float = storm.get("radius")
-	if storm_radius == INF:
-		_frame_material.set_shader_parameter("storm_strength", 0.0)
-		return
-	# Wash the map outside the circle with spores (the frame shader works in map UV space, where
-	# the whole map spans 0..1 and the centre is the player).
-	var center_uv: Vector2 = (
-		Vector2(0.5, 0.5) + (_to_map(storm_center, center, scale_px) - center) / size
-	)
-	_frame_material.set_shader_parameter("storm_center_uv", center_uv)
-	_frame_material.set_shader_parameter("storm_radius_uv", storm_radius / (_view_radius * 2.0))
-	_frame_material.set_shader_parameter("storm_strength", STORM_FILL)
-	if storm_radius <= 0.0:
-		return
-	var color: Color = Color(SporeStorm.SPORE_COLOR, 0.9)
-	var previous: Vector2 = Vector2.INF
-	var steps: int = 128
-	for step: int in steps + 1:
-		var angle: float = TAU * float(step) / float(steps)
-		var world: Vector3 = (
-			storm_center + _right * cos(angle) * storm_radius + _forward * sin(angle) * storm_radius
-		)
-		var point: Vector2 = _to_map(world, center, scale_px)
-		var inside: bool = (point - center).length() < rim - 1.0
-		if previous != Vector2.INF and inside and (previous - center).length() < rim - 1.0:
-			_markers.draw_line(previous, point, color, 2.0, true)
-		previous = point
 
 
 ## Where a world point lands on the map (planar, in the map camera's frame).

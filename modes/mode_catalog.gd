@@ -6,11 +6,9 @@ extends RefCounted
 
 const MAPS: Dictionary = {
 	"battlefield":
-	{"name": "Backyard Garden", "scene": "res://scenes/garden_test.tscn", "size": "large"},
-	"terrarium":
-	{"name": "Terrarium", "scene": "res://scenes/terrarium_test.tscn", "size": "large"},
-	"crawlspace":
-	{"name": "Crawlspace", "scene": "res://scenes/crawlspace_test.tscn", "size": "large"},
+	{"name": "Backyard Garden", "scene": "res://scenes/garden.tscn", "size": "large"},
+	"terrarium": {"name": "Terrarium", "scene": "res://scenes/terrarium.tscn", "size": "large"},
+	"crawlspace": {"name": "Crawlspace", "scene": "res://scenes/crawlspace.tscn", "size": "large"},
 }
 
 const SIZE_RANK: Dictionary = {"small": 0, "medium": 1, "large": 2}
@@ -28,14 +26,10 @@ const FORMATS: Dictionary = {
 }
 
 const ALL_MAPS: Array = ["battlefield", "terrarium", "crawlspace"]
-const TEAM_FORMATS: Array = ["skirmish", "colony", "big_colony"]
 const EVERY_FORMAT: Array = ["solo", "skirmish", "colony", "big_colony"]
 
 ## forced_character: the class every player uses in a colony match (the class picker is skipped).
 ## persistent: the world is saved per map (WorldSave) and comes back, seed and all, next time.
-## shelved: finished and tested but off the menu for now. The front door is three modes (the
-## order below) so players are not spread across seven queues; a shelved mode still loads by
-## id, so the smoke test and the tests keep it working for the day it comes back.
 const MODES: Dictionary = {
 	"burrow":
 	{
@@ -74,56 +68,6 @@ const MODES: Dictionary = {
 		"default_format": "skirmish",
 		"forced_character": LoadingScreen.PlayerCharacter.ANT_WARRIOR,
 	},
-	"capture_the_egg":
-	{
-		"name": "Capture the Egg",
-		"description":
-		(
-			"Carry the enemy colony's egg home while yours is on the nest. A fallen carrier "
-			+ "drops it. First to 3."
-		),
-		"script": "res://modes/capture_the_egg.gd",
-		"maps": ALL_MAPS,
-		"formats": TEAM_FORMATS,
-		"default_format": "skirmish",
-		"forced_character": LoadingScreen.PlayerCharacter.ANT_WARRIOR,
-		"shelved": true,
-	},
-	"king_of_the_anthill":
-	{
-		"name": "King of the Anthill",
-		"description": "Hold the hill to score a point a second. The hill moves every minute.",
-		"script": "res://modes/king_of_the_anthill.gd",
-		"maps": ALL_MAPS,
-		"formats": ["solo", "skirmish", "colony"],
-		"default_format": "skirmish",
-		"forced_character": LoadingScreen.PlayerCharacter.ANT_WARRIOR,
-		"shelved": true,
-	},
-	"forage":
-	{
-		"name": "Forage",
-		"description":
-		(
-			"Extraction. A dragonfly drops your squad of 4 on hostile ground. Gather the quota, "
-			+ "stay quiet (noise brings the horde) and ride the dragonfly out from the beacon."
-		),
-		"script": "res://modes/forage.gd",
-		"maps": ALL_MAPS,
-		"shelved": true,
-	},
-	"cordyceps_royale":
-	{
-		"name": "Cordyceps Royale",
-		"description":
-		(
-			"12 bugs, no respawns, and the storm is a cloud of Cordyceps spores. "
-			+ "Bugs it takes come back as husks and hunt the clean. Last clean bug wins."
-		),
-		"script": "res://modes/cordyceps_royale.gd",
-		"maps": ["battlefield", "terrarium", "crawlspace"],
-		"shelved": true,
-	},
 }
 
 
@@ -131,13 +75,9 @@ static func mode(mode_id: String) -> Dictionary:
 	return MODES.get(mode_id, {})
 
 
-## The modes on the menu, in menu order: every mode that is not shelved.
+## The modes on the menu, in menu order.
 static func front_door() -> Array:
-	var result: Array = []
-	for mode_id: String in MODES:
-		if not bool(MODES[mode_id].get("shelved", false)):
-			result.append(mode_id)
-	return result
+	return MODES.keys()
 
 
 static func map_scene(map_id: String) -> String:

@@ -1,10 +1,10 @@
 class_name ColonyMatch
 extends GameMode
-## Base for the competitive modes: two colonies (the Red soldier ants against the Black ants), or
-## every bug for itself, by the match format (ModeCatalog.FORMATS: how many teams and how big).
-## Keeps the scores, the clock, respawns, team spawns and nests, hands every bot an objective,
-## and ends the match at the score limit or when time runs out. A mode on top adds its objective
-## through the hooks under "Objective".
+## Base for the competitive modes (Slayer today): two colonies (the Red soldier ants against the
+## Black ants), or every bug for itself, by the match format (ModeCatalog.FORMATS: how many teams
+## and how big). Keeps the scores, the clock, respawns, team spawns and nests, and ends the match
+## at the score limit or when time runs out. A mode on top scores through the hooks under
+## "Scoring".
 
 const TEAM_NAMES: Array[String] = ["Red", "Black"]
 const TEAM_COLORS: Array[Color] = [Color(0.9, 0.25, 0.2), Color(0.3, 0.35, 0.8)]
@@ -21,7 +21,7 @@ const SOLO_COLORS: Array[Color] = [
 const TEAM_SIDES: Array[float] = [-1.0, 1.0]
 const DEFAULT_TIME_LIMIT: float = 600.0
 const DEFAULT_RESPAWN_SECONDS: float = 5.0
-const OBJECTIVE_INTERVAL: float = 0.5
+const NEUTRAL_COLOR := Color(0.75, 0.75, 0.7)
 
 ## 0 teams means solo: every fighter is its own team, numbered by spawn order.
 var teams: int = 2
@@ -36,7 +36,6 @@ var respawn_seconds: float = DEFAULT_RESPAWN_SECONDS
 var nests: Array[Vector3] = []
 
 var _nest_beacons: Array[Beacon] = []
-var _objective_timer: float = 0.0
 
 # --- Deciding ---------------------------------------------------------------------------------
 
@@ -50,7 +49,6 @@ func _start_match() -> void:
 	_spawn_everyone()
 	for team: int in team_ids():
 		scores[team] = 0
-	_place_objectives()
 	announce(_intro_text(), 4.0)
 
 
@@ -58,13 +56,6 @@ func _update_match(delta: float) -> void:
 	if match_over:
 		return
 	time_left = maxf(time_left - delta, 0.0)
-	_objective_tick(delta)
-	_objective_timer -= delta
-	if _objective_timer <= 0.0:
-		_objective_timer = OBJECTIVE_INTERVAL
-		for bot: Fighter in bots():
-			if bot.is_alive() and not bot.ghost:
-				bot.brain.objective = _bot_objective(bot)
 	if time_left <= 0.0:
 		_time_up()
 
@@ -73,32 +64,21 @@ func _on_fighter_died(fighter: Fighter) -> void:
 	var killer: int = killer_team(fighter.health)
 	_on_kill(fighter, killer)
 	fighter.kill()
-	if match_over or not _can_respawn(fighter):
+	if match_over:
 		return
 	announce_to(fighter, "You were squished! Respawning...", respawn_seconds - 0.5)
 	get_tree().create_timer(respawn_seconds).timeout.connect(
 		func() -> void:
 			if not match_over and fighter.is_valid() and not fighter.is_alive():
 				fighter.respawn_at(_spawn_point(fighter))
-				_equip(fighter)
 	)
 
 
-# --- Objective: what a mode on top fills in -------------------------------------------------
+# --- Scoring: what a mode on top fills in ---------------------------------------------------
 
 
-## Puts the mode's zones, items and markers on the map (after everyone has spawned).
-func _place_objectives() -> void:
-	pass
-
-
-## Every frame on the host.
-func _objective_tick(_delta: float) -> void:
-	pass
-
-
-## A kill (or an accident: killer is NO_TEAM). Nothing by default: only the deathmatch modes
-## score kills (see score_kill).
+## A kill (or an accident: killer is NO_TEAM). Nothing by default: a deathmatch scores kills
+## (see score_kill).
 func _on_kill(_victim: Fighter, _killer: int) -> void:
 	pass
 
@@ -107,16 +87,6 @@ func _on_kill(_victim: Fighter, _killer: int) -> void:
 func score_kill(victim: Fighter, killer: int) -> void:
 	if killer != Damageable.NO_TEAM and killer != victim.get_team():
 		add_score(killer, 1)
-
-
-## Where a bot should be heading right now, or INF to hunt as usual.
-func _bot_objective(_bot: Fighter) -> Vector3:
-	return Vector3.INF
-
-
-## The objective's part of the status line ("" for none).
-func _objective_status() -> String:
-	return ""
 
 
 func _intro_text() -> String:
@@ -129,23 +99,6 @@ func _score_limit() -> int:
 
 func _time_limit() -> float:
 	return DEFAULT_TIME_LIMIT
-
-
-func _can_respawn(_fighter: Fighter) -> bool:
-	return true
-
-
-## Hands a fighter its kit after each spawn (the class's own gun by default).
-func _equip(_fighter: Fighter) -> void:
-	pass
-
-
-func _objective_snapshot() -> Dictionary:
-	return {}
-
-
-func _objective_apply(_state: Dictionary) -> void:
-	pass
 
 
 # --- Teams and scores ------------------------------------------------------------------------
@@ -190,7 +143,7 @@ func name_of_team(team: int) -> String:
 
 func color_of_team(team: int) -> Color:
 	if team < 0:
-		return ControlZone.NEUTRAL_COLOR
+		return NEUTRAL_COLOR
 	if is_solo():
 		return SOLO_COLORS[team % SOLO_COLORS.size()]
 	return TEAM_COLORS[team % TEAM_COLORS.size()]
@@ -271,7 +224,6 @@ func _spawn_everyone() -> void:
 			human.set_team(team)
 			team += 1
 			human.respawn_at(_solo_spawn(taken))
-			_equip(human)
 		var classes: Array = LoadingScreen.PlayerCharacter.values()
 		for _index: int in fighter_total - humans().size():
 			var character: LoadingScreen.PlayerCharacter = classes[randi() % classes.size()]
@@ -280,12 +232,10 @@ func _spawn_everyone() -> void:
 			if bot != null:
 				bot.brain.target_group = &"fighter"
 				bot.brain.detection_range = 45.0
-				_equip(bot)
 		return
 	for human: Fighter in humans():
 		human.set_team(0)
 		human.respawn_at(_team_spawn(0))
-		_equip(human)
 	for _index: int in team_size - humans().size():
 		_spawn_colony_bot(0)
 	for team: int in range(1, teams):
@@ -300,7 +250,6 @@ func _spawn_colony_bot(team: int) -> void:
 	)
 	if bot != null:
 		bot.brain.target_group = &"fighter"
-		_equip(bot)
 
 
 func _place_nests() -> void:
@@ -341,40 +290,6 @@ func _solo_spawn(taken: Array[Vector3]) -> Vector3:
 	return best
 
 
-# --- Zones and items: helpers for the modes on top --------------------------------------------
-
-
-## Who stands in a zone: team -> count of live fighters inside.
-func occupants_of(zone: ControlZone) -> Dictionary:
-	var counts: Dictionary = {}
-	for fighter: Fighter in alive_fighters():
-		if zone.contains(fighter.get_position()):
-			var team: int = fighter.get_team()
-			counts[team] = int(counts.get(team, 0)) + 1
-	return counts
-
-
-func fighter_for_body(body: FighterBody) -> Fighter:
-	return fighter_by_id(body.fighter_id)
-
-
-## A random ground point away from the nests and from other points.
-func open_point(avoid: Array[Vector3], gap: float) -> Vector3:
-	var best: Vector3 = map.random_surface_point(0.0)
-	var best_gap: float = -1.0
-	for _attempt: int in 8:
-		var candidate: Vector3 = map.random_surface_point(0.0)
-		var nearest: float = INF
-		for other: Vector3 in avoid + nests:
-			nearest = minf(nearest, candidate.distance_to(other))
-		if nearest > best_gap:
-			best_gap = nearest
-			best = candidate
-		if nearest >= gap:
-			break
-	return best
-
-
 # --- Showing ----------------------------------------------------------------------------------
 
 
@@ -387,16 +302,13 @@ func _status_text() -> String:
 			parts.append("Lead: %s %d" % [name_of_team(leader), score_of(leader)])
 	else:
 		parts.append("Red %d  —  %d Black" % [score_of(0), score_of(1)])
-	var objective: String = _objective_status()
-	if not objective.is_empty():
-		parts.append(objective)
 	parts.append("First to %d" % score_limit)
 	parts.append("%d:%02d" % [floori(time_left / 60.0), int(time_left) % 60])
 	return "  ·  ".join(parts)
 
 
 func _snapshot_state() -> Dictionary:
-	var state: Dictionary = _objective_snapshot()
+	var state: Dictionary = {}
 	state["scores"] = scores.duplicate()
 	state["time_left"] = time_left
 	state["teams"] = teams
@@ -410,4 +322,3 @@ func _apply_state(state: Dictionary) -> void:
 	time_left = float(state.get("time_left", time_left))
 	teams = int(state.get("teams", teams))
 	score_limit = int(state.get("score_limit", score_limit))
-	_objective_apply(state)
