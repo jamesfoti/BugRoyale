@@ -144,6 +144,11 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 		_target = null
 
 	var goal: Vector3 = _choose_goal(up)
+	# Landed on another bug (a worker dropping off a ledge after its leader comes down on the
+	# leader's back): off it first, whatever the goal was, or it rides there for good.
+	var perch: Node3D = _standing_on(body, up)
+	if perch != null:
+		goal = _step_off_goal(perch, position_now, up)
 	var to_goal: Vector3 = goal - position_now
 	var planar: Vector3 = to_goal.slide(up)
 	var move_direction: Vector3 = Vector3.ZERO
@@ -182,6 +187,32 @@ func sample(body: CharacterBody3D, delta: float) -> FighterInput:
 
 	_try_shoot(input, up)
 	return input
+
+
+## The fighter this body stands on, or null: the floor contact of the last slide, when the
+## thing under it is another bug rather than the ground.
+func _standing_on(body: CharacterBody3D, up: Vector3) -> Node3D:
+	if not body.is_on_floor():
+		return null
+	for index: int in body.get_slide_collision_count():
+		var collision: KinematicCollision3D = body.get_slide_collision(index)
+		var collider: Node3D = collision.get_collider() as Node3D
+		if (
+			collider != null
+			and collider != body
+			and collider.is_in_group("fighter")
+			and collision.get_normal().dot(up) > 0.5
+		):
+			return collider
+	return null
+
+
+## Two metres off the perch's back, straight away from its middle (sideways when dead centre).
+func _step_off_goal(perch: Node3D, position_now: Vector3, up: Vector3) -> Vector3:
+	var away: Vector3 = (position_now - perch.global_position).slide(up)
+	if away.length_squared() < 0.01:
+		away = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD) * _strafe_sign
+	return position_now + away.normalized() * 2.0
 
 
 # --- Targeting --------------------------------------------------------------------------------
