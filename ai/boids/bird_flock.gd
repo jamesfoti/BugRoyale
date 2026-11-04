@@ -21,6 +21,10 @@ const UNKNOWN_ALTITUDE: float = -INF
 @export var target_group: StringName = &"player"
 ## Center the flock on the targets it hunts instead of flock_center_path.
 @export var follow_targets: bool = false
+## Targets in this group draw the flock from lure_pull times as far as the rest (Burrow's
+## laden foragers); empty for no favourite.
+@export var lure_group: StringName = &""
+@export var lure_pull: float = 2.0
 ## Damageable team given to every member (Damageable.NO_TEAM = anyone can hurt them).
 @export var hornet_team: int = Damageable.NO_TEAM
 @export_range(1, 128, 1) var bird_count: int = 28
@@ -373,11 +377,15 @@ func _get_attack_targets() -> Array[Node3D]:
 	return targets
 
 
+## The nearest target, with a lured one counting as nearer than it is.
 func _find_nearest_target(position: Vector3, targets: Array[Node3D]) -> Node3D:
 	var closest: Node3D = null
 	var closest_distance_sq: float = INF
+	var lure_scale: float = 1.0 / maxf(lure_pull * lure_pull, 0.0001)
 	for target in targets:
 		var distance_sq: float = position.distance_squared_to(target.global_position)
+		if lure_group != &"" and target.is_in_group(lure_group):
+			distance_sq *= lure_scale
 		if distance_sq < closest_distance_sq:
 			closest_distance_sq = distance_sq
 			closest = target

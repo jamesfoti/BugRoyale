@@ -3,7 +3,10 @@ extends Node
 ## Day and night over a loaded map. The clock runs on every machine (the host's snapshot keeps
 ## them together); the map's sun swings from dawn to dusk, and the sky, the ambient light and a
 ## plain-colour background dim with it. After dark a faint moon lights the ground from the other
-## side. Modes read daylight() and hear dusk and dawn.
+## side. Modes read daylight() and hear dusk and dawn. Underground the light fades: every
+## frame the cycle casts rays from the camera over the upper hemisphere, and the share that
+## reach open air without touching the ground is how much sky the camera has; the sun and the
+## ambient light dim with it, down to a floor, so a deep tunnel is dark and a torch matters.
 ##
 ## The map's own resources are left alone: the environment, its sky and the sky material are
 ## duplicated before anything is changed, so the main menu's sky stays bright.
@@ -28,6 +31,15 @@ const NIGHT_SKY := Color(0.03, 0.04, 0.09)
 const SKY_COLOR_PARAMETERS: Array[String] = [
 	"sky_top_color", "sky_horizon_color", "ground_glow_color"
 ]
+## The sky probe: how far a ray goes looking for open air, the share of rays that must get
+## there for full light, how dark it gets with none, and how fast the light eases between
+## the two (so a step through the entrance is a fade, not a flick).
+const SKY_RAY_LENGTH: float = 45.0
+const SKY_OPEN: float = 0.35
+const SKY_DARK_FLOOR: float = 0.07
+const SKY_FADE_PER_SECOND: float = 2.0
+## Rays per ring and each ring's elevation above the horizon, plus one straight up.
+const SKY_RINGS: Array = [[8, 15.0], [8, 45.0], [4, 75.0]]
 
 ## Runs the clock faster (headless smoke tests); 1 is real time.
 static var speed: float = 1.0
@@ -47,11 +59,15 @@ var _background: Color = Color.BLACK
 var _sky_material: ShaderMaterial
 var _sky_colors: Dictionary = {}
 var _was_night: bool = false
+## Share of the probe's rays that reach open air, eased.
+var _sky: float = 1.0
+var _sky_rays: PackedVector3Array = sky_fan()
 
 
 func _process(delta: float) -> void:
 	if running:
 		advance(delta * speed)
+	_probe_sky(delta)
 	_apply()
 
 
@@ -109,6 +125,28 @@ static func seconds_to_change_at(seconds: float) -> float:
 	return (DAY_SECONDS - t) if t < DAY_SECONDS else (CYCLE_SECONDS - t)
 
 
+## How bright the sun and ambient light are for a camera that sees this share of the sky:
+## full from SKY_OPEN up, SKY_DARK_FLOOR with none.
+static func enclosed_light(sky_share: float) -> float:
+	return lerpf(SKY_DARK_FLOOR, 1.0, clampf(sky_share / SKY_OPEN, 0.0, 1.0))
+
+
+## The probe's ray directions: rings at SKY_RINGS' elevations and one straight up.
+static func sky_fan() -> PackedVector3Array:
+	var fan := PackedVector3Array([Vector3.UP])
+	for ring: Array in SKY_RINGS:
+		var count: int = int(ring[0])
+		var elevation: float = deg_to_rad(float(ring[1]))
+		for index: int in count:
+			var azimuth: float = TAU * index / count
+			fan.append(
+				Vector3(
+					cos(elevation) * cos(azimuth), sin(elevation), cos(elevation) * sin(azimuth)
+				)
+			)
+	return fan
+
+
 ## "4:05": minutes and seconds.
 static func clock_text(seconds: float) -> String:
 	var whole: int = maxi(ceili(seconds), 0)
@@ -164,18 +202,42 @@ func attach(scene_root: Node) -> void:
 				_sky_colors[parameter] = value
 
 
+## Counts the camera's rays that reach open air without touching the ground (the terrain
+## layer alone: a roof over the whole map is not a tunnel) and eases _sky toward that share.
+func _probe_sky(delta: float) -> void:
+	if not is_inside_tree():
+		return
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if camera == null or not camera.is_inside_tree():
+		return
+	var space: PhysicsDirectSpaceState3D = camera.get_world_3d().direct_space_state
+	var from: Vector3 = camera.global_position
+	var open: int = 0
+	for direction: Vector3 in _sky_rays:
+		var ray := PhysicsRayQueryParameters3D.create(
+			from, from + direction * SKY_RAY_LENGTH, MapInfo.TERRAIN_LAYER
+		)
+		if space.intersect_ray(ray).is_empty():
+			open += 1
+	var share: float = float(open) / _sky_rays.size()
+	_sky = move_toward(_sky, share, SKY_FADE_PER_SECOND * delta)
+
+
 func _apply() -> void:
 	var light: float = daylight()
+	var shade: float = enclosed_light(_sky)
 	var sun_direction: Vector3 = sun_direction_at(time, _sun_east, _sun_north)
 	if _sun != null and is_instance_valid(_sun):
 		var sun_up: float = clampf(sun_direction.y / HORIZON_FADE, 0.0, 1.0)
 		var moon_up: float = clampf(-sun_direction.y / HORIZON_FADE, 0.0, 1.0)
 		var toward: Vector3 = sun_direction if sun_direction.y >= 0.0 else -sun_direction
 		_sun.look_at(_sun.global_position - toward, Vector3.UP)
-		_sun.light_energy = _sun_energy * sun_up + MOON_ENERGY * moon_up
+		_sun.light_energy = (_sun_energy * sun_up + MOON_ENERGY * moon_up) * shade
 		_sun.light_color = _sun_color.lerp(MOON_COLOR, moon_up)
 	if _environment != null:
-		_environment.ambient_light_energy = _ambient_energy * lerpf(NIGHT_AMBIENT, 1.0, light)
+		_environment.ambient_light_energy = (
+			_ambient_energy * lerpf(NIGHT_AMBIENT, 1.0, light) * shade
+		)
 		if _environment.background_mode == Environment.BG_COLOR:
 			_environment.background_color = _background * lerpf(NIGHT_BACKGROUND, 1.0, light)
 	if _sky_material != null:

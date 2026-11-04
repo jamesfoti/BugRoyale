@@ -81,3 +81,24 @@ func test_sun_rises_in_the_east_and_sets_in_the_west() -> void:
 		DayCycle.DAY_SECONDS + DayCycle.NIGHT_SECONDS * 0.5, east, north
 	)
 	assert_lt(midnight.y, -0.9, "under the ground")
+
+
+func test_light_fades_as_the_sky_closes_over() -> void:
+	assert_almost_eq(DayCycle.enclosed_light(1.0), 1.0, 0.001, "open ground")
+	assert_almost_eq(DayCycle.enclosed_light(DayCycle.SKY_OPEN), 1.0, 0.001, "enough sky")
+	assert_almost_eq(
+		DayCycle.enclosed_light(0.0), DayCycle.SKY_DARK_FLOOR, 0.001, "deep in a tunnel"
+	)
+	var half: float = DayCycle.enclosed_light(DayCycle.SKY_OPEN * 0.5)
+	assert_between(half, DayCycle.SKY_DARK_FLOOR, 1.0, "just inside the entrance")
+
+
+func test_sky_fan_points_up_and_covers_every_ring() -> void:
+	var fan: PackedVector3Array = DayCycle.sky_fan()
+	var expected: int = 1
+	for ring: Array in DayCycle.SKY_RINGS:
+		expected += int(ring[0])
+	assert_eq(fan.size(), expected)
+	for direction: Vector3 in fan:
+		assert_gt(direction.y, 0.1, "every ray looks for the sky")
+		assert_almost_eq(direction.length(), 1.0, 0.001)

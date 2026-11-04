@@ -44,8 +44,16 @@ func _process(_delta: float) -> void:
 
 func _on_node_added(node: Node) -> void:
 	if node is GeometryInstance3D:
-		# Deferred so a script that assigns materials in its own _ready has already run.
-		_restyle.call_deferred(node)
+		# Deferred so a script that assigns materials in its own _ready has already run. By id,
+		# so a node freed in the same frame (a test's, a pickup's) is skipped instead of being
+		# a freed argument the engine refuses.
+		_restyle_by_id.call_deferred(node.get_instance_id())
+
+
+func _restyle_by_id(instance_id: int) -> void:
+	var node: Node = instance_from_id(instance_id) as Node
+	if node != null:
+		_restyle(node)
 
 
 func _restyle_tree(root: Node) -> void:

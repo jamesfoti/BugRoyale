@@ -27,8 +27,10 @@ var noise_after_horde: float = 30.0
 ## How much of a squadmate bot's noise counts (the director watches the players).
 var bot_noise_share: float = 0.2
 var horde_cooldown_seconds: float = 25.0
-## A horde comes anyway after this long without one, and this often during a finale.
+## A horde comes anyway after this long without one, and this often during a finale. A
+## lull horde is this share of a full one (Burrow's daytime hornets are the smaller kind).
 var lull_seconds: float = 80.0
+var lull_share: float = 1.0
 var finale_seconds: float = 12.0
 var horde_base: int = 8
 var horde_growth: int = 3
@@ -44,7 +46,6 @@ var hordes: int = 0
 var finale: bool = false
 
 var _horde_flock: BirdFlock
-var _nests: Array[BirdFlock] = []
 var _cooldown: float = 0.0
 var _lull: float = 0.0
 var _finale_timer: float = 0.0
@@ -77,20 +78,6 @@ static func make_flock(
 	flock.obstacles = map_info.flying_obstacles()
 	parent.add_child(flock)
 	return flock
-
-
-## A nest: hornets that patrol a patch of ground and attack what comes near.
-func add_nest(center: Vector3, count: int, patrol_radius: float = 10.0) -> BirdFlock:
-	var nest: BirdFlock = make_flock(
-		world_root, map, prey_group, enemy_team, "HornetNest%d" % _nests.size()
-	)
-	nest.follow_targets = false
-	nest.spawn_radius = patrol_radius
-	nest.attack_detection_radius = 20.0
-	nest.global_position = center + map.up_at(center) * 5.0
-	nest.spawn_wave(count)
-	_nests.append(nest)
-	return nest
 
 
 ## The flock hordes arrive in: it chases the squad wherever it goes.
@@ -172,6 +159,8 @@ func send_horde(reason: Reason) -> void:
 	_cooldown = horde_cooldown_seconds
 	_lull = 0.0
 	var count: int = mini(horde_base + hordes * horde_growth, horde_max)
+	if reason == Reason.LULL:
+		count = maxi(ceili(count * lull_share), 1)
 	if _horde_flock != null:
 		_horde_flock.spawn_wave(count)
 	hordes += 1
@@ -186,6 +175,12 @@ func start_finale() -> void:
 
 func stop_finale() -> void:
 	finale = false
+
+
+## The next lull horde comes in this many seconds instead of after a whole lull (the start
+## of a Burrow day, so the sky is not empty for minutes).
+func hasten_lull(seconds: float) -> void:
+	_lull = maxf(_lull, lull_seconds - seconds)
 
 
 # --- Showing -----------------------------------------------------------------------------------

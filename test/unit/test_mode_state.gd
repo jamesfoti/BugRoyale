@@ -5,26 +5,17 @@ extends GutTest
 
 const MODE_SCRIPTS: Dictionary = {
 	"hold_out": "res://modes/hold_out.gd",
-	"forage": "res://modes/forage.gd",
 	"slayer": "res://modes/slayer.gd",
-	"capture_the_egg": "res://modes/capture_the_egg.gd",
-	"king_of_the_anthill": "res://modes/king_of_the_anthill.gd",
-	"cordyceps_royale": "res://modes/cordyceps_royale.gd",
 	"burrow": "res://modes/burrow.gd",
 }
 
-## The fields every competitive (ColonyMatch) mode snapshots, and the zone modes' extras.
+## The fields every competitive (ColonyMatch) mode snapshots.
 const COLONY_STATE: Dictionary = {
 	"scores": {0: 3, 1: 5}, "time_left": 100.0, "teams": 2, "score_limit": 40
 }
-const ZONE_STATE: Dictionary = {
-	"zone_owners": [0, -1, 1],
-	"zone_points": [Vector3(1, 0, 2), Vector3(5, 0, 5), Vector3(9, 1, 0)],
-}
-const ZONE_MODES: Array = ["king_of_the_anthill"]
 
-## A state per mode that exercises every field the mode snapshots (colony and zone fields are
-## merged in by _sample).
+## A state per mode that exercises every field the mode snapshots (colony fields are merged in
+## by _sample).
 const SAMPLE_STATES: Dictionary = {
 	"hold_out":
 	{
@@ -37,30 +28,7 @@ const SAMPLE_STATES: Dictionary = {
 		"fort": Vector3(1, 2, 3),
 		"approaches": [Vector3(30, 2, 0), Vector3(-20, 1, 25)],
 	},
-	"forage":
-	{
-		"phase": 1,
-		"banked": 2,
-		"carried": {1: 3, 2: 0, 3: 1},
-		"noise": 37.5,
-		"hordes": 2,
-		"time_left": 200.0,
-		"window_left": 0.0,
-		"aboard": [2],
-		"landing_zone": Vector3(1, 2, 3),
-		"extraction": Vector3(10, 2, -4),
-	},
 	"slayer": {},
-	"capture_the_egg": {"eggs_taken": [false, true]},
-	"king_of_the_anthill": {"hill_timer": 12.5},
-	"cordyceps_royale":
-	{
-		"stage": 1,
-		"stage_time": 12.25,
-		"infection": {1: 0.4, 2: 1.0, 5: 0.0},
-		"turned_humans": {2: true},
-		"turned_count": 3,
-	},
 	"burrow":
 	{
 		"home": Vector3(1, 2, 3),
@@ -74,11 +42,15 @@ const SAMPLE_STATES: Dictionary = {
 		"play_seconds": 900.0,
 		"husks_left": 2,
 		"hornets_left": 5,
+		"raiders_left": 4,
+		"spiders_left": 0,
 		"queen_position": Vector3(4, -5, 6),
 		"queen_state": 3,
 		"queen_health": 120.0,
 		"queen_carry": 0,
 		"workers_alive": 3,
+		"brood": {"food": 4, "eggs": 1, "laid_today": 1, "room_m3": 50.0},
+		"carried": {1: 2},
 	},
 }
 
@@ -89,14 +61,12 @@ func _new_mode(mode_id: String) -> GameMode:
 	return mode
 
 
-## The sample state of a mode, with the colony and zone fields filled in where they apply.
+## The sample state of a mode, with the colony fields filled in where they apply.
 func _sample(mode_id: String) -> Dictionary:
 	var state: Dictionary = (SAMPLE_STATES[mode_id] as Dictionary).duplicate()
 	var mode: GameMode = _new_mode(mode_id)
 	if mode is ColonyMatch and not state.has("scores"):
 		state.merge(COLONY_STATE)
-	if ZONE_MODES.has(mode_id):
-		state.merge(ZONE_STATE)
 	return state
 
 
@@ -163,20 +133,19 @@ func test_status_text_reads_from_state_alone() -> void:
 	assert_string_contains(burrow._status_text(), "Night 3", "two nights survived, in the third")
 	assert_string_contains(burrow._status_text(), "2:40 to dawn", "320 s into a 480 s cycle")
 	assert_string_contains(burrow._status_text(), "Husks 2")
-	burrow.apply_state({"time": 100.0})
+	assert_string_contains(burrow._status_text(), "Raiders 4")
+	burrow.apply_state({"time": 100.0, "spiders_left": 2})
+	assert_string_contains(burrow._status_text(), "Spiders 2")
+	assert_string_contains(burrow._status_text(), "Hornets 5", "hornets hunt by day too")
 	assert_string_contains(burrow._status_text(), "Day 3")
 	assert_string_contains(burrow._status_text(), "Dirt 12, Stone 3")
-	assert_string_contains(burrow._status_text(), "Workers 3/4")
+	assert_string_contains(burrow._status_text(), "Food 4  ·  Eggs 1")
+	assert_string_contains(burrow._status_text(), "Workers 3/5", "room for one more than four")
 	burrow.apply_state({"founded": false, "queen_carry": 1, "queen_health": 80.0})
 	assert_string_contains(burrow._status_text(), "The workers carry the queen")
 	assert_string_contains(burrow._status_text(), "Queen 50%")
 	burrow.apply_state({"queen_carry": 2})
 	assert_string_contains(burrow._status_text(), "You carry the queen")
-
-	var forage: GameMode = _new_mode("forage")
-	forage.apply_state(SAMPLE_STATES["forage"])
-	assert_string_contains(forage._status_text(), "Materials 6/10", "banked plus carried")
-	assert_string_contains(forage._status_text(), "3:20")
 
 
 func test_catalog_formats_and_maps_agree() -> void:
@@ -196,12 +165,3 @@ func test_catalog_formats_and_maps_agree() -> void:
 
 func test_the_front_door_is_burrow_hold_out_and_slayer_in_that_order() -> void:
 	assert_eq(ModeCatalog.front_door(), ["burrow", "hold_out", "slayer"])
-
-
-func test_shelved_modes_still_load_by_id() -> void:
-	for mode_id: String in ModeCatalog.MODES.keys():
-		if bool(ModeCatalog.mode(mode_id).get("shelved", false)):
-			assert_false(
-				ModeCatalog.map_scene(ModeCatalog.maps_for(mode_id, "").front()).is_empty()
-			)
-			assert_not_null(_new_mode(mode_id), mode_id)

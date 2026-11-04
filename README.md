@@ -25,13 +25,15 @@ Play
   too, dug and built on like the lawn.
 - **Three modes on the menu.** Burrow (survival as the colony's soldier: four workers carry
   the queen and follow you, you pick the ground and give the word, they dig her chamber;
-  then dig by day, build with what you carve, hold the burrow after dark, and keep the queen
-  alive, because the colony dies with her; the map is saved as you go), Hold Out (you and 3 AI
+  then dig by day and build with what you carve while the workers forage crumbs, seeds and
+  sugar to the entrance, every six food is an egg that hatches a worker at dawn, the room
+  you dig below ground caps how many the colony can be, a fallen worker is gone for good,
+  hornets hunt by day and by night, trapdoor spiders lurk among the food, hold the burrow
+  after dark against husks and raiding ants, and keep the queen alive, because the colony
+  dies with her; the deeper you dig the darker it gets, so carry the torch;
+  the map is saved as you go), Hold Out (you and 3 AI
   squadmates against waves of hornets, husks and enemy ants) and Slayer (deathmatch, Solo,
   Skirmish 4v4, Colony 12v12 or Big Colony 24v24, bots filling every empty slot).
-- **Shelved modes**, finished and tested but off the menu until there are players to fill
-  them: Capture the Egg, King of the Anthill, Forage (extraction with a dragonfly and a noise
-  meter) and Cordyceps Royale. Each still runs headless by id.
 - **Burrow saves as you go**, under `user://worlds`, and the world is there next time, with a
   Start over button on the map page to wipe it.
 - **What the ground is made of.** Under the topsoil the ground is stone with veins of sand,
@@ -76,16 +78,15 @@ single-player game, and the bots stay as backfill for lobbies that do not fill.
 - [ ] Terrain edits as an ordered log from the host: clients request a brush or block stamp,
   the host validates it (player clearance against every fighter), broadcasts it, and late
   joiners receive the full override set.
-- [ ] Host-authoritative combat and mode state: damage, deaths, scores, hornet waves,
-  the spore circle and husk conversions all decided once and replicated. Clients show
+- [ ] Host-authoritative combat and mode state: damage, deaths, scores, hornet waves
+  and husk conversions all decided once and replicated. Clients show
   shot visuals immediately and accept the verdict.
 - [ ] Bots run only on the host and are replicated like any other fighter; lobbies fill with
   bots when short of players.
-- [ ] Interest management: a client only receives the bodies inside its bubble, the way far
-  bots already drop to ghosts on the host, so big colony and royale counts stay affordable
-  over the wire.
-- [ ] Per-mode stats that survive a restart (best hornet wave per map, royale wins, colony
-  records) shown on the mode picker.
+- [ ] Interest management: a client only receives the bodies inside its bubble, so big
+  colony counts stay affordable over the wire.
+- [ ] Per-mode stats that survive a restart (best hornet wave per map, nights survived,
+  colony records) shown on the mode picker.
 - [ ] A pass through every mode on every map and format before any release.
 - [ ] Store text that says plainly which modes are online and which are versus AI.
 - [ ] NAT traversal (a relay, or Steam networking via GodotSteam) once the game logic is
@@ -106,7 +107,7 @@ To run from source:
    textures.
 4. Press **F5** (or the Play button, top right) to start at the main menu. **F6** runs
    whatever scene is open instead, which is handy for jumping straight into a map such as
-   `scenes/garden_test.tscn`.
+   `scenes/garden.tscn`.
 
 Build
 -----
@@ -169,7 +170,6 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_block_snapping.gd` | Where the block tool lands a block for a hit: ground, stacked faces, side faces, odd and one-voxel sizes, 2 m voxels with an offset origin |
 | `test_mode_state.gd` | Every mode's state snapshot survives a round trip onto a fresh mode (what a client will show the match from) |
 | `test_damageable.gd` | Health rules: team immunity, the no-team case, dying once, kill credit, the host-only authority gate, revive |
-| `test_control_zone.gd` | A control zone's capture rules: one team takes it over time, two freeze it, the owner keeps it, locked zones never change |
 | `test_horde_director.gd` | The noise meter: what fills it, how it fades, bot shots at a fraction, hordes on a full meter, after a lull and during a finale, growth up to the cap |
 | `test_material_stock.gd` | The pickaxe stock: a carve pays out by material, a build spends it (the map's ground is dirt), never negative, and a build needs half its voxels in hand |
 | `test_day_cycle.gd` | The day cycle's clock: daylight by the hour, twilight, dusk and dawn crossings, the time to the next change, where the sun stands |
@@ -218,7 +218,7 @@ log refuses an edit that would bury a fighter. Pass `-Smoke` to `tools/run_tests
 one match per mode, or run a single combination yourself:
 
 ```powershell
-godot --headless --path . res://tools/smoke_test.tscn -- map=crawlspace mode=cordyceps_royale frames=1800
+godot --headless --path . res://tools/smoke_test.tscn -- map=crawlspace mode=burrow frames=1800 clock=20
 ```
 
 `tools/screenshot.tscn` is the same launcher with a window: it waits for the match to start,
@@ -231,28 +231,23 @@ godot --path . res://tools/screenshot.tscn --resolution 1152x648 -- map=crawlspa
 ```
 
 Map ids: `battlefield`, `terrarium`, `crawlspace`.
-Mode ids:
-`hold_out`, `forage`, `slayer`, `capture_the_egg`, `king_of_the_anthill`, `cordyceps_royale`,
-`burrow`. Competitive modes take
-`format=solo|skirmish|colony|big_colony` (the mode's default otherwise). Add `drive=1` to
+Mode ids: `burrow`, `hold_out`, `slayer`. Slayer takes
+`format=solo|skirmish|colony|big_colony` (skirmish otherwise). Add `drive=1` to
 work the local player's controls as well. The result line starts with `SMOKE RESULT`. Headless
 Godot cannot capture the mouse, so the local player's trigger is the one thing it never fires.
 
 **Scaling runs.** The same harness measures how the game copes with crowds. `fighters=<n>`
-overrides how many fighters the colony, solo and royale modes spawn, `brains=0`
-switches the bots' AI off once the match starts, and `ghosts=0` keeps every far bot in its
-body. The result line carries `physics_ms` and `process_ms` as average/worst frame times in
-milliseconds after a warm-up, and `ghosts`, the number of bots currently without a body:
+overrides how many fighters the colony and solo formats spawn, and `brains=0`
+switches the bots' AI off once the match starts. The result line carries `physics_ms` and
+`process_ms` as average/worst frame times in milliseconds after a warm-up:
 
 ```powershell
 godot --headless --path . res://tools/smoke_test.tscn -- map=battlefield mode=slayer format=colony frames=600 seed=7 fighters=96
 ```
 
 Bots cost less the farther they are from every human: beyond 40 m their physics steps every
-third frame, beyond 60 m they stop animating and casting shadows, beyond 160 m they are not
-drawn, and in the modes that opt in (the colony and royale modes) a bot beyond 115 m gives up
-its body altogether and lives on as a ghost (`GhostSimulation`) that wanders, fights other
-ghosts by rolls, and gets its body back when a human comes within 100 m.
+third frame, beyond 60 m they stop animating and casting shadows, and beyond 160 m they are
+not drawn.
 
 Release
 -------
