@@ -1,8 +1,8 @@
 class_name ShooterTest
 extends Node
 ## Weapon fire: a projectile visual, direct and splash damage on impact, and a crater in the
-## terrain for the explosive weapons only ("digs" in the profile: grenade launcher, rocket
-## launcher, short cannon). Bullets, pellets and blades leave the ground alone.
+## terrain for the explosive weapons only ("digs" in the profile: grenade launcher and rocket
+## launcher). Bullets leave the ground alone.
 ##
 ## The local player's trigger and aim come from the mouse and the camera. Any other pilot (a
 ## bot's brain, later a network peer) hands its FighterInput to handle_input each physics frame:
@@ -38,26 +38,6 @@ const WEAPON_FIRE_PROFILE: Dictionary = {
 		"bloom": 0.8,
 		"digs": true,
 	},
-	PlayerItems.Item.WEAPON_KNIFE_1:
-	{
-		"cooldown": 0.25,
-		"damage": 4.0,
-		"radius": 0.8,
-		"projectile_speed": 120.0,
-		"projectile_radius": 0.08,
-		"spread": 0.0,
-		"bloom": 0.0,
-	},
-	PlayerItems.Item.WEAPON_KNIFE_2:
-	{
-		"cooldown": 0.25,
-		"damage": 4.0,
-		"radius": 0.8,
-		"projectile_speed": 120.0,
-		"projectile_radius": 0.08,
-		"spread": 0.0,
-		"bloom": 0.0,
-	},
 	PlayerItems.Item.WEAPON_PISTOL:
 	{
 		"cooldown": 0.2,
@@ -67,26 +47,6 @@ const WEAPON_FIRE_PROFILE: Dictionary = {
 		"projectile_radius": 0.09,
 		"spread": 1.1,
 		"bloom": 0.5,
-	},
-	PlayerItems.Item.WEAPON_REVOLVER:
-	{
-		"cooldown": 0.3,
-		"damage": 14.0,
-		"radius": 1.6,
-		"projectile_speed": 155.0,
-		"projectile_radius": 0.1,
-		"spread": 0.9,
-		"bloom": 0.9,
-	},
-	PlayerItems.Item.WEAPON_REVOLVER_SMALL:
-	{
-		"cooldown": 0.26,
-		"damage": 11.0,
-		"radius": 1.3,
-		"projectile_speed": 160.0,
-		"projectile_radius": 0.09,
-		"spread": 1.2,
-		"bloom": 0.6,
 	},
 	PlayerItems.Item.WEAPON_ROCKET_LAUNCHER:
 	{
@@ -99,64 +59,12 @@ const WEAPON_FIRE_PROFILE: Dictionary = {
 		"bloom": 1.0,
 		"digs": true,
 	},
-	PlayerItems.Item.WEAPON_SHORT_CANNON:
-	{
-		"cooldown": 0.75,
-		"damage": 24.0,
-		"radius": 3.4,
-		"projectile_speed": 65.0,
-		"projectile_radius": 0.24,
-		"spread": 2.0,
-		"bloom": 1.2,
-		"digs": true,
-	},
-	PlayerItems.Item.WEAPON_SHOTGUN:
-	{
-		"cooldown": 0.45,
-		"damage": 16.0,
-		"radius": 2.3,
-		"projectile_speed": 145.0,
-		"projectile_radius": 0.12,
-		"spread": 4.5,
-		"bloom": 1.5,
-	},
-	PlayerItems.Item.WEAPON_SHOVEL:
-	{
-		"cooldown": 0.35,
-		"damage": 6.0,
-		"radius": 1.0,
-		"projectile_speed": 95.0,
-		"projectile_radius": 0.1,
-		"spread": 0.0,
-		"bloom": 0.0,
-	},
-	PlayerItems.Item.WEAPON_SMG:
-	{
-		"cooldown": 0.08,
-		"damage": 6.0,
-		"radius": 1.0,
-		"projectile_speed": 190.0,
-		"projectile_radius": 0.08,
-		"spread": 2.2,
-		"bloom": 0.3,
-		"auto": true,
-	},
 	PlayerItems.Item.WEAPON_SNIPER:
 	{
 		"cooldown": 0.55,
 		"damage": 22.0,
 		"radius": 2.0,
 		"projectile_speed": 220.0,
-		"projectile_radius": 0.11,
-		"spread": 3.0,
-		"bloom": 1.5,
-	},
-	PlayerItems.Item.WEAPON_SNIPER_2:
-	{
-		"cooldown": 0.6,
-		"damage": 24.0,
-		"radius": 2.2,
-		"projectile_speed": 225.0,
 		"projectile_radius": 0.11,
 		"spread": 3.0,
 		"bloom": 1.5,

@@ -14,18 +14,10 @@ const ANIMATION_BLEND_SECONDS: float = 0.15
 ## Longest dimension each weapon is scaled to, in meters (the ant is about 1.1 m tall).
 const WEAPON_LENGTHS: Dictionary = {
 	"Pistol": 0.26,
-	"Revolver": 0.28,
-	"Revolver_Small": 0.24,
-	"Knife_1": 0.3,
-	"Knife_2": 0.3,
-	"Shovel": 0.6,
 	"Sniper": 0.85,
-	"Sniper_2": 0.85,
 	"RocketLauncher": 0.75,
 }
 const DEFAULT_WEAPON_LENGTH: float = 0.6
-## Weapons modelled standing up (blade or handle along their Y) instead of along X.
-const UPRIGHT_WEAPONS: PackedStringArray = ["Knife_1", "Knife_2", "Shovel"]
 
 var _current_state: String = ""
 var _hand_attachment: BoneAttachment3D
@@ -203,15 +195,8 @@ func _set_weapon_mesh(weapon_mesh_name: String) -> void:
 func _weapon_transform(weapon_mesh_name: String, aabb: AABB) -> Transform3D:
 	var length: float = WEAPON_LENGTHS.get(weapon_mesh_name, DEFAULT_WEAPON_LENGTH)
 	var weapon_scale: float = length / maxf(aabb.get_longest_axis_size(), 0.001)
-	var skeleton_basis: Basis
-	if weapon_mesh_name in UPRIGHT_WEAPONS:
-		# Blade / handle (+Y) points forward and slightly up, flat side facing sideways.
-		skeleton_basis = Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0)).rotated(
-			Vector3.RIGHT, deg_to_rad(-30.0)
-		)
-	else:
-		# Barrel (+X) points forward (+Z), weapon up (+Y) stays up.
-		skeleton_basis = Basis(Vector3(0, 0, 1), Vector3(0, 1, 0), Vector3(-1, 0, 0))
+	# Barrel (+X) points forward (+Z), weapon up (+Y) stays up.
+	var skeleton_basis := Basis(Vector3(0, 0, 1), Vector3(0, 1, 0), Vector3(-1, 0, 0))
 	return _hand_local(
 		skeleton_basis.scaled_local(Vector3.ONE * weapon_scale), Vector3(0.0, 0.0, 0.02)
 	)

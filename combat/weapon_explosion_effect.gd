@@ -5,8 +5,8 @@ extends Node3D
 const SMOKE_TEXTURE_PATH: String = "res://combat/effects/smoke_05.png"
 ## Just past the longest particle lifetime (smoke, 1.4 s).
 const EFFECT_LIFETIME_SECONDS: float = 1.5
-## Each effect is three particle systems and a light. Automatic fire (an AK is 9 shots/s, an SMG
-## 12) would otherwise keep 20+ of them alive at once, so the oldest is dropped past this many.
+## Each effect is three particle systems and a light. Automatic fire (an AK is 9 shots/s) would
+## otherwise keep 20+ of them alive at once, so the oldest is dropped past this many.
 const MAX_LIVE_EFFECTS: int = 12
 
 ## Particle materials, ramps and meshes shared by every explosion, keyed by kind and scale, so

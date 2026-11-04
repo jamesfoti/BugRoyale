@@ -20,8 +20,7 @@ const CHARACTERS: Dictionary = {
 		"scene": "res://character/ant/skins/soldier_ant.tscn",
 		"bot_scene": "res://character/ant/skins/soldier_ant_bot.tscn",
 		"weapon": PlayerItems.Item.WEAPON_AK,
-		"bot_weapon":
-		{"damage": 7.0, "cooldown": 0.28, "range": 45.0, "spread_degrees": 3.5, "pellets": 1},
+		"bot_weapon": {"damage": 7.0, "cooldown": 0.28, "range": 45.0, "spread_degrees": 3.5},
 		"name": "Ant Warrior",
 		"role": "Assault / All-Rounder",
 		"description":
@@ -37,9 +36,8 @@ const CHARACTERS: Dictionary = {
 	{
 		"scene": "res://character/termite/skins/dampwood_termite.tscn",
 		"bot_scene": "res://character/termite/skins/dampwood_termite_bot.tscn",
-		"weapon": PlayerItems.Item.WEAPON_SHOTGUN,
-		"bot_weapon":
-		{"damage": 4.0, "cooldown": 0.9, "range": 18.0, "spread_degrees": 7.0, "pellets": 5},
+		"weapon": PlayerItems.Item.WEAPON_GRENADE_LAUNCHER,
+		"bot_weapon": {"damage": 20.0, "cooldown": 1.1, "range": 28.0, "spread_degrees": 4.0},
 		"name": "Termite Soldier",
 		"role": "Heavy Juggernaut",
 		"description":
@@ -55,9 +53,8 @@ const CHARACTERS: Dictionary = {
 	{
 		"scene": "res://character/wasp/skins/yellowjacket_wasp.tscn",
 		"bot_scene": "res://character/wasp/skins/yellowjacket_wasp_bot.tscn",
-		"weapon": PlayerItems.Item.WEAPON_SMG,
-		"bot_weapon":
-		{"damage": 4.0, "cooldown": 0.13, "range": 30.0, "spread_degrees": 5.0, "pellets": 1},
+		"weapon": PlayerItems.Item.WEAPON_PISTOL,
+		"bot_weapon": {"damage": 10.0, "cooldown": 0.3, "range": 30.0, "spread_degrees": 4.0},
 		"name": "Wasp",
 		"role": "Airborne Skirmisher",
 		"description":
@@ -75,8 +72,7 @@ const CHARACTERS: Dictionary = {
 		"scene": "res://character/spider/skins/trapdoor_spider.tscn",
 		"bot_scene": "res://character/spider/skins/trapdoor_spider_bot.tscn",
 		"weapon": PlayerItems.Item.WEAPON_SNIPER,
-		"bot_weapon":
-		{"damage": 18.0, "cooldown": 1.5, "range": 90.0, "spread_degrees": 1.2, "pellets": 1},
+		"bot_weapon": {"damage": 18.0, "cooldown": 1.5, "range": 90.0, "spread_degrees": 1.2},
 		"name": "Trapdoor Spider",
 		"role": "Stealth Sniper",
 		"description":
@@ -112,7 +108,7 @@ static func bot_scene_path_for(character: LoadingScreen.PlayerCharacter) -> Stri
 	return _entry(character).get("bot_scene", scene_path_for(character))
 
 
-## Gun this class carries, and the bot version of it (damage, cooldown, range, spread, pellets).
+## Gun this class carries, and the bot version of it (damage, cooldown, range, spread).
 static func weapon_for(character: LoadingScreen.PlayerCharacter) -> PlayerItems.Item:
 	return _entry(character).get("weapon", PlayerItems.Item.WEAPON_AK)
 
