@@ -11,11 +11,25 @@
 const float TOON_SHADOW_BAND = 0.26;
 const float TOON_HALF_BAND = 0.62;
 
+// A surface shader may set these before including this file:
+//   TOON_BAND_SOFTNESS  how wide the two terminators are, as a multiple of the crisp default
+//                       (the ground uses a few: a soft gradient over rolling lawn instead of a
+//                       hard edge that stair-steps along the 2 m mesh grid);
+//   TOON_BAND_SHIFT     a per-fragment push of both terminators along the light angle (the
+//                       ground sets it from its own grain, so the edge wanders with the grass).
+#ifndef TOON_BAND_SOFTNESS
+#define TOON_BAND_SOFTNESS 1.0
+#endif
+#ifndef TOON_BAND_SHIFT
+#define TOON_BAND_SHIFT 0.0
+#endif
+
 void light() {
-	float n_dot_l = dot(NORMAL, LIGHT);
-	// Two terminators, each softened over a sliver so edges don't shimmer.
-	float lit = smoothstep(0.0, 0.06, n_dot_l);
-	float bright = smoothstep(0.40, 0.46, n_dot_l);
+	float n_dot_l = dot(NORMAL, LIGHT) + TOON_BAND_SHIFT;
+	// Two terminators, each softened over a sliver (0.06 at softness 1) so edges don't shimmer.
+	float half_width = 0.03 * TOON_BAND_SOFTNESS;
+	float lit = smoothstep(0.03 - half_width, 0.03 + half_width, n_dot_l);
+	float bright = smoothstep(0.43 - half_width, 0.43 + half_width, n_dot_l);
 	float band = mix(TOON_SHADOW_BAND, mix(TOON_HALF_BAND, 1.0, bright), lit);
 
 	float strength;

@@ -191,6 +191,10 @@ static func build_chunk_field(
 	var size_x: int = sample_size.x
 	var size_y: int = sample_size.y
 	var size_z: int = sample_size.z
+	if not density.solids.is_empty():
+		var halo: Vector3 = Vector3.ONE * step * 2.0
+		var region_start: Vector3 = grid_world_origin + Vector3(grid_offset) * step - halo
+		density.prepare_for_region(AABB(region_start, Vector3(sample_size) * step + halo * 2.0))
 	var min_value: float = INF
 	var max_value: float = -INF
 	var column_heights: PackedFloat32Array = PackedFloat32Array()
@@ -270,6 +274,15 @@ class WorldDensity:
 	var surface_height_offset: float = 0.0
 	## Carves tunnels, caverns and bedrock under a solid-filled open terrain (null: none).
 	var caves: CaveCarver = null
+	## Solid ground a map builder adds on top of the shape: the soil in a garden's raised beds.
+	## Each is a stadium (a box with rounded ends) standing on its centre, see stadium_sdf;
+	## "tint" is the vertex colour its surface carries (alpha 0: the ground shader draws that
+	## colour instead of the map's own ground). It is natural ground otherwise: dirt when dug.
+	var solids: Array[Dictionary] = []:
+		set(value):
+			solids = value
+			_region_solids = value
+			_region_solid_count = value.size()
 	var terrain_edits: TerrainEdits = null
 	## Seeds which element each ore pocket is (with the vein and ore noises, the map's seed).
 	var ore_seed: int = 0
@@ -281,6 +294,58 @@ class WorldDensity:
 	var _height_noise: FastNoiseLite
 	var _heightmap_image: Image
 	var _noise: FastNoiseLite
+	## The solids that can reach the region being sampled (see prepare_for_region), and how
+	## many: a chunk field asks every sample, so the solids it cannot touch are dropped first.
+	var _region_solids: Array[Dictionary] = []
+	var _region_solid_count: int = 0
+
+	## Signed distance to a solid: negative inside. The stadium stands on "center" (its
+	## bottom), runs "half_length" along x (or z when "along_z") with ends of "radius", and is
+	## "height" tall.
+	static func stadium_sdf(world_pos: Vector3, solid: Dictionary) -> float:
+		var local: Vector3 = world_pos - (solid["center"] as Vector3)
+		var along: float = local.z if bool(solid["along_z"]) else local.x
+		var across: float = local.x if bool(solid["along_z"]) else local.z
+		var radius: float = float(solid["radius"])
+		var straight: float = maxf(absf(along) - (float(solid["half_length"]) - radius), 0.0)
+		var sideways: float = Vector2(straight, across).length() - radius
+		var height: float = float(solid["height"])
+		var vertical: float = absf(local.y - height * 0.5) - height * 0.5
+		return maxf(sideways, vertical)
+
+	## Keeps only the solids that can reach a region (a chunk's samples plus the halo the
+	## normals read). Every sample of the region is then tested against those alone.
+	func prepare_for_region(region: AABB) -> void:
+		_region_solids = []
+		for solid: Dictionary in solids:
+			if region.intersects(solid_bounds(solid)):
+				_region_solids.append(solid)
+		_region_solid_count = _region_solids.size()
+
+	static func solid_bounds(solid: Dictionary) -> AABB:
+		var center: Vector3 = solid["center"]
+		var half_length: float = float(solid["half_length"])
+		var radius: float = float(solid["radius"])
+		var half: Vector3 = (
+			Vector3(radius, 0.0, half_length)
+			if bool(solid["along_z"])
+			else Vector3(half_length, 0.0, radius)
+		)
+		return AABB(center - half, Vector3(half.x * 2.0, float(solid["height"]), half.z * 2.0))
+
+	func _solids_sdf(world_pos: Vector3) -> float:
+		var nearest: float = INF
+		for solid: Dictionary in _region_solids:
+			nearest = minf(nearest, stadium_sdf(world_pos, solid))
+		return nearest
+
+	## The solid a point lies in, or an empty dictionary. Among the prepared region's solids:
+	## the mesher only asks about its chunk's own samples and the vertices between them.
+	func solid_at(world_pos: Vector3) -> Dictionary:
+		for solid: Dictionary in _region_solids:
+			if stadium_sdf(world_pos, solid) <= 0.0:
+				return solid
+		return {}
 
 	static func create(
 		noise_enabled: bool,
@@ -320,6 +385,8 @@ class WorldDensity:
 		var depth: float = -density_value
 		if depth < TOPSOIL_DEPTH or _vein_noise == null:
 			return TerrainMaterials.Kind.NATURAL
+		if _region_solid_count > 0 and not solid_at(world_position).is_empty():
+			return TerrainMaterials.Kind.NATURAL
 		var vein: float = _vein_noise.get_noise_3dv(world_position)
 		if vein < VEIN_THRESHOLD:
 			if _ore_noise.get_noise_3dv(world_position) < ORE_THRESHOLD:
@@ -333,10 +400,34 @@ class WorldDensity:
 			return TerrainMaterials.Kind.CLAY
 		return TerrainMaterials.Kind.GRAVEL
 
+	## natural_material with the depth read from the map's surface instead of the density
+	## value: what the mesher colours a dug face with and the pickaxe pays out. Under a solid
+	## fill the caves hold the density at a metre of depth wherever one could be carved
+	## (CaveCarver.carve keeps the greater of the ground and the cave's reach, which is -1
+	## outside any cave), so the density cannot say how deep a point lies; read as a depth it
+	## made the whole underground topsoil, and no dig ever reached stone or an element.
+	func ground_material(world_position: Vector3, density_value: float) -> TerrainMaterials.Kind:
+		return natural_material(world_position, -depth_below_surface(world_position, density_value))
+
+	## Metres below the map's surface at a point (negative above it): for an open terrain the
+	## surface height over the point less the point's height; for a world with no surface of
+	## its own the density, which is the shape there (negative inside).
+	func depth_below_surface(world_position: Vector3, density_value: float) -> float:
+		if open_terrain_enabled:
+			var surface: float = _sample_open_terrain_height(world_position.x, world_position.z)
+			return surface - world_position.y
+		return -density_value
+
 	## The vertex colour of natural ground here (alpha 1: the terrain shader draws its own
-	## ground, tinted by it). Plain white unless a world colours its ground by place.
-	func natural_tint(_world_position: Vector3, _density_value: float) -> Color:
-		return TerrainMaterials.NATURAL_VERTEX_COLOR
+	## ground, tinted by it). Plain white unless the point lies in a placed solid, which
+	## carries its own tint (alpha 0: a flat colour, the soil in a raised bed).
+	func natural_tint(world_position: Vector3, _density_value: float) -> Color:
+		if _region_solid_count == 0:
+			return TerrainMaterials.NATURAL_VERTEX_COLOR
+		var solid: Dictionary = solid_at(world_position)
+		if solid.is_empty():
+			return TerrainMaterials.NATURAL_VERTEX_COLOR
+		return solid.get("tint", TerrainMaterials.NATURAL_VERTEX_COLOR) as Color
 
 	## The element of the ore pocket at a point this deep: every element whose depth is reached
 	## is a candidate, and the pocket's cell draws one of them by weight. Stone where nothing
@@ -389,7 +480,7 @@ class WorldDensity:
 			return 1.0
 		return _macro_noise.get_noise_3d(world_position.x, world_position.y, world_position.z)
 
-	func _evaluate_boxed_in_terrain(world_pos: Vector3) -> float:
+	func _evaluate_boxed_in_terrain(world_pos: Vector3, with_edits: bool) -> float:
 		var value: float = _sample_boxed_in_terrain_noise(world_pos)
 		if boxed_in_edges_enabled:
 			value = maxf(
@@ -398,7 +489,9 @@ class WorldDensity:
 					world_pos, bounds_center, bounds_half, bounds_clip_inset
 				)
 			)
-		if terrain_edits != null:
+		if _region_solid_count > 0:
+			value = minf(value, _solids_sdf(world_pos))
+		if with_edits and terrain_edits != null:
 			value = terrain_edits.apply_to_density(value, world_pos)
 		return value
 
@@ -430,13 +523,15 @@ class WorldDensity:
 	func sample_open_terrain_height(world_x: float, world_z: float) -> float:
 		return _sample_open_terrain_height(world_x, world_z)
 
-	func _evaluate_open_terrain(world_pos: Vector3) -> float:
+	func _evaluate_open_terrain(world_pos: Vector3, with_edits: bool) -> float:
 		var surface_height: float = _sample_open_terrain_height(world_pos.x, world_pos.z)
-		return evaluate_open_terrain_with_surface(world_pos, surface_height)
+		return evaluate_open_terrain_with_surface(world_pos, surface_height, with_edits)
 
 	## Open-terrain density when the column's surface height is already known (field builds
 	## sample one height per XZ column instead of per voxel).
-	func evaluate_open_terrain_with_surface(world_pos: Vector3, surface_height: float) -> float:
+	func evaluate_open_terrain_with_surface(
+		world_pos: Vector3, surface_height: float, with_edits: bool = true
+	) -> float:
 		var above_surface: float = world_pos.y - surface_height
 		var value: float
 		if open_terrain_solid_fill:
@@ -458,15 +553,21 @@ class WorldDensity:
 					world_pos, bounds_center, bounds_half, bounds_clip_inset
 				)
 			)
-		if terrain_edits != null:
+		if _region_solid_count > 0:
+			value = minf(value, _solids_sdf(world_pos))
+		if with_edits and terrain_edits != null:
 			value = terrain_edits.apply_to_density(value, world_pos)
 		return value
 
-	func evaluate(world_pos: Vector3) -> float:
+	## The density here: the map's own shape with the edits (digging, building) on top. With
+	## with_edits false, the density the map was generated with: about zero on the original
+	## surface, negative inside the original ground. The mesher reads that at a dug face to
+	## tell how deep into the ground the digging reached (topsoil, stone or a vein).
+	func evaluate(world_pos: Vector3, with_edits: bool = true) -> float:
 		if open_terrain_enabled:
-			return _evaluate_open_terrain(world_pos)
+			return _evaluate_open_terrain(world_pos, with_edits)
 		if boxed_in_terrain_enabled:
-			return _evaluate_boxed_in_terrain(world_pos)
+			return _evaluate_boxed_in_terrain(world_pos, with_edits)
 		# No shape of its own: solid where the 3D noise runs high, with the edits on top.
 		var value := 1.0
 		if noise_enabled:
@@ -476,7 +577,9 @@ class WorldDensity:
 				)
 				* noise_amplitude
 			)
-		if terrain_edits != null:
+		if _region_solid_count > 0:
+			value = minf(value, _solids_sdf(world_pos))
+		if with_edits and terrain_edits != null:
 			value = terrain_edits.apply_to_density(value, world_pos)
 		return value
 

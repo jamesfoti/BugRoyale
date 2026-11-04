@@ -95,6 +95,8 @@ static func build_chunk_into(
 		)
 	if settings.terrain_edits != null:
 		density.terrain_edits = settings.terrain_edits
+	if not settings.solids.is_empty():
+		density.solids = settings.solids
 	var field: SignedDensityField = DensitySampler.build_chunk_field(
 		density, sample_size, grid_world_origin, grid_offset, world_step
 	)

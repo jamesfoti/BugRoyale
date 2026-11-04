@@ -92,6 +92,17 @@ const CAPSULE_SAMPLES: int = 6
 
 ## Brush edits are refused outside this box (world space). Zero size: editable anywhere.
 var edit_bounds: AABB = AABB()
+## Solid ground a map builder adds on top of the map's own shape, dug and built on like the
+## rest: the soil in a garden's raised beds. Stadiums as DensitySampler.WorldDensity.solids
+## describes them. Set before the first build (a builder's _ready runs before the deferred
+## rebuild on ready, which picks them up); set later, the chunks rebuild.
+var solids: Array[Dictionary] = []:
+	set(value):
+		solids = value
+		_invalidate_bake_density()
+		if not _chunks.is_empty():
+			_request_rebuild()
+
 ## A mode's say over edits (edit: Dictionary -> bool): Hold Out refuses building it cannot pay
 ## for. Invalid means everything goes.
 var edit_gate: Callable = Callable()
@@ -446,7 +457,7 @@ func apply_edit(edit: Dictionary) -> bool:
 	_prepare_edits()
 	var density: DensitySampler.WorldDensity = _get_bake_density()
 	var procedural_density: Callable = Callable(density, "evaluate")
-	var natural_material: Callable = Callable(density, "natural_material")
+	var natural_material: Callable = Callable(density, "ground_material")
 	var changed: bool
 	var reach: float
 	if str(edit.get("kind", "sphere")) == "box":
@@ -629,6 +640,7 @@ func _make_settings_snapshot() -> SettingsSnapshot:
 	settings.bounds_center = global_position
 	settings.bounds_half = get_world_extents() * 0.5
 	settings.terrain_edits = _edits
+	settings.solids = solids
 	settings.rebuild_collision = settings.generate_collision
 	_apply_world_specific_settings(settings)
 	return settings
@@ -786,7 +798,9 @@ func _invalidate_bake_density() -> void:
 
 func _get_bake_density() -> DensitySampler.WorldDensity:
 	if _bake_density == null:
-		_bake_density = _build_world_density(_make_settings_snapshot())
+		var settings: SettingsSnapshot = _make_settings_snapshot()
+		_bake_density = _build_world_density(settings)
+		_bake_density.solids = settings.solids
 	return _bake_density
 
 
@@ -892,6 +906,8 @@ class SettingsSnapshot:
 	var open_terrain_heightmap_image: Image = null
 	var open_terrain_surface_offset: float = 0.0
 	var terrain_edits: TerrainEdits = null
+	## Solid ground a map builder adds on top of the shape (DensitySampler.WorldDensity.solids).
+	var solids: Array[Dictionary] = []
 	var rebuild_collision: bool = true
 	## A world with ground of its own kind builds its density here:
 	## a static function taking the snapshot, called on worker threads too. Invalid: the

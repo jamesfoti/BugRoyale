@@ -196,6 +196,12 @@ func apply_to_density(density: float, world_position: Vector3) -> float:
 	return density
 
 
+## True when the sample at a world position was carved or built over (its density is an
+## override), so a surface through it is one digging or building made, not the map's own.
+func is_overridden_at(world_position: Vector3) -> bool:
+	return not _overrides.is_empty() and _overrides.has(_world_to_key(world_position))
+
+
 ## Placed material of the voxel at a world position; NATURAL for untouched or carved ground.
 func material_at(world_position: Vector3) -> TerrainMaterials.Kind:
 	if _materials.is_empty():

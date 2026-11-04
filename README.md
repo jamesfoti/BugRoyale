@@ -21,7 +21,8 @@ Play
   across, three chunks deep), and every match's seed carves a new underworld into them
   (CaveCarver): worm tunnels from a few metres down, caverns from twenty, a few sinkholes
   open to the sky, and bedrock at the bottom. The terrarium is a 5 m tank on a coffee
-  table in a room scaled to match.
+  table in a room scaled to match. In the garden the soil in the raised beds is terrain
+  too, dug and built on like the lawn.
 - **Three modes on the menu.** Burrow (survival as the colony's soldier: four workers carry
   the queen and follow you, you pick the ground and give the word, they dig her chamber;
   then dig by day, build with what you carve, hold the burrow after dark, and keep the queen

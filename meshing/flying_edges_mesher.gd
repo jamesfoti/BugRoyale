@@ -52,8 +52,12 @@ static func build_mesh(
 
 	# Placed materials colour the surface; the natural ground colours what digging exposes.
 	var material_edits: TerrainEdits = null
-	if density != null and density.terrain_edits != null and density.terrain_edits.has_materials():
-		material_edits = density.terrain_edits
+	var dug_edits: TerrainEdits = null
+	if density != null and density.terrain_edits != null:
+		if density.terrain_edits.has_materials():
+			material_edits = density.terrain_edits
+		if density.terrain_edits.get_override_count() > 0:
+			dug_edits = density.terrain_edits
 
 	var reader: _FieldReader = null
 	if density != null:
@@ -129,6 +133,7 @@ static func build_mesh(
 							center_offset,
 							reader,
 							material_edits,
+							dug_edits,
 							grid_world_origin,
 							result
 						)
@@ -181,6 +186,7 @@ static func _create_edge_vertex(
 	center_offset: Vector3,
 	reader: _FieldReader,
 	material_edits: TerrainEdits,
+	dug_edits: TerrainEdits,
 	grid_world_origin: Vector3,
 	result: MeshResult
 ) -> int:
@@ -209,23 +215,47 @@ static func _create_edge_vertex(
 	var index: int = result.vertices.size()
 	result.vertices.append(grid_pos * world_step - center_offset)
 
-	# The vertex shows the material of the sample on its solid side: a placed one, else what
-	# the natural ground is made of there (stone and veins show where digging exposed them).
+	# The vertex shows the material of the sample on its solid side: a placed one, else, on a
+	# face that digging or building made, what the natural ground is made of at the vertex:
+	# dirt through the topsoil (the colour the stock panel shows it as, since that is what the
+	# pickaxe paid out), stone, veins and ore where digging reached them. Untouched ground is
+	# the map's own, whatever the density says: a sample's value is not a depth, and on a bumpy
+	# map the first solid sample under an undug surface would otherwise paint it stone in 2 m
+	# blotches.
 	var vertex_color: Color = TerrainMaterials.NATURAL_VERTEX_COLOR
 	if reader != null and reader.density != null:
 		var solid_corner: Vector3 = global_lower
+		var air_corner: Vector3 = global_lower + Vector3(axis_step)
 		var solid_value: float = lower_value
 		if lower_value >= iso:
-			solid_corner += Vector3(axis_step)
+			solid_corner = air_corner
+			air_corner = global_lower
 			solid_value = upper_value
 		var solid_position: Vector3 = grid_world_origin + solid_corner * world_step
 		var kind: TerrainMaterials.Kind = TerrainMaterials.Kind.NATURAL
 		if material_edits != null:
 			kind = material_edits.material_at(solid_position)
-		if kind == TerrainMaterials.Kind.NATURAL:
-			kind = reader.density.natural_material(solid_position, solid_value)
+		# Dug where the sample on the air side was the map's ground before the edits: a carve
+		# only rewrites the samples it hollows or thins, so the lawn around a hole (its air
+		# untouched) keeps its colour, and the ground round a built block likewise.
+		var dug: bool = false
+		if kind == TerrainMaterials.Kind.NATURAL and dug_edits != null:
+			var air_position: Vector3 = grid_world_origin + air_corner * world_step
+			dug = (
+				dug_edits.is_overridden_at(air_position)
+				and reader.density.evaluate(air_position, false) < iso
+			)
+			if dug:
+				var vertex_position: Vector3 = grid_world_origin + grid_pos * world_step
+				kind = reader.density.ground_material(
+					vertex_position, reader.density.evaluate(vertex_position, false)
+				)
 		if kind == TerrainMaterials.Kind.NATURAL:
 			vertex_color = reader.density.natural_tint(solid_position, solid_value)
+			# A placed solid (a raised bed's soil) keeps its own tint; the map's own ground
+			# shows dirt where it was dug, the lawn or moss only where it was not.
+			if dug and vertex_color == TerrainMaterials.NATURAL_VERTEX_COLOR:
+				vertex_color = TerrainMaterials.vertex_color(TerrainMaterials.Kind.DIRT)
 		else:
 			vertex_color = TerrainMaterials.vertex_color(kind)
 	result.colors.append(vertex_color)
@@ -275,8 +305,8 @@ class MeshResult:
 	var indices: PackedInt32Array = PackedInt32Array()
 
 
-## Reads samples by local grid coordinate. Coordinates one step outside the chunk (needed for
-## central-difference normals on chunk faces) are evaluated from the density and cached.
+## Reads samples by local grid coordinate. Coordinates up to two steps outside the chunk
+## (needed for the normals on and near chunk faces) are evaluated from the density and cached.
 class _FieldReader:
 	var values: PackedFloat32Array
 	var size: Vector3i
@@ -303,9 +333,21 @@ class _FieldReader:
 		_outside_samples[key] = value
 		return value
 
+	## Central differences over one step and over two, blended. The two-step term averages
+	## out the cell-to-cell wobble a 2 m grid puts into every normal (lighting bands and
+	## slope colouring would otherwise step along the cells); the one-step term keeps the detail.
 	func gradient(x: int, y: int, z: int) -> Vector3:
 		return Vector3(
-			sample(x + 1, y, z) - sample(x - 1, y, z),
-			sample(x, y + 1, z) - sample(x, y - 1, z),
-			sample(x, y, z + 1) - sample(x, y, z - 1)
+			(
+				(sample(x + 1, y, z) - sample(x - 1, y, z)) * 0.5
+				+ (sample(x + 2, y, z) - sample(x - 2, y, z)) * 0.25
+			),
+			(
+				(sample(x, y + 1, z) - sample(x, y - 1, z)) * 0.5
+				+ (sample(x, y + 2, z) - sample(x, y - 2, z)) * 0.25
+			),
+			(
+				(sample(x, y, z + 1) - sample(x, y, z - 1)) * 0.5
+				+ (sample(x, y, z + 2) - sample(x, y, z - 2)) * 0.25
+			)
 		)

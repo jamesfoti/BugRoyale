@@ -16,9 +16,22 @@ uniform float moss_coverage : hint_range(0.0, 1.0) = 0.55;
 // Surface normal Y below which the ground turns to rock (steep faces), with a soft edge.
 uniform float rock_slope_start : hint_range(0.0, 1.0) = 0.45;
 uniform float rock_slope_end : hint_range(0.0, 1.0) = 0.7;
+// How wide the cel-shading terminators are on the ground, as a multiple of the crisp default
+// every other surface uses, and how far the soil grain shifts them. Softened and wandering,
+// the lit and half-lit bands blend across rolling ground instead of stair-stepping along the
+// 2 m mesh grid, whose normals are all the lighting has to go on.
+uniform float band_softness : hint_range(1.0, 8.0) = 4.0;
+uniform float band_jitter : hint_range(0.0, 0.5) = 0.12;
+// Fine grain (metres per cell) that pushes the moss and rock edges about, and how far. The
+// slope those edges follow is interpolated between vertices 2 m apart, so without it they
+// sawtooth along the triangles.
+uniform float edge_grain_size : hint_range(0.1, 5.0) = 0.7;
+uniform float edge_jitter : hint_range(0.0, 0.5) = 0.3;
 
 varying vec3 world_vertex;
 varying vec3 world_normal;
+// Terminator shift for this fragment, read by the light pass.
+varying float band_shift;
 
 float hash21(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -49,9 +62,14 @@ void fragment() {
 	vec2 ground = world_vertex.xz;
 	float grain = fbm(ground / soil_grain_size);
 	vec3 soil = mix(soil_dark_color.rgb, soil_color.rgb, grain);
+	band_shift = (grain - 0.5) * band_jitter;
+
+	// Fine grain, sheared along y so vertical faces get a pattern rather than streaks.
+	vec2 fine = ground + world_vertex.y * vec2(0.61, 0.37);
+	float edge = (fbm(fine / edge_grain_size) - 0.5) * edge_jitter;
 
 	// Moss likes flat ground: patches from large-scale noise, thinned out on slopes.
-	float up = clamp(world_normal.y, 0.0, 1.0);
+	float up = clamp(world_normal.y, 0.0, 1.0) + edge;
 	float patch = fbm(ground / moss_patch_size);
 	float moss_threshold = 1.0 - moss_coverage;
 	float moss = smoothstep(moss_threshold - 0.12, moss_threshold + 0.12, patch) * smoothstep(0.55, 0.85, up);
@@ -71,4 +89,6 @@ void fragment() {
 	ROUGHNESS = 1.0;
 }
 
+#define TOON_BAND_SOFTNESS band_softness
+#define TOON_BAND_SHIFT band_shift
 #include "res://shaders/toon_lighting.gdshaderinc"

@@ -42,6 +42,8 @@ const FENCE_INSET: float = 0.5
 ## The lip turned in around the top of a bed, and how far the soil sits below the rim.
 const RIM_LIP: float = 0.03
 const SOIL_DROP: float = 0.06
+## Straight segments in each rounded end of a bed's outline.
+const END_SEGMENTS: int = 14
 
 ## The beds, in real metres from the garden's centre: centre, length (along the bed), width,
 ## whether the long side runs along z, what grows in it (plant: share of the planting grid)
@@ -170,6 +172,7 @@ func _ready() -> void:
 	add_to_group("map_bounds")
 	add_to_group("garden")
 	_lay_lawn()
+	_fill_beds()
 	call_deferred("build")
 
 
@@ -181,6 +184,67 @@ func _lay_lawn() -> void:
 		return
 	if terrain.terrain_material == null:
 		terrain.terrain_material = lawn_material
+
+
+## The soil in every bed is terrain: a stadium of solid ground inside each wall, from under
+## the lawn up to the soil line, so the beds dig and build like the lawn. Registered before the
+## terrain's deferred first build so it costs no second rebuild.
+func _fill_beds() -> void:
+	var terrain: OpenTerrain = get_node_or_null(terrain_path) as OpenTerrain
+	if terrain == null:
+		return
+	_terrain = terrain
+	_s = structure_scale
+	_center = terrain.global_position
+	_half = terrain.get_world_extents() * 0.5
+	var solids: Array[Dictionary] = []
+	for bed: Dictionary in BEDS:
+		var footprint: Dictionary = _bed_footprint(bed)
+		var base: Vector3 = footprint["center"]
+		var soil_top: float = (bed_height - SOIL_DROP) * _s
+		# Out to just inside the outer wall: the mesh chamfers the soil's top corner across the
+		# last 2 m cell before the side, and the lip is 2.4 m wide, so with the side out there
+		# the chamfer hides under the lip and the soil shows flat right up to the inner wall.
+		# The wall's rounded ends are polygons whose flat segments cut inside the true circle
+		# the soil follows, so the inset is that sagitta plus a margin or the soil shows
+		# through the wall between the ribs (it did, on the widest beds). Buried a voxel under
+		# the wall's base so it joins the lawn.
+		var end_radius: float = float(footprint["width"]) * 0.5
+		var sagitta: float = end_radius * (1.0 - cos(PI / (2.0 * END_SEGMENTS)))
+		var wall_inset: float = sagitta + 0.15
+		var tint: Color = SOIL_COLOR
+		tint.a = 0.0
+		(
+			solids
+			. append(
+				{
+					"center": base + Vector3.DOWN * 2.0,
+					"half_length": float(footprint["length"]) * 0.5 - wall_inset,
+					"radius": float(footprint["width"]) * 0.5 - wall_inset,
+					"height": soil_top + 2.0,
+					"along_z": footprint["along_z"],
+					"tint": tint,
+				}
+			)
+		)
+	terrain.solids = solids
+
+
+## Where a bed stands: its centre on the lowest dirt under its footprint, sunk a little, so
+## no gap shows at the high side of a slope; its length and width in world metres.
+func _bed_footprint(bed: Dictionary) -> Dictionary:
+	var length: float = float(bed["length"]) * _s
+	var width: float = float(bed["width"]) * _s
+	var along_z: bool = bool(bed["along_z"])
+	var center2: Vector2 = bed["center"] as Vector2
+	var center := Vector3(_center.x + center2.x * _s, 0.0, _center.z + center2.y * _s)
+	var base_y: float = INF
+	var outline: Dictionary = _stadium(length, width)
+	for point: Vector2 in outline["points"]:
+		var world: Vector3 = center + _bed_local_to_world(Vector3(point.x, 0.0, point.y), along_z)
+		base_y = minf(base_y, _dirt_height(world))
+	center.y = minf(base_y, _dirt_height(center)) - 0.4
+	return {"center": center, "length": length, "width": width, "along_z": along_z}
 
 
 ## Open sky: flyers and the playable box reach this high (above the tallest obelisk).
@@ -281,21 +345,13 @@ func _deal_finishes() -> void:
 
 
 func _build_bed(parent: Node3D, bed: Dictionary, number: int) -> void:
-	var length: float = float(bed["length"]) * _s
-	var width: float = float(bed["width"]) * _s
-	var along_z: bool = bool(bed["along_z"])
-	var center2: Vector2 = bed["center"] as Vector2
-	var center := Vector3(_center.x + center2.x * _s, 0.0, _center.z + center2.y * _s)
-	# The wall stands on the lowest dirt under its footprint, sunk a little, so no gap shows
-	# at the high side of a slope.
-	var base_y: float = INF
+	var footprint: Dictionary = _bed_footprint(bed)
+	var length: float = footprint["length"]
+	var width: float = footprint["width"]
+	var along_z: bool = footprint["along_z"]
+	var center: Vector3 = footprint["center"]
 	var outline: Dictionary = _stadium(length, width)
-	for point: Vector2 in outline["points"]:
-		var world: Vector3 = center + _bed_local_to_world(Vector3(point.x, 0.0, point.y), along_z)
-		base_y = minf(base_y, _dirt_height(world))
-	base_y = minf(base_y, _dirt_height(center)) - 0.4
-	center.y = base_y
-	_footprints.append({"center": center, "length": length, "width": width, "along_z": along_z})
+	_footprints.append(footprint)
 
 	var root := Node3D.new()
 	root.name = "Bed%d" % number
@@ -314,16 +370,9 @@ func _build_bed(parent: Node3D, bed: Dictionary, number: int) -> void:
 	wall.set_meta("finish", finish)
 	root.add_child(wall)
 
+	# The soil itself is terrain (see _fill_beds); plants and trellises stand on its line.
 	var soil_top: float = height - SOIL_DROP * _s
-	var soil := MeshInstance3D.new()
-	soil.name = "Soil"
-	soil.mesh = _cap_mesh(
-		_stadium(length - RIM_LIP * 2.0 * _s, width - RIM_LIP * 2.0 * _s), soil_top, SOIL_COLOR
-	)
-	soil.material_override = _material(SOIL_COLOR, 1.0, true)
-	root.add_child(soil)
-
-	_bed_collision(root, outline, length, width, wall_bottom, height, soil_top)
+	_bed_collision(root, outline, wall_bottom, height, soil_top)
 	_plant_bed(bed, root, length, width, soil_top)
 	match int(bed["trellis"]):
 		Trellis.ARCHES:
@@ -341,7 +390,7 @@ func _build_bed(parent: Node3D, bed: Dictionary, number: int) -> void:
 ## Points around a stadium (a rectangle with semicircular ends) of a length along x and a
 ## width along z, with the outward normal at each point.
 func _stadium(
-	length: float, width: float, end_segments: int = 14, side_segments: int = 10
+	length: float, width: float, end_segments: int = END_SEGMENTS, side_segments: int = 10
 ) -> Dictionary:
 	var r: float = width * 0.5
 	var c: float = maxf(length * 0.5 - r, 0.0)
@@ -461,15 +510,9 @@ func _cap_mesh(outline: Dictionary, y: float, color: Color) -> ArrayMesh:
 
 
 ## Collision for a bed: a smooth (rib-free) trimesh of the outer wall, the lip and the inner
-## wall, and the soil as a box plus two cylinders, all on the terrain layer.
+## wall, on the terrain layer. The soil is terrain and brings its own.
 func _bed_collision(
-	root: Node3D,
-	outline: Dictionary,
-	length: float,
-	width: float,
-	bottom: float,
-	top: float,
-	soil_top: float
+	root: Node3D, outline: Dictionary, bottom: float, top: float, soil_top: float
 ) -> void:
 	var points: PackedVector2Array = outline["points"]
 	var normals: PackedVector2Array = outline["normals"]
@@ -516,26 +559,6 @@ func _bed_collision(
 	concave.backface_collision = true
 	wall_shape.shape = concave
 	body.add_child(wall_shape)
-	# Soil: the straight middle as a box, each rounded end as a cylinder.
-	var soil_height: float = soil_top - bottom
-	var inner_width: float = width - lip * 2.0
-	var r: float = inner_width * 0.5
-	var c: float = maxf(length * 0.5 - width * 0.5, 0.0)
-	if c > 0.0:
-		var box := CollisionShape3D.new()
-		var box_shape := BoxShape3D.new()
-		box_shape.size = Vector3(c * 2.0, soil_height, inner_width)
-		box.shape = box_shape
-		box.position = Vector3(0.0, bottom + soil_height * 0.5, 0.0)
-		body.add_child(box)
-	for side: float in [-1.0, 1.0]:
-		var end := CollisionShape3D.new()
-		var cylinder := CylinderShape3D.new()
-		cylinder.radius = r
-		cylinder.height = soil_height
-		end.shape = cylinder
-		end.position = Vector3(c * side, bottom + soil_height * 0.5, 0.0)
-		body.add_child(end)
 	root.add_child(body)
 
 
