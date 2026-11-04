@@ -32,9 +32,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -120.0
-offset_top = -130.0
+offset_top = -150.0
 offset_right = 120.0
-offset_bottom = 130.0
+offset_bottom = 150.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -63,6 +63,11 @@ text = "Resume"
 layout_mode = 2
 tooltip_text = "Wedged in something? Moves you to clear ground a few steps away."
 text = "Stuck?"
+
+[node name="ReportButton" type="Button" parent="Panel/Margin/MainMenu"]
+layout_mode = 2
+tooltip_text = "Saves a screenshot, the match's seed and state, and the log to a folder you can send."
+text = "Report a bug (F9)"
 
 [node name="SettingsButton" type="Button" parent="Panel/Margin/MainMenu"]
 layout_mode = 2

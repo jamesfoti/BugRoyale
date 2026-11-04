@@ -8,6 +8,7 @@ var _paused: bool = false
 @onready var _panel: PanelContainer = $Panel
 @onready var _resume_button: Button = $Panel/Margin/MainMenu/ResumeButton
 @onready var _stuck_button: Button = $Panel/Margin/MainMenu/StuckButton
+@onready var _report_button: Button = $Panel/Margin/MainMenu/ReportButton
 @onready var _settings_button: Button = $Panel/Margin/MainMenu/SettingsButton
 @onready var _reset_button: Button = $Panel/Margin/MainMenu/ResetButton
 @onready var _main_menu_button: Button = $Panel/Margin/MainMenu/MainMenuButton
@@ -20,6 +21,7 @@ func _ready() -> void:
 	visible = false
 	_resume_button.pressed.connect(_on_resume_pressed)
 	_stuck_button.pressed.connect(_on_stuck_pressed)
+	_report_button.pressed.connect(_on_report_pressed)
 	_settings_button.pressed.connect(_on_settings_pressed)
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_main_menu_button.pressed.connect(_on_main_menu_pressed)
@@ -47,6 +49,21 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _on_resume_pressed() -> void:
 	_resume()
+
+
+## Hands over to the F9 reporter with this menu out of the way, so the report's screenshot is
+## the frozen game and not the pause overlay. The game stays paused; the menu comes back
+## when the form closes.
+func _on_report_pressed() -> void:
+	visible = false
+	BugReporter.closed.connect(_on_report_closed, CONNECT_ONE_SHOT)
+	BugReporter.open()
+
+
+func _on_report_closed() -> void:
+	if _paused:
+		visible = true
+		_show_main_menu()
 
 
 func _on_settings_pressed() -> void:

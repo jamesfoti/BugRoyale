@@ -61,6 +61,8 @@ single-player game, and the bots stay as backfill for lobbies that do not fill.
   (`LoadingScreen.pending_terrain_seed`), so every peer gets identical ground and props.
 - [x] Headless smoke test (`tools/smoke_test.tscn`) that runs any map and mode without a window
   and reports whether the bots move, shoot and die.
+- [x] In-game bug reports: F9 freezes the game and saves a screenshot, the match's seed and
+  state, and the log to a folder the player can attach anywhere.
 - [x] Host-ready plumbing: the human's aim and yaw travel in the input snapshot with a tick
   number; one authority gate (`Authority`) on all damage; terrain edits go through one logged
   entry point with export/import for late joiners and clearance checked against every fighter;
@@ -123,6 +125,16 @@ Tests
 Three layers: a style check against the GDScript style guide, unit tests for the rules and
 arithmetic, and a headless smoke test that plays a whole bot match per mode. All three run
 without a window and exit non-zero on failure, so they can gate a release.
+
+### Reporting a bug
+
+Press F9 at any time, in a match or in the menus. The game freezes over the frame you were
+looking at and asks what happened. "Save report" writes a folder under the user data
+directory (`%APPDATA%\Godot\app_userdata\BugRoyale\bug_reports\` on Windows) with that frame
+as `screenshot.png`, a `report.json` holding the game version, map, mode, seed, your position,
+the mode's status line, frame times and the last terrain edits, and the tail of the engine log
+as `log.txt`. "Open folder" shows it so the whole folder can be attached to an issue or a
+message. Esc or F9 closes the form. The autoload is `gui/bug_reporter.tscn`.
 
 ### Style
 
@@ -206,6 +218,15 @@ one match per mode, or run a single combination yourself:
 
 ```powershell
 godot --headless --path . res://tools/smoke_test.tscn -- map=crawlspace mode=cordyceps_royale frames=1800
+```
+
+`tools/screenshot.tscn` is the same launcher with a window: it waits for the match to start,
+then saves what the camera sees to a PNG and quits, for checking a look without playing to it.
+`cam=x,h,z look=x,h,z` places a free camera (h metres above the ground there) and `hud=0`
+hides the HUD:
+
+```powershell
+godot --path . res://tools/screenshot.tscn --resolution 1152x648 -- map=crawlspace mode=burrow frames=120 hud=0 cam=-60,20,-60 look=-30,0,-20 out=C:/temp/floor.png
 ```
 
 Map ids: `battlefield`, `terrarium`, `crawlspace`.

@@ -27,6 +27,7 @@ buses/default_bus_layout=""
 
 GraphicsSettings="*res://gui/graphics_settings.gd"
 ToonStyle="*res://rendering/toon_style.gd"
+BugReporter="*res://gui/bug_reporter.tscn"
 
 [display]
 
