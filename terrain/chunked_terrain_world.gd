@@ -334,11 +334,44 @@ func end_continuous_edit() -> void:
 ## top, so a dug hole reads as air and a built wall as solid. False above the surface, in a
 ## cave, or on something that is not ground at all (a slab, a duct, a tree).
 func is_solid_at(world_position: Vector3) -> bool:
+	return density_at(world_position) < iso_level
+
+
+## The density at a point as the drawn ground has it: the eight samples around it, with the
+## edits on each, blended by distance. (An edit overrides whole samples, so reading the one
+## nearest sample would call a point solid up to a metre outside a dug wall.) A caller
+## asking about many nearby points in one go (the camera's arm) passes a dictionary and
+## gets each sample evaluated once.
+func density_at(world_position: Vector3, sample_cache: Dictionary = {}) -> float:
 	_prepare_edits()
-	var value: float = _get_bake_density().evaluate(world_position)
-	if _edits != null:
-		value = _edits.apply_to_density(value, world_position)
-	return value < iso_level
+	var density: DensitySampler.WorldDensity = _get_bake_density()
+	var step: float = get_world_step()
+	var origin: Vector3 = get_grid_world_origin()
+	var local: Vector3 = (world_position - origin) / step
+	var base: Vector3 = local.floor()
+	var frac: Vector3 = local - base
+	var value: float = 0.0
+	for corner: int in 8:
+		var offset := Vector3(float(corner & 1), float((corner >> 1) & 1), float((corner >> 2) & 1))
+		var weight: float = (
+			(offset.x * frac.x + (1.0 - offset.x) * (1.0 - frac.x))
+			* (offset.y * frac.y + (1.0 - offset.y) * (1.0 - frac.y))
+			* (offset.z * frac.z + (1.0 - offset.z) * (1.0 - frac.z))
+		)
+		if weight <= 0.0:
+			continue
+		var key: Vector3i = Vector3i(base + offset)
+		var sample: float
+		if sample_cache.has(key):
+			sample = sample_cache[key]
+		else:
+			var sample_position: Vector3 = origin + (base + offset) * step
+			sample = density.evaluate(sample_position)
+			if _edits != null:
+				sample = _edits.apply_to_density(sample, sample_position)
+			sample_cache[key] = sample
+		value += sample * weight
+	return value
 
 
 ## Can the brush (dig, build, explosion) change the terrain here? A builder may fence off part

@@ -11,6 +11,18 @@ extends SpringArm3D
 const AIM_ACTION: StringName = &"aim"
 const SCOPE_ACTION: StringName = &"scope"
 const AIM_HOLD_THRESHOLD: float = 0.4
+## Clearance the camera keeps from anything solid. The arm's length is the shortest of a ray
+## back from the pivot (backed off by this) and a sphere of this radius swept the same way,
+## and the whole arm is then walked through the terrain's own density, which knows exactly
+## what is ground, stopping at the first point in it. The ray alone let the near plane poke
+## through grazed walls; the sweep alone reports nothing when it starts touching a surface
+## and sails into the rock; the density alone knows nothing of slabs and bed walls. Seen
+## from inside the ground, with its back faces culled, the world is voids. The pivot's
+## shoulder offset is checked the same way.
+const PROBE_RADIUS: float = 0.4
+## Spacing of the density walk along the arm. Its samples share the lattice points they
+## blend, so a whole arm costs a few dozen density evaluations a frame.
+const DENSITY_STEP: float = 0.5
 
 @export_range(-90.0, 90.0, 0.1, "radians") var min_limit_x: float = -1.4
 @export_range(-90.0, 90.0, 0.1, "radians") var max_limit_x: float = 1.25
@@ -50,6 +62,12 @@ var _user_spring_length: float = 6.0
 var _rest_position: Vector3 = Vector3.ZERO
 var _default_fov: float = 60.0
 var _body_hidden: bool = false
+var _probe: SphereShape3D
+var _arm_mask: int = 0
+var _excluded: Array[RID] = []
+var _terrain: ChunkedTerrainWorld
+## Lattice samples evaluated this frame, shared by every density question the frame asks.
+var _density_cache: Dictionary = {}
 
 @onready var _camera: Camera3D = $Camera3D
 
@@ -66,9 +84,14 @@ func _ready() -> void:
 	_rest_position = position
 	_user_spring_length = clampf(spring_length, min_spring_length, max_spring_length)
 	spring_length = _user_spring_length
-	# The arm pulls the camera in when the ground or a wall is in the way.
-	collision_mask = MapInfo.TERRAIN_LAYER | MapInfo.STRUCTURE_LAYER
-	margin = 0.3
+	# The arm's own cast is off: _clear_length pulls the camera in when the ground or a wall
+	# is in the way, and sets spring_length to the result.
+	collision_mask = 0
+	_arm_mask = MapInfo.TERRAIN_LAYER | MapInfo.STRUCTURE_LAYER
+	_probe = SphereShape3D.new()
+	_probe.radius = PROBE_RADIUS
+	if get_parent() is CollisionObject3D:
+		_excluded = [(get_parent() as CollisionObject3D).get_rid()]
 	if _camera != null:
 		_default_fov = _camera.fov
 
@@ -242,18 +265,23 @@ func _update_aim_camera(delta: float) -> void:
 	)
 
 	var third_person_length: float = lerpf(_user_spring_length, aim_spring_length, _aim_blend)
-	spring_length = lerpf(third_person_length, 0.0, _scope_blend)
+	var wanted_length: float = lerpf(third_person_length, 0.0, _scope_blend)
+	_density_cache.clear()
 	var offset: Vector3 = _offset_in_parent_space(shoulder_offset) * _shoulder_blend
 	offset += _offset_in_parent_space(aim_position_offset) * _aim_blend
 	var scope_eye: Vector3 = _offset_in_parent_space(scope_eye_offset)
-	position = (_rest_position + offset).lerp(_rest_position + scope_eye, _scope_blend)
+	position = _clear_pivot(offset).lerp(_rest_position + scope_eye, _scope_blend)
+	spring_length = _clear_length(wanted_length)
 	if _camera != null:
+		# Placed here and now: the arm's own pass ran before this frame's clamp, with last
+		# frame's length, and a turn toward a wall would show one frame from inside it.
+		_camera.position = Vector3(0.0, 0.0, spring_length)
 		var third_person_fov: float = lerpf(_default_fov, aim_fov, _aim_blend)
 		_camera.fov = lerpf(
 			third_person_fov, _scope_fov if _scope_fov > 0.0 else aim_fov, _scope_blend
 		)
 	_set_body_hidden(
-		_scope_blend > 0.85 or (spring_length > 0.0 and get_hit_length() < hide_body_distance)
+		_scope_blend > 0.85 or (wanted_length > 0.0 and spring_length < hide_body_distance)
 	)
 
 
@@ -269,6 +297,88 @@ func _set_body_hidden(hidden: bool) -> void:
 	var visual_root: Node3D = player_node.get_node_or_null("VisualRoot") as Node3D
 	if visual_root != null:
 		visual_root.visible = not hidden
+
+
+## Where the arm's pivot goes (in the player's space): from inside the bug's body up to the
+## rest position, then out along the shoulder offset, each leg only as far as the probe sphere
+## travels before the ground or a wall stops it. Wedged against a tunnel wall, the shoulder
+## view gives way and the pivot stays by the bug rather than inside the rock.
+func _clear_pivot(offset: Vector3) -> Vector3:
+	var inside_body := Vector3(0.0, _rest_position.y * 0.5, 0.0)
+	var pivot: Vector3 = _sweep(inside_body, _rest_position)
+	pivot = _sweep(pivot, pivot + offset)
+	var player_node: Node3D = get_parent() as Node3D
+	if player_node != null and _in_ground(player_node.global_transform * pivot):
+		return inside_body
+	return pivot
+
+
+## How far back from the pivot the camera may go: the wanted length, cut to the first thing
+## a ray, the probe sphere or the ground's density finds along the arm.
+func _clear_length(wanted: float) -> float:
+	if wanted <= 0.0 or not is_inside_tree():
+		return maxf(wanted, 0.0)
+	var from: Vector3 = global_position
+	var direction: Vector3 = global_basis.z.normalized()
+	var length: float = wanted
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var ray := PhysicsRayQueryParameters3D.create(
+		from, from + direction * wanted, _arm_mask, _excluded
+	)
+	var hit: Dictionary = space.intersect_ray(ray)
+	if not hit.is_empty():
+		length = minf(length, maxf(from.distance_to(hit["position"]) - PROBE_RADIUS, 0.0))
+	if _probe != null:
+		var sweep := PhysicsShapeQueryParameters3D.new()
+		sweep.shape = _probe
+		sweep.transform = Transform3D(Basis(), from)
+		sweep.motion = direction * wanted
+		sweep.collision_mask = _arm_mask
+		sweep.exclude = _excluded
+		var travel: PackedFloat32Array = space.cast_motion(sweep)
+		if travel.size() == 2:
+			length = minf(length, wanted * travel[0])
+	if _terrain_world() != null:
+		var clear: float = 0.0
+		var probed: float = DENSITY_STEP
+		while probed < length:
+			if _in_ground(from + direction * probed):
+				return maxf(clear - PROBE_RADIUS, 0.0)
+			clear = probed
+			probed += DENSITY_STEP
+		if _in_ground(from + direction * length):
+			return maxf(clear - PROBE_RADIUS, 0.0)
+	return length
+
+
+func _in_ground(world_point: Vector3) -> bool:
+	var terrain: ChunkedTerrainWorld = _terrain_world()
+	return terrain != null and terrain.density_at(world_point, _density_cache) < terrain.iso_level
+
+
+func _terrain_world() -> ChunkedTerrainWorld:
+	if _terrain == null or not is_instance_valid(_terrain) or not _terrain.is_inside_tree():
+		_terrain = get_tree().get_first_node_in_group("terrain_world") as ChunkedTerrainWorld
+	return _terrain
+
+
+## The farthest point along from -> to (player space) the probe reaches unobstructed.
+func _sweep(from: Vector3, to: Vector3) -> Vector3:
+	var player_node: Node3D = get_parent() as Node3D
+	if _probe == null or player_node == null or not is_inside_tree():
+		return to
+	if from.distance_squared_to(to) < 0.000001:
+		return to
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = _probe
+	query.transform = Transform3D(Basis(), player_node.global_transform * from)
+	query.motion = player_node.global_basis * (to - from)
+	query.collision_mask = _arm_mask
+	query.exclude = _excluded
+	var travel: PackedFloat32Array = get_world_3d().direct_space_state.cast_motion(query)
+	if travel.size() < 2:
+		return to
+	return from.lerp(to, travel[0])
 
 
 ## A (right, up, forward) offset in the character's frame, as a vector in the player's space.
@@ -362,11 +472,10 @@ func _apply_scroll_zoom(button_index: MouseButton) -> void:
 	if _scope_level > 0:
 		_scope_level = clampi(_scope_level - int(direction), 0, get_scope_level_count())
 		return
+	# The arm takes the new length on the next frame, clamped to what is clear.
 	_user_spring_length = clampf(
 		_user_spring_length + direction * scroll_zoom_step, min_spring_length, max_spring_length
 	)
-	if _aim_blend <= 0.001 and _scope_blend <= 0.001:
-		spring_length = _user_spring_length
 
 
 func recenter_yaw(delta: float) -> void:
