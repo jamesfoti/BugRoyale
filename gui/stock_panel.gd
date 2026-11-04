@@ -12,10 +12,18 @@ var _last_key: String = ""
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	# Anchors set one at a time: the preset setter also rewrites the offsets to hold the panel
+	# where it is, and at this point it is an empty rectangle in the top-left corner.
+	anchor_left = 1.0
+	anchor_right = 1.0
+	anchor_top = 0.5
+	anchor_bottom = 0.5
+	offset_left = -16.0
+	offset_right = -16.0
+	offset_top = 0.0
+	offset_bottom = 0.0
 	grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	grow_vertical = Control.GROW_DIRECTION_BOTH
-	offset_right = -16.0
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	modulate.a = 0.92
 
