@@ -1,6 +1,6 @@
 class_name OpenTerrainPreset
 extends RefCounted
-## Shared open-terrain noise defaults (matches scenes/battlefield_terrain_test.tscn).
+## Shared open-terrain noise defaults (matches scenes/battlefield_terrain.tscn).
 
 const NOISE_SEED: int = 81
 const NOISE_FREQUENCY: float = 0.02

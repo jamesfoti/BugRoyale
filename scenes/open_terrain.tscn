@@ -8,7 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://dnitu1aqqnorc" path="res://gui/player_item_menu.tscn" id="7"]
 [ext_resource type="Script" uid="uid://c6nhltrtsmske" path="res://scenes/player_spawner.gd" id="8"]
 
-[node name="OpenTerrainTest" type="Node3D" unique_id=2068645336]
+[node name="OpenTerrain" type="Node3D" unique_id=2068645336]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1874451222]
 environment = ExtResource("4")

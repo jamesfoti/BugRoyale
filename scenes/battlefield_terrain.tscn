@@ -9,7 +9,7 @@
 [ext_resource type="Script" uid="uid://c6nhltrtsmske" path="res://scenes/player_spawner.gd" id="8"]
 [ext_resource type="PackedScene" path="res://ai/boids/bird_flock.tscn" id="9_birds"]
 
-[node name="OpenBattlefieldTerrainTest" type="Node3D" unique_id=560666819]
+[node name="BattlefieldTerrain" type="Node3D" unique_id=560666819]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=445196065]
 environment = ExtResource("4")

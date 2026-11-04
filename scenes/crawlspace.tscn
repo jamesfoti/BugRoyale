@@ -1,49 +1,41 @@
-[gd_scene load_steps=6 format=3 uid="uid://b7idc0edory0j"]
+[gd_scene load_steps=9 format=3]
 
-[ext_resource type="Script" uid="uid://dm3y304nef4ts" path="res://terrain/terrarium_room.gd" id="1"]
-[ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="2"]
-[ext_resource type="Environment" path="res://materials/interior_env.tres" id="3"]
-[ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="4"]
-[ext_resource type="PackedScene" uid="uid://dnitu1aqqnorc" path="res://gui/player_item_menu.tscn" id="5"]
-[ext_resource type="Script" uid="uid://c6nhltrtsmske" path="res://scenes/player_spawner.gd" id="6"]
+[ext_resource type="Script" uid="uid://nqnac833ce6c" path="res://terrain/open_terrain.gd" id="1"]
+[ext_resource type="Material" path="res://materials/crawlspace_dirt.tres" id="2"]
+[ext_resource type="Script" uid="uid://jysu1w1r2tv7" path="res://scenes/terrain_hud.gd" id="3"]
+[ext_resource type="Environment" path="res://materials/crawlspace_env.tres" id="4"]
+[ext_resource type="Script" path="res://generation/crawlspace_builder.gd" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/pause_menu.tscn" id="6"]
+[ext_resource type="PackedScene" uid="uid://dnitu1aqqnorc" path="res://gui/player_item_menu.tscn" id="7"]
+[ext_resource type="Script" uid="uid://c6nhltrtsmske" path="res://scenes/player_spawner.gd" id="8"]
 
-[node name="TerrariumTest" type="Node3D"]
+[node name="Crawlspace" type="Node3D"]
+
+[node name="TerrainWorld" type="Node3D" parent="."]
+script = ExtResource("1")
+chunks_x = 16
+chunks_y = 3
+chunks_z = 16
+solid_underside = true
+caves_enabled = true
+chunk_size = 32.0
+voxel_size = 2.0
+noise_seed = 37
+noise_frequency = 0.01
+noise_amplitude = 4.0
+terrain_material = ExtResource("2")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = ExtResource("3")
+environment = ExtResource("4")
 
-[node name="SunLight" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 40, 0)
-light_color = Color(1, 0.96, 0.9, 1)
-light_energy = 0.25
-shadow_enabled = true
-directional_shadow_mode = 2
-directional_shadow_blend_splits = true
-shadow_opacity = 0.5
-
-[node name="TerrariumRoom" type="Node3D" parent="."]
-script = ExtResource("1")
-room_seed = 105
-room_type = 1
-room_scale = 700.0
-furniture_scale = 700.0
-terrarium_chunks_x = 16
-terrarium_chunks_y = 3
-terrarium_chunks_z = 16
-terrarium_chunk_size = 32.0
-terrarium_voxel_size = 2.0
-terrarium_vegetation_density = 0.3
-terrarium_solid_underside = true
-terrarium_caves_enabled = true
-terrarium_noise_seed = 54
+[node name="Crawlspace" type="Node3D" parent="."]
+script = ExtResource("5")
 
 [node name="PlayerSpawner" type="Node" parent="."]
-script = ExtResource("6")
-world_kind = 1
-terrain_path = NodePath("../TerrariumRoom")
+script = ExtResource("8")
 
 [node name="HUD" type="CanvasLayer" parent="."]
-script = ExtResource("2")
+script = ExtResource("3")
 
 [node name="Bar" type="HBoxContainer" parent="HUD"]
 anchors_preset = 10
@@ -59,7 +51,7 @@ layout_mode = 2
 size_flags_horizontal = 0
 theme_override_constants/separation = 4
 
-[node name="PlayerItemMenu" parent="HUD/Bar/ItemAnchor" instance=ExtResource("5")]
+[node name="PlayerItemMenu" parent="HUD/Bar/ItemAnchor" instance=ExtResource("7")]
 layout_mode = 2
 
 [node name="Spacer" type="Control" parent="HUD/Bar"]
@@ -121,4 +113,4 @@ text = "Mesh: n/a"
 layout_mode = 2
 text = "Terrain edit: Off"
 
-[node name="PauseMenu" parent="." instance=ExtResource("4")]
+[node name="PauseMenu" parent="." instance=ExtResource("6")]
