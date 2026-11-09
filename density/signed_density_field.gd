@@ -9,6 +9,9 @@ var values: PackedFloat32Array = PackedFloat32Array()
 ## chunks that are entirely solid or entirely air.
 var min_value: float = -INF
 var max_value: float = INF
+## True when DensitySampler.build_chunk_field found the whole chunk above the ground and
+## filled it with one clearance value instead of sampling every voxel.
+var sky: bool = false
 
 
 func _init(sample_size: Vector3i = Vector3i.ZERO) -> void:

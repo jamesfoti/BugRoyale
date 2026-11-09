@@ -19,6 +19,9 @@ var _materials: Dictionary = {}
 var _thread_snapshot: TerrainEdits = null
 ## World-space box around the voxels the last add_brush actually changed (one voxel of padding).
 var _last_changed_bounds: AABB = AABB()
+## get_all_bounds, kept until the edits change: the chunk builder asks for it once per chunk.
+var _all_bounds: AABB = AABB()
+var _all_bounds_known: bool = false
 
 
 func set_voxel_size(voxel_size: float) -> void:
@@ -30,6 +33,7 @@ func set_grid_origin(origin: Vector3) -> void:
 		return
 	_grid_origin = origin
 	_thread_snapshot = null
+	_all_bounds_known = false
 
 
 ## Carves (or fills) a sphere. Filling with a placed material also tags every voxel in the sphere
@@ -155,6 +159,7 @@ func _stamp(
 				if not voxel_changed:
 					continue
 				_thread_snapshot = null
+				_all_bounds_known = false
 				if changed:
 					changed_min = changed_min.min(voxel_key)
 					changed_max = changed_max.max(voxel_key)
@@ -229,11 +234,20 @@ func import_state(state: Dictionary) -> void:
 	_overrides = (state.get("overrides", {}) as Dictionary).duplicate()
 	_materials = (state.get("materials", {}) as Dictionary).duplicate()
 	_thread_snapshot = null
+	_all_bounds_known = false
 	_last_changed_bounds = get_all_bounds()
 
 
 ## World-space bounds of every overridden voxel (zero-size when there are none).
 func get_all_bounds() -> AABB:
+	if _all_bounds_known:
+		return _all_bounds
+	_all_bounds = _measure_all_bounds()
+	_all_bounds_known = true
+	return _all_bounds
+
+
+func _measure_all_bounds() -> AABB:
 	if _overrides.is_empty():
 		return AABB()
 	var key_min: Vector3i = Vector3i.ZERO

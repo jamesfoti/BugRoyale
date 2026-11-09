@@ -207,13 +207,31 @@ static func build_chunk_field(
 	var use_column_heights: bool = density.open_terrain_enabled
 	if use_column_heights:
 		column_heights.resize(size_x * size_z)
+		var highest: float = -INF
 		for z in size_z:
 			var world_z: float = grid_world_origin.z + float(grid_offset.z + z) * step
 			for x in size_x:
 				var world_x: float = grid_world_origin.x + float(grid_offset.x + x) * step
-				column_heights[x + z * size_x] = density.sample_open_terrain_height(
-					world_x, world_z
-				)
+				var height: float = density.sample_open_terrain_height(world_x, world_z)
+				column_heights[x + z * size_x] = height
+				highest = maxf(highest, height)
+		# A chunk whose lowest sample row clears the highest surface under it is sky: the
+		# column heights have already said so, and the per-voxel pass (where the caves' noise
+		# reads are) would only confirm it. A third of a three-deep map is this chunk.
+		var bottom_y: float = grid_world_origin.y + float(grid_offset.y) * step
+		var halo: Vector3 = Vector3.ONE * step
+		var region := AABB(
+			grid_world_origin + Vector3(grid_offset) * step - halo,
+			Vector3(sample_size - Vector3i.ONE) * step + halo * 2.0
+		)
+		if density.is_sky(highest, bottom_y, region):
+			var clearance: float = bottom_y - highest
+			values.fill(clearance)
+			field.values = values
+			field.min_value = clearance
+			field.max_value = clearance
+			field.sky = true
+			return field
 	var index: int = 0
 	for z in size_z:
 		var world_z: float = grid_world_origin.z + float(grid_offset.z + z) * step
@@ -334,6 +352,17 @@ class WorldDensity:
 
 	## Keeps only the solids that can reach a region (a chunk's samples plus the halo the
 	## normals read). Every sample of the region is then tested against those alone.
+	## Whether a region whose lowest samples sit at bottom_y, over ground no higher than
+	## highest_surface, holds nothing but air: the surface is below it, no placed solid was
+	## prepared for the region, and no edit lies in it. The caves only take ground away, so
+	## nothing else can put ground above the surface.
+	func is_sky(highest_surface: float, bottom_y: float, region: AABB) -> bool:
+		if not open_terrain_enabled or highest_surface >= bottom_y or _region_solid_count > 0:
+			return false
+		if terrain_edits != null and terrain_edits.get_override_count() > 0:
+			return not terrain_edits.get_all_bounds().intersects(region)
+		return true
+
 	func prepare_for_region(region: AABB) -> void:
 		_region_solids = []
 		for solid: Dictionary in solids:
