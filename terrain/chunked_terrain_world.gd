@@ -39,8 +39,8 @@ const CAPSULE_SAMPLES: int = 6
 		voxel_size = maxf(value, 0.05)
 		_request_rebuild()
 
-## The noise ranges are the ones a map may be randomised over: frequency 0.004 to 0.04
-## (hills 250 m to 50 m across), one to five octaves, gain 0.3 to 0.65 (smooth to craggy),
+## The noise ranges are the ones a map may be randomised over: frequency 0.004 to 0.01
+## (hills 250 m to 100 m across; higher was tried and worked down from), one to five octaves, gain 0.3 to 0.65 (smooth to craggy),
 ## lacunarity 1.8 to 2.6. Slope grows with amplitude times frequency, and past about 45
 ## degrees at 2 m voxels the shape itself goes blocky, so raise one and lower the other.
 @export_group("Noise")
@@ -52,7 +52,7 @@ const CAPSULE_SAMPLES: int = 6
 	set(value):
 		noise_seed = value
 		_request_rebuild()
-@export_range(0.004, 0.04, 0.001) var noise_frequency: float = 0.02:
+@export_range(0.004, 0.01, 0.0005) var noise_frequency: float = 0.008:
 	set(value):
 		noise_frequency = maxf(value, 0.001)
 		_request_rebuild()

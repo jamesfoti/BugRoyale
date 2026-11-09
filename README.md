@@ -269,7 +269,7 @@ back). The rebuild line in the Output panel says what the seed rolled: its terra
 any, and its caves and ravines.
 
 The inspector sliders under **Noise** stop at the ranges a map may be randomised over,
-the values that still make good ground: frequency 0.004 to 0.04 (hills 250 m to 50 m
+the values that still make good ground: frequency 0.004 to 0.01 (hills 250 m to 100 m
 across), amplitude 0 to 12 m, one to five octaves, gain 0.3 to 0.65 (smooth swells to
 craggy detail), lacunarity 1.8 to 2.6, and the surface offset 8 m either way. Frequency
 and amplitude set the slope together, and past about 45 degrees at 2 m voxels the shape
