@@ -36,6 +36,7 @@ func _ground(amplitude: float = 3.0) -> DensitySampler.WorldDensity:
 		true
 	)
 	density.caves = CaveCarver.from_seed(SEED, BEDROCK_Y)
+	density.caves.ravine_width = 0.0  # digging wants ground to dig; the ravines have their own test
 	return density
 
 

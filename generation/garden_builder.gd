@@ -187,8 +187,10 @@ func _lay_lawn() -> void:
 
 
 ## The soil in every bed is terrain: a stadium of solid ground inside each wall, from under
-## the lawn up to the soil line, so the beds dig and build like the lawn. Registered before the
-## terrain's deferred first build so it costs no second rebuild.
+## the lawn up to the soil line, so the beds dig and build like the lawn; and under each bed a
+## footing of the map's own ground from bedrock up, so it stands on solid ground whatever the
+## underside would have put there. Registered before the terrain's deferred first build so
+## they cost no second rebuild.
 func _fill_beds() -> void:
 	var terrain: OpenTerrain = get_node_or_null(terrain_path) as OpenTerrain
 	if terrain == null:
@@ -198,6 +200,7 @@ func _fill_beds() -> void:
 	_center = terrain.global_position
 	_half = terrain.get_world_extents() * 0.5
 	var solids: Array[Dictionary] = []
+	var footings: Array[Dictionary] = []
 	for bed: Dictionary in BEDS:
 		var footprint: Dictionary = _bed_footprint(bed)
 		var base: Vector3 = footprint["center"]
@@ -227,6 +230,20 @@ func _fill_beds() -> void:
 				}
 			)
 		)
+		# The footing reaches the lowest lawn under the bed, into the soil above it. It goes in
+		# after the soil: the first solid at a point gives the tint, and the overlap is soil.
+		var along_z: bool = bool(footprint["along_z"])
+		var half_length: float = float(footprint["length"]) * 0.5
+		var half_width: float = float(footprint["width"]) * 0.5
+		footings.append(
+			terrain.footing(
+				base,
+				half_width if along_z else half_length,
+				half_length if along_z else half_width,
+				base.y + 0.4
+			)
+		)
+	solids.append_array(footings)
 	terrain.solids = solids
 
 
@@ -245,6 +262,16 @@ func _bed_footprint(bed: Dictionary) -> Dictionary:
 		base_y = minf(base_y, _dirt_height(world))
 	center.y = minf(base_y, _dirt_height(center)) - 0.4
 	return {"center": center, "length": length, "width": width, "along_z": along_z}
+
+
+## How many beds have ground well under their base, below the soil: every one, with the
+## footings in.
+func _beds_on_solid_ground() -> int:
+	var count: int = 0
+	for footprint: Dictionary in _footprints:
+		if _terrain.is_solid_at((footprint["center"] as Vector3) + Vector3.DOWN * 6.0):
+			count += 1
+	return count
 
 
 ## Open sky: flyers and the playable box reach this high (above the tallest obelisk).
@@ -303,9 +330,13 @@ func build() -> void:
 	_build_fence()
 	_build_trees()
 	_built = true
+	var summary: String = (
+		"[Garden] Built %.0fx%.0f m backyard at 1:%.0f: %d raised beds %.0f m tall (%s), "
+		+ "%d/%d on solid ground, %d grass tufts"
+	)
 	print(
 		(
-			"[Garden] Built %.0fx%.0f m backyard at 1:%.0f: %d raised beds %.0f m tall (%s), %d grass tufts"
+			summary
 			% [
 				extents.x,
 				extents.z,
@@ -313,6 +344,8 @@ func build() -> void:
 				BEDS.size(),
 				bed_height * _s,
 				", ".join(_finishes.slice(0, BEDS.size())),
+				_beds_on_solid_ground(),
+				BEDS.size(),
 				grass_tufts
 			]
 		)

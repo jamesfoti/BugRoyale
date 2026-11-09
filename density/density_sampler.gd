@@ -2,8 +2,14 @@ class_name DensitySampler
 extends RefCounted
 ## Builds signed density fields from analytic shapes and noise.
 
-## Height above the open-terrain surface where 3D noise can no longer win the max() and is skipped.
-const OPEN_TERRAIN_NOISE_SKIP_HEIGHT: float = 2.0
+## Under an open terrain whose underside is a sponge of 3D noise, the noise (in [-1, 1]) is
+## scaled to this many metres before it meets the surface's distance, so a hole's wall and the
+## ground round it are on a comparable scale where the two meet. The zero crossings do not
+## move, so the sponge keeps its shape whatever the scale.
+const SPONGE_NOISE_METRES: float = 4.0
+## Height above the open-terrain surface where the scaled 3D noise can no longer win the max()
+## and is skipped.
+const OPEN_TERRAIN_NOISE_SKIP_HEIGHT: float = SPONGE_NOISE_METRES
 
 
 static func create_open_terrain_world_density(
@@ -272,12 +278,24 @@ class WorldDensity:
 	var open_terrain_edges_enabled: bool = true
 	var open_terrain_solid_fill: bool = false
 	var surface_height_offset: float = 0.0
+	## Terraces: the open terrain's surface stepped into shelves (see terrace_height), rolled
+	## from the seed by roll_terraces or set by hand. Each shelf is terrace_step metres above
+	## the one below, offset by terrace_phase; terrace_strength runs from 0, a soft benching,
+	## to 1, flat treads and steep risers; and a slow noise says where the ground is terraced
+	## at all, terrace_coverage being the share of it that is.
+	var terrace_enabled: bool = false
+	var terrace_step: float = 3.0
+	var terrace_strength: float = 1.0
+	var terrace_phase: float = 0.0
+	var terrace_coverage: float = 0.5
 	## Carves tunnels, caverns and bedrock under a solid-filled open terrain (null: none).
 	var caves: CaveCarver = null
-	## Solid ground a map builder adds on top of the shape: the soil in a garden's raised beds.
-	## Each is a stadium (a box with rounded ends) standing on its centre, see stadium_sdf;
-	## "tint" is the vertex colour its surface carries (alpha 0: the ground shader draws that
-	## colour instead of the map's own ground). It is natural ground otherwise: dirt when dug.
+	## Solid ground a map builder adds on top of the shape: the soil in a garden's raised beds,
+	## the footings under structures. Each is a stadium (a box with rounded ends) standing on
+	## its centre, see stadium_sdf; "tint" is the vertex colour its surface carries (alpha 0:
+	## the ground shader draws that colour instead of the map's own ground). It is natural
+	## ground otherwise: dirt when dug, unless "ground" is true (a footing), when it digs as
+	## the map's own ground, stone and veins and all.
 	var solids: Array[Dictionary] = []:
 		set(value):
 			solids = value
@@ -292,6 +310,7 @@ class WorldDensity:
 
 	var _macro_noise: FastNoiseLite
 	var _height_noise: FastNoiseLite
+	var _terrace_noise: FastNoiseLite
 	var _heightmap_image: Image
 	var _noise: FastNoiseLite
 	## The solids that can reach the region being sampled (see prepare_for_region), and how
@@ -385,8 +404,10 @@ class WorldDensity:
 		var depth: float = -density_value
 		if depth < TOPSOIL_DEPTH or _vein_noise == null:
 			return TerrainMaterials.Kind.NATURAL
-		if _region_solid_count > 0 and not solid_at(world_position).is_empty():
-			return TerrainMaterials.Kind.NATURAL
+		if _region_solid_count > 0:
+			var solid: Dictionary = solid_at(world_position)
+			if not solid.is_empty() and not bool(solid.get("ground", false)):
+				return TerrainMaterials.Kind.NATURAL
 		var vein: float = _vein_noise.get_noise_3dv(world_position)
 		if vein < VEIN_THRESHOLD:
 			if _ore_noise.get_noise_3dv(world_position) < ORE_THRESHOLD:
@@ -401,11 +422,10 @@ class WorldDensity:
 		return TerrainMaterials.Kind.GRAVEL
 
 	## natural_material with the depth read from the map's surface instead of the density
-	## value: what the mesher colours a dug face with and the pickaxe pays out. Under a solid
-	## fill the caves hold the density at a metre of depth wherever one could be carved
-	## (CaveCarver.carve keeps the greater of the ground and the cave's reach, which is -1
-	## outside any cave), so the density cannot say how deep a point lies; read as a depth it
-	## made the whole underground topsoil, and no dig ever reached stone or an element.
+	## value: what the mesher colours a dug face with and the pickaxe pays out. The density is
+	## not a depth: under a solid fill it is the distance to the nearest air, a cave's wall as
+	## much as the surface, and under a sponge it is the 3D noise; read as a depth it painted
+	## the ground wrong.
 	func ground_material(world_position: Vector3, density_value: float) -> TerrainMaterials.Kind:
 		return natural_material(world_position, -depth_below_surface(world_position, density_value))
 
@@ -508,17 +528,86 @@ class WorldDensity:
 		_height_noise.fractal_gain = gain
 
 	func _sample_open_terrain_height(world_x: float, world_z: float) -> float:
+		var height: float
 		if _heightmap_image != null and not _heightmap_image.is_empty():
-			return (
+			height = (
 				DensitySampler.sample_heightmap_image(
 					_heightmap_image, world_x, world_z, bounds_center, bounds_half, noise_amplitude
 				)
 				+ surface_height_offset
 			)
-		if not noise_enabled or _height_noise == null:
-			return bounds_center.y + surface_height_offset
-		var noise_value: float = _height_noise.get_noise_2d(world_x, world_z)
-		return bounds_center.y + noise_value * noise_amplitude + surface_height_offset
+		elif not noise_enabled or _height_noise == null:
+			height = bounds_center.y + surface_height_offset
+		else:
+			var noise_value: float = _height_noise.get_noise_2d(world_x, world_z)
+			height = bounds_center.y + noise_value * noise_amplitude + surface_height_offset
+		if terrace_enabled:
+			height = terrace_height(height, world_x, world_z)
+		return height
+
+	## The surface height stepped into shelves. The height is read as a position along the
+	## treads (terrace_step metres each, from terrace_phase) and pushed toward the nearest
+	## tread: terrace_strength 1 leaves a riser a few percent of the tread wide, 0 only an
+	## S-curve across the whole tread, so the ground stays continuous whatever the strength.
+	## The terrace noise then says how much of the shelf shows here: all of it where the noise
+	## runs above the coverage's threshold, none below, blended across the band between.
+	func terrace_height(height: float, world_x: float, world_z: float) -> float:
+		if terrace_step <= 0.0:
+			return height
+		var level: float = (height - terrace_phase) / terrace_step
+		var tread: float = floorf(level)
+		var along: float = level - tread
+		var riser: float = lerpf(0.5, 0.06, clampf(terrace_strength, 0.0, 1.0))
+		var stepped: float = tread + smoothstep(0.5 - riser, 0.5 + riser, along)
+		var shelved: float = terrace_phase + stepped * terrace_step
+		var share: float = 1.0
+		if _terrace_noise != null:
+			# Noise runs in [-1, 1]: coverage 0 puts the threshold's whole band above it, 1 below.
+			var threshold: float = lerpf(1.2, -1.2, clampf(terrace_coverage, 0.0, 1.0))
+			share = smoothstep(
+				threshold - 0.2, threshold + 0.2, _terrace_noise.get_noise_2d(world_x, world_z)
+			)
+		return lerpf(height, shelved, share)
+
+	## Rolls the terraces a seed gives: whether there are any (at this chance, or always when
+	## forced), the tread height and the strength from their ranges, the phase, and the slow
+	## noise that says where they show, with this share of the ground terraced. Every number
+	## is drawn whether or not the roll says yes, so forcing terraces on in the terrain lab
+	## shows the very terraces the seed would have had.
+	func roll_terraces(
+		terrain_seed: int,
+		chance: float,
+		step_range: Vector2,
+		strength_range: Vector2,
+		coverage: float,
+		force: bool = false
+	) -> void:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash(Vector2i(terrain_seed, 3301))
+		var rolled: float = rng.randf()
+		terrace_step = rng.randf_range(
+			minf(step_range.x, step_range.y), maxf(step_range.x, step_range.y)
+		)
+		terrace_strength = rng.randf_range(
+			minf(strength_range.x, strength_range.y), maxf(strength_range.x, strength_range.y)
+		)
+		terrace_phase = rng.randf_range(0.0, terrace_step)
+		terrace_coverage = coverage
+		terrace_enabled = force or rolled < chance
+		_terrace_noise = FastNoiseLite.new()
+		_terrace_noise.seed = terrain_seed + 909
+		_terrace_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_terrace_noise.frequency = 1.0 / 90.0
+		_terrace_noise.fractal_type = FastNoiseLite.FRACTAL_NONE
+
+	## "terraces every 3.2 m, strength 0.8, over 50% of the ground", or "no terraces".
+	func terrace_summary() -> String:
+		if not terrace_enabled:
+			return "no terraces"
+		return (
+			"terraces every %.1f m, strength %.2f, over %d%% of the ground"
+			% [terrace_step, terrace_strength, roundi(terrace_coverage * 100.0)]
+		)
 
 	func sample_open_terrain_height(world_x: float, world_z: float) -> float:
 		return _sample_open_terrain_height(world_x, world_z)
@@ -539,13 +628,18 @@ class WorldDensity:
 			if caves != null:
 				value = caves.carve(value, world_pos, surface_height)
 		elif above_surface >= OPEN_TERRAIN_NOISE_SKIP_HEIGHT:
-			# FBM noise stays within [-1, 1], so max(noise, above_surface) is exactly above_surface.
+			# The scaled noise stays within the skip height, so the max() is exactly above_surface.
 			value = above_surface
 		else:
-			# Same 3D noise field as boxed-in terrain; heightmap clips the open top.
-			value = _sample_boxed_in_terrain_noise(world_pos)
-			if above_surface > 0.0:
-				value = maxf(value, above_surface)
+			# Same 3D noise field as boxed-in terrain, in metres. The air is the union of the
+			# air above the surface and the noise's holes, so the density is the greater of the
+			# two distances on both sides of the surface: above it the surface clips the noise,
+			# below it a sample in solid noise reads how deep it lies, and the mesher puts the
+			# surface where the height says. Taking the noise alone below the surface changed no
+			# shape (the zero crossings are the same) but left the hills stair-stepped.
+			value = maxf(
+				_sample_boxed_in_terrain_noise(world_pos) * SPONGE_NOISE_METRES, above_surface
+			)
 		if open_terrain_edges_enabled:
 			value = maxf(
 				value,

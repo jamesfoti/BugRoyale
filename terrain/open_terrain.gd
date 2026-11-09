@@ -3,6 +3,11 @@ class_name OpenTerrain
 extends ChunkedTerrainWorld
 ## Boxed-in style 3D noise clipped by a heightmap surface (open top, side/bottom walls), or
 ## solid ground under the surface with a seeded underworld carved out of it (caves_enabled).
+## The surface may be terraced into shelves, seed by seed (Terraces).
+
+## Whether the surface is stepped into terraces: rolled from the seed at terrace_chance, or
+## forced on (to see a seed's terraces in the lab) or off.
+enum Terraces { SEEDED, ALWAYS, NEVER }
 
 @export_group("Open Terrain Grid")
 @export_range(1, 64, 1) var chunks_x: int = 5:
@@ -26,9 +31,38 @@ extends ChunkedTerrainWorld
 		_heightmap_image_cache = null
 		_request_rebuild()
 ## Raises or lowers the ground surface in meters (relative to this node's Y).
-@export var surface_height_offset: float = 0.0:
+@export_range(-8.0, 8.0, 0.5) var surface_height_offset: float = 0.0:
 	set(value):
 		surface_height_offset = value
+		_request_rebuild()
+
+@export_group("Terraces")
+## Terraces: the surface stepped into shelves on some seeds, in some places (see
+## DensitySampler.WorldDensity.terrace_height). Seeded rolls them from the seed at
+## terrace_chance; Always and Never override the roll. The tread height and the strength (0 a
+## soft benching, 1 flat treads and steep risers) are drawn from their ranges, and
+## terrace_coverage is the share of the ground they appear on, a slow noise picking where.
+@export var terraces: Terraces = Terraces.SEEDED:
+	set(value):
+		terraces = value
+		_request_rebuild()
+@export_range(0.0, 1.0, 0.05) var terrace_chance: float = 0.4:
+	set(value):
+		terrace_chance = value
+		_request_rebuild()
+## Tread height in metres, least and most.
+@export var terrace_step: Vector2 = Vector2(1.5, 5.0):
+	set(value):
+		terrace_step = value
+		_request_rebuild()
+## Strength, least and most, 0 to 1.
+@export var terrace_strength: Vector2 = Vector2(0.35, 1.0):
+	set(value):
+		terrace_strength = value
+		_request_rebuild()
+@export_range(0.0, 1.0, 0.05) var terrace_coverage: float = 0.5:
+	set(value):
+		terrace_coverage = value
 		_request_rebuild()
 
 @export_group("Edges")
@@ -74,6 +108,11 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_solid_fill = solid_underside
 	settings.open_terrain_heightmap_image = _duplicate_heightmap_image()
 	settings.open_terrain_surface_offset = surface_height_offset
+	settings.open_terrain_terraces = terraces
+	settings.open_terrain_terrace_chance = terrace_chance
+	settings.open_terrain_terrace_step = terrace_step
+	settings.open_terrain_terrace_strength = terrace_strength
+	settings.open_terrain_terrace_coverage = terrace_coverage
 
 
 func _build_world_density(
@@ -96,7 +135,24 @@ func _build_world_density(
 	)
 	if settings.caves_enabled and settings.open_terrain_solid_fill:
 		density.caves = CaveCarver.for_settings(settings)
+	if settings.open_terrain_terraces != Terraces.NEVER:
+		density.roll_terraces(
+			settings.noise_seed,
+			settings.open_terrain_terrace_chance,
+			settings.open_terrain_terrace_step,
+			settings.open_terrain_terrace_strength,
+			settings.open_terrain_terrace_coverage,
+			settings.open_terrain_terraces == Terraces.ALWAYS
+		)
 	return density
+
+
+func _world_summary(settings: ChunkedTerrainWorld.SettingsSnapshot) -> String:
+	var density: DensitySampler.WorldDensity = _build_world_density(settings)
+	var summary: String = ", seed %d: %s" % [settings.noise_seed, density.terrace_summary()]
+	if density.caves != null:
+		summary += ", " + density.caves.summary()
+	return summary
 
 
 func _duplicate_heightmap_image() -> Image:

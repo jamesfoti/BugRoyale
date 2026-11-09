@@ -20,9 +20,13 @@ Play
 - **Maps:** Backyard Garden, Crawlspace, Terrarium. All three are the same size (512 m
   across, three chunks deep), and every match's seed carves a new underworld into them
   (CaveCarver): worm tunnels from a few metres down, caverns from twenty, a few sinkholes
-  open to the sky, and bedrock at the bottom. The terrarium is a 5 m tank on a coffee
+  open to the sky, on half the seeds ravines cut into the surface with leaning walls, and
+  bedrock at the bottom. The terrarium is a 5 m tank on a coffee
   table in a room scaled to match. In the garden the soil in the raised beds is terrain
-  too, dug and built on like the lawn.
+  too, dug and built on like the lawn. Whatever stands on the dirt (the crawlspace's piers
+  and furnace, the garden's beds) has a footing of solid ground from bedrock up, so it
+  stands firm whether the underside is solid with caves or, with the terrain's **Solid
+  Underside** off, a sponge of 3D noise.
 - **Three modes on the menu.** Burrow (survival as the colony's soldier: four workers carry
   the queen and follow you, you pick the ground and give the word, they dig her chamber;
   then dig by day and build with what you carve while the workers forage crumbs, seeds and
@@ -176,7 +180,9 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_world_save.gd` | Worlds on disk: a save round-trips with its voxel keys, seed and summary; delete removes it; nothing is written while saving is off |
 | `test_queen_ant.gd` | The queen's nest plan: a shaft of carves stepping down and away from the entrance, the chamber below it, every carve the pickaxe's; the way she goes down ends on the chamber floor |
 | `test_elements.gd` | The elements in the ground: the table lists each once with its symbol, number, depth and colour; under the topsoil the stone has ore pockets, each element only from its own depth down and the pockets a share of the stone; a seed always draws the same ore; a dug element lands in the stock and builds |
-| `test_cave_carver.gd` | The seeded underworld: a seed always carves the same caves and every number lands in range; under a solid open terrain the surface is still the surface, there is air in the tunnels but the ground is mostly ground, and bedrock is solid |
+| `test_cave_carver.gd` | The seeded underworld: a seed always carves the same caves and every number lands in range; under a solid open terrain the surface is still the surface, the ground is metres below it wherever no cave is near, there is air in the tunnels but the ground is mostly ground, and bedrock is solid |
+| `test_terraces.gd` | The seeded terraces: a seed always rolls the same ones and every number lands in range, never means the plain surface, always means the heights sit on the treads, and the sponge underside is scaled to metres |
+| `test_footings.gd` | The footings under structures: solid from bedrock to the dirt where a 3D-noise underside is a sponge, kept clear of the caves under a solid one, dug as the map's own ground where a bed's soil digs as dirt, and sized by the terrain from its own bedrock to cover a footprint's corners |
 
 GUT and `test/` are excluded from both export presets, so nothing test-related ships.
 
@@ -248,6 +254,49 @@ godot --headless --path . res://tools/smoke_test.tscn -- map=battlefield mode=sl
 Bots cost less the farther they are from every human: beyond 40 m their physics steps every
 third frame, beyond 60 m they stop animating and casting shadows, and beyond 160 m they are
 not drawn.
+
+### Terrain lab
+
+`scenes/terrain_lab.tscn` is a small open terrain (4 by 4 chunks of 32 m, three deep, the
+garden's own noise and voxel size) for seeing how procedural the ground and its caves are
+without loading a map. Open it in the editor, select `TerrainWorld` and press **Build
+Terrain** at the top of the inspector (the Terrain Editor plugin), then change anything:
+with **Auto Rebuild In Editor** on, every toggle (caves, solid underside, noise, seed,
+grid size, terraces) rebuilds the chunks on the spot, and the root node's **New Seed** button
+rerolls the seed. The rebuild line in the Output panel says what the seed rolled: its
+terraces, if any, and its caves.
+
+The inspector sliders under **Noise** stop at the ranges a map may be randomised over,
+the values that still make good ground: frequency 0.004 to 0.04 (hills 250 m to 50 m
+across), amplitude 0 to 12 m, one to five octaves, gain 0.3 to 0.65 (smooth swells to
+craggy detail), lacunarity 1.8 to 2.6, and the surface offset 8 m either way. Frequency
+and amplitude set the slope together, and past about 45 degrees at 2 m voxels the shape
+goes blocky, so raise one and lower the other. Code may still set any value; the ranges
+bind the sliders, not the setters.
+
+Terraces are a seeded feature of every open terrain, under **Terraces** on the
+`TerrainWorld` node: by default two seeds in five step their hills into shelves, with a
+tread height, a strength (soft benches to flat treads with steep risers) and a phase of
+their own, over about half the ground, a slow noise choosing which half. **Always** forces a
+seed's terraces on to see them, **Never** turns them off. They are drawn in the height
+function, so structures, footings and spawns stand on the shelves. The ground is a true
+distance field on both sides of the surface, so these are the only terraces: the voxel
+stair-steps that steep slopes used to show were the mesher interpolating between a capped
+value inside the ground and metres outside it. Fly the editor camera below the surface to see the tunnels and caverns: terrain
+faces only draw from the air side, so rock is see-through from inside. The built chunks
+are dropped before the scene is saved and rebuilt after, so the file stays small.
+
+### Mode tuning
+
+Each mode is a one-node scene in `modes/` (`burrow.tscn`, `hold_out.tscn`, `slayer.tscn`)
+carrying the mode script, and the loading screen instantiates that scene onto the map. Every
+number a mode runs on is an exported property of that node: open the scene, select the root,
+and the inspector shows them in groups (Burrow: Match, Hornets, Husks, Raiders, Spiders,
+Colony, Founding, Food, Eggs; Hold Out: squad size, build timers, approaches; Slayer and the
+competitive base: team names and colours, the clock, respawn and kill limits), each with its
+doc comment as the tooltip. The script holds the default; the scene saves only the values
+that differ, and the inspector's reset arrow goes back to the script's number. Identifiers
+stay constants in the code: team numbers, group names, the found-colony action, scene paths.
 
 Release
 -------

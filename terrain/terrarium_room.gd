@@ -109,7 +109,8 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.
 		terrarium_heightmap = value
 		_request_rebuild()
 ## Raises or lowers the terrarium ground surface in meters.
-@export var terrarium_surface_height_offset: float = OpenTerrainPreset.SURFACE_HEIGHT_OFFSET:
+@export_range(-8.0, 8.0, 0.5)
+var terrarium_surface_height_offset: float = OpenTerrainPreset.SURFACE_HEIGHT_OFFSET:
 	set(value):
 		terrarium_surface_height_offset = value
 		_request_rebuild()
@@ -128,23 +129,26 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.
 	set(value):
 		terrarium_caves_enabled = value
 		_request_rebuild()
-@export var terrarium_noise_amplitude: float = OpenTerrainPreset.NOISE_AMPLITUDE:
+@export_range(0.0, 12.0, 0.1)
+var terrarium_noise_amplitude: float = OpenTerrainPreset.NOISE_AMPLITUDE:
 	set(value):
 		terrarium_noise_amplitude = value
 		_request_rebuild()
-@export var terrarium_noise_frequency: float = OpenTerrainPreset.NOISE_FREQUENCY:
+@export_range(0.004, 0.04, 0.001)
+var terrarium_noise_frequency: float = OpenTerrainPreset.NOISE_FREQUENCY:
 	set(value):
 		terrarium_noise_frequency = maxf(value, 0.001)
 		_request_rebuild()
-@export_range(1, 8, 1) var terrarium_noise_octaves: int = OpenTerrainPreset.NOISE_OCTAVES:
+@export_range(1, 5, 1) var terrarium_noise_octaves: int = OpenTerrainPreset.NOISE_OCTAVES:
 	set(value):
 		terrarium_noise_octaves = maxi(value, 1)
 		_request_rebuild()
-@export var terrarium_noise_lacunarity: float = OpenTerrainPreset.NOISE_LACUNARITY:
+@export_range(1.8, 2.6, 0.05)
+var terrarium_noise_lacunarity: float = OpenTerrainPreset.NOISE_LACUNARITY:
 	set(value):
 		terrarium_noise_lacunarity = maxf(value, 1.0)
 		_request_rebuild()
-@export var terrarium_noise_gain: float = OpenTerrainPreset.NOISE_GAIN:
+@export_range(0.3, 0.65, 0.01) var terrarium_noise_gain: float = OpenTerrainPreset.NOISE_GAIN:
 	set(value):
 		terrarium_noise_gain = clampf(value, 0.01, 1.0)
 		_request_rebuild()

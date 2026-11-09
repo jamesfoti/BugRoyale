@@ -109,6 +109,10 @@ var _openings: Array[Dictionary] = []
 ## Pier row z positions and pier x positions, so the ductwork can thread between them.
 var _pier_rows: Array = []
 var _pier_xs: Array = []
+## The column the duct trunk runs down, with the furnace at its near end: a pier gap.
+var _duct_x: float = 0.0
+## Whether _roll_layout has run for this build.
+var _rolled: bool = false
 ## Pier volumes, handed to the ductwork's network so flyers avoid them too.
 var _pier_boxes: Array[AABB] = []
 ## Z of every main already laid, so the next one keeps its distance.
@@ -131,6 +135,12 @@ var _next_branch_side: float = 1.0
 func _ready() -> void:
 	add_to_group("map_ceiling")
 	add_to_group("crawlspace")
+	_terrain = get_node_or_null(terrain_path) as OpenTerrain
+	if _terrain != null:
+		# Rolled now, before the terrain's deferred first build, so the footings under the
+		# piers and the furnace go into that build instead of costing a second one.
+		_roll_layout()
+		_terrain.solids = _footings()
 	call_deferred("build")
 
 
@@ -174,12 +184,55 @@ func _process(delta: float) -> void:
 
 
 func build() -> void:
-	_terrain = get_node_or_null(terrain_path) as OpenTerrain
+	if _terrain == null:
+		_terrain = get_node_or_null(terrain_path) as OpenTerrain
 	if _terrain == null:
 		push_warning("[Crawlspace] No OpenTerrain at %s; nothing built." % terrain_path)
 		return
 	for child: Node in get_children():
 		child.queue_free()
+	if not _rolled:
+		_roll_layout()
+	var extents: Vector3 = _terrain.get_world_extents()
+
+	_build_subfloor_and_joists(extents)
+	_build_girders_and_piers(extents)
+	_build_foundation_walls(extents)
+	_build_services(extents)
+	_build_bulbs(extents)
+	_build_debris()
+	_build_mushrooms()
+	_build_storm()
+	print(
+		(
+			(
+				"[Crawlspace] Built %.0fx%.0f m crawlspace at 1:%.0f, joists %.0f m up, %s masonry, "
+				+ "%d beam rows, piers every %.1f m, joists every %.1f m, vents every %.0f m, "
+				+ "hatch on wall %d, %d/%d piers on solid ground"
+			)
+			% [
+				extents.x,
+				extents.z,
+				_s,
+				_ceiling - _joist_depth - _center.y,
+				"block" if _block_masonry else "poured",
+				_girder_rows,
+				_pier_spacing,
+				_joist_spacing,
+				_vent_spacing * _s,
+				_hatch_wall,
+				_piers_on_solid_ground(),
+				_pier_rows.size() * _pier_xs.size()
+			]
+		)
+	)
+
+
+## Rolls this build's layout from the terrain's seed: masonry, the framing grid, the pier
+## grid and the duct trunk's column. Run from _ready, before the terrain's first build, so
+## the footings can go into it; build() keeps what was rolled.
+func _roll_layout() -> void:
+	_rolled = true
 	# The loading screen randomises the terrain seed per match; a scene run straight from the
 	# editor never passes through it, so roll a fresh seed there too.
 	_seed = debris_seed + int(_terrain.noise_seed)
@@ -209,36 +262,86 @@ func build() -> void:
 	_center = _terrain.global_position
 	_half = extents * 0.5
 	_ceiling = _center.y + _clearance * _s
+	# The pier grid: a row under each beam, a pier every _pier_spacing along it.
+	_pier_rows = []
+	_pier_xs = []
+	for row: int in _girder_rows:
+		_pier_rows.append(_center.z - _half.z + extents.z * (row + 1) / (_girder_rows + 1))
+	var pier_count: int = maxi(
+		int(floor((extents.x - _wall * 2.0 - _pier_spacing) / _pier_spacing)) + 1, 2
+	)
+	var first_x: float = _center.x - (pier_count - 1) * _pier_spacing * 0.5
+	for index: int in pier_count:
+		_pier_xs.append(first_x + index * _pier_spacing)
+	# The duct trunk takes one of the pier gaps.
+	var gaps: Array = _pier_gaps()
+	_duct_x = gaps[_rng.randi() % gaps.size()]
 
-	_build_subfloor_and_joists(extents)
-	_build_girders_and_piers(extents)
-	_build_foundation_walls(extents)
-	_build_services(extents)
-	_build_bulbs(extents)
-	_build_debris()
-	_build_mushrooms()
-	_build_storm()
-	print(
-		(
-			(
-				"[Crawlspace] Built %.0fx%.0f m crawlspace at 1:%.0f, joists %.0f m up, %s masonry, "
-				+ "%d beam rows, piers every %.1f m, joists every %.1f m, vents every %.0f m, "
-				+ "hatch on wall %d"
+
+## The midpoints between neighbouring piers (the terrain's centre with a single pier).
+func _pier_gaps() -> Array:
+	var gaps: Array = []
+	for index: int in _pier_xs.size() - 1:
+		gaps.append((float(_pier_xs[index]) + float(_pier_xs[index + 1])) * 0.5)
+	if gaps.is_empty():
+		gaps.append(_center.x)
+	return gaps
+
+
+## Solid ground from bedrock up to the dirt under every pier and under the furnace, so each
+## stands on ground whatever the underside (the sponge of 3D noise with the terrain's solid
+## underside off, or a cave) would have put there. See ChunkedTerrainWorld.footing.
+func _footings() -> Array[Dictionary]:
+	var footings: Array[Dictionary] = []
+	var half: float = _pier_size * 0.5
+	for z: float in _pier_rows:
+		for x: float in _pier_xs:
+			footings.append(
+				_terrain.footing(
+					Vector3(x, 0.0, z), half, half, _lowest_dirt(x, z, _pier_size, _pier_size)
+				)
 			)
-			% [
-				extents.x,
-				extents.z,
-				_s,
-				_ceiling - _joist_depth - _center.y,
-				"block" if _block_masonry else "poured",
-				_girder_rows,
-				_pier_spacing,
-				_joist_spacing,
-				_vent_spacing * _s,
-				_hatch_wall
-			]
+	var furnace: Vector3 = DuctBuilder.FURNACE_SIZE * _s
+	var furnace_z: float = _center.z - _half.z + DuctBuilder.inset(_wall, _s) + furnace.z * 0.5
+	footings.append(
+		_terrain.footing(
+			Vector3(_duct_x, 0.0, furnace_z),
+			furnace.x * 0.5,
+			furnace.z * 0.5,
+			_lowest_dirt(_duct_x, furnace_z, furnace.x, furnace.z)
 		)
 	)
+	return footings
+
+
+## The dirt a pier's block stands on: the lowest surface under its footprint, sunk a little
+## so no edge floats.
+func _pier_ground(x: float, z: float, footprint: float) -> float:
+	return _lowest_dirt(x, z, footprint, footprint) - 0.03 * _s
+
+
+## The lowest dirt under a footprint: at its centre and its four corners.
+func _lowest_dirt(x: float, z: float, size_x: float, size_z: float) -> float:
+	var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
+	for corner_x: float in [-1.0, 1.0]:
+		for corner_z: float in [-1.0, 1.0]:
+			ground = minf(
+				ground,
+				_terrain.get_surface_height_at(
+					Vector3(x + corner_x * size_x * 0.5, 0.0, z + corner_z * size_z * 0.5)
+				)
+			)
+	return ground
+
+
+## How many piers have ground a metre under their block: every one, with the footings in.
+func _piers_on_solid_ground() -> int:
+	var count: int = 0
+	for z: float in _pier_rows:
+		for x: float in _pier_xs:
+			if _terrain.is_solid_at(Vector3(x, _pier_ground(x, z, _pier_size) - 1.0, z)):
+				count += 1
+	return count
 
 
 # --- Storm ------------------------------------------------------------------------------------
@@ -444,8 +547,7 @@ func _build_girders_and_piers(extents: Vector3) -> void:
 	block_mesh.top_radius = block_top * 0.5 * sqrt(2.0)
 	block_mesh.height = block_height
 	var block_shape: Shape3D = block_mesh.create_convex_shape(true)
-	for row: int in _girder_rows:
-		var z: float = _center.z - _half.z + extents.z * (row + 1) / (_girder_rows + 1)
+	for z: float in _pier_rows:
 		_box(
 			support,
 			"Girder",
@@ -454,34 +556,12 @@ func _build_girders_and_piers(extents: Vector3) -> void:
 			_wood(0),
 			MapInfo.STRUCTURE_LAYER
 		)
-		var pier_count: int = maxi(
-			int(floor((extents.x - _wall * 2.0 - _pier_spacing) / _pier_spacing)) + 1, 2
-		)
-		var first_x: float = _center.x - (pier_count - 1) * _pier_spacing * 0.5
-		_pier_rows.append(z)
-		if _pier_xs.is_empty():
-			for index: int in pier_count:
-				_pier_xs.append(first_x + index * _pier_spacing)
-		for index: int in pier_count:
-			var x: float = first_x + index * _pier_spacing
+		for x: float in _pier_xs:
 			if _block_masonry:
 				_build_block_pier(support, x, z, girder_bottom)
 				continue
 			# The block sits a little into the dirt; sample its footprint so no edge floats.
-			var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
-			for corner_x: float in [-1.0, 1.0]:
-				for corner_z: float in [-1.0, 1.0]:
-					ground = minf(
-						ground,
-						_terrain.get_surface_height_at(
-							Vector3(
-								x + corner_x * block_base * 0.5,
-								0.0,
-								z + corner_z * block_base * 0.5
-							)
-						)
-					)
-			ground -= 0.03 * _s
+			var ground: float = _pier_ground(x, z, block_base)
 			var block := MeshInstance3D.new()
 			block.name = "PierBlock"
 			block.mesh = block_mesh
@@ -524,16 +604,7 @@ func _build_girders_and_piers(extents: Vector3) -> void:
 ## block under the beam. The masonry pattern draws the courses and joints.
 func _build_block_pier(support: Node3D, x: float, z: float, girder_bottom: float) -> void:
 	var footprint: float = 0.4 * _s
-	var ground: float = _terrain.get_surface_height_at(Vector3(x, 0.0, z))
-	for corner_x: float in [-1.0, 1.0]:
-		for corner_z: float in [-1.0, 1.0]:
-			ground = minf(
-				ground,
-				_terrain.get_surface_height_at(
-					Vector3(x + corner_x * footprint * 0.5, 0.0, z + corner_z * footprint * 0.5)
-				)
-			)
-	ground -= 0.03 * _s
+	var ground: float = _pier_ground(x, z, footprint)
 	var cap: float = 0.05 * _s
 	# Whole courses, so the joints line up with the cap.
 	var course: float = 0.2 * _s
@@ -772,11 +843,7 @@ func _build_services(extents: Vector3) -> void:
 	var pair_gap: float = 0.04 * s
 	# Fixture columns sit off the pier-gap midpoints: clear of the piers and of the ductwork's
 	# runs along Z, which take the midpoints themselves.
-	var gaps: Array = []
-	for index: int in _pier_xs.size() - 1:
-		gaps.append((float(_pier_xs[index]) + float(_pier_xs[index + 1])) * 0.5)
-	if gaps.is_empty():
-		gaps.append(_center.x)
+	var gaps: Array = _pier_gaps()
 	var branch_xs: Array = []
 	for gap: float in gaps:
 		branch_xs.append(gap + 0.32 * s)
@@ -784,8 +851,7 @@ func _build_services(extents: Vector3) -> void:
 	_branch_x_pool = branch_xs
 	_branch_x_all = branch_xs.duplicate()
 
-	# Ductwork first; its trunk takes one of the pier gaps.
-	var duct_x: float = gaps[_rng.randi() % gaps.size()]
+	# Ductwork first; its trunk takes the pier gap rolled with the layout.
 	var network: DuctNetwork = (
 		DuctBuilder.build(
 			self,
@@ -794,7 +860,7 @@ func _build_services(extents: Vector3) -> void:
 			_wall,
 			func(x: float, z: float) -> float:
 				return _terrain.get_surface_height_at(Vector3(x, 0.0, z)),
-			duct_x,
+			_duct_x,
 			_pier_rows,
 			_pier_xs,
 			_pier_size,

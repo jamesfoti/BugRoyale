@@ -34,6 +34,10 @@ const CAPSULE_SAMPLES: int = 6
 		voxel_size = maxf(value, 0.05)
 		_request_rebuild()
 
+## The noise ranges are the ones a map may be randomised over: frequency 0.004 to 0.04
+## (hills 250 m to 50 m across), one to five octaves, gain 0.3 to 0.65 (smooth to craggy),
+## lacunarity 1.8 to 2.6. Slope grows with amplitude times frequency, and past about 45
+## degrees at 2 m voxels the shape itself goes blocky, so raise one and lower the other.
 @export_group("Noise")
 @export var noise_enabled: bool = true:
 	set(value):
@@ -43,23 +47,23 @@ const CAPSULE_SAMPLES: int = 6
 	set(value):
 		noise_seed = value
 		_request_rebuild()
-@export var noise_frequency: float = 0.08:
+@export_range(0.004, 0.04, 0.001) var noise_frequency: float = 0.02:
 	set(value):
 		noise_frequency = maxf(value, 0.001)
 		_request_rebuild()
-@export var noise_amplitude: float = 3.0:
+@export_range(0.0, 12.0, 0.1) var noise_amplitude: float = 3.0:
 	set(value):
 		noise_amplitude = value
 		_request_rebuild()
-@export_range(1, 8, 1) var noise_octaves: int = 3:
+@export_range(1, 5, 1) var noise_octaves: int = 3:
 	set(value):
 		noise_octaves = value
 		_request_rebuild()
-@export var noise_lacunarity: float = 2.0:
+@export_range(1.8, 2.6, 0.05) var noise_lacunarity: float = 2.0:
 	set(value):
 		noise_lacunarity = maxf(value, 1.0)
 		_request_rebuild()
-@export var noise_gain: float = 0.5:
+@export_range(0.3, 0.65, 0.01) var noise_gain: float = 0.5:
 	set(value):
 		noise_gain = clampf(value, 0.01, 1.0)
 		_request_rebuild()
@@ -93,9 +97,10 @@ const CAPSULE_SAMPLES: int = 6
 ## Brush edits are refused outside this box (world space). Zero size: editable anywhere.
 var edit_bounds: AABB = AABB()
 ## Solid ground a map builder adds on top of the map's own shape, dug and built on like the
-## rest: the soil in a garden's raised beds. Stadiums as DensitySampler.WorldDensity.solids
-## describes them. Set before the first build (a builder's _ready runs before the deferred
-## rebuild on ready, which picks them up); set later, the chunks rebuild.
+## rest: the soil in a garden's raised beds, and the footings under its beds and under the
+## crawlspace's piers (see footing). Stadiums as DensitySampler.WorldDensity.solids describes
+## them. Set before the first build (a builder's _ready runs before the deferred rebuild on
+## ready, which picks them up); set later, the chunks rebuild.
 var solids: Array[Dictionary] = []:
 	set(value):
 		solids = value
@@ -246,7 +251,8 @@ func _log_rebuild_complete(
 		grid_dimensions.z,
 		" grid) in ",
 		elapsed_ms,
-		" ms"
+		" ms",
+		_world_summary(settings)
 	)
 
 
@@ -318,6 +324,36 @@ func get_voxel_size() -> float:
 func get_world_extents() -> Vector3:
 	var grid_dimensions: Vector3i = _get_grid_dimensions()
 	return Vector3(grid_dimensions) * chunk_size
+
+
+## World Y below which the ground is bedrock: CaveCarver.FLOOR_MARGIN above the bottom of the
+## grid, where the caves stop and a footing stands.
+func get_bedrock_y() -> float:
+	var grid_dimensions: Vector3i = _get_grid_dimensions()
+	return CaveCarver.bedrock_y(global_position.y, grid_dimensions.y, chunk_size)
+
+
+## A footing for a builder to put under a structure: a stadium of the map's own ground (dug
+## like the rest, stone and veins and all) from bedrock up to top_y, the dirt the structure
+## stands on, so it stands on solid ground whatever the underside would have put there (the
+## sponge of 3D noise with solid_underside off, or a cave). The footprint is a box of half_x
+## by half_z about center, grown a voxel each way; the stadium's rounded ends reach its
+## corners. Goes into solids.
+func footing(center: Vector3, half_x: float, half_z: float, top_y: float) -> Dictionary:
+	var margin: float = get_voxel_size()
+	var along_z: bool = half_z > half_x
+	var half_along: float = (half_z if along_z else half_x) + margin
+	var half_across: float = (half_x if along_z else half_z) + margin
+	var radius: float = half_across * sqrt(2.0)
+	var bedrock: float = get_bedrock_y()
+	return {
+		"center": Vector3(center.x, bedrock, center.z),
+		"half_length": half_along - half_across + radius,
+		"radius": radius,
+		"height": maxf(top_y - bedrock, 0.0),
+		"along_z": along_z,
+		"ground": true,
+	}
 
 
 func get_settings_snapshot() -> SettingsSnapshot:
@@ -643,18 +679,24 @@ func _make_settings_snapshot() -> SettingsSnapshot:
 	settings.solids = solids
 	settings.rebuild_collision = settings.generate_collision
 	_apply_world_specific_settings(settings)
+	# The chunks are built from this world's own density (caves, terraces and all), on worker
+	# threads too: _build_world_density reads the snapshot alone.
+	settings.density_factory = _build_world_density
 	return settings
 
 
+## Drops every built chunk. Chunks are matched by name as well as by script, because after
+## the editor hot-reloads a terrain script the live chunks can fail the script check and
+## would otherwise stay in the scene under the next build, as a second ground cutting through.
+## They leave the tree at once and are freed at the end of the frame, in the editor too: the
+## renderer gets the old meshes' frees and the new meshes' uploads in order, instead of
+## freeing a mesh in the middle of a rebuild that is about to upload twenty-seven more.
 func _clear_chunks() -> void:
 	for child in get_children():
-		if not child is _CHUNK_SCRIPT:
+		if not (child is _CHUNK_SCRIPT or String(child.name).begins_with("Chunk_")):
 			continue
 		remove_child(child)
-		if Engine.is_editor_hint():
-			child.free()
-		else:
-			child.queue_free()
+		child.queue_free()
 	_chunks.clear()
 
 
@@ -775,6 +817,12 @@ func _make_thread_settings_snapshot() -> SettingsSnapshot:
 	if settings.terrain_edits != null:
 		settings.terrain_edits = settings.terrain_edits.duplicate_for_thread()
 	return settings
+
+
+## What this world's ground came out as, for the rebuild log ("" when there is nothing to
+## say): an open terrain names its terraces and caves.
+func _world_summary(_settings: SettingsSnapshot) -> String:
+	return ""
 
 
 func _build_world_density(settings: SettingsSnapshot) -> DensitySampler.WorldDensity:
@@ -905,6 +953,14 @@ class SettingsSnapshot:
 	var open_terrain_solid_fill: bool = false
 	var open_terrain_heightmap_image: Image = null
 	var open_terrain_surface_offset: float = 0.0
+	## Terraces on an open terrain (OpenTerrain.Terraces: seeded, always or never), the chance
+	## a seed has them, the tread height and strength ranges they are rolled from, and the
+	## share of the ground they cover.
+	var open_terrain_terraces: int = 0
+	var open_terrain_terrace_chance: float = 0.4
+	var open_terrain_terrace_step: Vector2 = Vector2(1.5, 5.0)
+	var open_terrain_terrace_strength: Vector2 = Vector2(0.35, 1.0)
+	var open_terrain_terrace_coverage: float = 0.5
 	var terrain_edits: TerrainEdits = null
 	## Solid ground a map builder adds on top of the shape (DensitySampler.WorldDensity.solids).
 	var solids: Array[Dictionary] = []

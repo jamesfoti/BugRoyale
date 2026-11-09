@@ -12,18 +12,26 @@ func rebuild(settings: ChunkedTerrainWorld.SettingsSnapshot) -> void:
 	apply_build_result(chunk_build_result, settings.rebuild_collision)
 
 
+## Takes a built mesh, and the trimesh collision for it unless this is the editor: nothing in
+## the editor walks on the ground (spawns and the terrarium's raycasts are runtime), and
+## every editor collision shape is drawn twice over as debug lines and fill, which on a
+## lab-sized build is a few million extra triangles uploaded on every slider step.
 func apply_build_result(
 	chunk_build_result: ChunkMeshBuilder.ChunkBuildResult, rebuild_collision: bool
 ) -> void:
 	mesh = FlyingEdgesMesher.to_array_mesh(chunk_build_result.mesh_result)
 	position = chunk_build_result.local_position
-	if rebuild_collision and mesh.get_surface_count() > 0:
+	if rebuild_collision and _wants_collision():
 		_create_trimesh_collision()
 
 
 func update_collision() -> void:
-	if mesh != null and mesh.get_surface_count() > 0:
+	if _wants_collision():
 		_create_trimesh_collision()
+
+
+func _wants_collision() -> bool:
+	return not Engine.is_editor_hint() and mesh != null and mesh.get_surface_count() > 0
 
 
 func _create_trimesh_collision() -> void:

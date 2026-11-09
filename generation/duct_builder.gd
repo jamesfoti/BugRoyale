@@ -29,6 +29,11 @@ const DUCT_WALL: float = 0.012
 const DUCT_CENTER_ABOVE_DIRT: float = 0.33
 
 
+## How far in from the foundation wall the ductwork keeps, and the furnace stands.
+static func inset(wall_thickness: float, scale: float) -> float:
+	return wall_thickness + 0.2 * scale
+
+
 ## Builds the ductwork under `parent`. ground(x, z) gives the dirt height; pier_rows/pier_xs
 ## the pier grid (piers are pier_size square); blocked_xs the plumbing's fixture columns;
 ## ceiling_bottom the joists' underside, beam_bottom the beams' (the trunk passes under them);
@@ -61,7 +66,7 @@ static func build(
 	context.width = DUCT_WIDTH * scale
 	context.height = DUCT_HEIGHT * scale
 	context.wall = DUCT_WALL * scale
-	context.inset = wall_thickness + 0.2 * scale
+	context.inset = inset(wall_thickness, scale)
 	# Never higher than clears the beams on the pier rows (the clearance varies per match).
 	context.duct_y = minf(
 		center.y + DUCT_CENTER_ABOVE_DIRT * scale, beam_bottom - 0.02 * scale - context.height * 0.5
