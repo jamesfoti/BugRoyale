@@ -9,15 +9,21 @@ extends GameMode
 
 const SQUAD_TEAM: int = 0
 const ENEMY_TEAM: int = 99
-const SQUAD_SIZE: int = 4
 const PREY_GROUP: StringName = &"hold_out_squad"
-const FIRST_BUILD_SECONDS: float = 60.0
-const BUILD_SECONDS: float = 35.0
-const APPROACHES: int = 3
-const APPROACH_MIN_DISTANCE: float = 30.0
-const HUSK_SPEED: float = 0.85
-## Dirt paid into the stock for every wave cleared.
-const WAVE_BONUS_DIRT: int = 20
+
+## Tuned from the editor: open modes/hold_out.tscn and select the root. These are the
+## defaults; the scene saves only what differs.
+## The squad, humans included; seconds to dig in before the first wave and between waves;
+## how many marked approaches the enemies come from and how far from the fort they start; a
+## husk's pace as a share of a soldier's; and the dirt paid into the stock for every wave
+## cleared.
+@export var squad_size: int = 4
+@export var first_build_seconds: float = 60.0
+@export var build_seconds: float = 35.0
+@export var approaches_count: int = 3
+@export var approach_min_distance: float = 30.0
+@export var husk_speed: float = 0.85
+@export var wave_bonus_dirt: int = 20
 
 var squad: Squad
 var director: HordeDirector
@@ -25,7 +31,7 @@ var swarm: BirdFlock
 var wave: int = 0
 var swatted: int = 0
 var in_build: bool = true
-var build_time_left: float = FIRST_BUILD_SECONDS
+var build_time_left: float = 0.0
 ## Enemies still up, as last counted by the host.
 var enemies_left: int = 0
 ## What the squad has dug and not yet built with.
@@ -42,11 +48,11 @@ var _enemies: Array[Fighter] = []
 
 func _start_match() -> void:
 	fort = map.random_surface_point(0.0)
-	for _index: int in APPROACHES:
+	for _index: int in approaches_count:
 		approaches.append(_approach_point())
 	for human: Fighter in humans():
 		human.respawn_at(_near_fort())
-	squad = Squad.fill(self, SQUAD_TEAM, PREY_GROUP, SQUAD_SIZE, _near_fort)
+	squad = Squad.fill(self, SQUAD_TEAM, PREY_GROUP, squad_size, _near_fort)
 	for bot: Fighter in squad.bots():
 		bot.brain.target_group = &"fighter"
 		bot.brain.secondary_target_group = &"bird"
@@ -67,14 +73,14 @@ func _start_match() -> void:
 	swarm.bird_died.connect(func(_bird: Bird) -> void: swatted += 1)
 
 	stock.attach(map.editable_terrain())
-	_start_build(FIRST_BUILD_SECONDS)
+	_start_build(first_build_seconds)
 	announce(
 		(
 			(
 				"Hold Out\nDig in: what you carve is what you build with. "
 				+ "The first wave comes from the amber beacons in %d seconds."
 			)
-			% int(FIRST_BUILD_SECONDS)
+			% int(first_build_seconds)
 		),
 		6.0
 	)
@@ -153,9 +159,9 @@ func _start_wave() -> void:
 
 
 func _end_wave() -> void:
-	stock.add(TerrainMaterials.Kind.DIRT, WAVE_BONUS_DIRT)
-	announce("Wave %d cleared! Dig in: %d seconds." % [wave, int(BUILD_SECONDS)], 3.0)
-	_start_build(BUILD_SECONDS)
+	stock.add(TerrainMaterials.Kind.DIRT, wave_bonus_dirt)
+	announce("Wave %d cleared! Dig in: %d seconds." % [wave, int(build_seconds)], 3.0)
+	_start_build(build_seconds)
 
 
 ## Each wave brings more: hornets from the first, husks from the second, armed ants from the third.
@@ -190,7 +196,7 @@ func _send_enemy(husk: bool, approach: Vector3) -> void:
 			return
 		enemy.brain.target_group = &"fighter"
 		if husk:
-			enemy.brain.become_husk(ENEMY_TEAM, HUSK_SPEED)
+			enemy.brain.become_husk(ENEMY_TEAM, husk_speed)
 		_enemies.append(enemy)
 	else:
 		enemy.respawn_at(spot)
@@ -227,7 +233,7 @@ func _approach_point() -> Vector3:
 	for _attempt: int in 10:
 		var candidate: Vector3 = map.random_surface_point(0.0)
 		var distance: float = candidate.distance_to(fort)
-		if distance >= APPROACH_MIN_DISTANCE:
+		if distance >= approach_min_distance:
 			return candidate
 		if distance > best_distance:
 			best_distance = distance
@@ -245,7 +251,7 @@ func _show_markers(building: bool) -> void:
 
 func _status_text() -> String:
 	var squad_line: String = (
-		"Squad %d/%d" % [squad.alive_count() if squad != null else 0, SQUAD_SIZE]
+		"Squad %d/%d" % [squad.alive_count() if squad != null else 0, squad_size]
 	)
 	if in_build:
 		return (

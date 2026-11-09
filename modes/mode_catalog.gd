@@ -28,6 +28,8 @@ const FORMATS: Dictionary = {
 const ALL_MAPS: Array = ["battlefield", "terrarium", "crawlspace"]
 const EVERY_FORMAT: Array = ["solo", "skirmish", "colony", "big_colony"]
 
+## scene: the mode's scene, a single node carrying the mode script; its exported numbers
+## are the mode's tuning, changed from the editor.
 ## forced_character: the class every player uses in a colony match (the class picker is skipped).
 ## persistent: the world is saved per map (WorldSave) and comes back, seed and all, next time.
 const MODES: Dictionary = {
@@ -39,7 +41,7 @@ const MODES: Dictionary = {
 			"Survival. Your workers carry the queen: lead them to good ground and found the "
 			+ "colony. Dig by day, hold the burrow after dark. The map keeps it, saved as you go."
 		),
-		"script": "res://modes/burrow.gd",
+		"scene": "res://modes/burrow.tscn",
 		"maps": ALL_MAPS,
 		"persistent": true,
 	},
@@ -51,7 +53,7 @@ const MODES: Dictionary = {
 			"You and 3 AI squadmates hold a spot against waves of hornets, husks and enemy "
 			+ "ants. Between waves, dig: what you carve is what you build with."
 		),
-		"script": "res://modes/hold_out.gd",
+		"scene": "res://modes/hold_out.tscn",
 		"maps": ALL_MAPS,
 	},
 	"slayer":
@@ -62,7 +64,7 @@ const MODES: Dictionary = {
 			"Deathmatch. Solo, every bug for itself; in colonies, Red soldier ants against "
 			+ "Black ants. First to the kill limit."
 		),
-		"script": "res://modes/slayer.gd",
+		"scene": "res://modes/slayer.tscn",
 		"maps": ALL_MAPS,
 		"formats": EVERY_FORMAT,
 		"default_format": "skirmish",

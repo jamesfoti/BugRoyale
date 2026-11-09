@@ -30,78 +30,102 @@ const ENEMY_TEAM: int = 99
 const PREY_GROUP: StringName = &"burrow_dwellers"
 ## A bug carrying food: the hornets' favourite.
 const LADEN_GROUP: StringName = &"burrow_laden"
-const RESPAWN_SECONDS: float = 4.0
-const AUTOSAVE_SECONDS: float = 30.0
+## The word to set the queen down.
+const FOUND_ACTION: StringName = &"found_colony"
+
+## Everything from here down is tuned from the editor: open modes/burrow.tscn, select the
+## root and change what you like. These are the defaults; the scene saves only what differs.
+@export_group("Match")
+## Seconds a fallen soldier waits before it is back at the burrow, and how often the world is
+## saved to disk.
+@export var respawn_seconds: float = 4.0
+@export var autosave_seconds: float = 30.0
+@export_group("Hornets")
 ## Hornets come this often through a night (the director's finale timer), and this often
 ## through a day when nothing has stirred them (the director's lull), at this share of a
 ## night's number. Kept small for now: a few hornets, not a horde.
-const NIGHT_HORDE_SECONDS: float = 90.0
-const DAY_HORDE_SECONDS: float = 150.0
-const DAY_HORDE_SHARE: float = 0.5
+@export var night_horde_seconds: float = 90.0
+@export var day_horde_seconds: float = 150.0
+@export var day_horde_share: float = 0.5
 ## The first hornets of a day are out this soon after dawn (or the start), not a whole lull
 ## later.
-const FIRST_HORNETS_SECONDS: float = 40.0
-const HORDE_BASE: int = 2
-const HORDE_GROWTH: int = 1
-const HORDE_MAX: int = 6
+@export var first_hornets_seconds: float = 40.0
+## How many hornets a horde brings on the first night, how many more each night, and the most.
+@export var horde_base: int = 2
+@export var horde_growth: int = 1
+@export var horde_max: int = 6
 ## How a Burrow hornet behaves, gentler than the director's defaults: it dives only at a bug
 ## within this distance, pulled this hard, at this speed, stinging for this much this often.
-const HORNET_DETECTION: float = 14.0
-const HORNET_ATTACK_WEIGHT: float = 1.4
-const HORNET_ATTACK_SPEED: float = 14.0
-const HORNET_STING: float = 5.0
-const HORNET_STING_SECONDS: float = 2.0
-const HUSK_SPEED: float = 0.8
-const MAX_HUSKS: int = 14
-## Husks that come with each horde after dark.
-const HUSKS_PER_HORDE: int = 2
+@export var hornet_detection: float = 14.0
+@export var hornet_attack_weight: float = 1.4
+@export var hornet_attack_speed: float = 14.0
+@export var hornet_sting: float = 5.0
+@export var hornet_sting_seconds: float = 2.0
+@export_group("Husks")
+## A husk's pace as a share of a soldier's, the most up at once, and how many come with each
+## horde after dark.
+@export var husk_speed: float = 0.8
+@export var max_husks: int = 14
+@export var husks_per_horde: int = 2
 ## Enemies set out at least this far from the burrow.
-const SPAWN_MIN_DISTANCE: float = 30.0
+@export var spawn_min_distance: float = 30.0
+@export_group("Raiders")
 ## The rival colony's raiders: from which night they come, how many on that night, how many
 ## more each night after, and the most at once. They come for the entrance with the colony's
 ## own guns.
-const RAIDERS_FROM_NIGHT: int = 2
-const RAIDER_BASE: int = 3
-const RAIDER_GROWTH: int = 1
-const RAIDER_MAX: int = 10
+@export var raiders_from_night: int = 2
+@export var raider_base: int = 3
+@export var raider_growth: int = 1
+@export var raider_max: int = 10
+@export_group("Spiders")
 ## Trapdoor spiders: from which day they lurk (one more every other day after), the most at
 ## once, how far off one notices a bug (it sits still at its spot until then), and its bite:
 ## an ambusher that lunges at what comes close, not the class's sniper rifle, so a forager
 ## that keeps its distance lives.
-const SPIDERS_FROM_DAY: int = 1
-const SPIDER_MAX: int = 4
-const SPIDER_DETECTION: float = 8.0
-const SPIDER_BITE: Dictionary = {"melee": true, "damage": 18.0, "cooldown": 1.5, "range": 2.5}
+@export var spiders_from_day: int = 1
+@export var spider_max: int = 4
+@export var spider_detection: float = 8.0
+@export var spider_bite_damage: float = 18.0
+@export var spider_bite_cooldown: float = 1.5
+@export var spider_bite_range: float = 2.5
+@export_group("Colony")
 ## The colony on the march: this many workers, at this share of a soldier's pace while they
-## carry.
-const WORKERS: int = ColonyBrood.STARTING_WORKERS
-const WORKER_SPEED: float = 0.8
-## The word to set the queen down, how far from her a bug may be and still give it, how uneven
+## carry. The rest is the brood's arithmetic (ColonyBrood): food per egg, eggs a day at most,
+## and the room dug below the surface that each worker past the founding ones needs.
+@export var starting_workers: int = ColonyBrood.STARTING_WORKERS
+@export var worker_speed: float = 0.8
+@export var food_per_egg: int = ColonyBrood.FOOD_PER_EGG
+@export var eggs_per_day: int = ColonyBrood.EGGS_PER_DAY
+@export var room_per_worker_m3: float = ColonyBrood.ROOM_PER_WORKER_M3
+@export_group("Founding")
+## How far from the queen a bug may be and still give the word to set her down, how uneven
 ## the ground around her may be, and how fast the workers dig once she is down (one carve per
 ## interval).
-const FOUND_ACTION: StringName = &"found_colony"
-const FOUND_RADIUS: float = 20.0
-const GROUND_SPREAD_LIMIT: float = 2.5
-const GROUND_PROBE: float = 2.5
-const DIG_INTERVAL: float = 1.2
+@export var found_radius: float = 20.0
+@export var ground_spread_limit: float = 2.5
+@export var ground_probe: float = 2.5
+@export var dig_interval: float = 1.2
 ## A bug this close to a queen on the ground picks her up.
-const PICKUP_RADIUS: float = 1.6
+@export var pickup_radius: float = 1.6
+@export_group("Food")
 ## Food: how many pieces lie on the surface at most (topped up at founding and every dawn),
 ## how near the entrance they start, how far out the workers forage on the first day and how
 ## much farther each day survived, how often the workers think about it, how close to the
 ## entrance a bug must come to hand its food in, how much a soldier can carry at once (a
 ## worker carries one), and the pace of a laden worker.
-const FOOD_ON_MAP: int = 12
-const FOOD_MIN_DISTANCE: float = 12.0
-const FORAGE_RADIUS: float = 35.0
-const FORAGE_RADIUS_PER_DAY: float = 10.0
-const FORAGE_THINK_SECONDS: float = 0.5
-const DELIVER_RADIUS: float = 3.5
-const SOLDIER_CARRY: int = 3
-const LADEN_SPEED: float = 0.75
-## Eggs lie this far from the queen on the chamber floor, and this is how many hornet hits one
-## takes (AntEgg.MAX_HEALTH).
-const EGG_SPREAD: float = 1.4
+@export var food_on_map: int = 12
+@export var food_min_distance: float = 12.0
+@export var first_day_forage_radius: float = 35.0
+@export var forage_radius_per_day: float = 10.0
+@export var forage_think_seconds: float = 0.5
+@export var deliver_radius: float = 3.5
+@export var soldier_carry: int = 3
+@export var laden_speed: float = 0.75
+@export_group("Eggs")
+## Eggs lie this far from the queen on the chamber floor. (How many hornet hits one takes is
+## AntEgg.MAX_HEALTH.)
+@export var egg_spread: float = 1.4
+@export_group("")
 
 var cycle: DayCycle
 var director: HordeDirector
@@ -130,7 +154,7 @@ var queen_position: Vector3 = Vector3.INF
 var queen_state: int = QueenAnt.State.CARRIED
 var queen_health: float = QueenAnt.MAX_HEALTH
 var queen_carry: int = Carry.WORKERS
-var workers_alive: int = WORKERS
+var workers_alive: int = 0
 ## Food in hand, by fighter id (a worker carries one at most).
 var carried: Dictionary = {}
 
@@ -145,7 +169,7 @@ var _spiders: Array[Fighter] = []
 ## Fighter -> seconds until it is back at the burrow.
 var _respawn_timers: Dictionary = {}
 var _home_beacon: Beacon
-var _autosave_left: float = AUTOSAVE_SECONDS
+var _autosave_left: float = 0.0
 var _restored: bool = false
 ## The human carrying the queen when no worker can (null otherwise).
 var _human_bearer: Fighter
@@ -160,6 +184,19 @@ var _nest_dug: bool = false
 var _claims: Dictionary = {}
 var _forage_timer: float = 0.0
 var _eggs: Array[AntEgg] = []
+
+
+## The editor's numbers reach the brood and the counters here: an exported value is set after the
+## script's own initialisers ran, so nothing above may be copied from one until now.
+func _ready() -> void:
+	super()
+	brood.starting_workers = starting_workers
+	brood.food_per_egg = food_per_egg
+	brood.eggs_per_day = eggs_per_day
+	brood.room_per_worker_m3 = room_per_worker_m3
+	workers_alive = starting_workers
+	_autosave_left = autosave_seconds
+
 
 # --- Deciding ---------------------------------------------------------------------------------
 
@@ -205,12 +242,12 @@ func _start_match() -> void:
 	director = HordeDirector.new()
 	director.name = "HordeDirector"
 	director.setup(map, get_parent(), PREY_GROUP, ENEMY_TEAM)
-	director.lull_seconds = DAY_HORDE_SECONDS
-	director.lull_share = DAY_HORDE_SHARE
-	director.finale_seconds = NIGHT_HORDE_SECONDS
-	director.horde_base = HORDE_BASE
-	director.horde_growth = HORDE_GROWTH
-	director.horde_max = HORDE_MAX
+	director.lull_seconds = day_horde_seconds
+	director.lull_share = day_horde_share
+	director.finale_seconds = night_horde_seconds
+	director.horde_base = horde_base
+	director.horde_growth = horde_growth
+	director.horde_max = horde_max
 	director.hordes = nights
 	add_child(director)
 	for dweller: Fighter in _dwellers:
@@ -219,17 +256,17 @@ func _start_match() -> void:
 	director.build_horde_flock()
 	var flock: BirdFlock = director.horde_flock()
 	flock.lure_group = LADEN_GROUP
-	flock.attack_detection_radius = HORNET_DETECTION
-	flock.attack_weight = HORNET_ATTACK_WEIGHT
-	flock.max_attack_speed = HORNET_ATTACK_SPEED
-	flock.attack_damage = HORNET_STING
-	flock.attack_cooldown = HORNET_STING_SECONDS
+	flock.attack_detection_radius = hornet_detection
+	flock.attack_weight = hornet_attack_weight
+	flock.max_attack_speed = hornet_attack_speed
+	flock.attack_damage = hornet_sting
+	flock.attack_cooldown = hornet_sting_seconds
 	flock.bird_died.connect(func(_bird: Bird) -> void: swatted += 1)
 	director.horde_sent.connect(_on_horde_sent)
 	if cycle.is_night():
 		director.start_finale()
 	else:
-		director.hasten_lull(FIRST_HORNETS_SECONDS)
+		director.hasten_lull(first_hornets_seconds)
 		if founded:
 			_send_day_spiders()
 	if _restored and founded:
@@ -281,7 +318,7 @@ func _update_match(delta: float) -> void:
 	hornets_left = director.horde_flock().alive_count()
 	_autosave_left -= delta
 	if _autosave_left <= 0.0:
-		_autosave_left = AUTOSAVE_SECONDS
+		_autosave_left = autosave_seconds
 		save_world()
 
 
@@ -293,8 +330,8 @@ func _on_fighter_died(fighter: Fighter) -> void:
 	if _dwellers.has(fighter):
 		deaths += 1
 		var where: String = "the burrow" if founded else "the colony"
-		announce_to(fighter, "You're down. Back with %s in a moment..." % where, RESPAWN_SECONDS)
-		_respawn_timers[fighter] = RESPAWN_SECONDS
+		announce_to(fighter, "You're down. Back with %s in a moment..." % where, respawn_seconds)
+		_respawn_timers[fighter] = respawn_seconds
 	elif _workers.has(fighter):
 		_release_claims(fighter)
 		var up: int = _alive_workers().size()
@@ -334,7 +371,7 @@ func _spawn_queen(anchor: Vector3) -> void:
 ## (and the queen rides on them); founded, they forage by day from the entrance. A saved
 ## colony gets back the workers it had.
 func _spawn_workers(anchor: Vector3) -> void:
-	var count: int = workers_alive if founded else WORKERS
+	var count: int = workers_alive if founded else starting_workers
 	for _index: int in count:
 		if _spawn_worker(anchor) == null:
 			return
@@ -352,7 +389,7 @@ func _spawn_worker(anchor: Vector3) -> Fighter:
 	if worker == null:
 		return null
 	worker.body.apply_hand_item(PlayerItems.Item.NONE)
-	worker.body.scale_speed(WORKER_SPEED)
+	worker.body.scale_speed(worker_speed)
 	worker.body.add_to_group(PREY_GROUP)
 	worker.brain.weapon = {}
 	worker.brain.detection_range = 0.0
@@ -401,7 +438,7 @@ func _tend_queen() -> void:
 		for human: Fighter in _dwellers:
 			if (
 				human.is_alive()
-				and human.get_position().distance_to(queen.global_position) < PICKUP_RADIUS
+				and human.get_position().distance_to(queen.global_position) < pickup_radius
 			):
 				_human_bearer = human
 				queen.carried_by([human])
@@ -434,7 +471,7 @@ func _poll_found() -> void:
 func request_found(fighter: Fighter) -> bool:
 	if founded or match_over or queen == null or fighter == null or not fighter.is_alive():
 		return false
-	if fighter.get_position().distance_to(queen.global_position) > FOUND_RADIUS:
+	if fighter.get_position().distance_to(queen.global_position) > found_radius:
 		announce_to(fighter, "The queen is too far off to set down here.", 3.0)
 		return false
 	var ground: Dictionary = map.ground_below(queen.global_position)
@@ -468,15 +505,15 @@ func ground_problem(point: Vector3) -> String:
 	var lowest: float = 0.0
 	var highest: float = 0.0
 	for offset: Vector3 in [side, -side, forward, -forward]:
-		var probe: Dictionary = map.ground_below(point + offset * GROUND_PROBE + up * 3.0, 9.0)
+		var probe: Dictionary = map.ground_below(point + offset * ground_probe + up * 3.0, 9.0)
 		if probe.is_empty():
 			return "The ground falls away."
 		var rise: float = (probe.position - point).dot(up)
 		lowest = minf(lowest, rise)
 		highest = maxf(highest, rise)
-	if lowest < -GROUND_SPREAD_LIMIT * 2.0:
+	if lowest < -ground_spread_limit * 2.0:
 		return "The ground falls away."
-	if highest - lowest > GROUND_SPREAD_LIMIT:
+	if highest - lowest > ground_spread_limit:
 		return "Too steep."
 	return ""
 
@@ -503,7 +540,7 @@ func _found(entrance: Vector3, direction: Vector3) -> void:
 				"The colony is founded here. The workers dig the queen's chamber, then forage: "
 				+ "every %d food is an egg."
 			)
-			% ColonyBrood.FOOD_PER_EGG
+			% brood.food_per_egg
 		),
 		6.0
 	)
@@ -517,7 +554,7 @@ func _dig_tick(delta: float) -> void:
 	_dig_timer -= delta
 	if _dig_timer > 0.0:
 		return
-	_dig_timer = DIG_INTERVAL
+	_dig_timer = dig_interval
 	var terrain: ChunkedTerrainWorld = map.editable_terrain()
 	var carve: Dictionary = _dig_plan.pop_front()
 	if terrain != null:
@@ -572,10 +609,10 @@ func _respawn_point() -> Vector3:
 
 ## How far from the entrance the workers forage today.
 func forage_radius() -> float:
-	return FORAGE_RADIUS + FORAGE_RADIUS_PER_DAY * float(nights)
+	return first_day_forage_radius + forage_radius_per_day * float(nights)
 
 
-## Tops the surface up to FOOD_ON_MAP pieces, scattered within today's reach of the entrance.
+## Tops the surface up to food_on_map pieces, scattered within today's reach of the entrance.
 func _scatter_food() -> void:
 	if home == Vector3.INF:
 		return
@@ -583,8 +620,8 @@ func _scatter_food() -> void:
 	for node: Node in get_tree().get_nodes_in_group(ForageMaterial.GROUP):
 		if node is ForageMaterial and not (node as ForageMaterial).is_taken():
 			present += 1
-	for index: int in FOOD_ON_MAP - present:
-		var spot: Vector3 = map.ground_point_near(home, FOOD_MIN_DISTANCE, forage_radius(), 0.4)
+	for index: int in food_on_map - present:
+		var spot: Vector3 = map.ground_point_near(home, food_min_distance, forage_radius(), 0.4)
 		_place_food(spot, index)
 
 
@@ -607,9 +644,9 @@ func _on_food_picked_up(food: ForageMaterial, body: FighterBody) -> void:
 		food.take()
 		_claims.erase(food)
 		_set_carried(fighter, 1)
-		_send_home(fighter, DELIVER_RADIUS - 1.5)
+		_send_home(fighter, deliver_radius - 1.5)
 	elif _dwellers.has(fighter):
-		if in_hand >= SOLDIER_CARRY:
+		if in_hand >= soldier_carry:
 			announce_to(fighter, "Your hands are full. Bring it to the entrance.", 2.0)
 			return
 		food.take()
@@ -617,7 +654,7 @@ func _on_food_picked_up(food: ForageMaterial, body: FighterBody) -> void:
 		_set_carried(fighter, in_hand + 1)
 		announce_to(
 			fighter,
-			"Food %d/%d in hand. Bring it to the entrance." % [in_hand + 1, SOLDIER_CARRY],
+			"Food %d/%d in hand. Bring it to the entrance." % [in_hand + 1, soldier_carry],
 			2.0
 		)
 
@@ -634,9 +671,9 @@ func _set_carried(fighter: Fighter, count: int) -> void:
 		fighter.body.remove_from_group(LADEN_GROUP)
 	if _workers.has(fighter):
 		if before == 0 and count > 0:
-			fighter.body.scale_speed(LADEN_SPEED)
+			fighter.body.scale_speed(laden_speed)
 		elif before > 0 and count == 0:
-			fighter.body.scale_speed(1.0 / LADEN_SPEED)
+			fighter.body.scale_speed(1.0 / laden_speed)
 
 
 ## A fallen bug's food lands beside it for someone else to pick up.
@@ -658,14 +695,14 @@ func _forage_tick(delta: float) -> void:
 	_forage_timer -= delta
 	if _forage_timer > 0.0:
 		return
-	_forage_timer = FORAGE_THINK_SECONDS
+	_forage_timer = forage_think_seconds
 	for food: Variant in _claims.keys():
 		if not is_instance_valid(food) or (food as ForageMaterial).is_taken():
 			_claims.erase(food)
 	var night: bool = cycle.is_night()
 	for worker: Fighter in _alive_workers():
 		if int(carried.get(worker.id, 0)) > 0:
-			_send_home(worker, DELIVER_RADIUS - 1.5)
+			_send_home(worker, deliver_radius - 1.5)
 			continue
 		var claimed: ForageMaterial = _claim_of(worker)
 		if night:
@@ -685,7 +722,7 @@ func _forage_tick(delta: float) -> void:
 
 
 func _at_entrance(fighter: Fighter) -> bool:
-	return fighter.get_position().distance_to(home) <= DELIVER_RADIUS
+	return fighter.get_position().distance_to(home) <= deliver_radius
 
 
 func _hand_in(fighter: Fighter) -> void:
@@ -749,7 +786,7 @@ func _place_egg() -> void:
 	var up: Vector3 = map.up_at(queen_position)
 	var side: Vector3 = up.cross(Vector3.RIGHT if absf(up.x) < 0.9 else Vector3.FORWARD)
 	side = side.normalized().rotated(up, randf_range(0.0, TAU))
-	var egg: AntEgg = AntEgg.spawn(get_parent(), queen_position + side * EGG_SPREAD, up, TEAM)
+	var egg: AntEgg = AntEgg.spawn(get_parent(), queen_position + side * egg_spread, up, TEAM)
 	egg.add_to_group(PREY_GROUP)
 	egg.health.died.connect(_on_egg_died.bind(egg))
 	_eggs.append(egg)
@@ -785,12 +822,12 @@ func _hatch() -> void:
 
 func _on_dusk() -> void:
 	director.start_finale()
-	for _index: int in mini(2 + nights * 2, MAX_HUSKS):
+	for _index: int in mini(2 + nights * 2, max_husks):
 		_send_husk()
 	_retire(_spiders)
-	if founded and nights + 1 >= RAIDERS_FROM_NIGHT:
+	if founded and nights + 1 >= raiders_from_night:
 		var party: int = mini(
-			RAIDER_BASE + RAIDER_GROWTH * (nights + 1 - RAIDERS_FROM_NIGHT), RAIDER_MAX
+			raider_base + raider_growth * (nights + 1 - raiders_from_night), raider_max
 		)
 		var from: Vector3 = _far_point()
 		for _index: int in party:
@@ -811,7 +848,7 @@ func _on_dawn() -> void:
 			husk.health.apply_damage(husk.health.max_health * 10.0)
 	_retire(_raiders)
 	announce("Dawn. Night %d survived; the husks crumble in the light." % nights, 4.0)
-	director.hasten_lull(FIRST_HORNETS_SECONDS)
+	director.hasten_lull(first_hornets_seconds)
 	if founded:
 		_hatch()
 		_scatter_food()
@@ -820,11 +857,11 @@ func _on_dawn() -> void:
 
 
 ## The day's spiders dig in among the food: one from the first day, one more every other
-## day after, up to SPIDER_MAX.
+## day after, up to spider_max.
 func _send_day_spiders() -> void:
-	if nights + 1 < SPIDERS_FROM_DAY:
+	if nights + 1 < spiders_from_day:
 		return
-	for _index: int in mini(1 + floori((nights + 1 - SPIDERS_FROM_DAY) / 2.0), SPIDER_MAX):
+	for _index: int in mini(1 + floori((nights + 1 - spiders_from_day) / 2.0), spider_max):
 		_send_spider()
 	announce("Trapdoor spiders have dug in among the food. Watch the foragers.", 4.0)
 
@@ -835,8 +872,8 @@ func _on_horde_sent(_count: int, reason: HordeDirector.Reason) -> void:
 			announce("They heard you!", 3.0)
 		HordeDirector.Reason.FINALE:
 			announce("Hornets in the dark!", 3.0)
-			for _index: int in HUSKS_PER_HORDE:
-				if husks_left < MAX_HUSKS:
+			for _index: int in husks_per_horde:
+				if husks_left < max_husks:
 					_send_husk()
 		_:
 			announce("Hornets overhead!", 3.0)
@@ -857,11 +894,11 @@ func _send_husk() -> void:
 		if husk == null:
 			return
 		husk.brain.target_group = &"fighter"
-		husk.brain.become_husk(ENEMY_TEAM, HUSK_SPEED)
+		husk.brain.become_husk(ENEMY_TEAM, husk_speed)
 		_husks.append(husk)
 	else:
 		husk.respawn_at(spot)
-		husk.brain.become_husk(ENEMY_TEAM, HUSK_SPEED)
+		husk.brain.become_husk(ENEMY_TEAM, husk_speed)
 	husk.brain.detection_range = 120.0
 	husk.brain.objective = home if founded else queen_position
 	husk.brain.objective_radius = 4.0
@@ -895,9 +932,9 @@ func _send_raider(from: Vector3) -> void:
 
 
 ## A trapdoor spider dug in among the food: it sits at its spot and strikes at whatever comes
-## within SPIDER_DETECTION, and bites.
+## within spider_detection, and bites.
 func _send_spider() -> void:
-	var spot: Vector3 = map.ground_point_near(home, FOOD_MIN_DISTANCE, forage_radius(), 1.2)
+	var spot: Vector3 = map.ground_point_near(home, food_min_distance, forage_radius(), 1.2)
 	var spider: Fighter = _retired_one(_spiders)
 	if spider == null:
 		spider = spawn_bot(LoadingScreen.PlayerCharacter.TRAPDOOR_SPIDER, ENEMY_TEAM, spot)
@@ -907,11 +944,16 @@ func _send_spider() -> void:
 		_spiders.append(spider)
 	else:
 		spider.respawn_at(spot)
-	spider.brain.detection_range = SPIDER_DETECTION
-	spider.brain.weapon = SPIDER_BITE
+	spider.brain.detection_range = spider_detection
+	spider.brain.weapon = {
+		"melee": true,
+		"damage": spider_bite_damage,
+		"cooldown": spider_bite_cooldown,
+		"range": spider_bite_range,
+	}
 	spider.brain.objective = spot
 	spider.brain.objective_radius = 1.5
-	spider.brain.objective_focus = SPIDER_DETECTION
+	spider.brain.objective_focus = spider_detection
 
 
 ## A dead body in a pool, ready to be sent out again (null when every one is up).
@@ -945,7 +987,7 @@ func _far_point() -> Vector3:
 	for _attempt: int in 10:
 		var candidate: Vector3 = map.random_surface_point(0.0)
 		var distance: float = candidate.distance_to(anchor)
-		if distance >= SPAWN_MIN_DISTANCE:
+		if distance >= spawn_min_distance:
 			return candidate
 		if distance > best_distance:
 			best_distance = distance

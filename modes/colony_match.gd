@@ -6,10 +6,16 @@ extends GameMode
 ## at the score limit or when time runs out. A mode on top scores through the hooks under
 ## "Scoring".
 
-const TEAM_NAMES: Array[String] = ["Red", "Black"]
-const TEAM_COLORS: Array[Color] = [Color(0.9, 0.25, 0.2), Color(0.3, 0.35, 0.8)]
-## Colours in a solo match, by fighter.
-const SOLO_COLORS: Array[Color] = [
+## Which half of the map each colony holds.
+const TEAM_SIDES: Array[float] = [-1.0, 1.0]
+
+## Tuned from the editor on each competitive mode's scene (modes/slayer.tscn): the colonies'
+## names and colours, the colours of a solo match's bugs (by fighter), the colour of nobody's
+## side, the clock, and how long a squished bug waits to respawn. These are the defaults; a
+## scene saves only what differs.
+@export var team_names: Array[String] = ["Red", "Black"]
+@export var team_colors: Array[Color] = [Color(0.9, 0.25, 0.2), Color(0.3, 0.35, 0.8)]
+@export var solo_colors: Array[Color] = [
 	Color(0.9, 0.3, 0.2),
 	Color(0.3, 0.5, 0.95),
 	Color(0.95, 0.8, 0.2),
@@ -17,11 +23,9 @@ const SOLO_COLORS: Array[Color] = [
 	Color(0.8, 0.4, 0.9),
 	Color(0.2, 0.85, 0.85),
 ]
-## Which half of the map each colony holds.
-const TEAM_SIDES: Array[float] = [-1.0, 1.0]
-const DEFAULT_TIME_LIMIT: float = 600.0
-const DEFAULT_RESPAWN_SECONDS: float = 5.0
-const NEUTRAL_COLOR := Color(0.75, 0.75, 0.7)
+@export var neutral_color: Color = Color(0.75, 0.75, 0.7)
+@export var time_limit: float = 600.0
+@export var respawn_seconds: float = 5.0
 
 ## 0 teams means solo: every fighter is its own team, numbered by spawn order.
 var teams: int = 2
@@ -30,8 +34,7 @@ var fighter_total: int = 10
 ## Team -> points.
 var scores: Dictionary = {}
 var score_limit: int = 40
-var time_left: float = DEFAULT_TIME_LIMIT
-var respawn_seconds: float = DEFAULT_RESPAWN_SECONDS
+var time_left: float = 0.0
 ## Each colony's home on its side of the map (none in a solo match).
 var nests: Array[Vector3] = []
 
@@ -98,7 +101,7 @@ func _score_limit() -> int:
 
 
 func _time_limit() -> float:
-	return DEFAULT_TIME_LIMIT
+	return time_limit
 
 
 # --- Teams and scores ------------------------------------------------------------------------
@@ -138,15 +141,15 @@ func name_of_team(team: int) -> String:
 			if fighter.get_team() == team:
 				return fighter.display_name()
 		return "Bug %d" % team
-	return TEAM_NAMES[team] if team >= 0 and team < TEAM_NAMES.size() else "Team %d" % team
+	return team_names[team] if team >= 0 and team < team_names.size() else "Team %d" % team
 
 
 func color_of_team(team: int) -> Color:
 	if team < 0:
-		return NEUTRAL_COLOR
+		return neutral_color
 	if is_solo():
-		return SOLO_COLORS[team % SOLO_COLORS.size()]
-	return TEAM_COLORS[team % TEAM_COLORS.size()]
+		return solo_colors[team % solo_colors.size()]
+	return team_colors[team % team_colors.size()]
 
 
 func score_of(team: int) -> int:

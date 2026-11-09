@@ -2,11 +2,18 @@ extends ColonyMatch
 ## Slayer: deathmatch. Solo, every bug for itself; in colonies, the Red soldier ants against the
 ## Black ants. First to the kill limit wins, or the most kills when time runs out.
 
+## Tuned from the editor (modes/slayer.tscn): the kill limit of a solo match, and in
+## colonies this many kills per member of a colony, held between the two limits.
+@export var solo_kill_limit: int = 25
+@export var kills_per_member: int = 5
+@export var colony_kill_limit_min: int = 40
+@export var colony_kill_limit_max: int = 100
+
 
 func _score_limit() -> int:
 	if is_solo():
-		return 25
-	return clampi(team_size * 5, 40, 100)
+		return solo_kill_limit
+	return clampi(team_size * kills_per_member, colony_kill_limit_min, colony_kill_limit_max)
 
 
 func _intro_text() -> String:

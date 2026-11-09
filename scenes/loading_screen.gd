@@ -134,7 +134,7 @@ func _start_game(game_scene: PackedScene) -> void:
 	queue_free()
 
 
-## Adds the chosen mode's script to the loaded map (no mode = free roam).
+## Adds the chosen mode's scene to the loaded map (no mode = free roam).
 func _add_game_mode(game_root: Node) -> void:
 	current_mode_id = pending_mode_id
 	pending_mode_id = ""
@@ -147,8 +147,8 @@ func _add_game_mode(game_root: Node) -> void:
 	var mode_info: Dictionary = ModeCatalog.mode(current_mode_id)
 	if mode_info.is_empty():
 		return
-	var mode_script: Script = load(mode_info["script"]) as Script
-	var game_mode: Node = mode_script.new()
+	var mode_scene: PackedScene = load(mode_info["scene"]) as PackedScene
+	var game_mode: Node = mode_scene.instantiate()
 	game_mode.name = "GameMode"
 	game_root.add_child(game_mode)
 

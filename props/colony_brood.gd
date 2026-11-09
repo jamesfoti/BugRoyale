@@ -15,6 +15,13 @@ const FOOD_PER_EGG: int = 6
 const EGGS_PER_DAY: int = 1
 const ROOM_PER_WORKER_M3: float = 40.0
 
+## The numbers this colony runs on, the constants above unless Burrow hands it the ones set
+## in the editor.
+var starting_workers: int = STARTING_WORKERS
+var food_per_egg: int = FOOD_PER_EGG
+var eggs_per_day: int = EGGS_PER_DAY
+var room_per_worker_m3: float = ROOM_PER_WORKER_M3
+
 ## Food at the entrance, not yet turned into an egg.
 var food: int = 0
 ## Eggs in the chamber, waiting for dawn.
@@ -27,19 +34,19 @@ var room_m3: float = 0.0
 
 ## How many the colony may be: workers up plus eggs waiting.
 func capacity() -> int:
-	return STARTING_WORKERS + int(room_m3 / ROOM_PER_WORKER_M3)
+	return starting_workers + int(room_m3 / room_per_worker_m3)
 
 
 ## Whether the queen can lay now, with this many workers up.
 func can_lay(workers_alive: int) -> bool:
-	return food >= FOOD_PER_EGG and laid_today < EGGS_PER_DAY and workers_alive + eggs < capacity()
+	return food >= food_per_egg and laid_today < eggs_per_day and workers_alive + eggs < capacity()
 
 
 ## Lays an egg from the food in store; false (and nothing spent) when she cannot.
 func lay(workers_alive: int) -> bool:
 	if not can_lay(workers_alive):
 		return false
-	food -= FOOD_PER_EGG
+	food -= food_per_egg
 	eggs += 1
 	laid_today += 1
 	changed.emit()

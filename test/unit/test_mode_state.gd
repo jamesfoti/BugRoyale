@@ -3,10 +3,10 @@ extends GutTest
 ## what a client will show the match from. Modes are instantiated outside the tree so none of
 ## them starts a match. The catalog's formats and maps are checked for agreement too.
 
-const MODE_SCRIPTS: Dictionary = {
-	"hold_out": "res://modes/hold_out.gd",
-	"slayer": "res://modes/slayer.gd",
-	"burrow": "res://modes/burrow.gd",
+const MODE_SCENES: Dictionary = {
+	"hold_out": "res://modes/hold_out.tscn",
+	"slayer": "res://modes/slayer.tscn",
+	"burrow": "res://modes/burrow.tscn",
 }
 
 ## The fields every competitive (ColonyMatch) mode snapshots.
@@ -56,7 +56,7 @@ const SAMPLE_STATES: Dictionary = {
 
 
 func _new_mode(mode_id: String) -> GameMode:
-	var mode: GameMode = (load(MODE_SCRIPTS[mode_id]) as Script).new() as GameMode
+	var mode: GameMode = (load(MODE_SCENES[mode_id]) as PackedScene).instantiate() as GameMode
 	autofree(mode)
 	return mode
 
@@ -73,11 +73,11 @@ func _sample(mode_id: String) -> Dictionary:
 func test_every_catalog_mode_has_a_test_state() -> void:
 	for mode_id: String in ModeCatalog.MODES.keys():
 		assert_true(SAMPLE_STATES.has(mode_id), "mode '%s' needs a sample state here" % mode_id)
-		assert_true(MODE_SCRIPTS.has(mode_id), "mode '%s' needs its script listed here" % mode_id)
+		assert_true(MODE_SCENES.has(mode_id), "mode '%s' needs its scene listed here" % mode_id)
 
 
 func test_state_round_trips_onto_a_fresh_mode() -> void:
-	for mode_id: String in MODE_SCRIPTS.keys():
+	for mode_id: String in MODE_SCENES.keys():
 		var source: GameMode = _new_mode(mode_id)
 		source.apply_state(_sample(mode_id))
 		var snapshot: Dictionary = source.snapshot_state()
@@ -92,7 +92,7 @@ func test_state_round_trips_onto_a_fresh_mode() -> void:
 
 
 func test_sample_fields_come_back_out_of_the_snapshot() -> void:
-	for mode_id: String in MODE_SCRIPTS.keys():
+	for mode_id: String in MODE_SCENES.keys():
 		var mode: GameMode = _new_mode(mode_id)
 		var sample: Dictionary = _sample(mode_id)
 		mode.apply_state(sample)
@@ -102,7 +102,7 @@ func test_sample_fields_come_back_out_of_the_snapshot() -> void:
 
 
 func test_base_fields_are_always_present() -> void:
-	for mode_id: String in MODE_SCRIPTS.keys():
+	for mode_id: String in MODE_SCENES.keys():
 		var snapshot: Dictionary = _new_mode(mode_id).snapshot_state()
 		assert_has(snapshot, "over", "%s snapshots whether the match is over" % mode_id)
 		assert_has(snapshot, "end_title", mode_id)
