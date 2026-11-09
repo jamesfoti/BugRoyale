@@ -90,7 +90,7 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.
 			value, TerrariumBudget.MIN_CHUNK_SIZE, TerrariumBudget.MAX_CHUNK_SIZE
 		)
 		_request_rebuild()
-## Metres per voxel of the terrarium's terrain (the crawlspace digs at 2 m).
+## Metres per voxel of the terrarium's terrain (the big maps dig at 1 m).
 @export_range(0.25, 8.0, 0.25, "suffix:m") var terrarium_voxel_size: float = 1.0:
 	set(value):
 		terrarium_voxel_size = clampf(

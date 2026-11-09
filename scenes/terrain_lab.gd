@@ -10,7 +10,7 @@ extends Node3D
 ## destroyed before a save and rebuilt after it.
 ##
 ## The grid is 4 by 4 chunks of 32 m (128 m a side, a quarter of the garden's width) and three
-## chunks deep, the garden's own noise and voxel size, so a build takes about a second. Fly
+## chunks deep, the garden's own noise and voxel size, so a build takes a few seconds. Fly
 ## the editor camera below the surface to see the tunnels and caverns: the terrain's faces
 ## only draw from the air side, so rock is see-through from inside. Run as a scene (F6) it
 ## builds on ready and the camera looks down on it.

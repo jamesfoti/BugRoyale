@@ -23,7 +23,8 @@ const PREY_GROUP: StringName = &"hold_out_squad"
 @export var approaches_count: int = 3
 @export var approach_min_distance: float = 30.0
 @export var husk_speed: float = 0.85
-@export var wave_bonus_dirt: int = 20
+## Dirt is counted in voxels: at the maps' 1 m voxels a 2 m pickaxe carve frees about 18.
+@export var wave_bonus_dirt: int = 160
 
 var squad: Squad
 var director: HordeDirector

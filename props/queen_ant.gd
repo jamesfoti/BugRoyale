@@ -19,8 +19,9 @@ const MEND_PER_SECOND: float = 4.0
 const BODY_COLOR := Color(0.93, 0.82, 0.58)
 const EYE_COLOR := Color(0.12, 0.08, 0.05)
 ## The nest the workers dig for her: a shaft sloping down and away from the entrance, one carve
-## per step, then the chamber. Radii are sized to the big maps' 2 m voxels: a 1.9 m carve is sure
-## to take a voxel out, and the shaft is wide enough for a bug to walk down.
+## per step, then the chamber. The radii were sized to the maps' old 2 m voxels (a 1.9 m carve
+## was sure to take a voxel out); at 1 m they dig the same shaft, finer, wide enough for a bug
+## to walk down.
 const SHAFT_STEPS: int = 5
 const SHAFT_STEP: float = 1.2
 const SHAFT_RADIUS: float = 1.9

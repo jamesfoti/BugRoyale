@@ -23,7 +23,7 @@ uniform float rock_slope_end : hint_range(0.0, 1.0) = 0.7;
 uniform float band_softness : hint_range(1.0, 8.0) = 4.0;
 uniform float band_jitter : hint_range(0.0, 0.5) = 0.12;
 // Fine grain (metres per cell) that pushes the moss and rock edges about, and how far. The
-// slope those edges follow is interpolated between vertices 2 m apart, so without it they
+// slope those edges follow is interpolated between vertices a voxel apart, so without it they
 // sawtooth along the triangles.
 uniform float edge_grain_size : hint_range(0.1, 5.0) = 0.7;
 uniform float edge_jitter : hint_range(0.0, 0.5) = 0.3;

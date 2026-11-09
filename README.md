@@ -18,7 +18,7 @@ Play
 
 - **Bugs:** Ant Warrior, Termite Soldier, Wasp (flies), Trapdoor Spider.
 - **Maps:** Backyard Garden, Crawlspace, Terrarium. All three are the same size (512 m
-  across, three chunks deep), and every match's seed carves a new underworld into them
+  across, three chunks deep, dug at 1 m voxels), and every match's seed carves a new underworld into them
   (CaveCarver): worm tunnels from a few metres down, caverns from twenty, a few sinkholes
   open to the sky, on half the seeds ravines cut into the surface with leaning walls, and
   bedrock at the bottom. The terrarium is a 5 m tank on a coffee
