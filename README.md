@@ -263,9 +263,10 @@ garden's own noise and voxel size) for seeing how procedural the ground and its 
 without loading a map. Open it in the editor, select `TerrainWorld` and press **Build
 Terrain** at the top of the inspector (the Terrain Editor plugin), then change anything:
 with **Auto Rebuild In Editor** on, every toggle (caves, solid underside, noise, seed,
-grid size, terraces) rebuilds the chunks on the spot, and the root node's **New Seed** button
-rerolls the seed. The rebuild line in the Output panel says what the seed rolled: its
-terraces, if any, and its caves.
+grid size, terraces) rebuilds the chunks on the spot, and **New Seed** beside the build
+button rolls a new seed and builds it, on any terrain node (Ctrl+Z brings the old seed
+back). The rebuild line in the Output panel says what the seed rolled: its terraces, if
+any, and its caves and ravines.
 
 The inspector sliders under **Noise** stop at the ranges a map may be randomised over,
 the values that still make good ground: frequency 0.004 to 0.04 (hills 250 m to 50 m

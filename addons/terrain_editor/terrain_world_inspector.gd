@@ -47,6 +47,17 @@ func _parse_begin(object: Object) -> void:
 	destroy_button.pressed.connect(func() -> void: _on_destroy_pressed(node_path))
 	row.add_child(destroy_button)
 
+	var seed_button: Button = Button.new()
+	seed_button.text = "New Seed"
+	seed_button.tooltip_text = (
+		"Rolls a new terrain seed and builds it (undo puts the old seed back). "
+		+ "The rebuild line in the Output panel says what the seed rolled."
+	)
+	seed_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	seed_button.disabled = is_terrarium_room and not node.has_method("rebuild_all")
+	seed_button.pressed.connect(func() -> void: _on_new_seed_pressed(node_path))
+	row.add_child(seed_button)
+
 	if is_terrarium_room:
 		var hint: Label = Label.new()
 		if not node.has_method("rebuild_all"):
@@ -108,6 +119,30 @@ func _on_build_pressed(node_path: NodePath) -> void:
 		return
 	node.rebuild_all_editor()
 	_mark_scene_unsaved()
+
+
+## A new seed through the editor's undo history, so Ctrl+Z brings the old ground back. The
+## seed property's setter rebuilds when Auto Rebuild In Editor is on; otherwise we build.
+func _on_new_seed_pressed(node_path: NodePath) -> void:
+	var node: Node3D = _get_target_node(node_path)
+	if node == null:
+		push_error("[Terrain] Could not find node.")
+		return
+	if not node.has_method("rebuild_all"):
+		push_error("[Terrain] Script failed to load — check the Output panel.")
+		return
+	var property: String = (
+		"terrarium_noise_seed" if _is_terrarium_room_node(node) else "noise_seed"
+	)
+	var new_seed: int = randi() % 1000000
+	var undo_redo: EditorUndoRedoManager = EditorInterface.get_editor_undo_redo()
+	undo_redo.create_action("New terrain seed")
+	undo_redo.add_do_property(node, property, new_seed)
+	undo_redo.add_undo_property(node, property, node.get(property))
+	undo_redo.commit_action()
+	print("[Terrain] Seed %d." % new_seed)
+	if not bool(node.get("auto_rebuild_in_editor")):
+		node.rebuild_all_editor()
 
 
 func _on_destroy_pressed(node_path: NodePath) -> void:
