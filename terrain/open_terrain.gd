@@ -3,11 +3,15 @@ class_name OpenTerrain
 extends ChunkedTerrainWorld
 ## Boxed-in style 3D noise clipped by a heightmap surface (open top, side/bottom walls), or
 ## solid ground under the surface with a seeded underworld carved out of it (caves_enabled).
-## The surface may be terraced into shelves, seed by seed (Terraces).
+## The surface may be terraced into shelves, seed by seed (Terraces), and takes a character
+## from the seed (Character): warped, ridged, redistributed, or plain.
 
 ## Whether the surface is stepped into terraces: rolled from the seed at terrace_chance, or
 ## forced on (to see a seed's terraces in the lab) or off.
 enum Terraces { SEEDED, ALWAYS, NEVER }
+## Whether the surface's character (warp, ridges, redistribution) is rolled from the seed, or
+## the surface is the plain height noise as the sliders set it.
+enum Character { SEEDED, PLAIN }
 
 @export_group("Open Terrain Grid")
 @export_range(1, 64, 1) var chunks_x: int = 5:
@@ -65,6 +69,41 @@ enum Terraces { SEEDED, ALWAYS, NEVER }
 		terrace_coverage = value
 		_request_rebuild()
 
+@export_group("Character")
+## The surface's character, rolled from the seed (DensitySampler.WorldDensity.roll_surface),
+## so seeds differ in kind and not only in where the hills are: a redistribution power
+## drawn from character_power (above 1 flat valleys and fewer, taller hills; below 1
+## plateaus), a domain warp of character_warp metres on character_warp_chance of seeds (the
+## blobs stretch into curved ridges and bays), and a ridged mix from character_ridge on
+## character_ridge_chance of them (sharp crests along lines). Plain turns it all off. To
+## force one trait in the lab, set its chance to 1 and narrow its range.
+@export var character: Character = Character.SEEDED:
+	set(value):
+		character = value
+		_request_rebuild()
+@export var character_power: Vector2 = Vector2(0.7, 1.6):
+	set(value):
+		character_power = value
+		_request_rebuild()
+@export_range(0.0, 1.0, 0.05) var character_warp_chance: float = 0.5:
+	set(value):
+		character_warp_chance = value
+		_request_rebuild()
+## Warp in metres, least and most.
+@export var character_warp: Vector2 = Vector2(10.0, 40.0):
+	set(value):
+		character_warp = value
+		_request_rebuild()
+@export_range(0.0, 1.0, 0.05) var character_ridge_chance: float = 0.35:
+	set(value):
+		character_ridge_chance = value
+		_request_rebuild()
+## Ridged mix, least and most, 0 to 1.
+@export var character_ridge: Vector2 = Vector2(0.2, 0.5):
+	set(value):
+		character_ridge = value
+		_request_rebuild()
+
 @export_group("Edges")
 ## Clip terrain to world bounds on X, Z, and bottom Y. Top remains open.
 @export var boxed_edges_enabled: bool = true:
@@ -113,6 +152,12 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_terrace_step = terrace_step
 	settings.open_terrain_terrace_strength = terrace_strength
 	settings.open_terrain_terrace_coverage = terrace_coverage
+	settings.open_terrain_character = character
+	settings.open_terrain_character_power = character_power
+	settings.open_terrain_character_warp_chance = character_warp_chance
+	settings.open_terrain_character_warp = character_warp
+	settings.open_terrain_character_ridge_chance = character_ridge_chance
+	settings.open_terrain_character_ridge = character_ridge
 
 
 func _build_world_density(
@@ -135,6 +180,15 @@ func _build_world_density(
 	)
 	if settings.caves_enabled and settings.open_terrain_solid_fill:
 		density.caves = CaveCarver.for_settings(settings)
+	if settings.open_terrain_character == Character.SEEDED:
+		density.roll_surface(
+			settings.noise_seed,
+			settings.open_terrain_character_power,
+			settings.open_terrain_character_warp_chance,
+			settings.open_terrain_character_warp,
+			settings.open_terrain_character_ridge_chance,
+			settings.open_terrain_character_ridge
+		)
 	if settings.open_terrain_terraces != Terraces.NEVER:
 		density.roll_terraces(
 			settings.noise_seed,
@@ -149,7 +203,10 @@ func _build_world_density(
 
 func _world_summary(settings: ChunkedTerrainWorld.SettingsSnapshot) -> String:
 	var density: DensitySampler.WorldDensity = _build_world_density(settings)
-	var summary: String = ", seed %d: %s" % [settings.noise_seed, density.terrace_summary()]
+	var summary: String = (
+		", seed %d: %s, %s"
+		% [settings.noise_seed, density.surface_summary(), density.terrace_summary()]
+	)
 	if density.caves != null:
 		summary += ", " + density.caves.summary()
 	return summary

@@ -967,6 +967,12 @@ class SettingsSnapshot:
 	var open_terrain_terrace_step: Vector2 = Vector2(1.5, 5.0)
 	var open_terrain_terrace_strength: Vector2 = Vector2(0.35, 1.0)
 	var open_terrain_terrace_coverage: float = 0.5
+	var open_terrain_character: int = 0
+	var open_terrain_character_power: Vector2 = Vector2(0.7, 1.6)
+	var open_terrain_character_warp_chance: float = 0.5
+	var open_terrain_character_warp: Vector2 = Vector2(10.0, 40.0)
+	var open_terrain_character_ridge_chance: float = 0.35
+	var open_terrain_character_ridge: Vector2 = Vector2(0.2, 0.5)
 	var terrain_edits: TerrainEdits = null
 	## Solid ground a map builder adds on top of the shape (DensitySampler.WorldDensity.solids).
 	var solids: Array[Dictionary] = []

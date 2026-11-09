@@ -306,6 +306,17 @@ class WorldDensity:
 	var terrace_strength: float = 1.0
 	var terrace_phase: float = 0.0
 	var terrace_coverage: float = 0.5
+	## The surface's character, rolled from the seed by roll_surface or set by hand (applied in
+	## _sample_open_terrain_height). The height noise is read at a point pushed by a slower
+	## noise pair, surface_warp metres at most, so the round blobs of plain noise stretch into
+	## curved ridges and bays; mixed toward its ridged form by surface_ridge (0 round tops, 1
+	## sharp crests along the noise's zero lines); and redistributed by surface_power (above 1
+	## the valleys flatten into plains and the hills grow fewer and taller, below 1 plateaus).
+	## 0 m, 0 and 1 leave the plain noise. Every seed drawing from one distribution is what
+	## makes generated ground feel predictable; rolling these makes seeds differ in kind.
+	var surface_warp: float = 0.0
+	var surface_ridge: float = 0.0
+	var surface_power: float = 1.0
 	## Carves tunnels, caverns and bedrock under a solid-filled open terrain (null: none).
 	var caves: CaveCarver = null
 	## Solid ground a map builder adds on top of the shape: the soil in a garden's raised beds,
@@ -329,6 +340,8 @@ class WorldDensity:
 	var _macro_noise: FastNoiseLite
 	var _height_noise: FastNoiseLite
 	var _terrace_noise: FastNoiseLite
+	var _warp_noise_x: FastNoiseLite
+	var _warp_noise_z: FastNoiseLite
 	var _heightmap_image: Image
 	var _noise: FastNoiseLite
 	## The solids that can reach the region being sampled (see prepare_for_region), and how
@@ -568,7 +581,17 @@ class WorldDensity:
 		elif not noise_enabled or _height_noise == null:
 			height = bounds_center.y + surface_height_offset
 		else:
-			var noise_value: float = _height_noise.get_noise_2d(world_x, world_z)
+			var sample_x: float = world_x
+			var sample_z: float = world_z
+			if surface_warp > 0.0 and _warp_noise_x != null:
+				sample_x += _warp_noise_x.get_noise_2d(world_x, world_z) * surface_warp
+				sample_z += _warp_noise_z.get_noise_2d(world_x, world_z) * surface_warp
+			var noise_value: float = _height_noise.get_noise_2d(sample_x, sample_z)
+			if surface_ridge > 0.0:
+				noise_value = lerpf(noise_value, 1.0 - 2.0 * absf(noise_value), surface_ridge)
+			if not is_equal_approx(surface_power, 1.0):
+				var unit: float = clampf((noise_value + 1.0) * 0.5, 0.0, 1.0)
+				noise_value = pow(unit, surface_power) * 2.0 - 1.0
 			height = bounds_center.y + noise_value * noise_amplitude + surface_height_offset
 		if terrace_enabled:
 			height = terrace_height(height, world_x, world_z)
@@ -628,6 +651,67 @@ class WorldDensity:
 		_terrace_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 		_terrace_noise.frequency = 1.0 / 90.0
 		_terrace_noise.fractal_type = FastNoiseLite.FRACTAL_NONE
+
+	## Rolls the surface's character a seed gives: a redistribution power from its range, a
+	## warp from its range on warp_chance of seeds (else none), a ridged mix from its range on
+	## ridge_chance of them (else none). Every number is drawn whether or not its roll says
+	## yes, so a chance of 1 in the lab shows the very trait the seed would have had.
+	func roll_surface(
+		terrain_seed: int,
+		power_range: Vector2,
+		warp_chance: float,
+		warp_range: Vector2,
+		ridge_chance: float,
+		ridge_range: Vector2
+	) -> void:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash(Vector2i(terrain_seed, 4409))
+		surface_power = rng.randf_range(
+			minf(power_range.x, power_range.y), maxf(power_range.x, power_range.y)
+		)
+		var warp_rolled: float = rng.randf()
+		var warp: float = rng.randf_range(
+			minf(warp_range.x, warp_range.y), maxf(warp_range.x, warp_range.y)
+		)
+		surface_warp = warp if warp_rolled < warp_chance else 0.0
+		var ridge_rolled: float = rng.randf()
+		var ridge: float = rng.randf_range(
+			minf(ridge_range.x, ridge_range.y), maxf(ridge_range.x, ridge_range.y)
+		)
+		surface_ridge = ridge if ridge_rolled < ridge_chance else 0.0
+		init_warp_noise(terrain_seed)
+
+	## The slow noise pair the warp reads, at half the height noise's frequency (so a push
+	## spans a hill or two): needed whenever surface_warp is set by hand.
+	func init_warp_noise(terrain_seed: int) -> void:
+		var frequency: float = 0.004
+		if _height_noise != null:
+			frequency = _height_noise.frequency * 0.5
+		_warp_noise_x = FastNoiseLite.new()
+		_warp_noise_x.seed = terrain_seed + 808
+		_warp_noise_x.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_warp_noise_x.frequency = frequency
+		_warp_noise_x.fractal_type = FastNoiseLite.FRACTAL_FBM
+		_warp_noise_x.fractal_octaves = 2
+		_warp_noise_z = FastNoiseLite.new()
+		_warp_noise_z.seed = terrain_seed + 809
+		_warp_noise_z.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_warp_noise_z.frequency = frequency
+		_warp_noise_z.fractal_type = FastNoiseLite.FRACTAL_FBM
+		_warp_noise_z.fractal_octaves = 2
+
+	## "warp 23 m, ridges 0.35, power 1.6" (the traits present), or "plain surface".
+	func surface_summary() -> String:
+		var traits: PackedStringArray = PackedStringArray()
+		if surface_warp > 0.0:
+			traits.append("warp %d m" % roundi(surface_warp))
+		if surface_ridge > 0.0:
+			traits.append("ridges %.2f" % surface_ridge)
+		if not is_equal_approx(surface_power, 1.0):
+			traits.append("power %.1f" % surface_power)
+		if traits.is_empty():
+			return "plain surface"
+		return ", ".join(traits)
 
 	## "terraces every 3.2 m, strength 0.8, over 50% of the ground", or "no terraces".
 	func terrace_summary() -> String:

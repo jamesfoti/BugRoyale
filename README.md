@@ -182,6 +182,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_elements.gd` | The elements in the ground: the table lists each once with its symbol, number, depth and colour; under the topsoil the stone has ore pockets, each element only from its own depth down and the pockets a share of the stone; a seed always draws the same ore; a dug element lands in the stock and builds |
 | `test_cave_carver.gd` | The seeded underworld: a seed always carves the same caves and every number lands in range; under a solid open terrain the surface is still the surface, the ground is metres below it wherever no cave is near, there is air in the tunnels but the ground is mostly ground, and bedrock is solid |
 | `test_terraces.gd` | The seeded terraces: a seed always rolls the same ones and every number lands in range, never means the plain surface, always means the heights sit on the treads, and the sponge underside is scaled to metres |
+| `test_surface_character.gd` | The seeded surface character: a seed always rolls the same one and every number lands in its range, neutral values are the plain noise exactly, a power above 1 lowers the ground and keeps it within the amplitude, a warp moves the hills within the amplitude, and a ridged mix lifts the crests |
 | `test_sky_chunks.gd` | The chunk builder's short cut: a chunk wholly above the ground is filled from its column heights without a voxel pass, a chunk the surface crosses is not, and a placed solid or a built edit in the sky brings the voxel pass back |
 | `test_footings.gd` | The footings under structures: solid from bedrock to the dirt where a 3D-noise underside is a sponge, kept clear of the caves under a solid one, dug as the map's own ground where a bed's soil digs as dirt, and sized by the terrain from its own bedrock to cover a footprint's corners |
 
@@ -267,6 +268,17 @@ grid size, terraces) rebuilds the chunks on the spot, and **New Seed** beside th
 button rolls a new seed and builds it, on any terrain node (Ctrl+Z brings the old seed
 back). The rebuild line in the Output panel says what the seed rolled: its terraces, if
 any, and its caves and ravines.
+
+Every seed also rolls a **Character** for the surface, so seeds differ in kind and not only
+in where the hills are (plain noise draws every world from one distribution, which is why
+generated ground comes to feel predictable): a redistribution power between 0.7 and 1.6
+(above 1 the valleys flatten into plains and the hills grow fewer and taller, below 1
+plateaus), on half the seeds a domain warp of 10 to 40 m that stretches the round blobs of
+noise into curved ridges and bays, and on a third a ridged mix that puts sharp crests along
+lines. The ranges and chances are under **Character** on the `TerrainWorld` node; **Plain**
+turns it all off, and a chance of 1 with a narrow range forces one trait to study it. The
+rebuild line names what the seed rolled. These come from the techniques in Red Blob Games'
+terrain-from-noise notes.
 
 The inspector sliders under **Noise** stop at the ranges a map may be randomised over,
 the values that still make good ground: frequency 0.004 to 0.01 (hills 250 m to 100 m

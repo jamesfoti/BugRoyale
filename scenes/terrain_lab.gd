@@ -4,10 +4,10 @@ extends Node3D
 ## from the editor. Open scenes/terrain_lab.tscn, select TerrainWorld and press Build Terrain
 ## (the Terrain Editor plugin puts Build and Destroy at the top of its inspector), or change
 ## any of its settings: with Auto Rebuild In Editor on, every toggle (caves, solid underside,
-## noise, seed, grid size, terraces) rebuilds the chunks on the spot, and the rebuild line in
-## the Output panel says what the seed rolled, and New Seed beside Build rolls a new one.
-## This root keeps a New Seed button of its own and keeps the built chunks out of the saved
-## scene: they are destroyed before a save and rebuilt after it.
+## noise, seed, grid size, terraces, character) rebuilds the chunks on the spot, and the
+## rebuild line in the Output panel says what the seed rolled; New Seed beside Build rolls a
+## new one. This root keeps a New Seed button of its own and keeps the built chunks out of
+## the saved scene: they are destroyed before a save and rebuilt after it.
 ##
 ## The grid is 4 by 4 chunks of 32 m (128 m a side, a quarter of the garden's width) and three
 ## chunks deep, the garden's own noise and voxel size, so a build takes a few seconds. Fly
