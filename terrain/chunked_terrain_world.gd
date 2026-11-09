@@ -11,6 +11,11 @@ signal brush_applied(world_position: Vector3, radius: float)
 signal edit_applied(edit: Dictionary)
 
 const _CHUNK_SCRIPT = preload("res://terrain/terrain_chunk.gd")
+## Worker threads a full rebuild is split over. GDScript on many threads contends in the
+## engine (object lookups, reference counts) rather than scaling: measured 2026-11-09 on a
+## 20-core machine, 48 garden-sized chunks took 784 ms on one thread, 315 ms on four and
+## 1641 ms on all twenty. Four is the sweet spot by a wide margin either side.
+const REBUILD_THREADS: int = 4
 
 ## Metres of air an ADD edit must leave around a fighter's capsule to be allowed. Terrain
 ## collision is one-sided, so a fighter sealed inside new rock falls out of the world.
@@ -203,7 +208,7 @@ func _rebuild_all_sync(settings: SettingsSnapshot, grid_dimensions: Vector3i) ->
 		var group_task_id: int = WorkerThreadPool.add_group_task(
 			ChunkMeshBuilder.run_parallel_job_element.bind(job),
 			job.chunk_coordinates.size(),
-			-1,
+			REBUILD_THREADS,
 			true,
 			"%s chunk rebuild" % _get_world_log_name()
 		)
