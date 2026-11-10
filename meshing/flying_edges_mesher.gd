@@ -254,7 +254,7 @@ static func _create_edge_vertex(
 			vertex_color = reader.density.natural_tint(solid_position, solid_value)
 			# A placed solid (a raised bed's soil) keeps its own tint; the map's own ground
 			# shows dirt where it was dug, the lawn or moss only where it was not.
-			if dug and vertex_color == TerrainMaterials.NATURAL_VERTEX_COLOR:
+			if dug and vertex_color.a > 0.0:
 				vertex_color = TerrainMaterials.vertex_color(TerrainMaterials.Kind.DIRT)
 		else:
 			vertex_color = TerrainMaterials.vertex_color(kind)

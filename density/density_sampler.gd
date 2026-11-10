@@ -542,13 +542,17 @@ class WorldDensity:
 	## The vertex colour of natural ground here (alpha 1: the terrain shader draws its own
 	## ground, tinted by it). Plain white unless the point lies in a placed solid, which
 	## carries its own tint (alpha 0: a flat colour, the soil in a raised bed).
-	func natural_tint(world_position: Vector3, _density_value: float) -> Color:
-		if _region_solid_count == 0:
-			return TerrainMaterials.NATURAL_VERTEX_COLOR
-		var solid: Dictionary = solid_at(world_position)
-		if solid.is_empty():
-			return TerrainMaterials.NATURAL_VERTEX_COLOR
-		return solid.get("tint", TerrainMaterials.NATURAL_VERTEX_COLOR) as Color
+	func natural_tint(world_position: Vector3, density_value: float) -> Color:
+		if _region_solid_count > 0:
+			var solid: Dictionary = solid_at(world_position)
+			if not solid.is_empty():
+				return solid.get("tint", TerrainMaterials.NATURAL_VERTEX_COLOR) as Color
+		# A wall well under the surface is a cave's, and takes its biome's tint.
+		if caves != null:
+			var depth: float = depth_below_surface(world_position, density_value)
+			if depth > 1.5:
+				return CaveCarver.biome_tint(caves.biome(world_position, depth))
+		return TerrainMaterials.NATURAL_VERTEX_COLOR
 
 	## The element of the ore pocket at a point this deep: every element whose depth is reached
 	## is a candidate, and the pocket's cell draws one of them by weight. Stone where nothing

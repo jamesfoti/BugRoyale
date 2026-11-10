@@ -64,6 +64,8 @@ const CAVE_FIELDS: Dictionary = {
 	"shaft_width": 0.01,
 	"shaft_share": 0.05,
 	"shaft_lean": 0.01,
+	"ceiling_jag": 0.1,
+	"rubble": 0.1,
 }
 
 @export_group("Open Terrain Grid")
@@ -514,6 +516,16 @@ const CAVE_FIELDS: Dictionary = {
 @export_range(0.02, 0.5, 0.01) var cave_shaft_lean: float = 0.14:
 	set(value):
 		cave_shaft_lean = value
+		_request_rebuild()
+## Metres of fine noise hanging from the rooms' ceilings (points and folds), and metres of
+## bumps on their floors (scree). 0 is a smooth room.
+@export_range(0.0, 4.0, 0.1) var cave_ceiling_jag: float = 1.4:
+	set(value):
+		cave_ceiling_jag = value
+		_request_rebuild()
+@export_range(0.0, 2.0, 0.1) var cave_rubble: float = 0.5:
+	set(value):
+		cave_rubble = value
 		_request_rebuild()
 
 @export_group("Edges")

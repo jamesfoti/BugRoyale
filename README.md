@@ -354,7 +354,13 @@ switch, a chance and ranges, and each named in the rebuild line:
   random walk of capsules that curves with a persistent lean, swells and pinches,
   branches now and then and ends in a chamber, cutting through bands, seams and regions
   alike. Noise cannot give an entrance that leads somewhere, a passage with a direction
-  or a dead end; these do. Where two features meet, their air blends over 2 m, so a tunnel joins a room
+  or a dead end; these do. **Ceilings and floors** differ, as in a real cave: fine noise
+  hangs from a room's ceiling in points and folds, 0.8 to 2 m deep by the seed, and scree
+  bumps its floor, which side being read from the cavern noise's own slope. **Biomes**,
+  Minecraft's lush and dripstone caves: a slow noise 250 m across says what kind of cave
+  the rock is in, mossy or plain within 40 m of the surface and plain, dripstone, fungal
+  or crystal below, and the walls take the biome's tint half-blended over the shader's
+  rock; dripstone rooms stand on pillars a metre thick. Where two features meet, their air blends over 2 m, so a tunnel joins a room
   or crosses a floor in a rounded mouth instead of leaving a sliver of wall thinner than
   a voxel (the floating pieces those made: at 1 m voxels the blend takes five in six of
   them away). What still floats is mostly the grid's own, a wall thinner than two voxels

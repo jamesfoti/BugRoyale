@@ -57,6 +57,8 @@ func test_every_number_lands_in_its_range() -> void:
 		assert_between(carver.tunnel_depth, 6.0, 12.0, "tunnel depth, seed %d" % value)
 		assert_between(carver.tunnel_ramp, 20.0, 40.0, "tunnel ramp, seed %d" % value)
 		assert_between(carver.shallow_cutoff, 0.25, 0.45, "shallow cutoff, seed %d" % value)
+		assert_between(carver.ceiling_jag, 0.8, 2.0, "ceiling jag, seed %d" % value)
+		assert_between(carver.rubble, 0.3, 0.8, "rubble, seed %d" % value)
 		assert_between(carver.cavern_depth, 16.0, 26.0, "cavern depth, seed %d" % value)
 		assert_gt(carver.cavern_depth, carver.tunnel_depth, "caverns lie under the tunnels")
 		assert_almost_eq(carver.floor_y, BEDROCK_Y, 0.001)
@@ -298,6 +300,116 @@ func _air_columns(carver: CaveCarver, depth: float) -> int:
 			if carver.air(spot, depth) > 0.0:
 				air += 1
 	return air
+
+
+## Biomes: the near-surface rock is mossy or plain, the deep rock every other kind somewhere,
+## and each biome but plain tints the wall half-way (alpha 0.5).
+func test_biomes_lie_by_depth_and_tint_the_walls() -> void:
+	var carver: CaveCarver = _plain_carver()
+	var kinds: Dictionary = {}
+	for step_x: int in 30:
+		for step_z: int in 30:
+			var spot := Vector3(float(step_x) * 40.0 - 600.0, -100.0, float(step_z) * 40.0 - 600.0)
+			var shallow: CaveCarver.Biome = carver.biome(spot, 20.0)
+			assert_true(
+				shallow == CaveCarver.Biome.PLAIN or shallow == CaveCarver.Biome.MOSSY,
+				"near the surface, plain or mossy"
+			)
+			kinds[carver.biome(spot, 100.0)] = true
+			kinds[shallow] = true
+	for kind: CaveCarver.Biome in [
+		CaveCarver.Biome.PLAIN,
+		CaveCarver.Biome.MOSSY,
+		CaveCarver.Biome.DRIPSTONE,
+		CaveCarver.Biome.FUNGAL,
+		CaveCarver.Biome.CRYSTAL,
+	]:
+		assert_true(kinds.has(kind), "biome %d lies somewhere" % kind)
+		var tint: Color = CaveCarver.biome_tint(kind)
+		if kind == CaveCarver.Biome.PLAIN:
+			assert_eq(tint, TerrainMaterials.NATURAL_VERTEX_COLOR, "plain is the ground's own")
+		else:
+			assert_almost_eq(tint.a, 0.5, 0.001, "a biome tint blends half-way")
+	assert_eq(carver.biome(Vector3.ZERO, 100.0), carver.biome(Vector3.ZERO, 100.0), "steady")
+
+
+## Dripstone rooms stand on pillars: inside a room, some columns are rock with the biome
+## fixed to dripstone and none with it fixed to plain. And the ceilings hang lower than the
+## floors rise: with the jag and the rubble on, air is lost at the top of a room more than
+## at the bottom.
+func test_dripstone_rooms_have_pillars_and_ceilings_hang_in_points() -> void:
+	var carver: CaveCarver = _plain_carver()
+	carver.tunnel_threshold = 0.0
+	carver.sinkhole_threshold = 2.0
+	carver.floor_thickness = 0.0
+	carver.ceiling_jag = 0.0
+	carver.rubble = 0.0
+	carver.biome_fixed = CaveCarver.Biome.PLAIN
+	# A room: a spot 100 m down with 3 m of air round it.
+	var room := Vector3.ZERO
+	var found: bool = false
+	for step_x: int in 60:
+		for step_z: int in 60:
+			var spot := Vector3(float(step_x) * 5.0 - 150.0, -100.0, float(step_z) * 5.0 - 150.0)
+			if carver.air(spot, 100.0) > 3.0:
+				room = spot
+				found = true
+				break
+		if found:
+			break
+	assert_true(found, "a room 100 m down")
+	var plain_rock: int = _rock_in_square(carver, room)
+	carver.biome_fixed = CaveCarver.Biome.DRIPSTONE
+	var pillar_rock: int = _rock_in_square(carver, room)
+	assert_eq(plain_rock, 0, "a plain room is all air about its middle")
+	assert_gt(pillar_rock, 0, "a dripstone room has pillars in it")
+	carver.biome_fixed = CaveCarver.Biome.PLAIN
+	var smooth: CaveCarver = _plain_carver()
+	smooth.tunnel_threshold = 0.0
+	smooth.sinkhole_threshold = 2.0
+	smooth.floor_thickness = 0.0
+	smooth.ceiling_jag = 0.0
+	smooth.rubble = 0.0
+	smooth.biome_fixed = CaveCarver.Biome.PLAIN
+	carver.ceiling_jag = 2.0
+	carver.rubble = 0.8
+	# Near a wall, which side is read from the smooth room: air growing upward is a floor.
+	# Scree only takes air from a floor; the ceiling's points and folds go both ways.
+	var floor_gained: int = 0
+	var floor_lost: int = 0
+	var ceiling_gained: int = 0
+	var ceiling_lost: int = 0
+	for step_x: int in 60:
+		for step_z: int in 60:
+			var at := Vector3(float(step_x) * 4.0 - 120.0, -100.0, float(step_z) * 4.0 - 120.0)
+			var was: float = smooth.air(at, 100.0)
+			if absf(was) > 2.0 or was == -INF:
+				continue
+			var up: float = smooth.air(at + Vector3(0.0, 0.5, 0.0), 99.5)
+			var change: float = carver.air(at, 100.0) - was
+			if up > was:
+				floor_gained += 1 if change > 0.01 else 0
+				floor_lost += 1 if change < -0.05 else 0
+			else:
+				ceiling_gained += 1 if change > 0.05 else 0
+				ceiling_lost += 1 if change < -0.05 else 0
+	assert_lt(floor_gained * 20, floor_lost, "scree all but never adds air to a floor")
+	assert_gt(floor_lost, 0, "and lies on some")
+	assert_gt(ceiling_gained, 0, "the ceiling folds up in places")
+	assert_gt(ceiling_lost, 0, "and hangs down in others")
+
+
+## Columns of a 3 m square about a spot (half-metre apart) that are rock there.
+func _rock_in_square(carver: CaveCarver, room: Vector3) -> int:
+	var rock: int = 0
+	for step_x: int in 7:
+		for step_z: int in 7:
+			var spot: Vector3 = (
+				room + Vector3(float(step_x) * 0.5 - 1.5, 0.0, float(step_z) * 0.5 - 1.5)
+			)
+			if carver.air(spot, 100.0) <= 0.0:
+				rock += 1
+	return rock
 
 
 ## Near the top the tunnels run only in the shallow map's patches, and spread with depth

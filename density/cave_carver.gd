@@ -34,6 +34,9 @@ extends RefCounted
 ## a hole, and the ground read as a sponge. Fewer, wider, smoother tunnels cut that to a
 ## quarter at the same share of air.
 
+## The kinds of cave, by the biome noise and depth. NONE is no fixed biome.
+enum Biome { NONE = -1, PLAIN, MOSSY, DRIPSTONE, FUNGAL, CRYSTAL }
+
 ## Tunnels and caverns narrow to nothing over this many metres above their start depth
 ## (the fade field; this is its default).
 const FADE: float = 3.0
@@ -58,6 +61,15 @@ const BLEND: float = 2.0
 const FLOOR_CHANCE: float = 0.6
 ## The region mask goes from lean to rich over this span of the region noise, about its bias.
 const REGION_EDGE: float = 0.3
+## Biomes: metres across one is, how deep the mossy one reaches, the pillar map's cutoff and
+## frequency (pillars about a metre thick, five apart), and the vertical spans of fine noise
+## the ceilings and floors are read with. The wall detail is only read within WALL_BAND
+## metres of a room's wall.
+const BIOME_SIZE: float = 250.0
+const MOSSY_DEPTH: float = 40.0
+const PILLAR_CUTOFF: float = 0.55
+const PILLAR_FREQUENCY: float = 0.2
+const WALL_BAND: float = 4.0
 
 var world_seed: int = 0
 ## Tunnel noise frequency (1 / metres between tunnels) and the half-width of the band around
@@ -136,6 +148,15 @@ var hall_cutoff: float = 2.0
 var shaft_frequency: float = 0.012
 var shaft_width: float = 0.0
 var shaft_lean: float = 0.12
+## Rooms are not symmetric: the ceiling carries fine noise up to ceiling_jag metres deep, so
+## it hangs in points and folds, and the floor carries bumps up to rubble metres high, scree
+## where the rock fell. Which side a sample is on comes from the cavern noise's slope.
+var ceiling_jag: float = 1.4
+var rubble: float = 0.5
+## Cave biomes, Minecraft's lush and dripstone caves: a slow noise says which the rock is in
+## (biome), and the walls take its tint; dripstone rooms stand on pillars. A biome fixed
+## here (not NONE) is everywhere, for tools and tests.
+var biome_fixed: Biome = Biome.NONE
 var shaft_share: float = 0.45
 ## World Y below which everything is solid.
 var floor_y: float = -INF
@@ -157,6 +178,10 @@ var _shaft_noise: FastNoiseLite
 var _shaft_noise_b: FastNoiseLite
 var _shaft_map: FastNoiseLite
 var _shallow_map: FastNoiseLite
+var _ceiling_noise: FastNoiseLite
+var _rubble_noise: FastNoiseLite
+var _biome_noise: FastNoiseLite
+var _pillar_noise: FastNoiseLite
 
 
 ## The underworld one seed draws, with bedrock at floor_y.
@@ -211,6 +236,8 @@ static func from_seed(value: int, bedrock_y: float, ranges: Dictionary = {}) -> 
 	# Drawn last so the seeds' earlier rolls stayed as they were when the ramp came.
 	carver.tunnel_ramp = _draw(rng, ranges, "tunnel_ramp", 20.0, 40.0)
 	carver.shallow_cutoff = _draw(rng, ranges, "shallow_cutoff", 0.25, 0.45)
+	carver.ceiling_jag = _draw(rng, ranges, "ceiling_jag", 0.8, 2.0)
+	carver.rubble = _draw(rng, ranges, "rubble", 0.3, 0.8)
 	carver._make_noises()
 	return carver
 
@@ -323,10 +350,29 @@ func air(world_pos: Vector3, depth: float) -> float:
 	if cavern_mask > 0.0:
 		var grow: float = widen * lerpf(1.0, deep_rooms, deep)
 		var cutoff: float = lerpf(1.0, cavern_cutoff / grow, cavern_mask)
-		var cavern: float = (
-			_cavern_noise.get_noise_3d(read_pos.x, read_pos.y * cavern_squash, read_pos.z) - cutoff
+		var room_noise: float = _cavern_noise.get_noise_3d(
+			read_pos.x, read_pos.y * cavern_squash, read_pos.z
 		)
-		best = _blend(best, minf(cavern / (2.0 * cavern_frequency), floor_slab(bed)))
+		var cavern: float = (room_noise - cutoff) / (2.0 * cavern_frequency)
+		if absf(cavern) < WALL_BAND and (ceiling_jag > 0.0 or rubble > 0.0):
+			# Near a wall: the noise rising with height means air above rock, a floor, and
+			# falling means a ceiling. Points and folds hang from the one, scree lies on
+			# the other.
+			var above: float = _cavern_noise.get_noise_3d(
+				read_pos.x, (read_pos.y + 1.0) * cavern_squash, read_pos.z
+			)
+			if above < room_noise:
+				cavern += _ceiling_noise.get_noise_3dv(read_pos) * ceiling_jag
+			else:
+				cavern -= absf(_rubble_noise.get_noise_3dv(read_pos)) * rubble
+		if biome(world_pos, depth) == Biome.DRIPSTONE:
+			# Pillars from floor to ceiling where the pillar map runs high.
+			var pillar: float = (
+				(PILLAR_CUTOFF - _pillar_noise.get_noise_2d(read_pos.x, read_pos.z))
+				/ (2.0 * PILLAR_FREQUENCY)
+			)
+			cavern = minf(cavern, pillar)
+		best = _blend(best, minf(cavern, floor_slab(bed)))
 	if hall_cutoff < 1.0 and deep > 0.0:
 		var hall_edge: float = lerpf(1.0, hall_cutoff, deep)
 		var hall: float = (
@@ -405,6 +451,38 @@ func floor_slab(bed: float) -> float:
 	return minf(into - floor_thickness, floor_spacing - into)
 
 
+## The kind of cave the rock is in here: mossy near the surface where the biome noise runs
+## high, and below MOSSY_DEPTH dripstone, plain, fungal or crystal by the noise.
+func biome(world_pos: Vector3, depth: float) -> Biome:
+	if biome_fixed != Biome.NONE:
+		return biome_fixed
+	var value: float = _biome_noise.get_noise_3dv(world_pos)
+	if depth < MOSSY_DEPTH:
+		return Biome.MOSSY if value > 0.15 else Biome.PLAIN
+	if value < -0.3:
+		return Biome.DRIPSTONE
+	if value > 0.45:
+		return Biome.CRYSTAL
+	if value > 0.15:
+		return Biome.FUNGAL
+	return Biome.PLAIN
+
+
+## The vertex tint of a cave wall in a biome: half-blended over the ground shader's own rock
+## (alpha 0.5), or the plain natural colour (alpha 1) where the biome adds nothing.
+static func biome_tint(kind: Biome) -> Color:
+	match kind:
+		Biome.MOSSY:
+			return Color(0.34, 0.56, 0.22, 0.5)
+		Biome.DRIPSTONE:
+			return Color(0.66, 0.54, 0.38, 0.5)
+		Biome.FUNGAL:
+			return Color(0.5, 0.3, 0.56, 0.5)
+		Biome.CRYSTAL:
+			return Color(0.55, 0.78, 0.9, 0.5)
+	return TerrainMaterials.NATURAL_VERTEX_COLOR
+
+
 ## True where a point lies inside a cave (air carved from solid ground).
 func is_cave(world_pos: Vector3, surface_height: float) -> bool:
 	var depth: float = surface_height - world_pos.y
@@ -419,6 +497,7 @@ func summary() -> String:
 	if floor_thickness > 0.0:
 		floors = "floors every %d m" % roundi(floor_spacing)
 	var carved: String = "" if systems == null else ", " + systems.summary()
+	carved += ", ceilings %.1f m, rubble %.1f m" % [ceiling_jag, rubble]
 	return (
 		(
 			(
@@ -465,6 +544,10 @@ func _make_noises() -> void:
 	_shaft_noise_b = _noise(world_seed + 914, shaft_frequency, 1)
 	_shaft_map = _noise(world_seed + 915, 1.0 / 150.0, 1)
 	_shallow_map = _noise(world_seed + 916, 1.0 / shallow_size, 1)
+	_ceiling_noise = _noise(world_seed + 917, 1.0 / 4.0, 2)
+	_rubble_noise = _noise(world_seed + 918, 1.0 / 2.5, 1)
+	_biome_noise = _noise(world_seed + 919, 1.0 / BIOME_SIZE, 1)
+	_pillar_noise = _noise(world_seed + 920, PILLAR_FREQUENCY, 1)
 
 
 ## The deeper of two features' air, blended over BLEND metres where they are within it of
