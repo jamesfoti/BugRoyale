@@ -8,6 +8,7 @@ uniform vec4 soil_dark_color : source_color = vec4(0.24, 0.16, 0.1, 1.0);
 uniform vec4 moss_color : source_color = vec4(0.3, 0.52, 0.2, 1.0);
 uniform vec4 moss_bright_color : source_color = vec4(0.5, 0.7, 0.24, 1.0);
 uniform vec4 rock_color : source_color = vec4(0.44, 0.46, 0.48, 1.0);
+uniform vec4 rock_dark_color : source_color = vec4(0.3, 0.3, 0.33, 1.0);
 // Meters per noise cell for the moss patches and the finer soil grain.
 uniform float moss_patch_size : hint_range(1.0, 40.0) = 9.0;
 uniform float soil_grain_size : hint_range(0.1, 10.0) = 1.3;
@@ -16,6 +17,14 @@ uniform float moss_coverage : hint_range(0.0, 1.0) = 0.55;
 // Surface normal Y below which the ground turns to rock (steep faces), with a soft edge.
 uniform float rock_slope_start : hint_range(0.0, 1.0) = 0.45;
 uniform float rock_slope_end : hint_range(0.0, 1.0) = 0.7;
+// Strata on the rock: a dark band every strata_spacing metres of altitude, bent up and
+// down by strata_wander metres of slow noise (strata_wander_size metres per cell) so the
+// layers tilt and fold like real beds instead of ruling the cliff with lines.
+// strata_contrast is how dark the bands get (0 none).
+uniform float strata_spacing : hint_range(0.5, 10.0) = 2.5;
+uniform float strata_wander : hint_range(0.0, 10.0) = 2.0;
+uniform float strata_wander_size : hint_range(5.0, 100.0) = 30.0;
+uniform float strata_contrast : hint_range(0.0, 1.0) = 0.45;
 // How wide the cel-shading terminators are on the ground, as a multiple of the crisp default
 // every other surface uses, and how far the soil grain shifts them. Softened and wandering,
 // the lit and half-lit bands blend across rolling ground instead of stair-stepping along the
@@ -76,9 +85,14 @@ void fragment() {
 	vec3 moss_shade = mix(moss_color.rgb, moss_bright_color.rgb, fbm(ground / (soil_grain_size * 2.0)));
 	vec3 base = mix(soil, moss_shade, moss);
 
-	// Steep faces show slate.
+	// Steep faces show slate, in strata: the altitude, bent by a slow noise, picks the
+	// band, and each band's edge is soft.
 	float rock = 1.0 - smoothstep(rock_slope_start, rock_slope_end, up);
-	base = mix(base, rock_color.rgb * (0.85 + 0.3 * grain), rock);
+	float bent = world_vertex.y + (fbm(ground / strata_wander_size) - 0.5) * 2.0 * strata_wander;
+	float layer = fract(bent / strata_spacing + edge);
+	float stratum = smoothstep(0.3, 0.45, layer) * (1.0 - smoothstep(0.7, 0.85, layer));
+	vec3 slate = mix(rock_color.rgb, rock_dark_color.rgb, stratum * strata_contrast);
+	base = mix(base, slate * (0.85 + 0.3 * grain), rock);
 
 	// Ground the player built from a placed material (dirt, stone, sand...) carries that
 	// material's colour in the vertex colour with alpha 0; natural ground (and a mesh with no

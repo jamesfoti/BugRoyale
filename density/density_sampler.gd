@@ -204,9 +204,13 @@ static func build_chunk_field(
 	var min_value: float = INF
 	var max_value: float = -INF
 	var column_heights: PackedFloat32Array = PackedFloat32Array()
+	# The surface's slope per column, read only when the relief wants it (0 otherwise).
+	var column_slopes: PackedFloat32Array = PackedFloat32Array()
 	var use_column_heights: bool = density.open_terrain_enabled
 	if use_column_heights:
 		column_heights.resize(size_x * size_z)
+		column_slopes.resize(size_x * size_z)
+		var want_slopes: bool = density.relief_amplitude > 0.0 and density.open_terrain_solid_fill
 		var highest: float = -INF
 		for z in size_z:
 			var world_z: float = grid_world_origin.z + float(grid_offset.z + z) * step
@@ -214,6 +218,8 @@ static func build_chunk_field(
 				var world_x: float = grid_world_origin.x + float(grid_offset.x + x) * step
 				var height: float = density.sample_open_terrain_height(world_x, world_z)
 				column_heights[x + z * size_x] = height
+				if want_slopes:
+					column_slopes[x + z * size_x] = density.surface_slope(world_x, world_z, height)
 				highest = maxf(highest, height)
 		# A chunk whose lowest sample row clears the highest surface under it is sky: the
 		# column heights have already said so, and the per-voxel pass (where the caves' noise
@@ -224,7 +230,7 @@ static func build_chunk_field(
 			grid_world_origin + Vector3(grid_offset) * step - halo,
 			Vector3(sample_size - Vector3i.ONE) * step + halo * 2.0
 		)
-		if density.is_sky(highest, bottom_y, region):
+		if density.is_sky(highest + density.relief_reach(), bottom_y, region):
 			var clearance: float = bottom_y - highest
 			values.fill(clearance)
 			field.values = values
@@ -244,7 +250,10 @@ static func build_chunk_field(
 				var value: float
 				if use_column_heights:
 					value = density.evaluate_open_terrain_with_surface(
-						world_pos, column_heights[x + z * size_x]
+						world_pos,
+						column_heights[x + z * size_x],
+						true,
+						column_slopes[x + z * size_x]
 					)
 				else:
 					value = density.evaluate(world_pos)
@@ -281,6 +290,16 @@ class WorldDensity:
 	## Pockets are drawn from cells this many metres on a side, one element per cell, so a
 	## pocket is one ore and not a speckle of every element in reach.
 	const ORE_POCKET_SIZE: float = 6.0
+	## How softly the height curve's floor meets the ground above it, in unit height.
+	const CURVE_FLOOR_SOFTNESS: float = 0.1
+	## Slopes (rise over run) the relief fades in between: none on gentler ground, all of
+	## it on faces at 45 degrees and steeper.
+	const RELIEF_SLOPE_START: float = 0.5
+	const RELIEF_SLOPE_END: float = 1.0
+	## How level a flat spot is at its centre (1 a billiard table; a little ground is kept
+	## so it still reads as ground), and the metres over which it fades into the land.
+	const FLAT_SPOT_BLEND: float = 0.9
+	const FLAT_SPOT_FADE: float = 10.0
 
 	var noise_enabled: bool = true
 	var noise_amplitude: float = 3.0
@@ -317,6 +336,39 @@ class WorldDensity:
 	var surface_warp: float = 0.0
 	var surface_ridge: float = 0.0
 	var surface_power: float = 1.0
+	## Regions: a very slow noise (one swell 500 to 900 m across, so a 512 m map holds one or
+	## two) says where the lowlands and the highlands are, and the surface changes with it:
+	## the amplitude falls to region_lowland of itself where the mask is lowest, the highlands
+	## are mixed toward ridged noise by region_ridge and carry a finer detail noise at
+	## region_detail of the amplitude (craggy where it is high, smooth where it is low), and
+	## the warp grows with the mask. region_strength 0 is no regions: the same hills
+	## everywhere. Rolled by roll_regions, or set by hand.
+	var region_strength: float = 0.0
+	var region_lowland: float = 0.2
+	var region_ridge: float = 0.0
+	var region_detail: float = 0.0
+	## The height curve, applied to the unit height (0 the lowest the noise goes, 1 the
+	## highest) before the amplitude: a hard floor the valleys fill up to, like sediment, so
+	## the low ground is flat (curve_floor, 0 for none), and a cliff band that puts
+	## curve_cliff of the height into a steep span curve_cliff_width wide about
+	## curve_cliff_at, leaving flat spans below and above it (plains, a plateau and the
+	## climb between; 0 for none). Rolled by roll_curve, or set by hand.
+	var curve_floor: float = 0.0
+	var curve_cliff: float = 0.0
+	var curve_cliff_at: float = 0.5
+	var curve_cliff_width: float = 0.15
+	## Relief: 3D noise added to the density within relief_band metres of the surface on the
+	## steep faces, so a cliff gets lips, undercuts and overhangs instead of the smooth slope
+	## a height can only give. The noise is relief_amplitude metres at most, fades to nothing
+	## at the band's edge and on gentle ground (surface_slope), so the ground is never
+	## hollowed and nothing floats in the air. Rolled by roll_relief, or set by hand (0 none).
+	var relief_amplitude: float = 0.0
+	var relief_band: float = 0.0
+	## Flat spots: landings the surface is blended toward a level within a radius, each
+	## (x, z, inner radius, outer radius) in world metres, flat inside the inner radius and
+	## fading to the natural ground at the outer one. Set by roll_flat_spots or by hand, then
+	## prepare_flat_spots() reads the level each spot sits at.
+	var flat_spots: Array[Vector4] = []
 	## Carves tunnels, caverns and bedrock under a solid-filled open terrain (null: none).
 	var caves: CaveCarver = null
 	## Solid ground a map builder adds on top of the shape: the soil in a garden's raised beds,
@@ -334,6 +386,11 @@ class WorldDensity:
 	## Seeds which element each ore pocket is (with the vein and ore noises, the map's seed).
 	var ore_seed: int = 0
 
+	var _flat_spot_heights: PackedFloat32Array = PackedFloat32Array()
+	var _flat_spot_count: int = 0
+	var _region_noise: FastNoiseLite
+	var _detail_noise: FastNoiseLite
+	var _relief_noise: FastNoiseLite
 	var _vein_noise: FastNoiseLite
 	var _ore_noise: FastNoiseLite
 
@@ -581,21 +638,99 @@ class WorldDensity:
 		elif not noise_enabled or _height_noise == null:
 			height = bounds_center.y + surface_height_offset
 		else:
+			# The region mask, 0 in the lowlands and 1 in the highlands.
+			var mask: float = 0.0
+			if region_strength > 0.0 and _region_noise != null:
+				mask = smoothstep(-0.45, 0.45, _region_noise.get_noise_2d(world_x, world_z))
 			var sample_x: float = world_x
 			var sample_z: float = world_z
 			if surface_warp > 0.0 and _warp_noise_x != null:
-				sample_x += _warp_noise_x.get_noise_2d(world_x, world_z) * surface_warp
-				sample_z += _warp_noise_z.get_noise_2d(world_x, world_z) * surface_warp
+				var warp: float = surface_warp
+				if region_strength > 0.0:
+					warp *= lerpf(1.0, lerpf(0.5, 1.5, mask), region_strength)
+				sample_x += _warp_noise_x.get_noise_2d(world_x, world_z) * warp
+				sample_z += _warp_noise_z.get_noise_2d(world_x, world_z) * warp
 			var noise_value: float = _height_noise.get_noise_2d(sample_x, sample_z)
-			if surface_ridge > 0.0:
-				noise_value = lerpf(noise_value, 1.0 - 2.0 * absf(noise_value), surface_ridge)
+			var ridge: float = surface_ridge
+			if region_ridge > 0.0:
+				ridge = maxf(ridge, region_ridge * mask * region_strength)
+			if ridge > 0.0:
+				noise_value = lerpf(noise_value, 1.0 - 2.0 * absf(noise_value), ridge)
+			if region_detail > 0.0 and mask > 0.0 and _detail_noise != null:
+				noise_value += (
+					_detail_noise.get_noise_2d(world_x, world_z)
+					* region_detail
+					* mask
+					* region_strength
+				)
+			var unit: float = clampf((noise_value + 1.0) * 0.5, 0.0, 1.0)
 			if not is_equal_approx(surface_power, 1.0):
-				var unit: float = clampf((noise_value + 1.0) * 0.5, 0.0, 1.0)
-				noise_value = pow(unit, surface_power) * 2.0 - 1.0
-			height = bounds_center.y + noise_value * noise_amplitude + surface_height_offset
+				unit = pow(unit, surface_power)
+			unit = curve_height(unit)
+			var amplitude: float = noise_amplitude
+			if region_strength > 0.0:
+				amplitude *= lerpf(1.0, lerpf(region_lowland, 1.0, mask), region_strength)
+			height = bounds_center.y + (unit * 2.0 - 1.0) * amplitude + surface_height_offset
 		if terrace_enabled:
 			height = terrace_height(height, world_x, world_z)
+		if _flat_spot_count > 0:
+			height = flat_spot_height(height, world_x, world_z)
 		return height
+
+	## The unit height (0 to 1) through the height curve: the valleys filled up to the floor
+	## (a smooth maximum, so the ground stays continuous and never dips), then the cliff
+	## band, a smoothstep across it mixed in by curve_cliff. Both keep the height rising
+	## with its input, so a hill is still a hill, only reshaped.
+	func curve_height(unit: float) -> float:
+		if curve_floor > 0.0:
+			var blend: float = clampf(
+				0.5 + 0.5 * (unit - curve_floor) / CURVE_FLOOR_SOFTNESS, 0.0, 1.0
+			)
+			unit = (lerpf(curve_floor, unit, blend) + CURVE_FLOOR_SOFTNESS * blend * (1.0 - blend))
+		if curve_cliff > 0.0:
+			var steep: float = smoothstep(
+				curve_cliff_at - curve_cliff_width, curve_cliff_at + curve_cliff_width, unit
+			)
+			unit = lerpf(unit, steep, curve_cliff)
+		return unit
+
+	## The surface's slope at a column, rise over run (0 flat, 1 a 45 degree face), from the
+	## heights a metre along x and z when the column's own height is known.
+	func surface_slope(world_x: float, world_z: float, height: float) -> float:
+		var along_x: float = _sample_open_terrain_height(world_x + 1.0, world_z) - height
+		var along_z: float = _sample_open_terrain_height(world_x, world_z + 1.0) - height
+		return sqrt(along_x * along_x + along_z * along_z)
+
+	## The height blended toward the level of every flat spot in reach: all the way inside the
+	## inner radius (less FLAT_SPOT_BLEND, so a landing keeps a trace of the ground), fading
+	## to the natural ground at the outer one.
+	func flat_spot_height(height: float, world_x: float, world_z: float) -> float:
+		for index: int in _flat_spot_count:
+			var spot: Vector4 = flat_spots[index]
+			var distance: float = Vector2(world_x - spot.x, world_z - spot.y).length()
+			if distance >= spot.w:
+				continue
+			var weight: float = smoothstep(spot.w, spot.z, distance) * FLAT_SPOT_BLEND
+			height = lerpf(height, _flat_spot_heights[index], weight)
+		return height
+
+	## Reads the level each flat spot sits at (the natural ground at its centre) and switches
+	## the spots on. Call after flat_spots is set by hand; roll_flat_spots calls it.
+	func prepare_flat_spots() -> void:
+		_flat_spot_count = 0
+		_flat_spot_heights.resize(flat_spots.size())
+		for index: int in flat_spots.size():
+			var spot: Vector4 = flat_spots[index]
+			_flat_spot_heights[index] = _sample_open_terrain_height(spot.x, spot.y)
+		_flat_spot_count = flat_spots.size()
+
+	## The flat spots as points on the surface, for whatever wants level ground (nests).
+	func flat_spot_points() -> Array[Vector3]:
+		var points: Array[Vector3] = []
+		for index: int in _flat_spot_count:
+			var spot: Vector4 = flat_spots[index]
+			points.append(Vector3(spot.x, _flat_spot_heights[index], spot.y))
+		return points
 
 	## The surface height stepped into shelves. The height is read as a position along the
 	## treads (terrace_step metres each, from terrace_phase) and pushed toward the nearest
@@ -722,6 +857,186 @@ class WorldDensity:
 			% [terrace_step, terrace_strength, roundi(terrace_coverage * 100.0)]
 		)
 
+	## Rolls the regions a seed gives: on region_chance of seeds, a mask noise one swell of
+	## size_range metres across, the lowlands' share of the amplitude, the highlands' ridged
+	## mix and detail from their ranges; no regions otherwise. Every number is drawn whether
+	## or not the roll says yes, so a chance of 1 in the lab shows the seed's own regions.
+	func roll_regions(
+		terrain_seed: int,
+		chance: float,
+		size_range: Vector2,
+		lowland_range: Vector2,
+		ridge_range: Vector2,
+		detail_range: Vector2
+	) -> void:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash(Vector2i(terrain_seed, 5501))
+		var rolled: float = rng.randf()
+		var size: float = maxf(_draw(rng, size_range), 1.0)
+		region_lowland = clampf(_draw(rng, lowland_range), 0.0, 1.0)
+		region_ridge = clampf(_draw(rng, ridge_range), 0.0, 1.0)
+		region_detail = maxf(_draw(rng, detail_range), 0.0)
+		region_strength = 1.0 if rolled < chance else 0.0
+		init_region_noise(terrain_seed, 1.0 / size)
+
+	## The slow mask noise and the highlands' detail noise (four times the height noise's
+	## frequency, two octaves): needed whenever region_strength is set by hand.
+	func init_region_noise(terrain_seed: int, mask_frequency: float = 1.0 / 700.0) -> void:
+		_region_noise = FastNoiseLite.new()
+		_region_noise.seed = terrain_seed + 1010
+		_region_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_region_noise.frequency = mask_frequency
+		_region_noise.fractal_type = FastNoiseLite.FRACTAL_NONE
+		_detail_noise = FastNoiseLite.new()
+		_detail_noise.seed = terrain_seed + 1011
+		_detail_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_detail_noise.frequency = (
+			_height_noise.frequency * 4.0 if _height_noise != null else 0.032
+		)
+		_detail_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+		_detail_noise.fractal_octaves = 2
+
+	## The share of the map's ground the region mask calls highland (above a half), from a
+	## coarse grid over the bounds; 0 without regions.
+	func highland_share() -> float:
+		if region_strength <= 0.0 or _region_noise == null:
+			return 0.0
+		var highland: int = 0
+		var steps: int = 16
+		for step_x: int in steps:
+			for step_z: int in steps:
+				var world_x: float = (
+					bounds_center.x
+					+ ((float(step_x) + 0.5) / float(steps) - 0.5) * 2.0 * bounds_half.x
+				)
+				var world_z: float = (
+					bounds_center.z
+					+ ((float(step_z) + 0.5) / float(steps) - 0.5) * 2.0 * bounds_half.z
+				)
+				if _region_noise.get_noise_2d(world_x, world_z) > 0.0:
+					highland += 1
+		return float(highland) / float(steps * steps)
+
+	## "highland over 38% (lowlands at 0.2 of the height, ridges 0.6, detail 0.2)", or
+	## "no regions".
+	func region_summary() -> String:
+		if region_strength <= 0.0:
+			return "no regions"
+		return (
+			"highland over %d%% (lowlands at %.2f of the height, ridges %.2f, detail %.2f)"
+			% [roundi(highland_share() * 100.0), region_lowland, region_ridge, region_detail]
+		)
+
+	## Rolls the height curve a seed gives: a floor from its range on floor_chance of seeds,
+	## and on cliff_chance of them a cliff band of strength, level and width from theirs.
+	## Every number is drawn whether or not its roll says yes.
+	func roll_curve(
+		terrain_seed: int,
+		floor_chance: float,
+		floor_range: Vector2,
+		cliff_chance: float,
+		cliff_range: Vector2,
+		level_range: Vector2,
+		width_range: Vector2
+	) -> void:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash(Vector2i(terrain_seed, 5502))
+		var floor_rolled: float = rng.randf()
+		var floor_level: float = clampf(_draw(rng, floor_range), 0.0, 1.0)
+		curve_floor = floor_level if floor_rolled < floor_chance else 0.0
+		var cliff_rolled: float = rng.randf()
+		var cliff: float = clampf(_draw(rng, cliff_range), 0.0, 1.0)
+		curve_cliff_at = clampf(_draw(rng, level_range), 0.0, 1.0)
+		curve_cliff_width = maxf(_draw(rng, width_range), 0.01)
+		curve_cliff = cliff if cliff_rolled < cliff_chance else 0.0
+
+	## "floor at 0.30, cliffs 0.6 at 0.50" (what is present), or "no height curve".
+	func curve_summary() -> String:
+		var parts: PackedStringArray = PackedStringArray()
+		if curve_floor > 0.0:
+			parts.append("floor at %.2f" % curve_floor)
+		if curve_cliff > 0.0:
+			parts.append("cliffs %.1f at %.2f" % [curve_cliff, curve_cliff_at])
+		if parts.is_empty():
+			return "no height curve"
+		return ", ".join(parts)
+
+	## Rolls the relief a seed gives: on this chance of seeds, an amplitude from its range;
+	## none otherwise. The number is drawn whether or not the roll says yes.
+	func roll_relief(terrain_seed: int, chance: float, amplitude_range: Vector2) -> void:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash(Vector2i(terrain_seed, 5504))
+		var rolled: float = rng.randf()
+		var amplitude: float = maxf(_draw(rng, amplitude_range), 0.0)
+		set_relief(amplitude if rolled < chance else 0.0, terrain_seed)
+
+	## Relief of this amplitude (0 none) with its 3D noise, a lump every six metres or so.
+	func set_relief(amplitude: float, terrain_seed: int) -> void:
+		relief_amplitude = amplitude
+		relief_band = amplitude * 2.0
+		if amplitude <= 0.0:
+			_relief_noise = null
+			return
+		_relief_noise = FastNoiseLite.new()
+		_relief_noise.seed = terrain_seed + 1212
+		_relief_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_relief_noise.frequency = 1.0 / 6.0
+		_relief_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+		_relief_noise.fractal_octaves = 2
+
+	## Metres above the surface the relief can put solid ground (0 without relief): a sky
+	## chunk must clear it.
+	func relief_reach() -> float:
+		return relief_band if relief_amplitude > 0.0 else 0.0
+
+	## "relief 2.4 m" or "no relief".
+	func relief_summary() -> String:
+		if relief_amplitude <= 0.0:
+			return "no relief"
+		return "relief %.1f m" % relief_amplitude
+
+	## Rolls the flat spots a seed gives: a count from its range, each an inner radius from
+	## its range (the outer one FLAT_SPOT_FADE further out), placed inside the bounds with
+	## the fade kept off the edge and spots kept apart (a few tries each).
+	func roll_flat_spots(terrain_seed: int, count_range: Vector2i, radius_range: Vector2) -> void:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash(Vector2i(terrain_seed, 5505))
+		var count: int = rng.randi_range(
+			mini(count_range.x, count_range.y), maxi(count_range.x, count_range.y)
+		)
+		flat_spots = []
+		for _index: int in maxi(count, 0):
+			var inner: float = maxf(_draw(rng, radius_range), 1.0)
+			var outer: float = inner + FLAT_SPOT_FADE
+			var reach_x: float = maxf(bounds_half.x - outer, 0.0)
+			var reach_z: float = maxf(bounds_half.z - outer, 0.0)
+			var spot := Vector4(bounds_center.x, bounds_center.z, inner, outer)
+			for _attempt: int in 8:
+				spot.x = bounds_center.x + rng.randf_range(-reach_x, reach_x)
+				spot.y = bounds_center.z + rng.randf_range(-reach_z, reach_z)
+				var apart: bool = true
+				for other: Vector4 in flat_spots:
+					if Vector2(spot.x - other.x, spot.y - other.y).length() < outer + other.w:
+						apart = false
+						break
+				if apart:
+					break
+			flat_spots.append(spot)
+		prepare_flat_spots()
+
+	## "3 flat spots" or "no flat spots".
+	func flat_spot_summary() -> String:
+		if _flat_spot_count == 0:
+			return "no flat spots"
+		if _flat_spot_count == 1:
+			return "1 flat spot"
+		return "%d flat spots" % _flat_spot_count
+
+	static func _draw(rng: RandomNumberGenerator, value_range: Vector2) -> float:
+		return rng.randf_range(
+			minf(value_range.x, value_range.y), maxf(value_range.x, value_range.y)
+		)
+
 	func sample_open_terrain_height(world_x: float, world_z: float) -> float:
 		return _sample_open_terrain_height(world_x, world_z)
 
@@ -732,12 +1047,26 @@ class WorldDensity:
 	## Open-terrain density when the column's surface height is already known (field builds
 	## sample one height per XZ column instead of per voxel).
 	func evaluate_open_terrain_with_surface(
-		world_pos: Vector3, surface_height: float, with_edits: bool = true
+		world_pos: Vector3, surface_height: float, with_edits: bool = true, slope: float = -1.0
 	) -> float:
 		var above_surface: float = world_pos.y - surface_height
 		var value: float
 		if open_terrain_solid_fill:
 			value = above_surface
+			if relief_amplitude > 0.0 and absf(above_surface) < relief_band:
+				# The relief: the surface's slope says how much shows (steep faces only), the
+				# distance from the surface fades it out, and the 3D noise pushes the face in
+				# and out by what is left. slope is the column's when the caller knows it.
+				if slope < 0.0:
+					slope = surface_slope(world_pos.x, world_pos.z, surface_height)
+				var steep: float = smoothstep(RELIEF_SLOPE_START, RELIEF_SLOPE_END, slope)
+				if steep > 0.0:
+					value += (
+						_relief_noise.get_noise_3dv(world_pos)
+						* relief_amplitude
+						* steep
+						* (1.0 - absf(above_surface) / relief_band)
+					)
 			if caves != null:
 				value = caves.carve(value, world_pos, surface_height)
 		elif above_surface >= OPEN_TERRAIN_NOISE_SKIP_HEIGHT:

@@ -259,9 +259,10 @@ not drawn.
 
 ### Terrain lab
 
-`scenes/terrain_lab.tscn` is a small open terrain (4 by 4 chunks of 32 m, three deep, the
-garden's own noise and voxel size) for seeing how procedural the ground and its caves are
-without loading a map. Open it in the editor, select `TerrainWorld` and press **Build
+`scenes/terrain_lab.tscn` is a map-sized open terrain (16 by 16 chunks of 32 m, three
+deep, at 4 m voxels so a seed builds in a few seconds, with the noise rolled from the
+seed) for seeing how procedural the ground and its caves are without loading a map. Open
+it in the editor, select `TerrainWorld` and press **Build
 Terrain** at the top of the inspector (the Terrain Editor plugin), then change anything:
 with **Auto Rebuild In Editor** on, every toggle (caves, solid underside, noise, seed,
 grid size, terraces) rebuilds the chunks on the spot, and **New Seed** beside the build
@@ -279,6 +280,38 @@ lines. The ranges and chances are under **Character** on the `TerrainWorld` node
 turns it all off, and a chance of 1 with a narrow range forces one trait to study it. The
 rebuild line names what the seed rolled. These come from the techniques in Red Blob Games'
 terrain-from-noise notes.
+
+Over that, a seed layers more, each layer a group on the `TerrainWorld` node with a
+switch, a chance and ranges, and each named in the rebuild line:
+
+- **Noise Roll** (off by default; the lab turns it on): **Seeded** ignores the Noise
+  sliders and draws the frequency, amplitude, octaves, lacunarity and gain from ranges,
+  so one seed's hills are 250 m across and smooth and another's 100 m and craggy. The
+  garden and the crawlspace keep **Fixed**: their lawn and dirt are tuned by hand.
+- **Regions**: a very slow noise (one swell 500 to 900 m across, so a map holds one or
+  two) says where the lowlands and the highlands are. The lowlands keep a tenth to a
+  third of the amplitude, the highlands turn ridged and carry finer detail, and the warp
+  grows with the mask, so one seed is a plain with a range in the corner and the next a
+  ridge through the middle. With it comes a height curve: on six seeds in ten a hard
+  floor fills the valleys flat like sediment (GPU Gems 3's hard floor), and on half a
+  cliff band puts the climb into a steep span with flat spans below and above, plains
+  and a plateau, the way Minecraft's terrain splines do. Both keep the height rising
+  with the noise, so a hill is still a hill, reshaped.
+- **Relief**: on six seeds in ten, 3D noise added to the density within a few metres of
+  the surface on faces steeper than about 30 degrees, so cliffs get lips, undercuts and
+  overhangs that a height alone can never make (GPU Gems 3's density terrains). It fades
+  out with distance from the surface and on gentle ground, so nothing is hollowed and
+  nothing floats. With it, two to four **flat spots**: landings 8 to 14 m across where
+  the ground is blended level, fading into the land over 10 m; colony nests go on them.
+- The caves' noises are read through a slow **warp** of 4 to 10 m on every seed, so the
+  tunnels bend and the ravines wander instead of following the noise's own lines.
+- The ground shader draws **strata** on the rock faces: a dark band every 2.5 m of
+  altitude, bent by a slow noise so the beds tilt and fold.
+
+The layers cost little per column, but a tall seed spreads the surface through every
+chunk layer, so none are sky and the cave pass runs everywhere: a 512 m seed with
+everything on builds in about 2.5 s at 4 m voxels, 16 s at 2 m and 80 s at 1 m,
+headless on four threads.
 
 The inspector sliders under **Noise** stop at the ranges a map may be randomised over,
 the values that still make good ground: frequency 0.004 to 0.01 (hills 250 m to 100 m

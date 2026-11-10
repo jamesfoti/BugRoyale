@@ -255,9 +255,17 @@ func _spawn_colony_bot(team: int) -> void:
 		bot.brain.target_group = &"fighter"
 
 
+## Each colony's nest on its half of the map: on one of the terrain's flat spots there
+## when the seed placed any, else wherever the ground is.
 func _place_nests() -> void:
 	for team: int in teams:
-		var nest: Vector3 = map.random_surface_point(0.0, TEAM_SIDES[team % TEAM_SIDES.size()])
+		var side: float = TEAM_SIDES[team % TEAM_SIDES.size()]
+		var landings: Array[Vector3] = map.flat_spots(side)
+		var nest: Vector3 = (
+			landings[randi() % landings.size()]
+			if not landings.is_empty()
+			else map.random_surface_point(0.0, side)
+		)
 		nests.append(nest)
 		_nest_beacons.append(Beacon.build(get_parent(), map, nest, color_of_team(team), 1.5, 30.0))
 

@@ -129,6 +129,24 @@ func ground_below(position: Vector3, reach: float = 6.0) -> Dictionary:
 	return _cast(position + up * 0.5, position - up * reach)
 
 
+## The map's flat spots: level landings the terrain's seed placed (OpenTerrain), on the
+## ground (a cast from above, so a bed or a footing standing on one counts). Empty on a
+## map without any. side: 0 = anywhere, -1/+1 = that half of the map.
+func flat_spots(side: float = 0.0) -> Array[Vector3]:
+	var spots: Array[Vector3] = []
+	var terrain: ChunkedTerrainWorld = editable_terrain()
+	if terrain == null or not terrain.has_method("get_flat_spots"):
+		return spots
+	for spot: Vector3 in terrain.call("get_flat_spots"):
+		if side != 0.0 and side_of(spot) != side:
+			continue
+		if not bounds.has_point(Vector3(spot.x, bounds.get_center().y, spot.z)):
+			continue
+		var hit: Dictionary = ground_hit(spot)
+		spots.append(hit.position if not hit.is_empty() else spot)
+	return spots
+
+
 ## Center of the playable area.
 func center() -> Vector3:
 	return bounds.get_center()

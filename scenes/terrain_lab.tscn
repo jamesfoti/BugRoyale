@@ -19,12 +19,13 @@ shadow_enabled = true
 
 [node name="TerrainWorld" type="Node3D" parent="." unique_id=521404953]
 script = ExtResource("2")
-chunks_x = 4
-chunks_y = 4
-chunks_z = 4
+chunks_x = 16
+chunks_z = 16
+noise_roll = 1
 solid_underside = true
 chunk_size = 32.0
-noise_seed = 668748
+voxel_size = 4.0
+noise_seed = 734195
 noise_frequency = 0.005
 noise_amplitude = 12.0
 caves_enabled = true

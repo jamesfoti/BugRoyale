@@ -9,8 +9,10 @@ extends Node3D
 ## new one. This root keeps a New Seed button of its own and keeps the built chunks out of
 ## the saved scene: they are destroyed before a save and rebuilt after it.
 ##
-## The grid is 4 by 4 chunks of 32 m (128 m a side, a quarter of the garden's width) and three
-## chunks deep, the garden's own noise and voxel size, so a build takes a few seconds. Fly
+## The grid is the maps' own, 16 by 16 chunks of 32 m and three deep, at 4 m voxels so a
+## seed builds in a few seconds, with the noise rolled from the seed (Noise Roll) so seeds
+## differ in hill size and height as well as in their regions, curve, relief and caves.
+## Drop the voxel size to 2 m to see the terraces and ravines, 1 m for play quality. Fly
 ## the editor camera below the surface to see the tunnels and caverns: the terrain's faces
 ## only draw from the air side, so rock is see-through from inside. Run as a scene (F6) it
 ## builds on ready and the camera looks down on it.

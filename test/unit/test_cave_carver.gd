@@ -3,7 +3,7 @@ extends GutTest
 ## and every number lands in its range; under a solid open terrain the surface is still the
 ## surface, the top few metres stay ground for burrows, there is air in the tunnels and the
 ## caverns further down but the ground is mostly ground, ravines open the surface on some
-## seeds and pinch out at their depth, and bedrock is solid.
+## seeds and pinch out at their depth, the warp bends every cave read, and bedrock is solid.
 
 const SEED: int = 7
 const BEDROCK_Y: float = -45.5
@@ -51,6 +51,8 @@ func test_every_number_lands_in_its_range() -> void:
 		assert_between(carver.cavern_depth, 16.0, 26.0, "cavern depth, seed %d" % value)
 		assert_gt(carver.cavern_depth, carver.tunnel_depth, "caverns lie under the tunnels")
 		assert_almost_eq(carver.floor_y, BEDROCK_Y, 0.001)
+		assert_between(carver.warp_metres, 4.0, 10.0, "warp, seed %d" % value)
+		assert_between(carver.warp_frequency, 0.005, 0.01, "warp frequency, seed %d" % value)
 		if carver.ravine_width > 0.0:
 			cut += 1
 			assert_between(carver.ravine_width, 0.05, 0.08, "ravine band, seed %d" % value)
@@ -58,6 +60,29 @@ func test_every_number_lands_in_its_range() -> void:
 			assert_between(carver.ravine_depth, 8.0, 18.0, "ravine depth, seed %d" % value)
 			assert_between(carver.ravine_lean, 0.25, 0.6, "ravine lean, seed %d" % value)
 	assert_between(cut, 8, 32, "about half the seeds cut ravines")
+
+
+func test_the_warp_bends_the_caves_and_reads_them_in_place_at_zero() -> void:
+	var bent: CaveCarver = CaveCarver.from_seed(SEED, BEDROCK_Y)
+	var straight: CaveCarver = CaveCarver.from_seed(SEED, BEDROCK_Y)
+	straight.warp_metres = 0.0
+	assert_true("warp %d m" % roundi(bent.warp_metres) in bent.summary(), bent.summary())
+	assert_true("warp 0 m" in straight.summary(), straight.summary())
+	var moved: int = 0
+	var total: int = 0
+	for step_x: int in 20:
+		for step_z: int in 20:
+			var spot := Vector3(float(step_x) * 11.0 - 110.0, -20.0, float(step_z) * 11.0 - 110.0)
+			total += 1
+			if absf(bent.air(spot, 20.0) - straight.air(spot, 20.0)) > 0.01:
+				moved += 1
+	assert_gt(moved, total * 3 / 4, "the warp moves the caves nearly everywhere")
+	var sinkhole_spot := Vector3(3.0, -1.0, 3.0)
+	assert_eq(
+		bent.air(sinkhole_spot, 1.0) == -INF,
+		straight.air(sinkhole_spot, 1.0) == -INF,
+		"the sinkhole map is not warped: the same columns open"
+	)
 
 
 func test_air_above_the_surface_and_ground_just_under_it() -> void:
@@ -95,7 +120,7 @@ func test_ground_away_from_caves_is_metres_below_the_surface() -> void:
 			assert_almost_eq(
 				ground.evaluate(spot), -depth, 0.001, "%.1f m down at %v" % [depth, spot]
 			)
-	assert_gt(checked, 200, "most of the ground near the surface is clear of caves")
+	assert_gt(checked, 160, "most of the ground near the surface is clear of caves")
 
 
 func test_a_caves_air_is_a_distance_on_both_sides_of_its_wall() -> void:

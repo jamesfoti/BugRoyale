@@ -977,6 +977,32 @@ class SettingsSnapshot:
 	var open_terrain_character_warp: Vector2 = Vector2(10.0, 40.0)
 	var open_terrain_character_ridge_chance: float = 0.35
 	var open_terrain_character_ridge: Vector2 = Vector2(0.2, 0.5)
+	## The noise roll (OpenTerrain.NoiseRoll) and the ranges a seed draws its noise from.
+	var open_terrain_noise_roll: int = 0
+	var open_terrain_roll_frequency: Vector2 = Vector2(0.004, 0.01)
+	var open_terrain_roll_amplitude: Vector2 = Vector2(8.0, 40.0)
+	var open_terrain_roll_octaves: Vector2i = Vector2i(2, 5)
+	var open_terrain_roll_lacunarity: Vector2 = Vector2(1.8, 2.6)
+	var open_terrain_roll_gain: Vector2 = Vector2(0.3, 0.65)
+	## Regions and the height curve (OpenTerrain.Regions) and their chances and ranges.
+	var open_terrain_regions: int = 0
+	var open_terrain_region_chance: float = 0.7
+	var open_terrain_region_size: Vector2 = Vector2(500.0, 900.0)
+	var open_terrain_region_lowland: Vector2 = Vector2(0.1, 0.35)
+	var open_terrain_region_ridge: Vector2 = Vector2(0.3, 0.8)
+	var open_terrain_region_detail: Vector2 = Vector2(0.1, 0.3)
+	var open_terrain_floor_chance: float = 0.6
+	var open_terrain_floor_level: Vector2 = Vector2(0.2, 0.45)
+	var open_terrain_cliff_chance: float = 0.5
+	var open_terrain_cliff_strength: Vector2 = Vector2(0.4, 0.8)
+	var open_terrain_cliff_level: Vector2 = Vector2(0.4, 0.6)
+	var open_terrain_cliff_width: Vector2 = Vector2(0.08, 0.2)
+	## Relief and flat spots (OpenTerrain.Relief) and their chance and ranges.
+	var open_terrain_relief: int = 0
+	var open_terrain_relief_chance: float = 0.6
+	var open_terrain_relief_amplitude: Vector2 = Vector2(1.5, 3.5)
+	var open_terrain_flat_spot_count: Vector2i = Vector2i(2, 4)
+	var open_terrain_flat_spot_radius: Vector2 = Vector2(8.0, 14.0)
 	var terrain_edits: TerrainEdits = null
 	## Solid ground a map builder adds on top of the shape (DensitySampler.WorldDensity.solids).
 	var solids: Array[Dictionary] = []

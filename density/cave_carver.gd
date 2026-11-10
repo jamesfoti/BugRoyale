@@ -4,7 +4,9 @@ extends RefCounted
 ## run near zero, rounded caverns deeper down where a slower noise runs high, a few sinkholes
 ## that open tunnels to the sky, on half the seeds ravines cut down into the surface from the
 ## sky, and bedrock a couple of metres above the bottom of the chunk grid so nothing digs out
-## of the world. The surface is the map's own (a garden's heightmap, a
+## of the world. Every noise is read at a point pushed by a slow warp, so the tunnels bend
+## and the ravines wander (the ropey look of GPU Gems 3's terrains) instead of following
+## the noise's own lines. The surface is the map's own (a garden's heightmap, a
 ## crawlspace's dirt); this only carves what lies under it, so every seed gives a known map a
 ## new underworld, the way Terraria's worlds share a shape and differ below.
 ##
@@ -46,6 +48,10 @@ var ravine_frequency: float = 0.015
 var ravine_width: float = 0.0
 var ravine_depth: float = 12.0
 var ravine_lean: float = 0.4
+## Warp: metres a slow noise pushes every cave read sideways, and that noise's frequency
+## (one bend per 100 to 200 m). 0 m reads the noises where they lie.
+var warp_metres: float = 0.0
+var warp_frequency: float = 0.007
 ## World Y below which everything is solid.
 var floor_y: float = -INF
 
@@ -54,6 +60,7 @@ var _tunnel_noise_b: FastNoiseLite
 var _cavern_noise: FastNoiseLite
 var _sinkhole_noise: FastNoiseLite
 var _ravine_noise: FastNoiseLite
+var _warp_noise: FastNoiseLite
 
 
 ## The underworld one seed draws, with bedrock at floor_y.
@@ -70,6 +77,8 @@ static func from_seed(value: int, bedrock_y: float) -> CaveCarver:
 	carver.cavern_cutoff = rng.randf_range(0.42, 0.55)
 	carver.cavern_depth = rng.randf_range(16.0, 26.0)
 	carver.sinkhole_threshold = rng.randf_range(0.36, 0.5)
+	carver.warp_metres = rng.randf_range(4.0, 10.0)
+	carver.warp_frequency = rng.randf_range(0.005, 0.01)
 	if rng.randf() < RAVINE_CHANCE:
 		carver.ravine_width = rng.randf_range(0.05, 0.08)
 		carver.ravine_frequency = rng.randf_range(0.01, 0.02)
@@ -80,6 +89,7 @@ static func from_seed(value: int, bedrock_y: float) -> CaveCarver:
 	carver._cavern_noise = _noise(value + 606, carver.cavern_frequency, 1)
 	carver._sinkhole_noise = _noise(value + 505, 1.0 / 70.0, 1)
 	carver._ravine_noise = _noise(value + 707, carver.ravine_frequency, 2)
+	carver._warp_noise = _noise(value + 808, carver.warp_frequency, 1)
 	return carver
 
 
@@ -120,6 +130,16 @@ func carve(value: float, world_pos: Vector3, surface_height: float) -> float:
 ## the other way up: widest at the surface, pinching out at its depth.
 func air(world_pos: Vector3, depth: float) -> float:
 	var widen: float = 1.0 + depth * WIDEN_PER_METRE
+	# Where the 3D noises are read: pushed sideways by the warp (two reads of one slow
+	# noise, offset for the second axis). The sinkhole read stays put, it is a map, not
+	# a shape.
+	var read_pos: Vector3 = world_pos
+	if warp_metres > 0.0 and _warp_noise != null:
+		read_pos.x += _warp_noise.get_noise_3dv(world_pos) * warp_metres
+		read_pos.z += (
+			_warp_noise.get_noise_3d(world_pos.x + 97.0, world_pos.y + 41.0, world_pos.z + 31.0)
+			* warp_metres
+		)
 	var opening: float = smoothstep(
 		sinkhole_threshold - 0.1,
 		sinkhole_threshold + 0.1,
@@ -133,21 +153,21 @@ func air(world_pos: Vector3, depth: float) -> float:
 		var tunnel: float = (
 			tunnel_threshold * widen * tunnel_mask
 			- maxf(
-				absf(_tunnel_noise.get_noise_3dv(world_pos)),
-				absf(_tunnel_noise_b.get_noise_3dv(world_pos))
+				absf(_tunnel_noise.get_noise_3dv(read_pos)),
+				absf(_tunnel_noise_b.get_noise_3dv(read_pos))
 			)
 		)
 		best = tunnel / (2.0 * tunnel_frequency)
 	var cavern_mask: float = smoothstep(cavern_depth - FADE, cavern_depth + FADE, depth)
 	if cavern_mask > 0.0:
 		var cutoff: float = lerpf(1.0, cavern_cutoff / widen, cavern_mask)
-		var cavern: float = _cavern_noise.get_noise_3dv(world_pos) - cutoff
+		var cavern: float = _cavern_noise.get_noise_3dv(read_pos) - cutoff
 		best = maxf(best, cavern / (2.0 * cavern_frequency))
 	if ravine_width > 0.0 and depth < ravine_depth:
 		var pinch: float = sqrt(1.0 - maxf(depth, 0.0) / ravine_depth)
 		var gash: float = (
 			ravine_width * pinch
-			- absf(_ravine_noise.get_noise_3d(world_pos.x, world_pos.y * ravine_lean, world_pos.z))
+			- absf(_ravine_noise.get_noise_3d(read_pos.x, read_pos.y * ravine_lean, read_pos.z))
 		)
 		best = maxf(best, gash / (2.0 * ravine_frequency))
 	return best
@@ -164,13 +184,14 @@ func summary() -> String:
 	if ravine_width > 0.0:
 		ravines = "ravines %.2f to %d m down" % [ravine_width, roundi(ravine_depth)]
 	return (
-		"tunnels %.2f from %d m down, caverns %.2f from %d m down, %s, bedrock at %d m"
+		"tunnels %.2f from %d m down, caverns %.2f from %d m down, %s, warp %d m, bedrock at %d m"
 		% [
 			tunnel_threshold,
 			roundi(tunnel_depth),
 			cavern_cutoff,
 			roundi(cavern_depth),
 			ravines,
+			roundi(warp_metres),
 			roundi(floor_y)
 		]
 	)
