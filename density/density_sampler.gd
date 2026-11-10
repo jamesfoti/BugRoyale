@@ -284,9 +284,6 @@ static func grid_sample_position(
 class WorldDensity:
 	## Analytic density + gradient at any world position (seam-consistent normals).
 
-	## The kinds of ground on top, by the land biome noise. NONE is no fixed biome.
-	enum LandBiome { NONE = -1, MEADOW, DRYLAND, MARSH, BARRENS }
-
 	## Topsoil this deep is the map's own ground (dirt when dug); below it lies stone, with veins
 	## of sand, clay and gravel where the vein noise runs high.
 	const TOPSOIL_DEPTH: float = 1.5
@@ -306,8 +303,6 @@ class WorldDensity:
 	## so it still reads as ground), and the metres over which it fades into the land.
 	const FLAT_SPOT_BLEND: float = 0.9
 	const FLAT_SPOT_FADE: float = 10.0
-	## The land biomes' names, in LandBiome order, for the rebuild line.
-	const LAND_BIOME_NAMES: PackedStringArray = ["meadow", "dryland", "marsh", "barrens"]
 
 	var noise_enabled: bool = true
 	var noise_amplitude: float = 3.0
@@ -379,12 +374,13 @@ class WorldDensity:
 	var flat_spots: Array[Vector4] = []
 	## Carves tunnels, caverns and bedrock under a solid-filled open terrain (null: none).
 	var caves: CaveCarver = null
-	## Land biomes: the map is cut into patches land_patch_size metres across (BiomePatches)
-	## and each draws its kind from land_weights, one weight per LandBiome in order, so the
-	## weights are the biomes' likelihoods; the surface takes the biome's tint half-blended
-	## over the shader's own lawn and rock. One weight alone is that biome everywhere; all
-	## zero is meadow.
-	var land_weights: PackedFloat32Array = [6.0, 2.0, 1.0, 1.0]
+	## Land biomes, as data (Biome.to_data): the map is cut into patches land_patch_size
+	## metres across (BiomePatches) and each draws its kind from land_biomes by weight; the
+	## surface takes the kind's tint. No kinds is the ground as the shader draws it.
+	var land_biomes: Array[Dictionary] = []:
+		set(value):
+			land_biomes = value
+			_land_warp = null
 	var land_patch_size: float = 400.0:
 		set(value):
 			land_patch_size = maxf(value, 1.0)
@@ -410,6 +406,7 @@ class WorldDensity:
 	var _detail_noise: FastNoiseLite
 	var _relief_noise: FastNoiseLite
 	var _land_warp: FastNoiseLite
+	var _land_weights: PackedFloat32Array = PackedFloat32Array()
 	var _land_seed: int = 0
 	var _vein_noise: FastNoiseLite
 	var _ore_noise: FastNoiseLite
@@ -573,9 +570,9 @@ class WorldDensity:
 			var depth: float = depth_below_surface(world_position, density_value)
 			if depth > 1.5:
 				if caves != null:
-					return CaveCarver.biome_tint(caves.biome(world_position, depth))
+					return Biome.tint_of(caves.biome(world_position, depth))
 			else:
-				return land_tint(land_biome(world_position.x, world_position.z))
+				return Biome.tint_of(land_biome(world_position.x, world_position.z))
 		return TerrainMaterials.NATURAL_VERTEX_COLOR
 
 	## The element of the ore pocket at a point this deep: every element whose depth is reached
@@ -614,29 +611,23 @@ class WorldDensity:
 		_land_seed = noise_seed + 1313
 		_land_warp = null
 
-	## The land biome of the patch at a column.
-	func land_biome(world_x: float, world_z: float) -> LandBiome:
+	## The land biome of the patch at a column (Biome.to_data), or none (empty).
+	func land_biome(world_x: float, world_z: float) -> Dictionary:
+		if land_biomes.is_empty():
+			return {}
 		if _land_warp == null:
 			_land_warp = BiomePatches.make_warp(_land_seed, land_patch_size)
+			_land_weights = Biome.weights_of(land_biomes)
 		var pick: int = BiomePatches.pick(
-			world_x, world_z, _land_seed, land_patch_size, _land_warp, land_weights
+			world_x, world_z, _land_seed, land_patch_size, _land_warp, _land_weights
 		)
-		return LandBiome.MEADOW if pick < 0 else pick as LandBiome
-
-	## The vertex tint of the surface in a land biome: half-blended over the ground shader's
-	## own lawn and rock (alpha 0.5), or the plain natural colour where the biome adds nothing.
-	static func land_tint(kind: LandBiome) -> Color:
-		match kind:
-			LandBiome.DRYLAND:
-				return Color(0.74, 0.64, 0.38, 0.5)
-			LandBiome.MARSH:
-				return Color(0.2, 0.38, 0.2, 0.5)
-			LandBiome.BARRENS:
-				return Color(0.52, 0.5, 0.46, 0.5)
-		return TerrainMaterials.NATURAL_VERTEX_COLOR
+		return {} if pick < 0 else land_biomes[pick]
 
 	func land_summary() -> String:
-		return "land %s" % BiomePatches.shares(LAND_BIOME_NAMES, land_weights)
+		return (
+			"land "
+			+ BiomePatches.shares(Biome.names_of(land_biomes), Biome.weights_of(land_biomes))
+		)
 
 	func _init_boxed_in_terrain_noise(
 		terrain_seed: int, surface_frequency: float, octaves: int, lacunarity: float, gain: float

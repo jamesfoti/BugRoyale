@@ -283,15 +283,19 @@ back). **Randomize** goes further on an open terrain: it rolls a seed and draws 
 Noise sliders from the Noise Roll ranges, writing the values into the inspector with
 Noise Roll set to Fixed, so the sliders show exactly what built and can be nudged from
 there; the grid, chunk and voxel sizes stay. The caves' numbers come the same way:
-**Biomes** on the node is two weighted lists. The land on top is cut into patches of a
-jittered grid, **Land Patch Size** metres across with borders bent by a slow noise, and each
-patch draws its biome by the weights beside it, Meadow, Dryland, Marsh and Barrens: a weight
-is how likely a patch is that biome against the others (3 against 1 is three patches in
-four), 0 is never, and one weight alone is that biome everywhere. Meadow is the ground as
-the shader draws it; the others tint the surface. The caves below have the same, **Cave
-Patch Size** and Plain, Mossy, Dripstone, Fungal and Crystal, with mossy holding only within
-40 m of the surface and the deep kinds only below it. The rebuild line gives both lists as
-shares.
+**Biomes** on the node is two lists of `Biome` resources, **Land Biomes** and **Cave
+Biomes**, the kinds in `biomes/` (meadow, dryland, marsh and barrens on top; plain, mossy,
+dripstone, fungal and crystal below). The land is cut into patches of a jittered grid,
+**Land Patch Size** metres across with borders bent by a slow noise, and each patch draws
+its kind from the list by the kinds' weights: a weight is how likely a patch is that kind
+against the others (3 against 1 is three patches in four), 0 is never, one kind alone is
+everywhere. A resource holds the kind's name, weight, tint (white at alpha 1 is the ground
+as the shader draws it; a colour at alpha 0.5 is blended half over it), and for the caves
+the depths it holds between (mossy 0 to 40 m, the deep kinds 40 m down, the first kind in
+the list that holds standing in elsewhere), whether its rooms stand on pillars, and how
+much of the seed's ceiling jag and floor rubble they get. A new kind is a new resource,
+no code; add it to a list, or remove and reorder the kinds, in the inspector. The rebuild
+line gives both lists as shares.
 **Cave Roll** on the node is Seeded (rolled from the seed, as the maps do, with the
 near-surface numbers drawn from the **Cave Range** pairs beside it: the tunnels' start
 depth, their ramp and the shallow cutoff, each a least and most, one value forcing it on

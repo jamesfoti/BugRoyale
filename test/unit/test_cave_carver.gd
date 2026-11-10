@@ -302,35 +302,41 @@ func _air_columns(carver: CaveCarver, depth: float) -> int:
 	return air
 
 
-## Biomes: the near-surface rock is mossy or plain, the deep rock every other kind somewhere,
-## and each biome but plain tints the wall half-way (alpha 0.5).
+## Biomes, from the resources in biomes/: near the surface the rock is mossy or plain, every
+## kind lies somewhere, each kind but plain tints the wall half-way, and a kind that does
+## not hold at a depth gives way to the first that does.
 func test_biomes_lie_by_depth_and_tint_the_walls() -> void:
 	var carver: CaveCarver = _plain_carver()
+	carver.biomes = _cave_biomes()
 	var kinds: Dictionary = {}
 	for step_x: int in 30:
 		for step_z: int in 30:
 			var spot := Vector3(float(step_x) * 40.0 - 600.0, -100.0, float(step_z) * 40.0 - 600.0)
-			var shallow: CaveCarver.Biome = carver.biome(spot, 20.0)
+			var shallow: String = carver.biome(spot, 20.0).get("name", "")
 			assert_true(
-				shallow == CaveCarver.Biome.PLAIN or shallow == CaveCarver.Biome.MOSSY,
-				"near the surface, plain or mossy"
+				shallow == "plain" or shallow == "mossy", "near the surface, plain or mossy"
 			)
-			kinds[carver.biome(spot, 100.0)] = true
+			kinds[carver.biome(spot, 100.0).get("name", "")] = true
 			kinds[shallow] = true
-	for kind: CaveCarver.Biome in [
-		CaveCarver.Biome.PLAIN,
-		CaveCarver.Biome.MOSSY,
-		CaveCarver.Biome.DRIPSTONE,
-		CaveCarver.Biome.FUNGAL,
-		CaveCarver.Biome.CRYSTAL,
-	]:
-		assert_true(kinds.has(kind), "biome %d lies somewhere" % kind)
-		var tint: Color = CaveCarver.biome_tint(kind)
-		if kind == CaveCarver.Biome.PLAIN:
+	for name: String in ["plain", "mossy", "dripstone", "fungal", "crystal"]:
+		assert_true(kinds.has(name), "%s lies somewhere" % name)
+	for kind: Dictionary in carver.biomes:
+		var tint: Color = Biome.tint_of(kind)
+		if kind["name"] == "plain":
 			assert_eq(tint, TerrainMaterials.NATURAL_VERTEX_COLOR, "plain is the ground's own")
 		else:
-			assert_almost_eq(tint.a, 0.5, 0.001, "a biome tint blends half-way")
+			assert_almost_eq(tint.a, 0.5, 0.001, "a kind's tint blends half-way")
 	assert_eq(carver.biome(Vector3.ZERO, 100.0), carver.biome(Vector3.ZERO, 100.0), "steady")
+	carver.biomes = [carver.biomes[1]]
+	assert_eq(carver.biome(Vector3.ZERO, 100.0), {}, "mossy alone: nothing holds deep down")
+	assert_eq(carver.biome(Vector3.ZERO, 10.0)["name"], "mossy", "and mossy near the top")
+
+
+func _cave_biomes() -> Array[Dictionary]:
+	var out: Array[Biome] = []
+	for name: String in ["plain", "mossy", "dripstone", "fungal", "crystal"]:
+		out.append(load("res://biomes/cave_%s.tres" % name) as Biome)
+	return Biome.data_of(out)
 
 
 ## Dripstone rooms stand on pillars: inside a room, some columns are rock with the biome
@@ -344,7 +350,8 @@ func test_dripstone_rooms_have_pillars_and_ceilings_hang_in_points() -> void:
 	carver.floor_thickness = 0.0
 	carver.ceiling_jag = 0.0
 	carver.rubble = 0.0
-	carver.biome_fixed = CaveCarver.Biome.PLAIN
+	var cave_biomes: Array[Dictionary] = _cave_biomes()
+	carver.biome_fixed = cave_biomes[0]
 	# A room: a spot 100 m down with 3 m of air round it.
 	var room := Vector3.ZERO
 	var found: bool = false
@@ -359,18 +366,18 @@ func test_dripstone_rooms_have_pillars_and_ceilings_hang_in_points() -> void:
 			break
 	assert_true(found, "a room 100 m down")
 	var plain_rock: int = _rock_in_square(carver, room)
-	carver.biome_fixed = CaveCarver.Biome.DRIPSTONE
+	carver.biome_fixed = cave_biomes[2]
 	var pillar_rock: int = _rock_in_square(carver, room)
 	assert_eq(plain_rock, 0, "a plain room is all air about its middle")
 	assert_gt(pillar_rock, 0, "a dripstone room has pillars in it")
-	carver.biome_fixed = CaveCarver.Biome.PLAIN
+	carver.biome_fixed = cave_biomes[0]
 	var smooth: CaveCarver = _plain_carver()
 	smooth.tunnel_threshold = 0.0
 	smooth.sinkhole_threshold = 2.0
 	smooth.floor_thickness = 0.0
 	smooth.ceiling_jag = 0.0
 	smooth.rubble = 0.0
-	smooth.biome_fixed = CaveCarver.Biome.PLAIN
+	smooth.biome_fixed = cave_biomes[0]
 	carver.ceiling_jag = 2.0
 	carver.rubble = 0.8
 	# Near a wall, which side is read from the smooth room: air growing upward is a floor.

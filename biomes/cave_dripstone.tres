@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://density/biome.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+biome_name = "dripstone"
+weight = 2.0
+tint = Color(0.66, 0.54, 0.38, 0.5)
+depth_range = Vector2(40, 100000)
+pillars = true
+ceiling_jag = 1.5

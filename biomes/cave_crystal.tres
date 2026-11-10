@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://density/biome.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+biome_name = "crystal"
+weight = 1.0
+tint = Color(0.55, 0.78, 0.9, 0.5)
+depth_range = Vector2(40, 100000)
+ceiling_jag = 2.0
+rubble = 0.4

@@ -87,44 +87,42 @@ func test_the_cave_roll_sliders_travel_in_the_snapshot() -> void:
 
 ## The Cave Range pairs steer a seeded roll without moving its other numbers, and the shape
 ## (fade, shallow size) applies whatever the roll.
-## The Biomes weights travel in the snapshot and are the biomes' likelihoods: one weight alone
-## is that biome everywhere, a weight of 0 is never, and 1 against 1 is near half the patches
-## each; the cave weights the same, with mossy near the surface only.
-func test_the_biome_weights_are_the_biomes_likelihoods() -> void:
+## The Biomes lists travel in the snapshot as data and their weights are the kinds'
+## likelihoods: one kind alone is everywhere, a weight of 0 is never, 1 against 1 is near
+## half the patches each; a cave kind holds only between its depths.
+func test_the_biome_lists_and_their_weights_say_what_lies_where() -> void:
 	var world: OpenTerrain = OpenTerrain.new()
 	world.rebuild_on_ready = false
 	world.caves_enabled = true
 	world.solid_underside = true
 	add_child_autofree(world)
-	world.land_meadow = 0.0
-	world.land_dryland = 0.0
-	world.land_marsh = 1.0
-	world.land_barrens = 0.0
-	world.cave_plain = 0.0
-	world.cave_mossy = 0.0
-	world.cave_dripstone = 0.0
-	world.cave_fungal = 0.0
-	world.cave_crystal = 1.0
+	var marsh: Biome = load("res://biomes/land_marsh.tres")
+	var crystal: Biome = load("res://biomes/cave_crystal.tres")
+	world.land_biomes = [marsh]
+	world.cave_biomes = [crystal]
 	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
-	assert_eq(settings.open_terrain_land_weights, PackedFloat32Array([0.0, 0.0, 1.0, 0.0]))
-	assert_eq(settings.open_terrain_cave_weights, PackedFloat32Array([0.0, 0.0, 0.0, 0.0, 1.0]))
+	assert_eq(settings.open_terrain_land_biomes.size(), 1, "the land list travels as data")
+	assert_eq(settings.open_terrain_cave_biomes[0]["name"], "crystal")
 	var forced: DensitySampler.WorldDensity = world._build_world_density(settings)
 	for spot: Vector2 in [Vector2.ZERO, Vector2(200.0, -150.0), Vector2(-240.0, 240.0)]:
+		assert_eq(forced.land_biome(spot.x, spot.y)["name"], "marsh", "marsh alone, everywhere")
 		assert_eq(
-			forced.land_biome(spot.x, spot.y), DensitySampler.WorldDensity.LandBiome.MARSH, "marsh"
-		)
-		assert_eq(
-			forced.caves.biome(Vector3(spot.x, -60.0, spot.y), 60.0),
-			CaveCarver.Biome.CRYSTAL,
+			forced.caves.biome(Vector3(spot.x, -60.0, spot.y), 60.0)["name"],
+			"crystal",
 			"crystal deep down"
 		)
 		assert_eq(
 			forced.caves.biome(Vector3(spot.x, -10.0, spot.y), 10.0),
-			CaveCarver.Biome.PLAIN,
-			"a deep kind is plain near the surface"
+			{},
+			"a deep kind holds nowhere near the surface"
 		)
 	assert_true(forced.land_summary().contains("marsh 100%"), "the rebuild line says so")
-	world.land_meadow = 1.0
+	var meadow: Biome = load("res://biomes/land_meadow.tres")
+	var even_marsh: Biome = marsh.duplicate()
+	even_marsh.weight = meadow.weight
+	var never: Biome = load("res://biomes/land_barrens.tres").duplicate()
+	never.weight = 0.0
+	world.land_biomes = [meadow, even_marsh, never]
 	world.land_patch_size = 100.0
 	var halves: DensitySampler.WorldDensity = world._build_world_density(
 		world._make_settings_snapshot()
@@ -132,25 +130,16 @@ func test_the_biome_weights_are_the_biomes_likelihoods() -> void:
 	var counts: Dictionary = {}
 	for step_x: int in 50:
 		for step_z: int in 50:
-			var kind: DensitySampler.WorldDensity.LandBiome = halves.land_biome(
-				float(step_x) * 40.0 - 1000.0, float(step_z) * 40.0 - 1000.0
+			var name: String = (
+				halves
+				. land_biome(float(step_x) * 40.0 - 1000.0, float(step_z) * 40.0 - 1000.0)["name"]
 			)
-			counts[kind] = int(counts.get(kind, 0)) + 1
-	assert_false(counts.has(DensitySampler.WorldDensity.LandBiome.DRYLAND), "0 is never")
-	assert_false(counts.has(DensitySampler.WorldDensity.LandBiome.BARRENS), "0 is never")
-	var meadow: int = int(counts.get(DensitySampler.WorldDensity.LandBiome.MEADOW, 0))
-	assert_between(float(meadow) / 2500.0, 0.3, 0.7, "1 against 1 is near half the ground")
-	assert_eq(
-		DensitySampler.WorldDensity.land_tint(DensitySampler.WorldDensity.LandBiome.MEADOW),
-		TerrainMaterials.NATURAL_VERTEX_COLOR,
-		"meadow is the ground's own"
-	)
-	assert_almost_eq(
-		DensitySampler.WorldDensity.land_tint(DensitySampler.WorldDensity.LandBiome.DRYLAND).a,
-		0.5,
-		0.001,
-		"the others blend half-way"
-	)
+			counts[name] = int(counts.get(name, 0)) + 1
+	assert_false(counts.has("barrens"), "0 is never")
+	assert_between(float(counts.get("meadow", 0)) / 2500.0, 0.3, 0.7, "1 against 1 is near half")
+	assert_eq(Biome.tint_of(meadow.to_data()), TerrainMaterials.NATURAL_VERTEX_COLOR)
+	assert_almost_eq(Biome.tint_of(marsh.to_data()).a, 0.5, 0.001, "the others blend half-way")
+	assert_eq(Biome.tint_of({}), TerrainMaterials.NATURAL_VERTEX_COLOR, "no kind, no tint")
 
 
 func test_the_cave_ranges_and_shape_travel_and_steer_the_roll() -> void:

@@ -34,9 +34,6 @@ extends RefCounted
 ## a hole, and the ground read as a sponge. Fewer, wider, smoother tunnels cut that to a
 ## quarter at the same share of air.
 
-## The kinds of cave, by the biome noise and depth. NONE is no fixed biome.
-enum Biome { NONE = -1, PLAIN, MOSSY, DRIPSTONE, FUNGAL, CRYSTAL }
-
 ## Tunnels and caverns narrow to nothing over this many metres above their start depth
 ## (the fade field; this is its default).
 const FADE: float = 3.0
@@ -61,12 +58,8 @@ const BLEND: float = 2.0
 const FLOOR_CHANCE: float = 0.6
 ## The region mask goes from lean to rich over this span of the region noise, about its bias.
 const REGION_EDGE: float = 0.3
-## Biomes: metres across one is, how deep the mossy one reaches, the pillar map's cutoff and
-## frequency (pillars about a metre thick, five apart), and the vertical spans of fine noise
-## the ceilings and floors are read with. The wall detail is only read within WALL_BAND
-## metres of a room's wall.
-const BIOME_NAMES: PackedStringArray = ["plain", "mossy", "dripstone", "fungal", "crystal"]
-const MOSSY_DEPTH: float = 40.0
+## The pillar map's cutoff and frequency (pillars about a metre thick, five apart), and
+## how near a room's wall (metres) the ceiling and floor detail is read.
 const PILLAR_CUTOFF: float = 0.55
 const PILLAR_FREQUENCY: float = 0.2
 const WALL_BAND: float = 4.0
@@ -164,18 +157,21 @@ var shaft_lean: float = 0.12
 ## where the rock fell. Which side a sample is on comes from the cavern noise's slope.
 var ceiling_jag: float = 1.4
 var rubble: float = 0.5
-## Cave biomes, Minecraft's lush and dripstone caves: the map is cut into patches
-## biome_patch_size metres across (BiomePatches) and each draws its kind from
-## biome_weights, one weight per Biome in order, so the weights are the biomes'
-## likelihoods; the walls take the biome's tint and dripstone rooms stand on pillars. Mossy
-## is a near-surface kind and plain below MOSSY_DEPTH; the others are deep kinds and plain
-## above it. A biome fixed here (not NONE) is everywhere, for tools and tests.
-var biome_weights: PackedFloat32Array = [4.0, 2.0, 2.0, 1.0, 1.0]
+## Cave biomes, Minecraft's lush and dripstone caves, as data (Biome.to_data): the map is
+## cut into patches biome_patch_size metres across (BiomePatches) and each draws its kind
+## from biomes by weight; the walls take the kind's tint, its rooms stand on pillars if it
+## says so and its ceilings and floors scale the seed's jag and rubble. A kind holds only
+## between its depths; elsewhere the first kind in the list that holds stands in. No kinds
+## is plain rock everywhere. A kind fixed here (not empty) is everywhere, for tests.
+var biomes: Array[Dictionary] = []:
+	set(value):
+		biomes = value
+		_biome_warp = null
 var biome_patch_size: float = 250.0:
 	set(value):
 		biome_patch_size = maxf(value, 1.0)
 		_biome_warp = null
-var biome_fixed: Biome = Biome.NONE
+var biome_fixed: Dictionary = {}
 ## Aquifers, Minecraft's: the map is cut into cells aquifer_size metres across, each dry or,
 ## water_share of them, holding water to a level of its own between WATER_FLOOR above
 ## bedrock and water_top; any cave air below the level is a pool (CaveWaterMesher draws the
@@ -209,6 +205,7 @@ var _shallow_map: FastNoiseLite
 var _ceiling_noise: FastNoiseLite
 var _rubble_noise: FastNoiseLite
 var _biome_warp: FastNoiseLite
+var _biome_weights: PackedFloat32Array = PackedFloat32Array()
 var _pillar_noise: FastNoiseLite
 
 
@@ -393,21 +390,25 @@ func air(world_pos: Vector3, depth: float, slope: float = 0.0) -> float:
 		if absf(cavern) < WALL_BAND and (ceiling_jag > 0.0 or rubble > 0.0):
 			# Near a wall: the noise rising with height means air above rock, a floor, and
 			# falling means a ceiling. Points and folds hang from the one, scree lies on
-			# the other.
+			# the other, each as much as the kind of cave says.
+			var kind: Dictionary = biome(world_pos, depth)
 			var above: float = _cavern_noise.get_noise_3d(
 				read_pos.x, (read_pos.y + 1.0) * cavern_squash, read_pos.z
 			)
 			if above < room_noise:
-				cavern += _ceiling_noise.get_noise_3dv(read_pos) * ceiling_jag
+				var jag: float = ceiling_jag * float(kind.get("ceiling_jag", 1.0))
+				cavern += _ceiling_noise.get_noise_3dv(read_pos) * jag
 			else:
-				cavern -= absf(_rubble_noise.get_noise_3dv(read_pos)) * rubble
-		if biome(world_pos, depth) == Biome.DRIPSTONE:
-			# Pillars from floor to ceiling where the pillar map runs high.
-			var pillar: float = (
-				(PILLAR_CUTOFF - _pillar_noise.get_noise_2d(read_pos.x, read_pos.z))
-				/ (2.0 * PILLAR_FREQUENCY)
-			)
-			cavern = minf(cavern, pillar)
+				var scree: float = rubble * float(kind.get("rubble", 1.0))
+				cavern -= absf(_rubble_noise.get_noise_3dv(read_pos)) * scree
+		# Pillars from floor to ceiling where the pillar map runs high, in the kinds of cave
+		# that have them (the kind is only looked up where a pillar would cut).
+		var pillar: float = (
+			(PILLAR_CUTOFF - _pillar_noise.get_noise_2d(read_pos.x, read_pos.z))
+			/ (2.0 * PILLAR_FREQUENCY)
+		)
+		if pillar < cavern and bool(biome(world_pos, depth).get("pillars", false)):
+			cavern = pillar
 		best = _blend(best, minf(cavern, floor_slab(bed)))
 	if hall_cutoff < 1.0 and deep > 0.0:
 		var hall_edge: float = lerpf(1.0, hall_cutoff, deep)
@@ -542,37 +543,25 @@ func floor_slab(bed: float) -> float:
 	return minf(into - floor_thickness, floor_spacing - into)
 
 
-## The kind of cave the rock is in here: the patch's kind, except that mossy only holds
-## above MOSSY_DEPTH and the deep kinds only below it (plain in their place otherwise).
-func biome(world_pos: Vector3, depth: float) -> Biome:
-	if biome_fixed != Biome.NONE:
+## The kind of cave the rock is in here (Biome.to_data): the patch's kind if it holds at
+## this depth, else the first kind in the list that does, else none (empty).
+func biome(world_pos: Vector3, depth: float) -> Dictionary:
+	if not biome_fixed.is_empty():
 		return biome_fixed
+	if biomes.is_empty():
+		return {}
 	if _biome_warp == null:
 		_biome_warp = BiomePatches.make_warp(world_seed + 919, biome_patch_size)
+		_biome_weights = Biome.weights_of(biomes)
 	var pick: int = BiomePatches.pick(
-		world_pos.x, world_pos.z, world_seed + 919, biome_patch_size, _biome_warp, biome_weights
+		world_pos.x, world_pos.z, world_seed + 919, biome_patch_size, _biome_warp, _biome_weights
 	)
-	if pick < 0:
-		return Biome.PLAIN
-	var kind: Biome = pick as Biome
-	if (kind == Biome.MOSSY) != (depth < MOSSY_DEPTH):
-		return Biome.PLAIN
-	return kind
-
-
-## The vertex tint of a cave wall in a biome: half-blended over the ground shader's own rock
-## (alpha 0.5), or the plain natural colour (alpha 1) where the biome adds nothing.
-static func biome_tint(kind: Biome) -> Color:
-	match kind:
-		Biome.MOSSY:
-			return Color(0.34, 0.56, 0.22, 0.5)
-		Biome.DRIPSTONE:
-			return Color(0.66, 0.54, 0.38, 0.5)
-		Biome.FUNGAL:
-			return Color(0.5, 0.3, 0.56, 0.5)
-		Biome.CRYSTAL:
-			return Color(0.55, 0.78, 0.9, 0.5)
-	return TerrainMaterials.NATURAL_VERTEX_COLOR
+	if pick >= 0 and Biome.holds(biomes[pick], depth):
+		return biomes[pick]
+	for kind: Dictionary in biomes:
+		if float(kind.get("weight", 0.0)) > 0.0 and Biome.holds(kind, depth):
+			return kind
+	return {}
 
 
 ## True where a point lies inside a cave (air carved from solid ground).
@@ -590,7 +579,7 @@ func summary() -> String:
 		floors = "floors every %d m" % roundi(floor_spacing)
 	var carved: String = "" if systems == null else ", " + systems.summary()
 	carved += ", ceilings %.1f m, rubble %.1f m" % [ceiling_jag, rubble]
-	carved += ", caves " + BiomePatches.shares(BIOME_NAMES, biome_weights)
+	carved += ", caves " + BiomePatches.shares(Biome.names_of(biomes), Biome.weights_of(biomes))
 	if water_top > -INF:
 		carved += (
 			", water in %d%% of aquifers %d m across"

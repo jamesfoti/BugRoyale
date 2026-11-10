@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://density/biome.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+biome_name = "mossy"
+weight = 2.0
+tint = Color(0.34, 0.56, 0.22, 0.5)
+depth_range = Vector2(0, 40)
+ceiling_jag = 0.7
+rubble = 0.6

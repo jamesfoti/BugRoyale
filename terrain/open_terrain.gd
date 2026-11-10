@@ -321,55 +321,36 @@ const CAVE_FIELDS: Dictionary = {
 
 @export_group("Biomes")
 ## The land on top is cut into patches this many metres across, and each patch draws its
-## biome by the weights below: a weight is how likely a patch is that biome against the
-## others (3 against 1 is three patches in four), 0 never, one weight alone everywhere.
-## Meadow is the ground as the shader draws it; the others tint it.
+## kind from the Land Biomes list by the kinds' weights (Biome resources, biomes/; add,
+## remove or reorder them, or make a new kind as a new resource). The caves below the same
+## with the Cave Biomes list, whose kinds hold only between their depths, the first kind
+## that holds standing in elsewhere.
 @export_range(50.0, 2000.0, 10.0) var land_patch_size: float = 400.0:
 	set(value):
 		land_patch_size = value
 		_request_rebuild()
-@export_range(0.0, 10.0, 0.5) var land_meadow: float = 6.0:
+@export var land_biomes: Array[Biome] = [
+	preload("res://biomes/land_meadow.tres"),
+	preload("res://biomes/land_dryland.tres"),
+	preload("res://biomes/land_marsh.tres"),
+	preload("res://biomes/land_barrens.tres"),
+]:
 	set(value):
-		land_meadow = value
+		land_biomes = value
 		_request_rebuild()
-@export_range(0.0, 10.0, 0.5) var land_dryland: float = 2.0:
-	set(value):
-		land_dryland = value
-		_request_rebuild()
-@export_range(0.0, 10.0, 0.5) var land_marsh: float = 1.0:
-	set(value):
-		land_marsh = value
-		_request_rebuild()
-@export_range(0.0, 10.0, 0.5) var land_barrens: float = 1.0:
-	set(value):
-		land_barrens = value
-		_request_rebuild()
-## The caves below, the same way: patches this many metres across, each drawing its biome by
-## the weights. Mossy holds only within 40 m of the surface and the deep kinds only below
-## that, plain standing in otherwise.
 @export_range(50.0, 2000.0, 10.0) var cave_patch_size: float = 250.0:
 	set(value):
 		cave_patch_size = value
 		_request_rebuild()
-@export_range(0.0, 10.0, 0.5) var cave_plain: float = 4.0:
+@export var cave_biomes: Array[Biome] = [
+	preload("res://biomes/cave_plain.tres"),
+	preload("res://biomes/cave_mossy.tres"),
+	preload("res://biomes/cave_dripstone.tres"),
+	preload("res://biomes/cave_fungal.tres"),
+	preload("res://biomes/cave_crystal.tres"),
+]:
 	set(value):
-		cave_plain = value
-		_request_rebuild()
-@export_range(0.0, 10.0, 0.5) var cave_mossy: float = 2.0:
-	set(value):
-		cave_mossy = value
-		_request_rebuild()
-@export_range(0.0, 10.0, 0.5) var cave_dripstone: float = 2.0:
-	set(value):
-		cave_dripstone = value
-		_request_rebuild()
-@export_range(0.0, 10.0, 0.5) var cave_fungal: float = 1.0:
-	set(value):
-		cave_fungal = value
-		_request_rebuild()
-@export_range(0.0, 10.0, 0.5) var cave_crystal: float = 1.0:
-	set(value):
-		cave_crystal = value
+		cave_biomes = value
 		_request_rebuild()
 
 @export_group("Cave Roll")
@@ -656,11 +637,9 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_cave_roll = cave_roll
 	settings.open_terrain_cave_ranges = cave_ranges()
 	settings.open_terrain_cave_shape = cave_shape()
-	settings.open_terrain_land_weights = [land_meadow, land_dryland, land_marsh, land_barrens]
+	settings.open_terrain_land_biomes = Biome.data_of(land_biomes)
 	settings.open_terrain_land_patch = land_patch_size
-	settings.open_terrain_cave_weights = [
-		cave_plain, cave_mossy, cave_dripstone, cave_fungal, cave_crystal
-	]
+	settings.open_terrain_cave_biomes = Biome.data_of(cave_biomes)
 	settings.open_terrain_cave_patch = cave_patch_size
 	for field: String in CAVE_FIELDS:
 		settings.open_terrain_cave_values[field] = get("cave_" + field)
@@ -757,7 +736,7 @@ func _build_world_density(
 	)
 	if settings.caves_enabled and settings.open_terrain_solid_fill:
 		density.caves = CaveCarver.for_settings(settings)
-		density.caves.biome_weights = settings.open_terrain_cave_weights
+		density.caves.biomes = settings.open_terrain_cave_biomes
 		density.caves.biome_patch_size = settings.open_terrain_cave_patch
 	if settings.open_terrain_character == Character.SEEDED:
 		density.roll_surface(
@@ -809,7 +788,7 @@ func _build_world_density(
 			settings.open_terrain_flat_spot_count,
 			settings.open_terrain_flat_spot_radius
 		)
-	density.land_weights = settings.open_terrain_land_weights
+	density.land_biomes = settings.open_terrain_land_biomes
 	density.land_patch_size = settings.open_terrain_land_patch
 	# After every layer of the surface, so the cave mouths sit on the ground as built.
 	if density.caves != null:

@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://density/biome.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+biome_name = "barrens"
+weight = 1.0
+tint = Color(0.52, 0.5, 0.46, 0.5)
