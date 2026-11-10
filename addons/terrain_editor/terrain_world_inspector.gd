@@ -204,7 +204,7 @@ func _on_randomize_pressed(node_path: NodePath) -> void:
 		var steps: Dictionary = OpenTerrain.CAVE_FIELDS
 		for field: String in steps:
 			values["cave_" + field] = snappedf(carver.get(field), steps[field])
-		values["cave_roll"] = OpenTerrain.CaveRoll.FIXED
+		# The roll stays Seeded: the sliders show the roll, the seed still carves the caves.
 		caves = " Caves: " + carver.summary() + "."
 	var undo_redo: EditorUndoRedoManager = EditorInterface.get_editor_undo_redo()
 	undo_redo.create_action("Randomize terrain")

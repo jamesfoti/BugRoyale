@@ -287,7 +287,9 @@ depth, their ramp and the shallow cutoff, each a least and most, one value forci
 every seed) or Fixed (the
 Cave Roll sliders as set: tunnel and cavern band, frequency and depth, regions, bands,
 seams, floors, halls, shafts, ravines, warp), and Randomize writes the roll into the
-sliders and sets Fixed. The rebuild line in the Output panel says what the seed rolled:
+sliders either way, leaving the switch as it is: on Seeded the sliders show what the
+seed built, and switching to Fixed carves that roll and lets it be nudged. The rebuild
+line in the Output panel says what the seed rolled:
 its terraces, if any, and its caves and ravines.
 
 Every seed also rolls a **Character** for the surface, so seeds differ in kind and not only

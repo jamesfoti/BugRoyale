@@ -318,8 +318,9 @@ const CAVE_FIELDS: Dictionary = {
 @export_group("Cave Roll")
 ## Seeded ignores the sliders below and rolls every one of the caves' numbers from the
 ## seed (the rebuild line names them). Fixed carves the caves from the sliders as set, so
-## New Seed changes the surface but not the caves; Randomize writes a roll into the
-## sliders and sets Fixed, so they show exactly what built and can be nudged from there.
+## New Seed changes the surface but not the caves. Randomize writes its roll into the
+## sliders either way and leaves the switch alone: on Seeded they show what the seed built,
+## and switching to Fixed then carves that roll and lets it be nudged from there.
 @export var cave_roll: CaveRoll = CaveRoll.SEEDED:
 	set(value):
 		cave_roll = value
