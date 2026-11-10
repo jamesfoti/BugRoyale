@@ -995,10 +995,12 @@ class SettingsSnapshot:
 	## seed shares whatever the roll (field name to value), both from the OpenTerrain node.
 	var open_terrain_cave_ranges: Dictionary = {}
 	var open_terrain_cave_shape: Dictionary = {}
-	## The land and cave biomes forced everywhere (DensitySampler.WorldDensity.LandBiome and
-	## CaveCarver.Biome), or -1 for the seed's own.
-	var open_terrain_land_biome: int = -1
-	var open_terrain_cave_biome: int = -1
+	## The land and cave biomes' weights (one per DensitySampler.WorldDensity.LandBiome and
+	## per CaveCarver.Biome, in order) and the metres across their patches are.
+	var open_terrain_land_weights: PackedFloat32Array = [6.0, 2.0, 1.0, 1.0]
+	var open_terrain_land_patch: float = 400.0
+	var open_terrain_cave_weights: PackedFloat32Array = [4.0, 2.0, 2.0, 1.0, 1.0]
+	var open_terrain_cave_patch: float = 250.0
 	## The noise roll (OpenTerrain.NoiseRoll) and the ranges a seed draws its noise from.
 	var open_terrain_noise_roll: int = 0
 	var open_terrain_roll_frequency: Vector2 = Vector2(0.004, 0.01)

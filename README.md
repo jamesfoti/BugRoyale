@@ -283,10 +283,15 @@ back). **Randomize** goes further on an open terrain: it rolls a seed and draws 
 Noise sliders from the Noise Roll ranges, writing the values into the inspector with
 Noise Roll set to Fixed, so the sliders show exactly what built and can be nudged from
 there; the grid, chunk and voxel sizes stay. The caves' numbers come the same way:
-**Biomes** on the node has two switches: **Land Biome** (Seeded lays meadow, dryland, marsh
-and barrens over the map from a slow noise 400 m across, each tinting the surface; or one
-of them everywhere) and **Cave Biome** (Seeded, or plain, mossy, dripstone, fungal or
-crystal everywhere), for looking at one kind of ground or cave on its own.
+**Biomes** on the node is two weighted lists. The land on top is cut into patches of a
+jittered grid, **Land Patch Size** metres across with borders bent by a slow noise, and each
+patch draws its biome by the weights beside it, Meadow, Dryland, Marsh and Barrens: a weight
+is how likely a patch is that biome against the others (3 against 1 is three patches in
+four), 0 is never, and one weight alone is that biome everywhere. Meadow is the ground as
+the shader draws it; the others tint the surface. The caves below have the same, **Cave
+Patch Size** and Plain, Mossy, Dripstone, Fungal and Crystal, with mossy holding only within
+40 m of the surface and the deep kinds only below it. The rebuild line gives both lists as
+shares.
 **Cave Roll** on the node is Seeded (rolled from the seed, as the maps do, with the
 near-surface numbers drawn from the **Cave Range** pairs beside it: the tunnels' start
 depth, their ramp and the shallow cutoff, each a least and most, one value forcing it on
@@ -362,10 +367,12 @@ switch, a chance and ranges, and each named in the rebuild line:
   or a dead end; these do. **Ceilings and floors** differ, as in a real cave: fine noise
   hangs from a room's ceiling in points and folds, 0.8 to 2 m deep by the seed, and scree
   bumps its floor, which side being read from the cavern noise's own slope. **Biomes**,
-  Minecraft's lush and dripstone caves: a slow noise 250 m across says what kind of cave
+  Minecraft's lush and dripstone caves: patches 250 m across say what kind of cave
   the rock is in, mossy or plain within 40 m of the surface and plain, dripstone, fungal
   or crystal below, and the walls take the biome's tint half-blended over the shader's
-  rock; dripstone rooms stand on pillars a metre thick. **Aquifers**, Minecraft's: the
+  rock; dripstone rooms stand on pillars a metre thick. Which biome a patch is comes
+  from the weights on the node (BiomePatches), so a map can be mostly plain with the odd
+  crystal cave, or all fungal. **Aquifers**, Minecraft's: the
   map is cut into cells 120 to 220 m across, four to eight in ten holding water to a level
   of their own between bedrock and 15 m under the surface, and any cave air below the
   level is a pool, drawn as a flat sheet with the terrarium's water; between two cells of

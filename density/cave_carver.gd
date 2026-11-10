@@ -65,7 +65,7 @@ const REGION_EDGE: float = 0.3
 ## frequency (pillars about a metre thick, five apart), and the vertical spans of fine noise
 ## the ceilings and floors are read with. The wall detail is only read within WALL_BAND
 ## metres of a room's wall.
-const BIOME_SIZE: float = 250.0
+const BIOME_NAMES: PackedStringArray = ["plain", "mossy", "dripstone", "fungal", "crystal"]
 const MOSSY_DEPTH: float = 40.0
 const PILLAR_CUTOFF: float = 0.55
 const PILLAR_FREQUENCY: float = 0.2
@@ -164,9 +164,17 @@ var shaft_lean: float = 0.12
 ## where the rock fell. Which side a sample is on comes from the cavern noise's slope.
 var ceiling_jag: float = 1.4
 var rubble: float = 0.5
-## Cave biomes, Minecraft's lush and dripstone caves: a slow noise says which the rock is in
-## (biome), and the walls take its tint; dripstone rooms stand on pillars. A biome fixed
-## here (not NONE) is everywhere, for tools and tests.
+## Cave biomes, Minecraft's lush and dripstone caves: the map is cut into patches
+## biome_patch_size metres across (BiomePatches) and each draws its kind from
+## biome_weights, one weight per Biome in order, so the weights are the biomes'
+## likelihoods; the walls take the biome's tint and dripstone rooms stand on pillars. Mossy
+## is a near-surface kind and plain below MOSSY_DEPTH; the others are deep kinds and plain
+## above it. A biome fixed here (not NONE) is everywhere, for tools and tests.
+var biome_weights: PackedFloat32Array = [4.0, 2.0, 2.0, 1.0, 1.0]
+var biome_patch_size: float = 250.0:
+	set(value):
+		biome_patch_size = maxf(value, 1.0)
+		_biome_warp = null
 var biome_fixed: Biome = Biome.NONE
 ## Aquifers, Minecraft's: the map is cut into cells aquifer_size metres across, each dry or,
 ## water_share of them, holding water to a level of its own between WATER_FLOOR above
@@ -200,7 +208,7 @@ var _shaft_map: FastNoiseLite
 var _shallow_map: FastNoiseLite
 var _ceiling_noise: FastNoiseLite
 var _rubble_noise: FastNoiseLite
-var _biome_noise: FastNoiseLite
+var _biome_warp: FastNoiseLite
 var _pillar_noise: FastNoiseLite
 
 
@@ -534,21 +542,22 @@ func floor_slab(bed: float) -> float:
 	return minf(into - floor_thickness, floor_spacing - into)
 
 
-## The kind of cave the rock is in here: mossy near the surface where the biome noise runs
-## high, and below MOSSY_DEPTH dripstone, plain, fungal or crystal by the noise.
+## The kind of cave the rock is in here: the patch's kind, except that mossy only holds
+## above MOSSY_DEPTH and the deep kinds only below it (plain in their place otherwise).
 func biome(world_pos: Vector3, depth: float) -> Biome:
 	if biome_fixed != Biome.NONE:
 		return biome_fixed
-	var value: float = _biome_noise.get_noise_3dv(world_pos)
-	if depth < MOSSY_DEPTH:
-		return Biome.MOSSY if value > 0.15 else Biome.PLAIN
-	if value < -0.3:
-		return Biome.DRIPSTONE
-	if value > 0.45:
-		return Biome.CRYSTAL
-	if value > 0.15:
-		return Biome.FUNGAL
-	return Biome.PLAIN
+	if _biome_warp == null:
+		_biome_warp = BiomePatches.make_warp(world_seed + 919, biome_patch_size)
+	var pick: int = BiomePatches.pick(
+		world_pos.x, world_pos.z, world_seed + 919, biome_patch_size, _biome_warp, biome_weights
+	)
+	if pick < 0:
+		return Biome.PLAIN
+	var kind: Biome = pick as Biome
+	if (kind == Biome.MOSSY) != (depth < MOSSY_DEPTH):
+		return Biome.PLAIN
+	return kind
 
 
 ## The vertex tint of a cave wall in a biome: half-blended over the ground shader's own rock
@@ -581,6 +590,7 @@ func summary() -> String:
 		floors = "floors every %d m" % roundi(floor_spacing)
 	var carved: String = "" if systems == null else ", " + systems.summary()
 	carved += ", ceilings %.1f m, rubble %.1f m" % [ceiling_jag, rubble]
+	carved += ", caves " + BiomePatches.shares(BIOME_NAMES, biome_weights)
 	if water_top > -INF:
 		carved += (
 			", water in %d%% of aquifers %d m across"
@@ -634,7 +644,7 @@ func _make_noises() -> void:
 	_shallow_map = _noise(world_seed + 916, 1.0 / shallow_size, 1)
 	_ceiling_noise = _noise(world_seed + 917, 1.0 / 4.0, 2)
 	_rubble_noise = _noise(world_seed + 918, 1.0 / 2.5, 1)
-	_biome_noise = _noise(world_seed + 919, 1.0 / BIOME_SIZE, 1)
+	_biome_warp = null
 	_pillar_noise = _noise(world_seed + 920, PILLAR_FREQUENCY, 1)
 
 

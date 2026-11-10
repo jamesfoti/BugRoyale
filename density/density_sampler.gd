@@ -306,8 +306,8 @@ class WorldDensity:
 	## so it still reads as ground), and the metres over which it fades into the land.
 	const FLAT_SPOT_BLEND: float = 0.9
 	const FLAT_SPOT_FADE: float = 10.0
-	## Metres across a land biome is.
-	const LAND_BIOME_SIZE: float = 400.0
+	## The land biomes' names, in LandBiome order, for the rebuild line.
+	const LAND_BIOME_NAMES: PackedStringArray = ["meadow", "dryland", "marsh", "barrens"]
 
 	var noise_enabled: bool = true
 	var noise_amplitude: float = 3.0
@@ -379,10 +379,16 @@ class WorldDensity:
 	var flat_spots: Array[Vector4] = []
 	## Carves tunnels, caverns and bedrock under a solid-filled open terrain (null: none).
 	var caves: CaveCarver = null
-	## Land biomes: a slow noise LAND_BIOME_SIZE metres across says what the ground is like
-	## on top (land_biome), and the surface takes the biome's tint half-blended over the
-	## shader's own lawn and rock. A biome fixed here (not NONE) is everywhere.
-	var land_biome_fixed: LandBiome = LandBiome.NONE
+	## Land biomes: the map is cut into patches land_patch_size metres across (BiomePatches)
+	## and each draws its kind from land_weights, one weight per LandBiome in order, so the
+	## weights are the biomes' likelihoods; the surface takes the biome's tint half-blended
+	## over the shader's own lawn and rock. One weight alone is that biome everywhere; all
+	## zero is meadow.
+	var land_weights: PackedFloat32Array = [6.0, 2.0, 1.0, 1.0]
+	var land_patch_size: float = 400.0:
+		set(value):
+			land_patch_size = maxf(value, 1.0)
+			_land_warp = null
 	## Solid ground a map builder adds on top of the shape: the soil in a garden's raised beds,
 	## the footings under structures. Each is a stadium (a box with rounded ends) standing on
 	## its centre, see stadium_sdf; "tint" is the vertex colour its surface carries (alpha 0:
@@ -403,7 +409,8 @@ class WorldDensity:
 	var _region_noise: FastNoiseLite
 	var _detail_noise: FastNoiseLite
 	var _relief_noise: FastNoiseLite
-	var _land_biome_noise: FastNoiseLite
+	var _land_warp: FastNoiseLite
+	var _land_seed: int = 0
 	var _vein_noise: FastNoiseLite
 	var _ore_noise: FastNoiseLite
 
@@ -604,26 +611,17 @@ class WorldDensity:
 		_ore_noise.seed = noise_seed + 88
 		_ore_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 		_ore_noise.frequency = 0.14
-		_land_biome_noise = FastNoiseLite.new()
-		_land_biome_noise.seed = noise_seed + 1313
-		_land_biome_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-		_land_biome_noise.frequency = 1.0 / LAND_BIOME_SIZE
+		_land_seed = noise_seed + 1313
+		_land_warp = null
 
-	## The land biome at a column: meadow for most of the map, marsh where the biome noise
-	## runs low, dryland where it runs high and barrens where highest.
+	## The land biome of the patch at a column.
 	func land_biome(world_x: float, world_z: float) -> LandBiome:
-		if land_biome_fixed != LandBiome.NONE:
-			return land_biome_fixed
-		if _land_biome_noise == null:
-			return LandBiome.MEADOW
-		var value: float = _land_biome_noise.get_noise_2d(world_x, world_z)
-		if value < -0.35:
-			return LandBiome.MARSH
-		if value > 0.5:
-			return LandBiome.BARRENS
-		if value > 0.2:
-			return LandBiome.DRYLAND
-		return LandBiome.MEADOW
+		if _land_warp == null:
+			_land_warp = BiomePatches.make_warp(_land_seed, land_patch_size)
+		var pick: int = BiomePatches.pick(
+			world_x, world_z, _land_seed, land_patch_size, _land_warp, land_weights
+		)
+		return LandBiome.MEADOW if pick < 0 else pick as LandBiome
 
 	## The vertex tint of the surface in a land biome: half-blended over the ground shader's
 	## own lawn and rock (alpha 0.5), or the plain natural colour where the biome adds nothing.
@@ -638,9 +636,7 @@ class WorldDensity:
 		return TerrainMaterials.NATURAL_VERTEX_COLOR
 
 	func land_summary() -> String:
-		if land_biome_fixed != LandBiome.NONE:
-			return "land all %s" % LandBiome.keys()[land_biome_fixed + 1].to_lower()
-		return "land biomes by the seed"
+		return "land %s" % BiomePatches.shares(LAND_BIOME_NAMES, land_weights)
 
 	func _init_boxed_in_terrain_noise(
 		terrain_seed: int, surface_frequency: float, octaves: int, lacunarity: float, gain: float

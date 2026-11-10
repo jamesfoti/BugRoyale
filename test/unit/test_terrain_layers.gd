@@ -87,19 +87,27 @@ func test_the_cave_roll_sliders_travel_in_the_snapshot() -> void:
 
 ## The Cave Range pairs steer a seeded roll without moving its other numbers, and the shape
 ## (fade, shallow size) applies whatever the roll.
-## The Biomes switches travel in the snapshot and force one land biome and one cave biome
-## everywhere; on Seeded the land has more than one kind.
-func test_the_biome_switches_force_one_biome_everywhere_or_leave_the_seed_its_mix() -> void:
+## The Biomes weights travel in the snapshot and are the biomes' likelihoods: one weight alone
+## is that biome everywhere, a weight of 0 is never, and 1 against 1 is near half the patches
+## each; the cave weights the same, with mossy near the surface only.
+func test_the_biome_weights_are_the_biomes_likelihoods() -> void:
 	var world: OpenTerrain = OpenTerrain.new()
 	world.rebuild_on_ready = false
 	world.caves_enabled = true
 	world.solid_underside = true
 	add_child_autofree(world)
-	world.land_biome = OpenTerrain.LandBiome.MARSH
-	world.cave_biome = OpenTerrain.CaveBiome.CRYSTAL
+	world.land_meadow = 0.0
+	world.land_dryland = 0.0
+	world.land_marsh = 1.0
+	world.land_barrens = 0.0
+	world.cave_plain = 0.0
+	world.cave_mossy = 0.0
+	world.cave_dripstone = 0.0
+	world.cave_fungal = 0.0
+	world.cave_crystal = 1.0
 	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
-	assert_eq(settings.open_terrain_land_biome, OpenTerrain.LandBiome.MARSH)
-	assert_eq(settings.open_terrain_cave_biome, OpenTerrain.CaveBiome.CRYSTAL)
+	assert_eq(settings.open_terrain_land_weights, PackedFloat32Array([0.0, 0.0, 1.0, 0.0]))
+	assert_eq(settings.open_terrain_cave_weights, PackedFloat32Array([0.0, 0.0, 0.0, 0.0, 1.0]))
 	var forced: DensitySampler.WorldDensity = world._build_world_density(settings)
 	for spot: Vector2 in [Vector2.ZERO, Vector2(200.0, -150.0), Vector2(-240.0, 240.0)]:
 		assert_eq(
@@ -108,19 +116,30 @@ func test_the_biome_switches_force_one_biome_everywhere_or_leave_the_seed_its_mi
 		assert_eq(
 			forced.caves.biome(Vector3(spot.x, -60.0, spot.y), 60.0),
 			CaveCarver.Biome.CRYSTAL,
-			"crystal"
+			"crystal deep down"
 		)
-	assert_true(forced.land_summary().contains("marsh"), "the rebuild line says so")
-	world.land_biome = OpenTerrain.LandBiome.SEEDED
-	world.cave_biome = OpenTerrain.CaveBiome.SEEDED
-	var seeded: DensitySampler.WorldDensity = world._build_world_density(
+		assert_eq(
+			forced.caves.biome(Vector3(spot.x, -10.0, spot.y), 10.0),
+			CaveCarver.Biome.PLAIN,
+			"a deep kind is plain near the surface"
+		)
+	assert_true(forced.land_summary().contains("marsh 100%"), "the rebuild line says so")
+	world.land_meadow = 1.0
+	world.land_patch_size = 100.0
+	var halves: DensitySampler.WorldDensity = world._build_world_density(
 		world._make_settings_snapshot()
 	)
-	var kinds: Dictionary = {}
-	for step_x: int in 30:
-		for step_z: int in 30:
-			kinds[seeded.land_biome(float(step_x) * 40.0 - 600.0, float(step_z) * 40.0 - 600.0)] = true
-	assert_gt(kinds.size(), 1, "the seed lays more than one land biome")
+	var counts: Dictionary = {}
+	for step_x: int in 50:
+		for step_z: int in 50:
+			var kind: DensitySampler.WorldDensity.LandBiome = halves.land_biome(
+				float(step_x) * 40.0 - 1000.0, float(step_z) * 40.0 - 1000.0
+			)
+			counts[kind] = int(counts.get(kind, 0)) + 1
+	assert_false(counts.has(DensitySampler.WorldDensity.LandBiome.DRYLAND), "0 is never")
+	assert_false(counts.has(DensitySampler.WorldDensity.LandBiome.BARRENS), "0 is never")
+	var meadow: int = int(counts.get(DensitySampler.WorldDensity.LandBiome.MEADOW, 0))
+	assert_between(float(meadow) / 2500.0, 0.3, 0.7, "1 against 1 is near half the ground")
 	assert_eq(
 		DensitySampler.WorldDensity.land_tint(DensitySampler.WorldDensity.LandBiome.MEADOW),
 		TerrainMaterials.NATURAL_VERTEX_COLOR,
