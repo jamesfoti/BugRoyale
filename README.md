@@ -186,6 +186,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_surface_character.gd` | The seeded surface character: a seed always rolls the same one and every number lands in its range, neutral values are the plain noise exactly, a power above 1 lowers the ground and keeps it within the amplitude, a warp moves the hills within the amplitude, and a ridged mix lifts the crests |
 | `test_sky_chunks.gd` | The chunk builder's short cut: a chunk wholly above the ground is filled from its column heights without a voxel pass, a chunk the surface crosses is not, and a placed solid or a built edit in the sky brings the voxel pass back |
 | `test_footings.gd` | The footings under structures: solid from bedrock to the dirt where a 3D-noise underside is a sponge, kept clear of the caves under a solid one, dug as the map's own ground where a bed's soil digs as dirt, and sized by the terrain from its own bedrock to cover a footprint's corners |
+| `test_loose_rock.gd` | The loose rock pass on a chunk's field: a lone solid sample with air all round it is cleared and a lump over the limit kept, a lump on a chunk seam is judged the same from both sides, rock built with the brush stays while rock a dig thinned goes, a row of cave chunks loses only rock and agrees on every shared face, and the limit travels in the settings |
 
 GUT and `test/` are excluded from both export presets, so nothing test-related ships.
 
@@ -337,8 +338,16 @@ switch, a chance and ranges, and each named in the rebuild line:
   together. Where two features meet, their air blends over 2 m, so a tunnel joins a room
   or crosses a floor in a rounded mouth instead of leaving a sliver of wall thinner than
   a voxel (the floating pieces those made: at 1 m voxels the blend takes five in six of
-  them away). The rebuild line names every number, and `tools/cave_slice.gd` paints a
-  seed's slice in a second to see them.
+  them away). What still floats is mostly the grid's own, a wall thinner than two voxels
+  sampled into a lone solid cell, and the chunk builder clears it before meshing: **Loose
+  Rock Voxels** under Meshing on the node (8 by default, 0 for none) is the biggest lump
+  of rock with air all round it that goes, unless the brush built it. A lump on a chunk
+  seam is judged the same from both sides, so the meshes never part, which means a lump
+  reaching more than a voxel past a seam stays. On the lab's slab at 4 m it takes 71 of
+  79 floating pieces, at 2 m 74 of 77, for a twentieth of the sampling time; what a dig
+  cuts loose and leaves under the limit vanishes too, uncredited to the stock. The
+  rebuild line names every number, and `tools/cave_slice.gd` paints a seed's slice in a
+  second to see them.
 - The ground shader draws **strata** on the rock faces: a dark band every 2.5 m of
   altitude, bent by a slow noise so the beds tilt and fold.
 

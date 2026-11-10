@@ -95,6 +95,13 @@ const CAPSULE_SAMPLES: int = 6
 	set(value):
 		generate_collision = value
 		_request_rebuild()
+## Floating rock: a lump of solid voxels with air all round it, up to this many voxels, is
+## cleared from a chunk before it is meshed (LooseRock), unless it was built with the brush.
+## 0 keeps every lump. A lump that straddles a chunk seam by more than a voxel stays too.
+@export_range(0, 64, 1) var loose_rock_voxels: int = 8:
+	set(value):
+		loose_rock_voxels = value
+		_request_rebuild()
 @export var terrain_material: Material
 
 @export_group("Runtime")
@@ -681,6 +688,7 @@ func _make_settings_snapshot() -> SettingsSnapshot:
 	settings.noise_lacunarity = noise_lacunarity
 	settings.noise_gain = noise_gain
 	settings.generate_collision = generate_collision
+	settings.loose_rock_voxels = loose_rock_voxels
 	settings.caves_enabled = caves_enabled
 	settings.material = _effective_material()
 	settings.bounds_center = global_position
@@ -951,6 +959,8 @@ class SettingsSnapshot:
 	var noise_lacunarity: float = 2.0
 	var noise_gain: float = 0.5
 	var generate_collision: bool = true
+	## Floating rock of up to this many voxels is cleared from a chunk's field (LooseRock).
+	var loose_rock_voxels: int = 8
 	var caves_enabled: bool = false
 	var material: Material = null
 	var bounds_center: Vector3 = Vector3.ZERO

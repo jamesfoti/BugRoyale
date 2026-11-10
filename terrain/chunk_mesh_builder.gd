@@ -100,6 +100,23 @@ static func build_chunk_into(
 	var field: SignedDensityField = DensitySampler.build_chunk_field(
 		density, sample_size, grid_world_origin, grid_offset, world_step
 	)
+	# A chunk with rock and air in it may hold floating rock; a sky or solid chunk cannot.
+	if (
+		settings.loose_rock_voxels > 0
+		and not field.sky
+		and field.min_value < settings.iso_level
+		and field.max_value >= settings.iso_level
+	):
+		LooseRock.clear(
+			field,
+			density,
+			grid_world_origin,
+			grid_offset,
+			world_step,
+			cells_per_axis,
+			settings.iso_level,
+			settings.loose_rock_voxels
+		)
 	chunk_build_result.mesh_result = FlyingEdgesMesher.build_mesh(
 		field, extent, settings.iso_level, grid_offset, grid_world_origin, world_center, density
 	)
