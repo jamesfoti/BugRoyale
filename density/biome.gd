@@ -37,10 +37,13 @@ func to_data() -> Dictionary:
 	}
 
 
-## The data of a list of kinds, skipping empty slots.
-static func data_of(biomes: Array) -> Array[Dictionary]:
+## The data of a list of kinds, skipping empty slots (and a list that is not one at all, as
+## a scene saved by an editor running an older script can hold).
+static func data_of(biomes: Variant) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for biome: Variant in biomes:
+	if not (biomes is Array):
+		return out
+	for biome: Variant in biomes as Array:
 		if biome is Biome:
 			out.append((biome as Biome).to_data())
 	return out

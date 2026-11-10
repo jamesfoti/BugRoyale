@@ -140,6 +140,8 @@ func test_the_biome_lists_and_their_weights_say_what_lies_where() -> void:
 	assert_eq(Biome.tint_of(meadow.to_data()), TerrainMaterials.NATURAL_VERTEX_COLOR)
 	assert_almost_eq(Biome.tint_of(marsh.to_data()).a, 0.5, 0.001, "the others blend half-way")
 	assert_eq(Biome.tint_of({}), TerrainMaterials.NATURAL_VERTEX_COLOR, "no kind, no tint")
+	assert_eq(Biome.data_of(null).size(), 0, "no list is no kinds")
+	assert_eq(Biome.data_of([null, meadow]).size(), 1, "an empty slot is skipped")
 
 
 func test_the_cave_ranges_and_shape_travel_and_steer_the_roll() -> void:
