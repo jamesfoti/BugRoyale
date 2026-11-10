@@ -4,6 +4,10 @@ extends GutTest
 ## surface, the top few metres stay ground for burrows, there is air in the tunnels and the
 ## caverns further down but the ground is mostly ground, ravines open the surface on some
 ## seeds and pinch out at their depth, the warp bends every cave read, and bedrock is solid.
+## Over the noise, the seed's structure: lean regions stay solid, seams of rock part the
+## bands, bedding floors cut the caverns but not the tunnels, the thickness noise swells
+## and pinches the tunnels, shafts run vertical through the seams, and halls open only in
+## the deep band.
 
 const SEED: int = 7
 const BEDROCK_Y: float = -45.5
@@ -42,17 +46,45 @@ func test_the_same_seed_carves_the_same_caves() -> void:
 
 func test_every_number_lands_in_its_range() -> void:
 	var cut: int = 0
+	var sparse: int = 0
+	var floored: int = 0
 	for value: int in range(1, 40):
 		var carver: CaveCarver = CaveCarver.from_seed(value, BEDROCK_Y)
-		assert_between(carver.tunnel_frequency, 0.028, 0.045, "tunnel frequency, seed %d" % value)
-		assert_between(carver.tunnel_threshold, 0.14, 0.2, "tunnel band, seed %d" % value)
-		assert_between(carver.cavern_cutoff, 0.42, 0.55, "cavern cutoff, seed %d" % value)
+		assert_between(carver.tunnel_frequency, 0.022, 0.05, "tunnel frequency, seed %d" % value)
+		assert_between(carver.tunnel_threshold, 0.12, 0.22, "tunnel band, seed %d" % value)
+		assert_between(carver.cavern_cutoff, 0.38, 0.6, "cavern cutoff, seed %d" % value)
+		assert_between(carver.cavern_squash, 1.2, 2.2, "cavern squash, seed %d" % value)
 		assert_between(carver.tunnel_depth, 4.0, 8.0, "tunnel depth, seed %d" % value)
 		assert_between(carver.cavern_depth, 16.0, 26.0, "cavern depth, seed %d" % value)
 		assert_gt(carver.cavern_depth, carver.tunnel_depth, "caverns lie under the tunnels")
 		assert_almost_eq(carver.floor_y, BEDROCK_Y, 0.001)
 		assert_between(carver.warp_metres, 4.0, 10.0, "warp, seed %d" % value)
 		assert_between(carver.warp_frequency, 0.005, 0.01, "warp frequency, seed %d" % value)
+		assert_between(carver.region_size, 150.0, 400.0, "region size, seed %d" % value)
+		if carver.region_lean > 0.0:
+			sparse += 1
+			assert_between(carver.region_lean, 0.5, 0.8, "lean rock, seed %d" % value)
+		assert_between(carver.region_rich, 1.0, 1.25, "rich rock, seed %d" % value)
+		assert_between(carver.region_bias, -0.2, 0.2, "region bias, seed %d" % value)
+		assert_between(carver.thickness_size, 40.0, 80.0, "thickness size, seed %d" % value)
+		assert_between(carver.thickness_thin, 0.5, 0.7, "thin tunnels, seed %d" % value)
+		assert_between(carver.thickness_thick, 1.2, 1.5, "thick tunnels, seed %d" % value)
+		assert_between(carver.deep_depth, 120.0, 260.0, "deep band, seed %d" % value)
+		assert_between(carver.deep_tunnels, 0.3, 0.7, "deep tunnels, seed %d" % value)
+		assert_between(carver.deep_rooms, 1.2, 1.6, "deep rooms, seed %d" % value)
+		assert_between(carver.seam_width, 3.0, 8.0, "seam width, seed %d" % value)
+		assert_between(carver.seam_strength, 0.5, 1.0, "seam strength, seed %d" % value)
+		assert_between(carver.band_wave, 5.0, 20.0, "band wave, seed %d" % value)
+		if carver.floor_thickness > 0.0:
+			floored += 1
+			assert_between(carver.floor_spacing, 24.0, 48.0, "floor spacing, seed %d" % value)
+			assert_between(carver.floor_thickness, 2.0, 4.0, "floor thickness, seed %d" % value)
+		assert_between(carver.hall_size, 120.0, 200.0, "hall size, seed %d" % value)
+		assert_between(carver.hall_cutoff, 0.55, 0.7, "hall cutoff, seed %d" % value)
+		assert_between(carver.shaft_frequency, 0.009, 0.015, "shaft frequency, seed %d" % value)
+		assert_between(carver.shaft_width, 0.12, 0.2, "shaft width, seed %d" % value)
+		assert_between(carver.shaft_lean, 0.08, 0.2, "shaft lean, seed %d" % value)
+		assert_between(carver.shaft_share, 0.35, 0.55, "shaft share, seed %d" % value)
 		if carver.ravine_width > 0.0:
 			cut += 1
 			assert_between(carver.ravine_width, 0.05, 0.08, "ravine band, seed %d" % value)
@@ -60,6 +92,8 @@ func test_every_number_lands_in_its_range() -> void:
 			assert_between(carver.ravine_depth, 8.0, 18.0, "ravine depth, seed %d" % value)
 			assert_between(carver.ravine_lean, 0.25, 0.6, "ravine lean, seed %d" % value)
 	assert_between(cut, 8, 32, "about half the seeds cut ravines")
+	assert_between(sparse, 8, 32, "about half the seeds keep sparse tunnels in lean rock")
+	assert_between(floored, 12, 36, "six seeds in ten floor their caverns")
 
 
 func test_the_warp_bends_the_caves_and_reads_them_in_place_at_zero() -> void:
@@ -204,6 +238,8 @@ func test_ravines_open_the_surface_and_pinch_out_at_their_depth() -> void:
 	carver.tunnel_threshold = 0.0
 	carver.cavern_cutoff = 2.0
 	carver.sinkhole_threshold = 2.0
+	carver.shaft_width = 0.0
+	carver.hall_cutoff = 2.0
 	carver.ravine_width = 0.06
 	carver.ravine_depth = 12.0
 	var open_at_surface: int = 0
@@ -234,6 +270,161 @@ func test_ravines_open_the_surface_and_pinch_out_at_their_depth() -> void:
 	carver.ravine_width = 0.0
 	assert_eq(carver.air(Vector3(3.0, -0.1, 3.0), 0.1), -INF, "without ravines nothing reaches")
 	assert_true("no ravines" in carver.summary(), carver.summary())
+
+
+## A carver with the structure stripped down to what a test looks at: deep bedrock, the
+## ravines, shafts and halls off, no band wave, and the regions and seams at full richness.
+func _plain_carver() -> CaveCarver:
+	var carver: CaveCarver = CaveCarver.from_seed(SEED, -500.0)
+	carver.ravine_width = 0.0
+	carver.shaft_width = 0.0
+	carver.hall_cutoff = 2.0
+	carver.band_wave = 0.0
+	carver.seam_strength = 0.0
+	carver.region_lean = 1.0
+	carver.region_rich = 1.0
+	return carver
+
+
+## How many of a 40 by 40 grid of columns, 7 m apart, are air at this depth.
+func _air_columns(carver: CaveCarver, depth: float) -> int:
+	var air: int = 0
+	for step_x: int in 40:
+		for step_z: int in 40:
+			var spot := Vector3(float(step_x) * 7.0 - 140.0, -depth, float(step_z) * 7.0 - 140.0)
+			if carver.air(spot, depth) > 0.0:
+				air += 1
+	return air
+
+
+## Regions: on a seed whose lean rock is solid, no tunnel or cavern opens where the region
+## noise runs low, and they are back where it runs high; lean 1 is the old even sponge.
+func test_lean_regions_stay_solid_and_rich_ones_are_riddled() -> void:
+	var carver: CaveCarver = _plain_carver()
+	carver.region_lean = 0.0
+	var lean: int = 0
+	var lean_air: int = 0
+	var rich: int = 0
+	var rich_air: int = 0
+	for step_x: int in 40:
+		for step_z: int in 40:
+			var spot := Vector3(float(step_x) * 7.0 - 140.0, -60.0, float(step_z) * 7.0 - 140.0)
+			var richness: float = carver.region_richness(spot)
+			if richness <= 0.0:
+				lean += 1
+				if carver.air(spot, 60.0) > 0.0:
+					lean_air += 1
+			elif richness >= 1.0:
+				rich += 1
+				if carver.air(spot, 60.0) > 0.0:
+					rich_air += 1
+	assert_gt(lean, 100, "the grid crosses lean rock")
+	assert_gt(rich, 100, "and rich rock")
+	assert_eq(lean_air, 0, "lean rock is solid")
+	assert_gt(rich_air, rich / 20, "rich rock has caves")
+	carver.region_lean = 1.0
+	assert_almost_eq(carver.region_richness(Vector3(50.0, -60.0, -30.0)), 1.0, 0.0001)
+
+
+## Seams: at full strength the ground at the cavern depth is rock right across, with the
+## tunnels above it and the caverns below it open; at no strength the seam is gone.
+func test_seams_are_rock_between_the_bands() -> void:
+	var carver: CaveCarver = _plain_carver()
+	carver.seam_strength = 1.0
+	var above: float = carver.cavern_depth - carver.seam_width - 6.0
+	var below: float = carver.cavern_depth + carver.seam_width + 6.0
+	assert_eq(_air_columns(carver, carver.cavern_depth), 0, "rock across the seam")
+	assert_gt(_air_columns(carver, above), 0, "tunnels above it")
+	assert_gt(_air_columns(carver, below), 0, "caverns below it")
+	assert_almost_eq(carver.seam(carver.deep_depth), 0.0, 0.0001, "the deep seam too")
+	carver.seam_strength = 0.0
+	assert_gt(_air_columns(carver, carver.cavern_depth), 0, "no seam, caves through it")
+
+
+## Bedding floors: inside a slab no cavern is air, between slabs they are, and the tunnels
+## run through the slabs.
+func test_bedding_floors_cut_the_caverns_but_not_the_tunnels() -> void:
+	var carver: CaveCarver = _plain_carver()
+	carver.floor_spacing = 30.0
+	carver.floor_thickness = 3.0
+	assert_lt(carver.floor_slab(61.0), 0.0, "a metre into a slab")
+	assert_almost_eq(carver.floor_slab(75.0), 12.0, 0.0001, "12 m to the next slab")
+	carver.tunnel_threshold = 0.0
+	assert_eq(_air_columns(carver, 61.0), 0, "no cavern inside a slab")
+	assert_gt(_air_columns(carver, 75.0), 0, "caverns between the slabs")
+	carver.tunnel_threshold = 0.2
+	carver.cavern_cutoff = 2.0
+	assert_gt(_air_columns(carver, 61.0), 0, "tunnels run through a slab")
+	carver.floor_thickness = 0.0
+	assert_eq(carver.floor_slab(61.0), INF, "no floors")
+
+
+func test_the_thickness_noise_swells_and_pinches_the_tunnels() -> void:
+	var carver: CaveCarver = _plain_carver()
+	carver.thickness_thin = 0.5
+	carver.thickness_thick = 1.5
+	var thinnest: float = INF
+	var thickest: float = -INF
+	for step_x: int in 30:
+		for step_z: int in 30:
+			var spot := Vector3(float(step_x) * 9.0 - 135.0, -40.0, float(step_z) * 9.0 - 135.0)
+			var factor: float = carver.thickness(spot)
+			assert_between(factor, 0.5, 1.5)
+			thinnest = minf(thinnest, factor)
+			thickest = maxf(thickest, factor)
+	assert_lt(thinnest, 0.8, "crawls")
+	assert_gt(thickest, 1.2, "and chambers")
+	carver.thickness_thin = 1.0
+	carver.thickness_thick = 1.0
+	assert_almost_eq(carver.thickness(Vector3(5.0, -40.0, 5.0)), 1.0, 0.0001, "no thickness")
+
+
+## Shafts alone: a column open 100 m down is open 10 m above and below too, and they cross
+## a solid seam.
+func test_shafts_are_vertical_and_cross_the_seams() -> void:
+	var carver: CaveCarver = _plain_carver()
+	carver.tunnel_threshold = 0.0
+	carver.cavern_cutoff = 2.0
+	carver.sinkhole_threshold = 2.0
+	carver.seam_strength = 1.0
+	carver.shaft_width = 0.16
+	carver.shaft_share = 0.3
+	var open_columns: int = 0
+	var continuous: int = 0
+	for step_x: int in 60:
+		for step_z: int in 60:
+			var x: float = float(step_x) * 5.0 - 150.0
+			var z: float = float(step_z) * 5.0 - 150.0
+			if carver.air(Vector3(x, -100.0, z), 100.0) <= 0.0:
+				continue
+			open_columns += 1
+			if (
+				carver.air(Vector3(x, -90.0, z), 90.0) > 0.0
+				and carver.air(Vector3(x, -110.0, z), 110.0) > 0.0
+			):
+				continuous += 1
+	assert_gt(open_columns, 0, "some shaft 100 m down")
+	assert_gt(continuous, open_columns * 3 / 4, "and it runs on above and below")
+	assert_gt(_air_columns(carver, carver.cavern_depth), 0, "shafts cross the cavern seam")
+	carver.shaft_width = 0.0
+	assert_eq(_air_columns(carver, 100.0), 0, "no shafts")
+
+
+## Halls alone: nothing above the deep band, chambers in it, none with the cutoff off.
+func test_halls_open_only_in_the_deep_band() -> void:
+	var carver: CaveCarver = _plain_carver()
+	carver.tunnel_threshold = 0.0
+	carver.cavern_cutoff = 2.0
+	carver.sinkhole_threshold = 2.0
+	carver.deep_depth = 200.0
+	carver.hall_cutoff = 0.45
+	assert_eq(_air_columns(carver, 150.0), 0, "no hall above the deep band")
+	var deep_air: int = 0
+	for depth: float in [230.0, 260.0, 290.0]:
+		deep_air += _air_columns(carver, depth)
+	assert_gt(deep_air, 0, "a hall in the deep band")
+	carver.hall_cutoff = 2.0
+	assert_eq(_air_columns(carver, 260.0), 0, "no halls")
 
 
 func test_a_carver_for_settings_puts_bedrock_above_the_grid_floor() -> void:

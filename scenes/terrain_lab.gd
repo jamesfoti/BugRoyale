@@ -15,7 +15,9 @@ extends Node3D
 ## differ in hill size and height as well as in their regions, curve, relief and caves.
 ## Drop the voxel size to 2 m to see the terraces and ravines, 1 m for play quality. For
 ## the underground in cross-section: Chunks 16, 16, 3, Surface Layer 2, Boxed Edges off,
-## and the camera off to one side of the slab. Or fly below the surface: the terrain's faces
+## and the camera off to one side of the slab, at 2 m so the tunnels resolve (at 4 m only
+## the caverns show); tools/cave_slice.gd paints the raw cave field of a seed in a second.
+## Or fly below the surface: the terrain's faces
 ## only draw from the air side, so rock is see-through from inside. Run as a scene (F6) it
 ## builds on ready and the camera looks down on it.
 

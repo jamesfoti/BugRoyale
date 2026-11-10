@@ -21,7 +21,8 @@ Play
   across, three chunks deep, dug at 1 m voxels), and every match's seed carves a new underworld into them
   (CaveCarver): worm tunnels from a few metres down, caverns from twenty, a few sinkholes
   open to the sky, on half the seeds ravines cut into the surface with leaning walls, and
-  bedrock at the bottom. The terrarium is a 5 m tank on a coffee
+  bedrock at the bottom; over the noise, regions of riddled and solid rock, depth bands
+  parted by seams, bedding floors, shafts and, far down, halls. The terrarium is a 5 m tank on a coffee
   table in a room scaled to match. In the garden the soil in the raised beds is terrain
   too, dug and built on like the lawn. Whatever stands on the dirt (the crawlspace's piers
   and furnace, the garden's beds) has a footing of solid ground from bedrock up, so it
@@ -180,7 +181,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_world_save.gd` | Worlds on disk: a save round-trips with its voxel keys, seed and summary; delete removes it; nothing is written while saving is off |
 | `test_queen_ant.gd` | The queen's nest plan: a shaft of carves stepping down and away from the entrance, the chamber below it, every carve the pickaxe's; the way she goes down ends on the chamber floor |
 | `test_elements.gd` | The elements in the ground: the table lists each once with its symbol, number, depth and colour; under the topsoil the stone has ore pockets, each element only from its own depth down and the pockets a share of the stone; a seed always draws the same ore; a dug element lands in the stock and builds |
-| `test_cave_carver.gd` | The seeded underworld: a seed always carves the same caves and every number lands in range; under a solid open terrain the surface is still the surface, the ground is metres below it wherever no cave is near, there is air in the tunnels but the ground is mostly ground, and bedrock is solid |
+| `test_cave_carver.gd` | The seeded underworld: a seed always carves the same caves and every number lands in range; under a solid open terrain the surface is still the surface, the ground is metres below it wherever no cave is near, there is air in the tunnels but the ground is mostly ground, and bedrock is solid; lean regions stay solid, seams part the bands, floors cut the caverns but not the tunnels, shafts run vertical and halls open only in the deep band |
 | `test_terraces.gd` | The seeded terraces: a seed always rolls the same ones and every number lands in range, never means the plain surface, always means the heights sit on the treads, and the sponge underside is scaled to metres |
 | `test_surface_character.gd` | The seeded surface character: a seed always rolls the same one and every number lands in its range, neutral values are the plain noise exactly, a power above 1 lowers the ground and keeps it within the amplitude, a warp moves the hills within the amplitude, and a ridged mix lifts the crests |
 | `test_sky_chunks.gd` | The chunk builder's short cut: a chunk wholly above the ground is filled from its column heights without a voxel pass, a chunk the surface crosses is not, and a placed solid or a built edit in the sky brings the voxel pass back |
@@ -236,6 +237,14 @@ hides the HUD:
 
 ```powershell
 godot --path . res://tools/screenshot.tscn --resolution 1152x648 -- map=crawlspace mode=burrow frames=120 hud=0 cam=-60,20,-60 look=-30,0,-20 out=C:/temp/floor.png
+```
+
+`tools/cave_slice.gd` paints a seed's underworld as a vertical slice, one pixel a metre,
+white where the cave carver puts air, without building a chunk: the fast way to see what
+a seed's caves are made of. Headless, a second a seed:
+
+```powershell
+godot --headless --path . --script res://tools/cave_slice.gd -- seed=7 out=C:/temp/slice.png
 ```
 
 Map ids: `battlefield`, `terrarium`, `crawlspace`.
@@ -308,6 +317,21 @@ switch, a chance and ranges, and each named in the rebuild line:
   the ground is blended level, fading into the land over 10 m; colony nests go on them.
 - The caves' noises are read through a slow **warp** of 4 to 10 m on every seed, so the
   tunnels bend and the ravines wander instead of following the noise's own lines.
+- Noise alone carves the same sponge everywhere, so the seed lays structure over the
+  caves too. **Regions**: a 3D noise 150 to 400 m across says where the rock is riddled
+  and where it is lean, solid on half the seeds and sparse on the rest, so a map has
+  cave country and dead rock. **Depth bands**, Terraria's layers: burrow ground, then
+  tunnels, then caverns, then from 120 to 260 m down a deep band where the tunnels thin
+  and the rooms grow, with **seams** of near-solid rock a few metres thick between the
+  bands, bent by a slow wave so they undulate like beds. A **thickness** noise swells the
+  tunnels into chambers and pinches them to crawls along their length (Minecraft's
+  spaghetti thickness). The caverns are wider than they are tall and, on six seeds in
+  ten, cut by **bedding floors** every 24 to 48 m, so the rooms have floors to stand on;
+  the tunnels run through them. **Halls**: a very slow noise opens a chamber or two a
+  world in the deep band, far bigger than any cavern. **Shafts**: in spots a map picks,
+  vertical pits run from the tunnels to bedrock through the seams, tying the bands
+  together. The rebuild line names every number, and `tools/cave_slice.gd` paints a
+  seed's slice in a second to see them.
 - The ground shader draws **strata** on the rock faces: a dark band every 2.5 m of
   altitude, bent by a slow noise so the beds tilt and fold.
 
@@ -345,7 +369,9 @@ function, so structures, footings and spawns stand on the shelves. The ground is
 distance field on both sides of the surface, so these are the only terraces: the voxel
 stair-steps that steep slopes used to show were the mesher interpolating between a capped
 value inside the ground and metres outside it. Fly the editor camera below the surface to see the tunnels and caverns: terrain
-faces only draw from the air side, so rock is see-through from inside. The built chunks
+faces only draw from the air side, so rock is see-through from inside. At 4 m voxels the
+tunnels (about 3 m across) do not resolve and the slab shows only the caverns; 2 m is
+the honest cross-section, or `tools/cave_slice.gd` for the raw field in a second. The built chunks
 are dropped before the scene is saved and rebuilt after, so the file stays small.
 
 ### Mode tuning
