@@ -5,7 +5,8 @@ extends GutTest
 ## height curve's floor fills the valleys flat and its cliff band steepens the climb, both
 ## keeping the height rising with the noise; the relief shows only on steep faces within its
 ## band and never above the sky chunks' reach; and flat spots are level at their centre, land
-## inside the bounds and apart from each other.
+## inside the bounds and apart from each other; and Surface Layer moves the surface from
+## the box's centre to the chosen layer from the top.
 
 const SEED: int = 7
 const AMPLITUDE: float = 20.0
@@ -48,6 +49,25 @@ func _settings(roll: bool) -> ChunkedTerrainWorld.SettingsSnapshot:
 	settings.noise_gain = 0.5
 	settings.open_terrain_noise_roll = OpenTerrain.NoiseRoll.SEEDED if roll else 0
 	return settings
+
+
+func test_surface_layer_puts_the_surface_in_that_layer_from_the_top() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.rebuild_on_ready = false
+	world.chunk_size = 32.0
+	world.chunks_y = 16
+	add_child_autofree(world)
+	var centred: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	assert_almost_eq(centred.open_terrain_surface_offset, 0.0, 0.001, "layer 0 is the centre")
+	world.surface_layer = 2
+	var raised: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	# 16 layers of 32 m: the top is 256 m up; the middle of the second layer is 48 m under it.
+	assert_almost_eq(raised.open_terrain_surface_offset, 256.0 - 48.0, 0.001)
+	world.surface_height_offset = -4.0
+	var nudged: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	assert_almost_eq(
+		nudged.open_terrain_surface_offset, 256.0 - 52.0, 0.001, "the offset still applies"
+	)
 
 
 func test_the_noise_roll_draws_in_range_and_the_same_seed_the_same() -> void:

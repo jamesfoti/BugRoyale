@@ -13,8 +13,9 @@ extends Node3D
 ## The grid is the maps' own, 16 by 16 chunks of 32 m and three deep, at 4 m voxels so a
 ## seed builds in a few seconds, with the noise rolled from the seed (Noise Roll) so seeds
 ## differ in hill size and height as well as in their regions, curve, relief and caves.
-## Drop the voxel size to 2 m to see the terraces and ravines, 1 m for play quality. Fly
-## the editor camera below the surface to see the tunnels and caverns: the terrain's faces
+## Drop the voxel size to 2 m to see the terraces and ravines, 1 m for play quality. For
+## the underground in cross-section: Chunks 16, 16, 3, Surface Layer 2, Boxed Edges off,
+## and the camera off to one side of the slab. Or fly below the surface: the terrain's faces
 ## only draw from the air side, so rock is see-through from inside. Run as a scene (F6) it
 ## builds on ready and the camera looks down on it.
 

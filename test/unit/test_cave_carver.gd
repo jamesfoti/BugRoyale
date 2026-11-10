@@ -144,6 +144,24 @@ func test_a_caves_air_is_a_distance_on_both_sides_of_its_wall() -> void:
 	assert_gt(unreachable, 1600 / 2, "a metre down, no cave reaches most of the ground")
 
 
+## The widening stops at WIDEN_MAX, so 300 m down the ground is as dense as the maps' bottom.
+func test_deep_ground_is_still_mostly_ground() -> void:
+	var carver: CaveCarver = CaveCarver.from_seed(SEED, -500.0)
+	carver.ravine_width = 0.0
+	var air: int = 0
+	var total: int = 0
+	for step_x: int in 40:
+		for step_z: int in 40:
+			var spot := Vector3(float(step_x) * 7.0 - 140.0, -300.0, float(step_z) * 7.0 - 140.0)
+			total += 1
+			if carver.air(spot, 300.0) > 0.0:
+				air += 1
+	assert_gt(air, total / 20, "there are caves 300 m down")
+	assert_lt(
+		air, total * 45 / 100, "but the ground is mostly ground, as dense as the maps' bottom"
+	)
+
+
 func test_bedrock_is_solid_everywhere() -> void:
 	var ground: DensitySampler.WorldDensity = _ground()
 	for step: int in 60:

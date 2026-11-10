@@ -45,6 +45,15 @@ enum Relief { SEEDED, NONE }
 		heightmap = value
 		_heightmap_image_cache = null
 		_request_rebuild()
+## Which chunk layer from the top the surface sits in: 0 keeps it at the box's centre (the
+## maps, half the box sky and half ground), 1 and above put it in the middle of that
+## layer counted from the top, so the chunks below are all ground (a deep world). The hills
+## need headroom: amplitude plus offset must stay under the layers above the surface, half
+## a chunk for layer 1, a chunk and a half for layer 2.
+@export_range(0, 32, 1) var surface_layer: int = 0:
+	set(value):
+		surface_layer = maxi(value, 0)
+		_request_rebuild()
 ## Raises or lowers the ground surface in meters (relative to this node's Y).
 @export_range(-8.0, 8.0, 0.5) var surface_height_offset: float = 0.0:
 	set(value):
@@ -307,6 +316,11 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_solid_fill = solid_underside
 	settings.open_terrain_heightmap_image = _duplicate_heightmap_image()
 	settings.open_terrain_surface_offset = surface_height_offset
+	if surface_layer > 0:
+		# From the box's centre up to the middle of the chosen layer, counted from the top.
+		settings.open_terrain_surface_offset += (
+			settings.bounds_half.y - (float(surface_layer) - 0.5) * settings.chunk_world_size
+		)
 	settings.open_terrain_terraces = terraces
 	settings.open_terrain_terrace_chance = terrace_chance
 	settings.open_terrain_terrace_step = terrace_step

@@ -21,8 +21,12 @@ const FADE: float = 3.0
 const FLOOR_MARGIN: float = 2.5
 ## Nothing is carved this close above bedrock (a floor to stand on in the lowest rooms).
 const FLOOR_CLEARANCE: float = 1.5
-## How much wider (as a share of the band) tunnels and caverns get per metre of depth.
+## How much wider (as a share of the band) tunnels and caverns get per metre of depth, and
+## the most they widen: reached 50 m down, where the maps' lowest layer already is, so a deep
+## world's lower layers are that dense and no denser (unchecked, 350 m down the tunnel band was
+## three times its width and the cavern cutoff near zero).
 const WIDEN_PER_METRE: float = 0.006
+const WIDEN_MAX: float = 1.3
 ## The share of seeds that cut ravines.
 const RAVINE_CHANCE: float = 0.5
 
@@ -129,7 +133,7 @@ func carve(value: float, world_pos: Vector3, surface_height: float) -> float:
 ## to nothing above its start depth, and a sinkhole lets a tunnel reach the sky. A ravine is
 ## the other way up: widest at the surface, pinching out at its depth.
 func air(world_pos: Vector3, depth: float) -> float:
-	var widen: float = 1.0 + depth * WIDEN_PER_METRE
+	var widen: float = minf(1.0 + depth * WIDEN_PER_METRE, WIDEN_MAX)
 	# Where the 3D noises are read: pushed sideways by the warp (two reads of one slow
 	# noise, offset for the second axis). The sinkhole read stays put, it is a map, not
 	# a shape.

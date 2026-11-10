@@ -311,6 +311,15 @@ switch, a chance and ranges, and each named in the rebuild line:
 - The ground shader draws **strata** on the rock faces: a dark band every 2.5 m of
   altitude, bent by a slow noise so the beds tilt and fold.
 
+For a deep world, **Surface Layer** on the `TerrainWorld` node moves the surface from the
+box's centre (the maps, half sky and half ground) to the middle of a chosen chunk layer
+counted from the top, so every layer added below is ground. The caves' widening with
+depth stops at 50 m (1.3 times their size, the maps' own bottom), so the deep layers are no
+emptier than that. To
+see the underground in cross-section, set the grid to 16 by 16 by 3, Surface Layer 2 and
+Boxed Edges off: the slab's sides are open cuts, and the editor camera off to one side
+sees the caves sliced through.
+
 The layers cost little per column, but a tall seed spreads the surface through every
 chunk layer, so none are sky and the cave pass runs everywhere: a 512 m seed with
 everything on builds in about 2.5 s at 4 m voxels, 16 s at 2 m and 80 s at 1 m,
