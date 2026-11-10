@@ -334,7 +334,10 @@ switch, a chance and ranges, and each named in the rebuild line:
   the tunnels run through them. **Halls**: a very slow noise opens a chamber or two a
   world in the deep band, far bigger than any cavern. **Shafts**: in spots a map picks,
   vertical pits run from the tunnels to bedrock through the seams, tying the bands
-  together. The rebuild line names every number, and `tools/cave_slice.gd` paints a
+  together. Where two features meet, their air blends over 2 m, so a tunnel joins a room
+  or crosses a floor in a rounded mouth instead of leaving a sliver of wall thinner than
+  a voxel (the floating pieces those made: at 1 m voxels the blend takes five in six of
+  them away). The rebuild line names every number, and `tools/cave_slice.gd` paints a
   seed's slice in a second to see them.
 - The ground shader draws **strata** on the rock faces: a dark band every 2.5 m of
   altitude, bent by a slow noise so the beds tilt and fold.

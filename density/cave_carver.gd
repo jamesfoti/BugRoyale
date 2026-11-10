@@ -41,6 +41,10 @@ const WIDEN_PER_METRE: float = 0.006
 const WIDEN_MAX: float = 1.3
 ## The share of seeds that cut ravines, and the share whose caverns have bedding floors.
 const RAVINE_CHANCE: float = 0.5
+## Metres over which one feature's air blends into another's where they meet, so a tunnel
+## running into a room or through a floor joins it in a rounded mouth instead of leaving
+## a sliver of wall thinner than a voxel between them (the floating pieces those make).
+const BLEND: float = 2.0
 const FLOOR_CHANCE: float = 0.6
 ## The region mask goes from lean to rich over this span of the region noise, about its bias.
 const REGION_EDGE: float = 0.3
@@ -276,13 +280,13 @@ func air(world_pos: Vector3, depth: float) -> float:
 		var cavern: float = (
 			_cavern_noise.get_noise_3d(read_pos.x, read_pos.y * cavern_squash, read_pos.z) - cutoff
 		)
-		best = maxf(best, minf(cavern / (2.0 * cavern_frequency), floor_slab(bed)))
+		best = _blend(best, minf(cavern / (2.0 * cavern_frequency), floor_slab(bed)))
 	if hall_cutoff < 1.0 and deep > 0.0:
 		var hall_edge: float = lerpf(1.0, hall_cutoff, deep)
 		var hall: float = (
 			_hall_noise.get_noise_3d(read_pos.x, read_pos.y * cavern_squash, read_pos.z) - hall_edge
 		)
-		best = maxf(best, hall * hall_size / 2.0)
+		best = _blend(best, hall * hall_size / 2.0)
 	if shaft_width > 0.0:
 		var shaft_mask: float = (
 			smoothstep(tunnel_depth - FADE, tunnel_depth + FADE, depth)
@@ -301,14 +305,14 @@ func air(world_pos: Vector3, depth: float) -> float:
 					absf(_shaft_noise_b.get_noise_3d(read_pos.x, lean_y, read_pos.z))
 				)
 			)
-			best = maxf(best, shaft / (2.0 * shaft_frequency))
+			best = _blend(best, shaft / (2.0 * shaft_frequency))
 	if ravine_width > 0.0 and depth < ravine_depth:
 		var pinch: float = sqrt(1.0 - maxf(depth, 0.0) / ravine_depth)
 		var gash: float = (
 			ravine_width * pinch
 			- absf(_ravine_noise.get_noise_3d(read_pos.x, read_pos.y * ravine_lean, read_pos.z))
 		)
-		best = maxf(best, gash / (2.0 * ravine_frequency))
+		best = _blend(best, gash / (2.0 * ravine_frequency))
 	return best
 
 
@@ -405,6 +409,13 @@ func _make_noises() -> void:
 	_shaft_noise = _noise(world_seed + 913, shaft_frequency, 1)
 	_shaft_noise_b = _noise(world_seed + 914, shaft_frequency, 1)
 	_shaft_map = _noise(world_seed + 915, 1.0 / 150.0, 1)
+
+
+## The deeper of two features' air, blended over BLEND metres where they are within it of
+## each other (a polynomial smooth maximum): the union's wall fillets instead of creasing.
+static func _blend(a: float, b: float) -> float:
+	var overlap: float = maxf(BLEND - absf(a - b), 0.0) / BLEND
+	return maxf(a, b) + overlap * overlap * BLEND * 0.25
 
 
 static func _noise(noise_seed: int, frequency: float, octaves: int) -> FastNoiseLite:

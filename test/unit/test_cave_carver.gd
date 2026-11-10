@@ -410,6 +410,16 @@ func test_shafts_are_vertical_and_cross_the_seams() -> void:
 	assert_eq(_air_columns(carver, 100.0), 0, "no shafts")
 
 
+## Where two features meet their air blends: a wall a metre thick between them is filled, a
+## wall thicker than the blend stays, and a feature out of reach (-INF) changes nothing.
+func test_features_blend_where_they_meet() -> void:
+	assert_almost_eq(CaveCarver._blend(-0.5, -0.5), 0.0, 0.0001, "a 1 m wall between two is filled")
+	assert_almost_eq(CaveCarver._blend(-3.0, -3.0), -2.5, 0.0001, "a 6 m wall only rounds")
+	assert_almost_eq(CaveCarver._blend(4.0, -4.0), 4.0, 0.0001, "apart, the deeper air")
+	assert_almost_eq(CaveCarver._blend(-INF, -1.5), -1.5, 0.0001, "out of reach, the other")
+	assert_gt(CaveCarver._blend(2.0, 1.5), 2.0, "inside both, a little more")
+
+
 ## Halls alone: nothing above the deep band, chambers in it, none with the cutoff off.
 func test_halls_open_only_in_the_deep_band() -> void:
 	var carver: CaveCarver = _plain_carver()
