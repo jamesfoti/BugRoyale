@@ -87,6 +87,53 @@ func test_the_cave_roll_sliders_travel_in_the_snapshot() -> void:
 
 ## The Cave Range pairs steer a seeded roll without moving its other numbers, and the shape
 ## (fade, shallow size) applies whatever the roll.
+## The Biomes switches travel in the snapshot and force one land biome and one cave biome
+## everywhere; on Seeded the land has more than one kind.
+func test_the_biome_switches_force_one_biome_everywhere_or_leave_the_seed_its_mix() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.rebuild_on_ready = false
+	world.caves_enabled = true
+	world.solid_underside = true
+	add_child_autofree(world)
+	world.land_biome = OpenTerrain.LandBiome.MARSH
+	world.cave_biome = OpenTerrain.CaveBiome.CRYSTAL
+	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	assert_eq(settings.open_terrain_land_biome, OpenTerrain.LandBiome.MARSH)
+	assert_eq(settings.open_terrain_cave_biome, OpenTerrain.CaveBiome.CRYSTAL)
+	var forced: DensitySampler.WorldDensity = world._build_world_density(settings)
+	for spot: Vector2 in [Vector2.ZERO, Vector2(200.0, -150.0), Vector2(-240.0, 240.0)]:
+		assert_eq(
+			forced.land_biome(spot.x, spot.y), DensitySampler.WorldDensity.LandBiome.MARSH, "marsh"
+		)
+		assert_eq(
+			forced.caves.biome(Vector3(spot.x, -60.0, spot.y), 60.0),
+			CaveCarver.Biome.CRYSTAL,
+			"crystal"
+		)
+	assert_true(forced.land_summary().contains("marsh"), "the rebuild line says so")
+	world.land_biome = OpenTerrain.LandBiome.SEEDED
+	world.cave_biome = OpenTerrain.CaveBiome.SEEDED
+	var seeded: DensitySampler.WorldDensity = world._build_world_density(
+		world._make_settings_snapshot()
+	)
+	var kinds: Dictionary = {}
+	for step_x: int in 30:
+		for step_z: int in 30:
+			kinds[seeded.land_biome(float(step_x) * 40.0 - 600.0, float(step_z) * 40.0 - 600.0)] = true
+	assert_gt(kinds.size(), 1, "the seed lays more than one land biome")
+	assert_eq(
+		DensitySampler.WorldDensity.land_tint(DensitySampler.WorldDensity.LandBiome.MEADOW),
+		TerrainMaterials.NATURAL_VERTEX_COLOR,
+		"meadow is the ground's own"
+	)
+	assert_almost_eq(
+		DensitySampler.WorldDensity.land_tint(DensitySampler.WorldDensity.LandBiome.DRYLAND).a,
+		0.5,
+		0.001,
+		"the others blend half-way"
+	)
+
+
 func test_the_cave_ranges_and_shape_travel_and_steer_the_roll() -> void:
 	var world: OpenTerrain = OpenTerrain.new()
 	world.rebuild_on_ready = false

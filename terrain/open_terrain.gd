@@ -24,6 +24,11 @@ enum NoiseRoll { FIXED, SEEDED }
 enum Regions { SEEDED, PLAIN }
 ## Whether the seed rolls relief (overhangs on the steep faces) and flat spots, or none.
 enum Relief { SEEDED, NONE }
+## The land on top and the caves below, each the seed's own mix of biomes or one biome
+## everywhere (DensitySampler.WorldDensity.LandBiome and CaveCarver.Biome, with SEEDED
+## standing for their NONE).
+enum LandBiome { SEEDED = -1, MEADOW, DRYLAND, MARSH, BARRENS }
+enum CaveBiome { SEEDED = -1, PLAIN, MOSSY, DRIPSTONE, FUNGAL, CRYSTAL }
 ## Whether the caves' numbers are rolled from the seed (Seeded) or the Cave Roll sliders
 ## are used as set (Fixed), which Randomize writes a roll into.
 enum CaveRoll { SEEDED, FIXED }
@@ -319,6 +324,20 @@ const CAVE_FIELDS: Dictionary = {
 		flat_spot_radius = value
 		_request_rebuild()
 
+@export_group("Biomes")
+## The land on top: Seeded lets a slow noise 400 m across lay meadow, dryland, marsh and
+## barrens over the map, each tinting the surface; one biome is that everywhere.
+@export var land_biome: LandBiome = LandBiome.SEEDED:
+	set(value):
+		land_biome = value
+		_request_rebuild()
+## The caves below: Seeded lets a slow noise 250 m across make the rock mossy or plain near
+## the surface and plain, dripstone, fungal or crystal deeper; one biome is that everywhere.
+@export var cave_biome: CaveBiome = CaveBiome.SEEDED:
+	set(value):
+		cave_biome = value
+		_request_rebuild()
+
 @export_group("Cave Roll")
 ## Seeded ignores the sliders below and rolls every one of the caves' numbers from the
 ## seed (the rebuild line names them). Fixed carves the caves from the sliders as set, so
@@ -603,6 +622,8 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_cave_roll = cave_roll
 	settings.open_terrain_cave_ranges = cave_ranges()
 	settings.open_terrain_cave_shape = cave_shape()
+	settings.open_terrain_land_biome = land_biome
+	settings.open_terrain_cave_biome = cave_biome
 	for field: String in CAVE_FIELDS:
 		settings.open_terrain_cave_values[field] = get("cave_" + field)
 	settings.open_terrain_noise_roll = noise_roll
@@ -698,6 +719,7 @@ func _build_world_density(
 	)
 	if settings.caves_enabled and settings.open_terrain_solid_fill:
 		density.caves = CaveCarver.for_settings(settings)
+		density.caves.biome_fixed = settings.open_terrain_cave_biome as CaveCarver.Biome
 	if settings.open_terrain_character == Character.SEEDED:
 		density.roll_surface(
 			settings.noise_seed,
@@ -748,6 +770,9 @@ func _build_world_density(
 			settings.open_terrain_flat_spot_count,
 			settings.open_terrain_flat_spot_radius
 		)
+	density.land_biome_fixed = (
+		settings.open_terrain_land_biome as DensitySampler.WorldDensity.LandBiome
+	)
 	# After every layer of the surface, so the cave mouths sit on the ground as built.
 	if density.caves != null:
 		density.caves.systems = CaveSystems.roll(
@@ -779,6 +804,7 @@ func _world_summary(settings: ChunkedTerrainWorld.SettingsSnapshot) -> String:
 			[
 				density.surface_summary(),
 				density.region_summary(),
+				density.land_summary(),
 				density.curve_summary(),
 				density.relief_summary(),
 				density.flat_spot_summary(),

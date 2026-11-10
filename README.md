@@ -283,6 +283,10 @@ back). **Randomize** goes further on an open terrain: it rolls a seed and draws 
 Noise sliders from the Noise Roll ranges, writing the values into the inspector with
 Noise Roll set to Fixed, so the sliders show exactly what built and can be nudged from
 there; the grid, chunk and voxel sizes stay. The caves' numbers come the same way:
+**Biomes** on the node has two switches: **Land Biome** (Seeded lays meadow, dryland, marsh
+and barrens over the map from a slow noise 400 m across, each tinting the surface; or one
+of them everywhere) and **Cave Biome** (Seeded, or plain, mossy, dripstone, fungal or
+crystal everywhere), for looking at one kind of ground or cave on its own.
 **Cave Roll** on the node is Seeded (rolled from the seed, as the maps do, with the
 near-surface numbers drawn from the **Cave Range** pairs beside it: the tunnels' start
 depth, their ramp and the shallow cutoff, each a least and most, one value forcing it on

@@ -284,6 +284,9 @@ static func grid_sample_position(
 class WorldDensity:
 	## Analytic density + gradient at any world position (seam-consistent normals).
 
+	## The kinds of ground on top, by the land biome noise. NONE is no fixed biome.
+	enum LandBiome { NONE = -1, MEADOW, DRYLAND, MARSH, BARRENS }
+
 	## Topsoil this deep is the map's own ground (dirt when dug); below it lies stone, with veins
 	## of sand, clay and gravel where the vein noise runs high.
 	const TOPSOIL_DEPTH: float = 1.5
@@ -303,6 +306,8 @@ class WorldDensity:
 	## so it still reads as ground), and the metres over which it fades into the land.
 	const FLAT_SPOT_BLEND: float = 0.9
 	const FLAT_SPOT_FADE: float = 10.0
+	## Metres across a land biome is.
+	const LAND_BIOME_SIZE: float = 400.0
 
 	var noise_enabled: bool = true
 	var noise_amplitude: float = 3.0
@@ -374,6 +379,10 @@ class WorldDensity:
 	var flat_spots: Array[Vector4] = []
 	## Carves tunnels, caverns and bedrock under a solid-filled open terrain (null: none).
 	var caves: CaveCarver = null
+	## Land biomes: a slow noise LAND_BIOME_SIZE metres across says what the ground is like
+	## on top (land_biome), and the surface takes the biome's tint half-blended over the
+	## shader's own lawn and rock. A biome fixed here (not NONE) is everywhere.
+	var land_biome_fixed: LandBiome = LandBiome.NONE
 	## Solid ground a map builder adds on top of the shape: the soil in a garden's raised beds,
 	## the footings under structures. Each is a stadium (a box with rounded ends) standing on
 	## its centre, see stadium_sdf; "tint" is the vertex colour its surface carries (alpha 0:
@@ -394,6 +403,7 @@ class WorldDensity:
 	var _region_noise: FastNoiseLite
 	var _detail_noise: FastNoiseLite
 	var _relief_noise: FastNoiseLite
+	var _land_biome_noise: FastNoiseLite
 	var _vein_noise: FastNoiseLite
 	var _ore_noise: FastNoiseLite
 
@@ -550,11 +560,15 @@ class WorldDensity:
 			var solid: Dictionary = solid_at(world_position)
 			if not solid.is_empty():
 				return solid.get("tint", TerrainMaterials.NATURAL_VERTEX_COLOR) as Color
-		# A wall well under the surface is a cave's, and takes its biome's tint.
-		if caves != null:
+		# A wall well under the surface is a cave's, and takes its biome's tint; the ground on
+		# top takes the land's.
+		if open_terrain_enabled:
 			var depth: float = depth_below_surface(world_position, density_value)
 			if depth > 1.5:
-				return CaveCarver.biome_tint(caves.biome(world_position, depth))
+				if caves != null:
+					return CaveCarver.biome_tint(caves.biome(world_position, depth))
+			else:
+				return land_tint(land_biome(world_position.x, world_position.z))
 		return TerrainMaterials.NATURAL_VERTEX_COLOR
 
 	## The element of the ore pocket at a point this deep: every element whose depth is reached
@@ -590,6 +604,43 @@ class WorldDensity:
 		_ore_noise.seed = noise_seed + 88
 		_ore_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 		_ore_noise.frequency = 0.14
+		_land_biome_noise = FastNoiseLite.new()
+		_land_biome_noise.seed = noise_seed + 1313
+		_land_biome_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+		_land_biome_noise.frequency = 1.0 / LAND_BIOME_SIZE
+
+	## The land biome at a column: meadow for most of the map, marsh where the biome noise
+	## runs low, dryland where it runs high and barrens where highest.
+	func land_biome(world_x: float, world_z: float) -> LandBiome:
+		if land_biome_fixed != LandBiome.NONE:
+			return land_biome_fixed
+		if _land_biome_noise == null:
+			return LandBiome.MEADOW
+		var value: float = _land_biome_noise.get_noise_2d(world_x, world_z)
+		if value < -0.35:
+			return LandBiome.MARSH
+		if value > 0.5:
+			return LandBiome.BARRENS
+		if value > 0.2:
+			return LandBiome.DRYLAND
+		return LandBiome.MEADOW
+
+	## The vertex tint of the surface in a land biome: half-blended over the ground shader's
+	## own lawn and rock (alpha 0.5), or the plain natural colour where the biome adds nothing.
+	static func land_tint(kind: LandBiome) -> Color:
+		match kind:
+			LandBiome.DRYLAND:
+				return Color(0.74, 0.64, 0.38, 0.5)
+			LandBiome.MARSH:
+				return Color(0.2, 0.38, 0.2, 0.5)
+			LandBiome.BARRENS:
+				return Color(0.52, 0.5, 0.46, 0.5)
+		return TerrainMaterials.NATURAL_VERTEX_COLOR
+
+	func land_summary() -> String:
+		if land_biome_fixed != LandBiome.NONE:
+			return "land all %s" % LandBiome.keys()[land_biome_fixed + 1].to_lower()
+		return "land biomes by the seed"
 
 	func _init_boxed_in_terrain_noise(
 		terrain_seed: int, surface_frequency: float, octaves: int, lacunarity: float, gain: float
