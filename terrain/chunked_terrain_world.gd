@@ -42,9 +42,12 @@ const CAPSULE_SAMPLES: int = 6
 
 ## The noise ranges are the ones a map may be randomised over: frequency 0.004 to 0.01
 ## (hills 250 m to 100 m across; higher was tried and worked down from), one to five
-## octaves, gain 0.3 to 0.65 (smooth to craggy), lacunarity 1.8 to 2.6. Slope grows with
-## amplitude times frequency, and past about 45 degrees at 2 m voxels the shape itself goes
-## blocky, so raise one and lower the other.
+## octaves, gain 0.3 to 0.65 (smooth to craggy), lacunarity 1.8 to 2.6, amplitude 0 to 40 m.
+## Slope grows with amplitude times frequency: 12 m on 200 m hills is a 20 degree roll, 36 m
+## a 45 degree mountainside, and past that at 2 m voxels the shape goes blocky, so raise one
+## and lower the other. The surface sits at the box's centre and chunks above the top are
+## not built, so amplitude plus offset must stay under half the box height (48 m on the
+## maps' three 32 m chunks), or the peaks come out flat-topped.
 @export_group("Noise")
 @export var noise_enabled: bool = true:
 	set(value):
@@ -58,7 +61,7 @@ const CAPSULE_SAMPLES: int = 6
 	set(value):
 		noise_frequency = maxf(value, 0.001)
 		_request_rebuild()
-@export_range(0.0, 12.0, 0.1) var noise_amplitude: float = 3.0:
+@export_range(0.0, 40.0, 0.1) var noise_amplitude: float = 3.0:
 	set(value):
 		noise_amplitude = value
 		_request_rebuild()

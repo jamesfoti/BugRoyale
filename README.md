@@ -282,11 +282,14 @@ terrain-from-noise notes.
 
 The inspector sliders under **Noise** stop at the ranges a map may be randomised over,
 the values that still make good ground: frequency 0.004 to 0.01 (hills 250 m to 100 m
-across), amplitude 0 to 12 m, one to five octaves, gain 0.3 to 0.65 (smooth swells to
+across), amplitude 0 to 40 m, one to five octaves, gain 0.3 to 0.65 (smooth swells to
 craggy detail), lacunarity 1.8 to 2.6, and the surface offset 8 m either way. Frequency
-and amplitude set the slope together, and past about 45 degrees at 2 m voxels the shape
-goes blocky, so raise one and lower the other. Code may still set any value; the ranges
-bind the sliders, not the setters.
+and amplitude set the slope together: 12 m on 200 m hills is a 20 degree roll, 36 m a 45
+degree mountainside, and past that at 2 m voxels the shape goes blocky, so raise one and
+lower the other. The surface sits at the box's centre and nothing is built above the top
+chunk, so amplitude plus offset must stay under half the box height (48 m on the maps) or
+the peaks come out flat-topped. Code may still set any value; the ranges bind the
+sliders, not the setters.
 
 Terraces are a seeded feature of every open terrain, under **Terraces** on the
 `TerrainWorld` node: by default two seeds in five step their hills into shelves, with a
