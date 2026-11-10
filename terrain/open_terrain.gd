@@ -320,14 +320,15 @@ const CAVE_FIELDS: Dictionary = {
 	set(value):
 		cave_roll = value
 		_request_rebuild()
-## Tunnel noise frequency: 0.02 is tunnels 50 m apart, 0.05 is 20 m apart and thinner.
-@export_range(0.01, 0.08, 0.001) var cave_tunnel_frequency: float = 0.035:
+## Tunnel noise frequency: 0.014 is tunnels 70 m apart, 0.024 is 40 m apart and thinner.
+## Above about 0.03 the tunnels turn to crawls and the ground to a sponge.
+@export_range(0.01, 0.05, 0.001) var cave_tunnel_frequency: float = 0.018:
 	set(value):
 		cave_tunnel_frequency = value
 		_request_rebuild()
-## The tunnel band: how near zero both tunnel noises must be. 0.12 is a few thin worms,
-## 0.22 is a honeycomb, 0 is none.
-@export_range(0.0, 0.4, 0.01) var cave_tunnel_threshold: float = 0.17:
+## The tunnel band: how near zero both tunnel noises must be. 0.25 is passages a few
+## metres wide, 0.35 wide ones that often meet, 0 is none; below 0.2 they break into crawls.
+@export_range(0.0, 0.5, 0.01) var cave_tunnel_threshold: float = 0.3:
 	set(value):
 		cave_tunnel_threshold = value
 		_request_rebuild()

@@ -328,9 +328,13 @@ switch, a chance and ranges, and each named in the rebuild line:
   cave country and dead rock. **Depth bands**, Terraria's layers: burrow ground, then
   tunnels, then caverns, then from 120 to 260 m down a deep band where the tunnels thin
   and the rooms grow, with **seams** of near-solid rock a few metres thick between the
-  bands, bent by a slow wave so they undulate like beds. A **thickness** noise swells the
-  tunnels into chambers and pinches them to crawls along their length (Minecraft's
-  spaghetti thickness). The caverns are wider than they are tall and, on six seeds in
+  bands, bent by a slow wave so they undulate like beds. The tunnels themselves are few
+  and wide on purpose, 40 to 70 m apart and several metres across from a single octave
+  of noise: with two octaves and 20 to 45 m apart a vertical slice crossed over two
+  hundred of them, seven in ten crawls under 2 m wide, and the ground read as a sponge;
+  the retune cut that to a quarter at the same share of air. A **thickness** noise
+  swells the tunnels into chambers and pinches them to crawls along their length
+  (Minecraft's spaghetti thickness). The caverns are wider than they are tall and, on six seeds in
   ten, cut by **bedding floors** every 24 to 48 m, so the rooms have floors to stand on;
   the tunnels run through them. **Halls**: a very slow noise opens a chamber or two a
   world in the deep band, far bigger than any cavern. **Shafts**: in spots a map picks,
@@ -386,7 +390,7 @@ distance field on both sides of the surface, so these are the only terraces: the
 stair-steps that steep slopes used to show were the mesher interpolating between a capped
 value inside the ground and metres outside it. Fly the editor camera below the surface to see the tunnels and caverns: terrain
 faces only draw from the air side, so rock is see-through from inside. At 4 m voxels the
-tunnels (about 3 m across) do not resolve and the slab shows only the caverns; 2 m is
+tunnels (4 to 8 m across) resolve coarsely and their thin ends drop out; 2 m is
 the honest cross-section, or `tools/cave_slice.gd` for the raw field in a second. The built chunks
 are dropped before the scene is saved and rebuilt after, so the file stays small.
 

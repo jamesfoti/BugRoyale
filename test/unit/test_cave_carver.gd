@@ -50,8 +50,8 @@ func test_every_number_lands_in_its_range() -> void:
 	var floored: int = 0
 	for value: int in range(1, 40):
 		var carver: CaveCarver = CaveCarver.from_seed(value, BEDROCK_Y)
-		assert_between(carver.tunnel_frequency, 0.022, 0.05, "tunnel frequency, seed %d" % value)
-		assert_between(carver.tunnel_threshold, 0.12, 0.22, "tunnel band, seed %d" % value)
+		assert_between(carver.tunnel_frequency, 0.014, 0.024, "tunnel frequency, seed %d" % value)
+		assert_between(carver.tunnel_threshold, 0.25, 0.35, "tunnel band, seed %d" % value)
 		assert_between(carver.cavern_cutoff, 0.38, 0.6, "cavern cutoff, seed %d" % value)
 		assert_between(carver.cavern_squash, 1.2, 2.2, "cavern squash, seed %d" % value)
 		assert_between(carver.tunnel_depth, 4.0, 8.0, "tunnel depth, seed %d" % value)
@@ -174,7 +174,8 @@ func test_a_caves_air_is_a_distance_on_both_sides_of_its_wall() -> void:
 			if carver.air(Vector3(spot.x, -1.0, spot.z), 1.0) == -INF:
 				unreachable += 1
 	assert_gt(inside, 0, "some tunnel at 14 m")
-	assert_gt(near, inside, "and ground within 3 m of a tunnel wall all round it")
+	assert_gt(near, 0, "and ground within 3 m of a tunnel wall round it")
+	assert_lt(near, inside, "less of it than the air: the passages are metres wide")
 	assert_gt(unreachable, 1600 / 2, "a metre down, no cave reaches most of the ground")
 
 

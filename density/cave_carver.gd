@@ -22,8 +22,13 @@ extends RefCounted
 ##
 ## Depth is metres below the surface of the column. Tunnels start at tunnel_depth, caverns at
 ## cavern_depth, and both widen with depth: the ground near the surface is for burrows, the
-## middle is tunnels, the bottom is rooms. Measured on the noises used here, a band of 0.16
-## shared by two noises is about 13% of the ground, a cutoff of 0.5 about 12%.
+## middle is tunnels, the bottom is rooms. Measured on the noises used here, a band of 0.3
+## shared by two single-octave noises is about a fifth of the ground, a cutoff of 0.5 about
+## 12%. The tunnel noises have one octave and run 40 to 70 m apart on purpose: with two
+## octaves and 20 to 45 m apart, a vertical slice crossed over two hundred tunnels, seven in
+## ten of them crawls under 2 m wide that a 1 m voxel barely draws and a 4 m voxel shows as
+## a hole, and the ground read as a sponge. Fewer, wider, smoother tunnels cut that to a
+## quarter at the same share of air.
 
 ## Tunnels and caverns narrow to nothing over this many metres above their start depth.
 const FADE: float = 3.0
@@ -52,8 +57,8 @@ const REGION_EDGE: float = 0.3
 var world_seed: int = 0
 ## Tunnel noise frequency (1 / metres between tunnels) and the half-width of the band around
 ## zero that both tunnel noises must be inside, in noise units; the depth tunnels start at.
-var tunnel_frequency: float = 0.035
-var tunnel_threshold: float = 0.17
+var tunnel_frequency: float = 0.018
+var tunnel_threshold: float = 0.3
 var tunnel_depth: float = 6.0
 ## Caverns: a slower noise, air wherever it runs above the cutoff (rounded rooms); deeper.
 ## Read with its height squeezed by cavern_squash, so the rooms are wider than they are tall.
@@ -143,8 +148,8 @@ static func from_seed(value: int, bedrock_y: float) -> CaveCarver:
 	rng.seed = hash(Vector2i(value, 7919))
 	carver.world_seed = value
 	carver.floor_y = bedrock_y
-	carver.tunnel_frequency = rng.randf_range(0.022, 0.05)
-	carver.tunnel_threshold = rng.randf_range(0.12, 0.22)
+	carver.tunnel_frequency = rng.randf_range(0.014, 0.024)
+	carver.tunnel_threshold = rng.randf_range(0.25, 0.35)
 	carver.tunnel_depth = rng.randf_range(4.0, 8.0)
 	carver.cavern_frequency = rng.randf_range(0.009, 0.022)
 	carver.cavern_cutoff = rng.randf_range(0.38, 0.6)
@@ -396,8 +401,8 @@ func summary() -> String:
 
 
 func _make_noises() -> void:
-	_tunnel_noise = _noise(world_seed + 404, tunnel_frequency, 2)
-	_tunnel_noise_b = _noise(world_seed + 405, tunnel_frequency, 2)
+	_tunnel_noise = _noise(world_seed + 404, tunnel_frequency, 1)
+	_tunnel_noise_b = _noise(world_seed + 405, tunnel_frequency, 1)
 	_cavern_noise = _noise(world_seed + 606, cavern_frequency, 1)
 	_sinkhole_noise = _noise(world_seed + 505, 1.0 / 70.0, 1)
 	_ravine_noise = _noise(world_seed + 707, ravine_frequency, 2)

@@ -144,38 +144,41 @@ func test_a_cave_chunk_loses_only_rock_and_agrees_with_its_neighbour() -> void:
 	var origin: Vector3 = Vector3(-256.0, -96.0, -256.0)
 	var samples: Vector3i = Vector3i.ONE * 9
 	var cleared_somewhere: bool = false
-	var previous: SignedDensityField = null
-	# A row of chunks through the cave band, each cleared on its own as the builder does.
-	for chunk_x: int in 8:
-		var chunk: Vector3i = Vector3i(chunk_x, 1, 4)
-		var field: SignedDensityField = DensitySampler.build_chunk_field(
-			density, samples, origin, chunk * 8, 4.0
-		)
-		var before: PackedFloat32Array = field.values.duplicate()
-		var cleared: int = LooseRock.clear(field, density, origin, chunk * 8, 4.0, 8, 0.0, LIMIT)
-		var changed: int = 0
-		for index: int in before.size():
-			if is_equal_approx(before[index], field.values[index]):
-				continue
-			changed += 1
-			assert_lt(before[index], 0.0, "only rock changes")
-			assert_gt(field.values[index], 0.0, "and it becomes air")
-		assert_eq(changed, cleared, "the count is the samples changed")
-		cleared_somewhere = cleared_somewhere or cleared > 0
-		if previous != null:
-			for y: int in samples.y:
-				for z: int in samples.z:
-					assert_almost_eq(
-						previous.get_sample(8, y, z),
-						field.get_sample(0, y, z),
-						0.0001,
-						(
-							"chunk %d agrees with chunk %d on their shared face"
-							% [chunk_x - 1, chunk_x]
+	# Rows of chunks through the cave band, each cleared on its own as the builder does.
+	for chunk_z: int in 8:
+		var previous: SignedDensityField = null
+		for chunk_x: int in 8:
+			var chunk: Vector3i = Vector3i(chunk_x, 1, chunk_z)
+			var field: SignedDensityField = DensitySampler.build_chunk_field(
+				density, samples, origin, chunk * 8, 4.0
+			)
+			var before: PackedFloat32Array = field.values.duplicate()
+			var cleared: int = LooseRock.clear(
+				field, density, origin, chunk * 8, 4.0, 8, 0.0, LIMIT
+			)
+			var changed: int = 0
+			for index: int in before.size():
+				if is_equal_approx(before[index], field.values[index]):
+					continue
+				changed += 1
+				assert_lt(before[index], 0.0, "only rock changes")
+				assert_gt(field.values[index], 0.0, "and it becomes air")
+			assert_eq(changed, cleared, "the count is the samples changed")
+			cleared_somewhere = cleared_somewhere or cleared > 0
+			if previous != null:
+				for y: int in samples.y:
+					for z: int in samples.z:
+						assert_almost_eq(
+							previous.get_sample(8, y, z),
+							field.get_sample(0, y, z),
+							0.0001,
+							(
+								"chunk %d agrees with chunk %d on their shared face"
+								% [chunk_x - 1, chunk_x]
+							)
 						)
-					)
-		previous = field
-	assert_true(cleared_somewhere, "some chunk in the row had floating rock")
+			previous = field
+	assert_true(cleared_somewhere, "some chunk in the rows had floating rock")
 
 
 func test_the_limit_travels_in_the_snapshot() -> void:
