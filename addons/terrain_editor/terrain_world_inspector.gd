@@ -58,6 +58,19 @@ func _parse_begin(object: Object) -> void:
 	seed_button.pressed.connect(func() -> void: _on_new_seed_pressed(node_path))
 	row.add_child(seed_button)
 
+	var randomize_button: Button = Button.new()
+	randomize_button.text = "Randomize"
+	randomize_button.tooltip_text = (
+		"Rolls a new seed and draws the Noise sliders (frequency, amplitude, octaves, "
+		+ "lacunarity, gain) from the Noise Roll ranges, writing the values into the "
+		+ "inspector with Noise Roll set to Fixed, so what you see is what built. The grid, "
+		+ "chunk and voxel sizes stay. One undo step."
+	)
+	randomize_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	randomize_button.disabled = not _can_randomize(node)
+	randomize_button.pressed.connect(func() -> void: _on_randomize_pressed(node_path))
+	row.add_child(randomize_button)
+
 	if is_terrarium_room:
 		var hint: Label = Label.new()
 		if not node.has_method("rebuild_all"):
@@ -143,6 +156,67 @@ func _on_new_seed_pressed(node_path: NodePath) -> void:
 	print("[Terrain] Seed %d." % new_seed)
 	if not bool(node.get("auto_rebuild_in_editor")):
 		node.rebuild_all_editor()
+
+
+## A terrain with Noise Roll ranges to draw from (an OpenTerrain, not a terrarium room).
+func _can_randomize(node: Node3D) -> bool:
+	return (
+		node != null
+		and node.has_method("rebuild_all")
+		and not _is_terrarium_room_node(node)
+		and node.get("roll_frequency") != null
+	)
+
+
+## A new seed and new Noise sliders drawn from the node's Noise Roll ranges, rounded to the
+## sliders' steps and written to the node as one undo step, with Noise Roll set to Fixed
+## so the sliders are what builds. The setters coalesce into one rebuild when Auto Rebuild
+## In Editor is on; otherwise we build.
+func _on_randomize_pressed(node_path: NodePath) -> void:
+	var node: Node3D = _get_target_node(node_path)
+	if node == null:
+		push_error("[Terrain] Could not find node.")
+		return
+	if not _can_randomize(node):
+		push_error("[Terrain] This terrain has no Noise Roll ranges to draw from.")
+		return
+	var frequency: Vector2 = node.get("roll_frequency")
+	var amplitude: Vector2 = node.get("roll_amplitude")
+	var octaves: Vector2i = node.get("roll_octaves")
+	var lacunarity: Vector2 = node.get("roll_lacunarity")
+	var gain: Vector2 = node.get("roll_gain")
+	var values: Dictionary = {
+		"noise_seed": randi() % 1000000,
+		"noise_frequency": snappedf(_draw(frequency), 0.0005),
+		"noise_amplitude": snappedf(_draw(amplitude), 0.1),
+		"noise_octaves": randi_range(mini(octaves.x, octaves.y), maxi(octaves.x, octaves.y)),
+		"noise_lacunarity": snappedf(_draw(lacunarity), 0.05),
+		"noise_gain": snappedf(_draw(gain), 0.01),
+		"noise_roll": 0,
+	}
+	var undo_redo: EditorUndoRedoManager = EditorInterface.get_editor_undo_redo()
+	undo_redo.create_action("Randomize terrain")
+	for property: String in values:
+		undo_redo.add_do_property(node, property, values[property])
+		undo_redo.add_undo_property(node, property, node.get(property))
+	undo_redo.commit_action()
+	print(
+		"[Terrain] Randomized: seed %d, frequency %.4f, amplitude %.1f m, %d octaves, lacunarity %.2f, gain %.2f."
+		% [
+			values["noise_seed"],
+			values["noise_frequency"],
+			values["noise_amplitude"],
+			values["noise_octaves"],
+			values["noise_lacunarity"],
+			values["noise_gain"]
+		]
+	)
+	if not bool(node.get("auto_rebuild_in_editor")):
+		node.rebuild_all_editor()
+
+
+static func _draw(value_range: Vector2) -> float:
+	return randf_range(minf(value_range.x, value_range.y), maxf(value_range.x, value_range.y))
 
 
 func _on_destroy_pressed(node_path: NodePath) -> void:

@@ -267,8 +267,11 @@ Terrain** at the top of the inspector (the Terrain Editor plugin), then change a
 with **Auto Rebuild In Editor** on, every toggle (caves, solid underside, noise, seed,
 grid size, terraces) rebuilds the chunks on the spot, and **New Seed** beside the build
 button rolls a new seed and builds it, on any terrain node (Ctrl+Z brings the old seed
-back). The rebuild line in the Output panel says what the seed rolled: its terraces, if
-any, and its caves and ravines.
+back). **Randomize** goes further on an open terrain: it rolls a seed and draws the
+Noise sliders from the Noise Roll ranges, writing the values into the inspector with
+Noise Roll set to Fixed, so the sliders show exactly what built and can be nudged from
+there; the grid, chunk and voxel sizes stay. The rebuild line in the Output panel says
+what the seed rolled: its terraces, if any, and its caves and ravines.
 
 Every seed also rolls a **Character** for the surface, so seeds differ in kind and not only
 in where the hills are (plain noise draws every world from one distribution, which is why
