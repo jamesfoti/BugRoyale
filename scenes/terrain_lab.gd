@@ -6,7 +6,8 @@ extends Node3D
 ## any of its settings: with Auto Rebuild In Editor on, every toggle (caves, solid underside,
 ## noise, seed, grid size, terraces, character) rebuilds the chunks on the spot, and the
 ## rebuild line in the Output panel says what the seed rolled; New Seed beside Build rolls a
-## new one, and Randomize draws the Noise sliders too and writes them into the inspector.
+## new one, and Randomize draws the Noise sliders and the Cave Roll sliders too and writes
+## them into the inspector.
 ## This root keeps a New Seed button of its own and keeps the built chunks out of
 ## the saved scene: they are destroyed before a save and rebuilt after it.
 ##

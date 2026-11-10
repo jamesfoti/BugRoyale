@@ -178,28 +178,29 @@ static func from_seed(value: int, bedrock_y: float) -> CaveCarver:
 	carver.shaft_width = rng.randf_range(0.12, 0.2)
 	carver.shaft_lean = rng.randf_range(0.08, 0.2)
 	carver.shaft_share = rng.randf_range(0.35, 0.55)
-	carver._tunnel_noise = _noise(value + 404, carver.tunnel_frequency, 2)
-	carver._tunnel_noise_b = _noise(value + 405, carver.tunnel_frequency, 2)
-	carver._cavern_noise = _noise(value + 606, carver.cavern_frequency, 1)
-	carver._sinkhole_noise = _noise(value + 505, 1.0 / 70.0, 1)
-	carver._ravine_noise = _noise(value + 707, carver.ravine_frequency, 2)
-	carver._warp_noise = _noise(value + 808, carver.warp_frequency, 1)
-	carver._region_noise = _noise(value + 909, 1.0 / carver.region_size, 1)
-	carver._thickness_noise = _noise(value + 910, 1.0 / carver.thickness_size, 1)
-	carver._wave_noise = _noise(value + 911, 1.0 / 140.0, 1)
-	carver._hall_noise = _noise(value + 912, 1.0 / carver.hall_size, 1)
-	carver._shaft_noise = _noise(value + 913, carver.shaft_frequency, 1)
-	carver._shaft_noise_b = _noise(value + 914, carver.shaft_frequency, 1)
-	carver._shaft_map = _noise(value + 915, 1.0 / 150.0, 1)
+	carver._make_noises()
 	return carver
 
 
-## The carver for a terrain's settings: bedrock FLOOR_MARGIN above the bottom of the grid.
+## The carver for a terrain's settings: bedrock FLOOR_MARGIN above the bottom of the grid,
+## and the Cave Roll sliders' values over the roll when the terrain fixes them.
 static func for_settings(settings: ChunkedTerrainWorld.SettingsSnapshot) -> CaveCarver:
-	return from_seed(
+	var carver: CaveCarver = from_seed(
 		settings.noise_seed,
 		bedrock_y(settings.world_origin.y, settings.chunks_y, settings.chunk_world_size)
 	)
+	if settings.open_terrain_cave_roll == OpenTerrain.CaveRoll.FIXED:
+		carver.apply(settings.open_terrain_cave_values)
+	return carver
+
+
+## Sets these fields (by name) over the roll and remakes the noises, so a changed
+## frequency or size takes. The noises still come from the seed, so the same seed with
+## the same values carves the same caves.
+func apply(values: Dictionary) -> void:
+	for field: String in values:
+		set(field, values[field])
+	_make_noises()
 
 
 ## World Y of bedrock for a grid this many chunks tall about this origin: FLOOR_MARGIN above
@@ -388,6 +389,22 @@ func summary() -> String:
 			roundi(floor_y)
 		]
 	)
+
+
+func _make_noises() -> void:
+	_tunnel_noise = _noise(world_seed + 404, tunnel_frequency, 2)
+	_tunnel_noise_b = _noise(world_seed + 405, tunnel_frequency, 2)
+	_cavern_noise = _noise(world_seed + 606, cavern_frequency, 1)
+	_sinkhole_noise = _noise(world_seed + 505, 1.0 / 70.0, 1)
+	_ravine_noise = _noise(world_seed + 707, ravine_frequency, 2)
+	_warp_noise = _noise(world_seed + 808, warp_frequency, 1)
+	_region_noise = _noise(world_seed + 909, 1.0 / region_size, 1)
+	_thickness_noise = _noise(world_seed + 910, 1.0 / thickness_size, 1)
+	_wave_noise = _noise(world_seed + 911, 1.0 / 140.0, 1)
+	_hall_noise = _noise(world_seed + 912, 1.0 / hall_size, 1)
+	_shaft_noise = _noise(world_seed + 913, shaft_frequency, 1)
+	_shaft_noise_b = _noise(world_seed + 914, shaft_frequency, 1)
+	_shaft_map = _noise(world_seed + 915, 1.0 / 150.0, 1)
 
 
 static func _noise(noise_seed: int, frequency: float, octaves: int) -> FastNoiseLite:

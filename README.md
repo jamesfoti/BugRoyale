@@ -279,8 +279,12 @@ button rolls a new seed and builds it, on any terrain node (Ctrl+Z brings the ol
 back). **Randomize** goes further on an open terrain: it rolls a seed and draws the
 Noise sliders from the Noise Roll ranges, writing the values into the inspector with
 Noise Roll set to Fixed, so the sliders show exactly what built and can be nudged from
-there; the grid, chunk and voxel sizes stay. The rebuild line in the Output panel says
-what the seed rolled: its terraces, if any, and its caves and ravines.
+there; the grid, chunk and voxel sizes stay. The caves' numbers come the same way:
+**Cave Roll** on the node is Seeded (rolled from the seed, as the maps do) or Fixed (the
+Cave Roll sliders as set: tunnel and cavern band, frequency and depth, regions, bands,
+seams, floors, halls, shafts, ravines, warp), and Randomize writes the roll into the
+sliders and sets Fixed. The rebuild line in the Output panel says what the seed rolled:
+its terraces, if any, and its caves and ravines.
 
 Every seed also rolls a **Character** for the surface, so seeds differ in kind and not only
 in where the hills are (plain noise draws every world from one distribution, which is why

@@ -435,3 +435,27 @@ func test_a_carver_for_settings_puts_bedrock_above_the_grid_floor() -> void:
 	settings.world_origin = Vector3(0.0, 4.0, 0.0)
 	var carver: CaveCarver = CaveCarver.for_settings(settings)
 	assert_almost_eq(carver.floor_y, 4.0 - 48.0 + CaveCarver.FLOOR_MARGIN, 0.001)
+
+
+## Cave Roll: Seeded ignores the sliders' values, Fixed sets them over the roll and remakes
+## the noises so a new frequency takes, and the same seed with the same values carves the
+## same caves.
+func test_fixed_cave_values_override_the_roll() -> void:
+	var settings := ChunkedTerrainWorld.SettingsSnapshot.new()
+	settings.noise_seed = SEED
+	settings.chunks_y = 3
+	settings.chunk_world_size = 32.0
+	settings.open_terrain_cave_values = {"tunnel_frequency": 0.05, "tunnel_depth": 9.0}
+	var rolled: CaveCarver = CaveCarver.for_settings(settings)
+	assert_ne(rolled.tunnel_frequency, 0.05, "seeded: the roll's own frequency")
+	settings.open_terrain_cave_roll = OpenTerrain.CaveRoll.FIXED
+	var fixed: CaveCarver = CaveCarver.for_settings(settings)
+	assert_almost_eq(fixed.tunnel_frequency, 0.05, 0.0001)
+	assert_almost_eq(fixed.tunnel_depth, 9.0, 0.0001)
+	assert_almost_eq(fixed._tunnel_noise.frequency, 0.05, 0.0001, "the noise was remade")
+	assert_almost_eq(fixed.cavern_cutoff, rolled.cavern_cutoff, 0.0001, "the rest still rolls")
+	var spot := Vector3(31.0, -30.0, -7.0)
+	assert_almost_eq(
+		fixed.air(spot, 30.0), CaveCarver.for_settings(settings).air(spot, 30.0), 0.0001
+	)
+	assert_ne(fixed.air(spot, 30.0), rolled.air(spot, 30.0), "and carves differently")

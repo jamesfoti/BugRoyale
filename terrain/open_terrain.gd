@@ -7,7 +7,8 @@ extends ChunkedTerrainWorld
 ## it takes a character (Character: warped, ridged, redistributed), regions of lowland and
 ## highland with a height curve of flat floors and cliff bands (Regions), relief on the
 ## steep faces and flat landings (Relief), and terraces (Terraces). Each group has a Plain
-## or None to switch it off and a chance and ranges to roll from.
+## or None to switch it off and a chance and ranges to roll from. The caves' numbers are
+## rolled from the seed too, or set on the Cave Roll sliders (Cave Roll: Fixed).
 
 ## Whether the surface is stepped into terraces: rolled from the seed at terrace_chance, or
 ## forced on (to see a seed's terraces in the lab) or off.
@@ -23,6 +24,43 @@ enum NoiseRoll { FIXED, SEEDED }
 enum Regions { SEEDED, PLAIN }
 ## Whether the seed rolls relief (overhangs on the steep faces) and flat spots, or none.
 enum Relief { SEEDED, NONE }
+## Whether the caves' numbers are rolled from the seed (Seeded) or the Cave Roll sliders
+## are used as set (Fixed), which Randomize writes a roll into.
+enum CaveRoll { SEEDED, FIXED }
+
+## The CaveCarver fields the Cave Roll sliders set (cave_ plus the name), with each
+## slider's step, which Randomize rounds the roll to.
+const CAVE_FIELDS: Dictionary = {
+	"tunnel_frequency": 0.001,
+	"tunnel_threshold": 0.01,
+	"tunnel_depth": 0.5,
+	"cavern_frequency": 0.001,
+	"cavern_cutoff": 0.01,
+	"cavern_depth": 1.0,
+	"cavern_squash": 0.1,
+	"sinkhole_threshold": 0.01,
+	"ravine_width": 0.005,
+	"ravine_depth": 0.5,
+	"warp_metres": 0.5,
+	"region_size": 10.0,
+	"region_lean": 0.05,
+	"region_rich": 0.05,
+	"region_bias": 0.05,
+	"thickness_thin": 0.05,
+	"thickness_thick": 0.05,
+	"deep_depth": 5.0,
+	"deep_tunnels": 0.05,
+	"deep_rooms": 0.05,
+	"seam_width": 0.5,
+	"seam_strength": 0.05,
+	"band_wave": 1.0,
+	"floor_spacing": 1.0,
+	"floor_thickness": 0.5,
+	"hall_cutoff": 0.01,
+	"shaft_width": 0.01,
+	"shaft_share": 0.05,
+	"shaft_lean": 0.01,
+}
 
 @export_group("Open Terrain Grid")
 @export_range(1, 64, 1) var chunks_x: int = 5:
@@ -273,6 +311,166 @@ enum Relief { SEEDED, NONE }
 		flat_spot_radius = value
 		_request_rebuild()
 
+@export_group("Cave Roll")
+## Seeded ignores the sliders below and rolls every one of the caves' numbers from the
+## seed (the rebuild line names them). Fixed carves the caves from the sliders as set, so
+## New Seed changes the surface but not the caves; Randomize writes a roll into the
+## sliders and sets Fixed, so they show exactly what built and can be nudged from there.
+@export var cave_roll: CaveRoll = CaveRoll.SEEDED:
+	set(value):
+		cave_roll = value
+		_request_rebuild()
+## Tunnel noise frequency: 0.02 is tunnels 50 m apart, 0.05 is 20 m apart and thinner.
+@export_range(0.01, 0.08, 0.001) var cave_tunnel_frequency: float = 0.035:
+	set(value):
+		cave_tunnel_frequency = value
+		_request_rebuild()
+## The tunnel band: how near zero both tunnel noises must be. 0.12 is a few thin worms,
+## 0.22 is a honeycomb, 0 is none.
+@export_range(0.0, 0.4, 0.01) var cave_tunnel_threshold: float = 0.17:
+	set(value):
+		cave_tunnel_threshold = value
+		_request_rebuild()
+## Metres below the surface the tunnels start; above it only sinkholes and ravines open.
+@export_range(0.0, 30.0, 0.5) var cave_tunnel_depth: float = 6.0:
+	set(value):
+		cave_tunnel_depth = value
+		_request_rebuild()
+## Cavern noise frequency: 0.01 is rooms 100 m apart, 0.02 is 50 m apart and smaller.
+@export_range(0.005, 0.04, 0.001) var cave_cavern_frequency: float = 0.016:
+	set(value):
+		cave_cavern_frequency = value
+		_request_rebuild()
+## The cavern cutoff: air where the cavern noise runs above it. 0.4 is big rooms, 0.6
+## small and rare, 1 is none.
+@export_range(0.2, 1.0, 0.01) var cave_cavern_cutoff: float = 0.49:
+	set(value):
+		cave_cavern_cutoff = value
+		_request_rebuild()
+## Metres below the surface the caverns start, and where the first seam lies.
+@export_range(5.0, 80.0, 1.0) var cave_cavern_depth: float = 22.0:
+	set(value):
+		cave_cavern_depth = value
+		_request_rebuild()
+## How much wider than tall the rooms are: 1 is round, 2 is twice as wide.
+@export_range(1.0, 3.0, 0.1) var cave_cavern_squash: float = 1.6:
+	set(value):
+		cave_cavern_squash = value
+		_request_rebuild()
+## How much of the surface opens into sinkholes: 0.36 is a few, 1 is none.
+@export_range(0.2, 1.0, 0.01) var cave_sinkhole_threshold: float = 0.42:
+	set(value):
+		cave_sinkhole_threshold = value
+		_request_rebuild()
+## The ravine band: 0.05 opens a tenth of the surface into gorges, 0.08 a sixth, 0 none.
+@export_range(0.0, 0.15, 0.005) var cave_ravine_width: float = 0.0:
+	set(value):
+		cave_ravine_width = value
+		_request_rebuild()
+## Metres down the ravines pinch out.
+@export_range(4.0, 40.0, 0.5) var cave_ravine_depth: float = 12.0:
+	set(value):
+		cave_ravine_depth = value
+		_request_rebuild()
+## Metres a slow noise pushes every cave read sideways, bending the tunnels; 0 is straight.
+@export_range(0.0, 20.0, 0.5) var cave_warp_metres: float = 7.0:
+	set(value):
+		cave_warp_metres = value
+		_request_rebuild()
+## Metres across the cave regions are: where the rock is riddled and where it is lean.
+@export_range(100.0, 600.0, 10.0) var cave_region_size: float = 250.0:
+	set(value):
+		cave_region_size = value
+		_request_rebuild()
+## How riddled the lean regions are, as a share of the full band: 0 is solid rock, 1 the
+## same as the rich ones (no regions).
+@export_range(0.0, 1.0, 0.05) var cave_region_lean: float = 0.0:
+	set(value):
+		cave_region_lean = value
+		_request_rebuild()
+## How riddled the rich regions are: 1 is the full band, 1.25 a quarter wider.
+@export_range(0.5, 1.5, 0.05) var cave_region_rich: float = 1.1:
+	set(value):
+		cave_region_rich = value
+		_request_rebuild()
+## Shifts the region noise before the mask: below 0 more of the world is rich, above
+## 0 more is lean.
+@export_range(-0.5, 0.5, 0.05) var cave_region_bias: float = 0.0:
+	set(value):
+		cave_region_bias = value
+		_request_rebuild()
+## The tunnel band at a pinch of the thickness noise, as a share: 0.5 is a crawl.
+@export_range(0.2, 1.0, 0.05) var cave_thickness_thin: float = 0.6:
+	set(value):
+		cave_thickness_thin = value
+		_request_rebuild()
+## The tunnel band at a swell of the thickness noise: 1.5 is a chamber.
+@export_range(1.0, 2.0, 0.05) var cave_thickness_thick: float = 1.35:
+	set(value):
+		cave_thickness_thick = value
+		_request_rebuild()
+## Metres below the surface the deep band starts, with the second seam.
+@export_range(50.0, 400.0, 5.0) var cave_deep_depth: float = 180.0:
+	set(value):
+		cave_deep_depth = value
+		_request_rebuild()
+## The tunnel band in the deep band, as a share: 0.3 is a few, 1 unchanged.
+@export_range(0.0, 1.0, 0.05) var cave_deep_tunnels: float = 0.5:
+	set(value):
+		cave_deep_tunnels = value
+		_request_rebuild()
+## How much the rooms grow in the deep band: the cavern cutoff divided by this.
+@export_range(1.0, 2.0, 0.05) var cave_deep_rooms: float = 1.4:
+	set(value):
+		cave_deep_rooms = value
+		_request_rebuild()
+## Metres each side of the cavern and deep depths the seams of rock reach.
+@export_range(0.0, 15.0, 0.5) var cave_seam_width: float = 5.0:
+	set(value):
+		cave_seam_width = value
+		_request_rebuild()
+## How solid the seams are: 1 is rock right through, 0 no seams.
+@export_range(0.0, 1.0, 0.05) var cave_seam_strength: float = 0.75:
+	set(value):
+		cave_seam_strength = value
+		_request_rebuild()
+## Metres a slow noise bends the band edges and floors, so they undulate like beds.
+@export_range(0.0, 30.0, 1.0) var cave_band_wave: float = 12.0:
+	set(value):
+		cave_band_wave = value
+		_request_rebuild()
+## Metres between the bedding floors that cut the caverns.
+@export_range(8.0, 64.0, 1.0) var cave_floor_spacing: float = 32.0:
+	set(value):
+		cave_floor_spacing = value
+		_request_rebuild()
+## Metres thick each bedding floor is; 0 is no floors.
+@export_range(0.0, 6.0, 0.5) var cave_floor_thickness: float = 3.0:
+	set(value):
+		cave_floor_thickness = value
+		_request_rebuild()
+## The hall cutoff in the deep band: 0.55 is a few great chambers, 0.7 one or none, 1 none.
+@export_range(0.3, 1.0, 0.01) var cave_hall_cutoff: float = 0.62:
+	set(value):
+		cave_hall_cutoff = value
+		_request_rebuild()
+## The shaft band: 0.12 is thin pits, 0.2 wide ones, 0 none.
+@export_range(0.0, 0.3, 0.01) var cave_shaft_width: float = 0.16:
+	set(value):
+		cave_shaft_width = value
+		_request_rebuild()
+## How much of the map has shafts (the shaft map's noise above this): 0.35 is a lot, 0.55 a
+## few spots.
+@export_range(0.0, 1.0, 0.05) var cave_shaft_share: float = 0.45:
+	set(value):
+		cave_shaft_share = value
+		_request_rebuild()
+## How much the shafts lean and wander with depth: 0.08 is near vertical, 0.2 a slant.
+@export_range(0.02, 0.5, 0.01) var cave_shaft_lean: float = 0.14:
+	set(value):
+		cave_shaft_lean = value
+		_request_rebuild()
+
 @export_group("Edges")
 ## Clip terrain to world bounds on X, Z, and bottom Y. Top remains open.
 @export var boxed_edges_enabled: bool = true:
@@ -332,6 +530,9 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_character_warp = character_warp
 	settings.open_terrain_character_ridge_chance = character_ridge_chance
 	settings.open_terrain_character_ridge = character_ridge
+	settings.open_terrain_cave_roll = cave_roll
+	for field: String in CAVE_FIELDS:
+		settings.open_terrain_cave_values[field] = get("cave_" + field)
 	settings.open_terrain_noise_roll = noise_roll
 	settings.open_terrain_roll_frequency = roll_frequency
 	settings.open_terrain_roll_amplitude = roll_amplitude

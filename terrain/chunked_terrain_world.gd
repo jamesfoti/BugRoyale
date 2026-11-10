@@ -977,6 +977,10 @@ class SettingsSnapshot:
 	var open_terrain_character_warp: Vector2 = Vector2(10.0, 40.0)
 	var open_terrain_character_ridge_chance: float = 0.35
 	var open_terrain_character_ridge: Vector2 = Vector2(0.2, 0.5)
+	## The cave roll (OpenTerrain.CaveRoll) and, when fixed, the CaveCarver field values the
+	## sliders set, by field name.
+	var open_terrain_cave_roll: int = 0
+	var open_terrain_cave_values: Dictionary = {}
 	## The noise roll (OpenTerrain.NoiseRoll) and the ranges a seed draws its noise from.
 	var open_terrain_noise_roll: int = 0
 	var open_terrain_roll_frequency: Vector2 = Vector2(0.004, 0.01)

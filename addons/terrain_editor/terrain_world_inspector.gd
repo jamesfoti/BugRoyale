@@ -168,10 +168,11 @@ func _can_randomize(node: Node3D) -> bool:
 	)
 
 
-## A new seed and new Noise sliders drawn from the node's Noise Roll ranges, rounded to the
-## sliders' steps and written to the node as one undo step, with Noise Roll set to Fixed
-## so the sliders are what builds. The setters coalesce into one rebuild when Auto Rebuild
-## In Editor is on; otherwise we build.
+## A new seed and new Noise sliders drawn from the node's Noise Roll ranges, and the caves'
+## numbers the new seed rolls, rounded to the sliders' steps and written to the node as one
+## undo step, with Noise Roll and Cave Roll set to Fixed so the sliders are what builds.
+## The setters coalesce into one rebuild when Auto Rebuild In Editor is on; otherwise we
+## build.
 func _on_randomize_pressed(node_path: NodePath) -> void:
 	var node: Node3D = _get_target_node(node_path)
 	if node == null:
@@ -194,6 +195,14 @@ func _on_randomize_pressed(node_path: NodePath) -> void:
 		"noise_gain": snappedf(_draw(gain), 0.01),
 		"noise_roll": 0,
 	}
+	var caves: String = ""
+	if node.get("cave_roll") != null:
+		var carver: CaveCarver = CaveCarver.from_seed(values["noise_seed"], node.get_bedrock_y())
+		var steps: Dictionary = OpenTerrain.CAVE_FIELDS
+		for field: String in steps:
+			values["cave_" + field] = snappedf(carver.get(field), steps[field])
+		values["cave_roll"] = OpenTerrain.CaveRoll.FIXED
+		caves = " Caves: " + carver.summary() + "."
 	var undo_redo: EditorUndoRedoManager = EditorInterface.get_editor_undo_redo()
 	undo_redo.create_action("Randomize terrain")
 	for property: String in values:
@@ -201,14 +210,15 @@ func _on_randomize_pressed(node_path: NodePath) -> void:
 		undo_redo.add_undo_property(node, property, node.get(property))
 	undo_redo.commit_action()
 	print(
-		"[Terrain] Randomized: seed %d, frequency %.4f, amplitude %.1f m, %d octaves, lacunarity %.2f, gain %.2f."
+		"[Terrain] Randomized: seed %d, frequency %.4f, amplitude %.1f m, %d octaves, lacunarity %.2f, gain %.2f.%s"
 		% [
 			values["noise_seed"],
 			values["noise_frequency"],
 			values["noise_amplitude"],
 			values["noise_octaves"],
 			values["noise_lacunarity"],
-			values["noise_gain"]
+			values["noise_gain"],
+			caves
 		]
 	)
 	if not bool(node.get("auto_rebuild_in_editor")):

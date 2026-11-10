@@ -70,6 +70,21 @@ func test_surface_layer_puts_the_surface_in_that_layer_from_the_top() -> void:
 	)
 
 
+## The Cave Roll sliders travel in the snapshot by CaveCarver field name, with the roll.
+func test_the_cave_roll_sliders_travel_in_the_snapshot() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.rebuild_on_ready = false
+	add_child_autofree(world)
+	world.cave_tunnel_depth = 9.0
+	world.cave_roll = OpenTerrain.CaveRoll.FIXED
+	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	assert_eq(settings.open_terrain_cave_roll, OpenTerrain.CaveRoll.FIXED)
+	assert_eq(settings.open_terrain_cave_values.size(), OpenTerrain.CAVE_FIELDS.size())
+	assert_almost_eq(settings.open_terrain_cave_values["tunnel_depth"], 9.0, 0.0001)
+	for field: String in OpenTerrain.CAVE_FIELDS:
+		assert_not_null(CaveCarver.new().get(field), "%s is a CaveCarver field" % field)
+
+
 func test_the_noise_roll_draws_in_range_and_the_same_seed_the_same() -> void:
 	var fixed: Dictionary = OpenTerrain.rolled_noise(_settings(false))
 	assert_almost_eq(float(fixed["amplitude"]), 12.0, 0.0001, "fixed is the sliders")
