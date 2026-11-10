@@ -144,6 +144,30 @@ func test_the_biome_lists_and_their_weights_say_what_lies_where() -> void:
 	assert_eq(Biome.data_of([null, meadow]).size(), 1, "an empty slot is skipped")
 
 
+## A blocking rebuild tells its watcher how far it is, chunk by chunk, and once more when
+## every chunk stands.
+func test_a_rebuild_reports_its_progress_to_the_watcher() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.rebuild_on_ready = false
+	world.chunk_size = 8.0
+	world.voxel_size = 4.0
+	add_child_autofree(world)
+	var reports: Array[Vector2i] = []
+	ChunkedTerrainWorld.build_watcher = func(done: int, total: int, _world: Node) -> void:
+		reports.append(Vector2i(done, total))
+	world.rebuild_all()
+	ChunkedTerrainWorld.build_watcher = Callable()
+	assert_gt(reports.size(), 0, "the watcher heard from the build")
+	var last: Vector2i = reports[reports.size() - 1]
+	assert_eq(last.x, last.y, "the last word is every chunk built")
+	var grid: Vector3i = world._get_grid_dimensions()
+	assert_eq(last.y, grid.x * grid.y * grid.z, "every chunk of the grid")
+	var previous: int = -1
+	for report: Vector2i in reports:
+		assert_true(report.x >= previous, "the count never falls")
+		previous = report.x
+
+
 func test_the_cave_ranges_and_shape_travel_and_steer_the_roll() -> void:
 	var world: OpenTerrain = OpenTerrain.new()
 	world.rebuild_on_ready = false

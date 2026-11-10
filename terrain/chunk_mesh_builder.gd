@@ -9,6 +9,9 @@ static func run_async_job(job: AsyncRebuildJob) -> void:
 
 static func run_parallel_job_element(element_index: int, job: ParallelBuildJob) -> void:
 	build_chunk_into(job.results[element_index], job.chunk_coordinates[element_index], job.settings)
+	job.lock.lock()
+	job.done += 1
+	job.lock.unlock()
 
 
 static func build_batch(
@@ -162,3 +165,12 @@ class ParallelBuildJob:
 	var chunk_coordinates: Array[Vector3i] = []
 	var results: Array[ChunkBuildResult] = []
 	var settings: ChunkedTerrainWorld.SettingsSnapshot
+	## How many chunks are built so far, counted under the lock by every worker.
+	var done: int = 0
+	var lock: Mutex = Mutex.new()
+
+	func completed() -> int:
+		lock.lock()
+		var count: int = done
+		lock.unlock()
+		return count

@@ -206,6 +206,9 @@ var _ceiling_noise: FastNoiseLite
 var _rubble_noise: FastNoiseLite
 var _biome_warp: FastNoiseLite
 var _biome_weights: PackedFloat32Array = PackedFloat32Array()
+## The aquifer cells by column, kept because a chunk asks the same column once per sample
+## up it (each chunk builds with a carver of its own, so no thread shares this).
+var _aquifer_cache: Dictionary = {}
 var _pillar_noise: FastNoiseLite
 
 
@@ -456,6 +459,17 @@ func air(world_pos: Vector3, depth: float, slope: float = 0.0) -> float:
 ## level. Returns the nearest cell's level, the second nearest cell's, and the difference of
 ## the two distances (0 on the border between them).
 func aquifer(world_x: float, world_z: float) -> Vector3:
+	var key := Vector2(world_x, world_z)
+	var cached: Variant = _aquifer_cache.get(key)
+	if cached != null:
+		return cached as Vector3
+	var cells: Vector3 = _aquifer_cells(world_x, world_z)
+	if _aquifer_cache.size() < 16384:
+		_aquifer_cache[key] = cells
+	return cells
+
+
+func _aquifer_cells(world_x: float, world_z: float) -> Vector3:
 	var cell_x: int = floori(world_x / aquifer_size)
 	var cell_z: int = floori(world_z / aquifer_size)
 	var nearest: float = INF
@@ -497,6 +511,8 @@ func water_level(world_x: float, world_z: float) -> float:
 ## between two cells of different levels, below the higher one), positive metres to the
 ## nearest wall, INF where none can be.
 func barrier(world_pos: Vector3) -> float:
+	if world_pos.y > water_top + 1.0:
+		return INF
 	var cells: Vector3 = aquifer(world_pos.x, world_pos.z)
 	if is_equal_approx(cells.x, cells.y) or world_pos.y > maxf(cells.x, cells.y) + 1.0:
 		return INF

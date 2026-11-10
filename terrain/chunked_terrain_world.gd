@@ -23,6 +23,11 @@ const FIGHTER_CLEARANCE: float = 0.1
 ## Points tested along a capsule's axis when checking an edit against it.
 const CAPSULE_SAMPLES: int = 6
 
+## Called from the blocking rebuild as the chunks come in, with (chunks built, chunks in
+## all, this world), and once more when every chunk stands: the loading screen draws its
+## bar from it, since nothing else gets a frame while a map builds. Invalid: no one watches.
+static var build_watcher: Callable = Callable()
+
 @export_group("Terrain Grid")
 @export_range(1.0, 128.0, 0.5, "or_greater") var chunk_size: float = 12.0:
 	set(value):
@@ -224,12 +229,20 @@ func _rebuild_all_sync(settings: SettingsSnapshot, grid_dimensions: Vector3i) ->
 			true,
 			"%s chunk rebuild" % _get_world_log_name()
 		)
+		if build_watcher.is_valid():
+			while not WorkerThreadPool.is_group_task_completed(group_task_id):
+				OS.delay_msec(50)
+				build_watcher.call(job.completed(), job.chunk_coordinates.size(), self)
 		WorkerThreadPool.wait_for_group_task_completion(group_task_id)
 	else:
 		for element_index: int in job.chunk_coordinates.size():
 			ChunkMeshBuilder.run_parallel_job_element(element_index, job)
+			if build_watcher.is_valid():
+				build_watcher.call(element_index + 1, job.chunk_coordinates.size(), self)
 	for element_index: int in job.chunk_coordinates.size():
 		_build_chunk_at(job.chunk_coordinates[element_index], job.results[element_index], settings)
+	if build_watcher.is_valid():
+		build_watcher.call(job.chunk_coordinates.size(), job.chunk_coordinates.size(), self)
 	var elapsed_milliseconds: int = Time.get_ticks_msec() - rebuild_start_milliseconds
 	_log_rebuild_complete(_chunks.size(), settings, grid_dimensions, elapsed_milliseconds)
 
