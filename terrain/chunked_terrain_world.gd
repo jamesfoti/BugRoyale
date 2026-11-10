@@ -16,6 +16,9 @@ const _CHUNK_SCRIPT = preload("res://terrain/terrain_chunk.gd")
 ## 20-core machine, 48 garden-sized chunks took 784 ms on one thread, 315 ms on four and
 ## 1641 ms on all twenty. Four is the sweet spot by a wide margin either side.
 const REBUILD_THREADS: int = 4
+## How many edited chunks keep their last field for the next stroke (about 150 KB each at
+## 32 cells).
+const FIELD_CACHE_CHUNKS: int = 64
 
 ## Metres of air an ADD edit must leave around a fighter's capsule to be allowed. Terrain
 ## collision is one-sided, so a fighter sealed inside new rock falls out of the world.
@@ -145,7 +148,13 @@ var _dirty_chunks: Dictionary = {}
 var _chunk_flush_pending: bool = false
 var _continuous_edit_depth: int = 0
 var _bake_density: DensitySampler.WorldDensity
+## Chunk coordinate -> the world-space box whose samples changed since the chunk was last
+## built (an AABB of no volume: the chunk is built whole).
 var _pending_rebuild_chunk_coordinates: Dictionary = {}
+## Chunk coordinate -> the field it was last built from by a brush rebuild, at most
+## FIELD_CACHE_CHUNKS of them, oldest dropped: the next stroke there resamples only what it
+## changed instead of reading forty thousand samples again.
+var _field_cache: Dictionary = {}
 var _pending_rebuild_collision: bool = false
 var _async_rebuild_requested: bool = false
 var _async_jobs: Dictionary = {}
@@ -407,6 +416,20 @@ func end_continuous_edit() -> void:
 		_dispatch_pending_rebuilds()
 
 
+## Queues a chunk for a rebuild of the samples inside bounds (world space), or whole when
+## the bounds have no volume; a chunk already queued gets the union.
+func _queue_chunk_rebuild(chunk_coordinate: Vector3i, bounds: AABB) -> void:
+	var queued: Variant = _pending_rebuild_chunk_coordinates.get(chunk_coordinate)
+	if queued == null:
+		_pending_rebuild_chunk_coordinates[chunk_coordinate] = bounds
+		return
+	var queued_bounds: AABB = queued as AABB
+	if not queued_bounds.has_volume() or not bounds.has_volume():
+		_pending_rebuild_chunk_coordinates[chunk_coordinate] = AABB()
+	else:
+		_pending_rebuild_chunk_coordinates[chunk_coordinate] = queued_bounds.merge(bounds)
+
+
 ## Whether the ground is solid at a point: the map's own density with the players' edits on
 ## top, so a dug hole reads as air and a built wall as solid. False above the surface, in a
 ## cave, or on something that is not ground at all (a slab, a duct, a tree).
@@ -588,7 +611,7 @@ func import_edit_state(state: Dictionary) -> void:
 	if bounds.size == Vector3.ZERO:
 		return
 	for chunk_coordinate: Vector3i in _get_chunk_coordinates_intersecting_aabb(bounds):
-		_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
+		_queue_chunk_rebuild(chunk_coordinate, AABB())
 	_pending_rebuild_collision = true
 	_dispatch_pending_rebuilds()
 
@@ -666,11 +689,10 @@ func _prepare_edits() -> void:
 
 ## Rebuilds only the chunks holding voxels the last edit changed, not every chunk it grazed.
 func _rebuild_changed_chunks() -> void:
-	var chunk_coordinates: Array[Vector3i] = _get_chunk_coordinates_intersecting_aabb(
-		_edits.get_last_changed_bounds()
-	)
+	var changed: AABB = _edits.get_last_changed_bounds()
+	var chunk_coordinates: Array[Vector3i] = _get_chunk_coordinates_intersecting_aabb(changed)
 	for chunk_coordinate: Vector3i in chunk_coordinates:
-		_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
+		_queue_chunk_rebuild(chunk_coordinate, changed)
 	_pending_rebuild_collision = true
 	_dispatch_pending_rebuilds()
 
@@ -729,6 +751,7 @@ func _clear_chunks() -> void:
 		remove_child(child)
 		child.queue_free()
 	_chunks.clear()
+	_field_cache.clear()
 
 
 func _request_rebuild() -> void:
@@ -766,10 +789,12 @@ func _dispatch_pending_rebuilds() -> void:
 		if _running_async_tasks >= max_concurrent_rebuild_tasks:
 			deferred_chunk_coordinates.append(chunk_coordinate)
 			continue
+		var bounds: AABB = _pending_rebuild_chunk_coordinates[chunk_coordinate] as AABB
 		_pending_rebuild_chunk_coordinates.erase(chunk_coordinate)
-		_start_single_chunk_async_rebuild(chunk_coordinate, rebuild_collision)
+		_start_single_chunk_async_rebuild(chunk_coordinate, rebuild_collision, bounds)
 	for chunk_coordinate: Vector3i in deferred_chunk_coordinates:
-		_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
+		if not _pending_rebuild_chunk_coordinates.has(chunk_coordinate):
+			_pending_rebuild_chunk_coordinates[chunk_coordinate] = AABB()
 	if rebuild_collision and not deferred_chunk_coordinates.is_empty():
 		_pending_rebuild_collision = true
 
@@ -781,7 +806,7 @@ func _schedule_chunk_coordinate_rebuilds(
 		return
 	if _use_threaded_rebuild():
 		for chunk_coordinate: Vector3i in chunk_coordinates:
-			_pending_rebuild_chunk_coordinates[chunk_coordinate] = true
+			_queue_chunk_rebuild(chunk_coordinate, AABB())
 		if rebuild_collision:
 			_pending_rebuild_collision = true
 		_dispatch_pending_rebuilds()
@@ -791,12 +816,18 @@ func _schedule_chunk_coordinate_rebuilds(
 		_rebuild_chunk_coordinates(chunk_coordinates, settings)
 
 
-func _start_single_chunk_async_rebuild(chunk_coordinate: Vector3i, rebuild_collision: bool) -> void:
+func _start_single_chunk_async_rebuild(
+	chunk_coordinate: Vector3i, rebuild_collision: bool, bounds: AABB = AABB()
+) -> void:
 	_inflight_chunk_coordinates[chunk_coordinate] = true
 	var async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob = ChunkMeshBuilder.AsyncRebuildJob.new()
 	async_rebuild_job.chunk_coordinates = [chunk_coordinate]
 	async_rebuild_job.rebuild_collision = rebuild_collision
 	async_rebuild_job.settings = _make_thread_settings_snapshot()
+	async_rebuild_job.settings.keep_field = true
+	if bounds.has_volume() and _field_cache.has(chunk_coordinate):
+		async_rebuild_job.settings.cached_field = _field_cache[chunk_coordinate]
+		async_rebuild_job.settings.resample_bounds = bounds
 	async_rebuild_job.task_id = WorkerThreadPool.add_task(
 		ChunkMeshBuilder.run_async_job.bind(async_rebuild_job)
 	)
@@ -841,6 +872,11 @@ func _apply_async_job(async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob) -> vo
 		chunk.apply_build_result(chunk_build_result, generate_collision)
 		if _effective_material() != null:
 			chunk.material_override = _effective_material()
+		if chunk_build_result.field != null:
+			_field_cache.erase(chunk_coordinate)
+			_field_cache[chunk_coordinate] = chunk_build_result.field
+			while _field_cache.size() > FIELD_CACHE_CHUNKS:
+				_field_cache.erase(_field_cache.keys()[0])
 
 
 func _make_thread_settings_snapshot() -> SettingsSnapshot:
@@ -1041,6 +1077,12 @@ class SettingsSnapshot:
 	var open_terrain_flat_spot_count: Vector2i = Vector2i(2, 4)
 	var open_terrain_flat_spot_radius: Vector2 = Vector2(8.0, 14.0)
 	var terrain_edits: TerrainEdits = null
+	## A brush rebuild: the chunk's field as last built and the world-space box whose samples
+	## changed, so only those are read again; and whether the built field comes back with the
+	## result for the next stroke.
+	var cached_field: SignedDensityField = null
+	var resample_bounds: AABB = AABB()
+	var keep_field: bool = false
 	## Solid ground a map builder adds on top of the shape (DensitySampler.WorldDensity.solids).
 	var solids: Array[Dictionary] = []
 	var rebuild_collision: bool = true

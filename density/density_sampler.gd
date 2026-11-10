@@ -270,6 +270,76 @@ static func build_chunk_field(
 	return field
 
 
+## A chunk's field after an edit, from the field it had before: a copy with only the samples
+## inside bounds (world space, grown by a sample all round) read again, as build_chunk_field
+## would read them. A brush stroke changes a few hundred samples of a chunk's forty
+## thousand, so this is what makes digging quick. The copy is never sky: a block built in
+## the sky brings its samples back.
+static func resample_chunk_field(
+	cached: SignedDensityField,
+	density: WorldDensity,
+	grid_world_origin: Vector3,
+	grid_offset: Vector3i,
+	step: float,
+	bounds: AABB
+) -> SignedDensityField:
+	var field := SignedDensityField.new()
+	field.size = cached.size
+	field.values = cached.values.duplicate()
+	field.sky = false
+	var size: Vector3i = field.size
+	var corner: Vector3 = grid_sample_position(grid_world_origin, grid_offset, step)
+	var first: Vector3i = (
+		(Vector3i(((bounds.position - corner) / step).floor()) - Vector3i.ONE).max(Vector3i.ZERO)
+	)
+	var last: Vector3i = (Vector3i(((bounds.end - corner) / step).ceil()) + Vector3i.ONE).min(
+		size - Vector3i.ONE
+	)
+	if first.x <= last.x and first.y <= last.y and first.z <= last.z:
+		if (
+			not density.solids.is_empty()
+			or (density.caves != null and density.caves.systems != null)
+		):
+			var halo: Vector3 = Vector3.ONE * step * 2.0
+			density.prepare_for_region(AABB(corner - halo, Vector3(size) * step + halo * 2.0))
+		var open: bool = density.open_terrain_enabled
+		var want_slopes: bool = (
+			open
+			and density.open_terrain_solid_fill
+			and (density.relief_amplitude > 0.0 or density.caves != null)
+		)
+		var values: PackedFloat32Array = field.values
+		for z: int in range(first.z, last.z + 1):
+			var world_z: float = corner.z + float(z) * step
+			for x: int in range(first.x, last.x + 1):
+				var world_x: float = corner.x + float(x) * step
+				var height: float = 0.0
+				var slope: float = 0.0
+				if open:
+					height = density.sample_open_terrain_height(world_x, world_z)
+					if want_slopes:
+						slope = density.surface_slope(world_x, world_z, height)
+				for y: int in range(first.y, last.y + 1):
+					var world_pos := Vector3(world_x, corner.y + float(y) * step, world_z)
+					var value: float
+					if open:
+						value = density.evaluate_open_terrain_with_surface(
+							world_pos, height, true, slope
+						)
+					else:
+						value = density.evaluate(world_pos)
+					values[x + y * size.x + z * size.x * size.y] = value
+		field.values = values
+	var min_value: float = INF
+	var max_value: float = -INF
+	for value: float in field.values:
+		min_value = minf(min_value, value)
+		max_value = maxf(max_value, value)
+	field.min_value = min_value
+	field.max_value = max_value
+	return field
+
+
 ## World position of a (possibly out-of-chunk) grid sample; matches build_chunk_field.
 static func grid_sample_position(
 	grid_world_origin: Vector3, global_sample: Vector3i, step: float

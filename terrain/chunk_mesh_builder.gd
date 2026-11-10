@@ -100,9 +100,23 @@ static func build_chunk_into(
 		density.terrain_edits = settings.terrain_edits
 	if not settings.solids.is_empty():
 		density.solids = settings.solids
-	var field: SignedDensityField = DensitySampler.build_chunk_field(
-		density, sample_size, grid_world_origin, grid_offset, world_step
-	)
+	var field: SignedDensityField
+	if settings.cached_field != null and settings.resample_bounds.has_volume():
+		# After a brush stroke: the chunk's last field with the stroke's samples read again.
+		field = DensitySampler.resample_chunk_field(
+			settings.cached_field,
+			density,
+			grid_world_origin,
+			grid_offset,
+			world_step,
+			settings.resample_bounds
+		)
+	else:
+		field = DensitySampler.build_chunk_field(
+			density, sample_size, grid_world_origin, grid_offset, world_step
+		)
+	if settings.keep_field:
+		chunk_build_result.field = field
 	# A chunk with rock and air in it may hold floating rock; a sky or solid chunk cannot.
 	if (
 		settings.loose_rock_voxels > 0
@@ -142,6 +156,9 @@ static func _chunk_corner_local(
 
 class ChunkBuildResult:
 	var mesh_result: FlyingEdgesMesher.MeshResult = FlyingEdgesMesher.MeshResult.new()
+	## The chunk's field as meshed, kept when the settings ask (a brush rebuild, so the next
+	## stroke there resamples it); null otherwise, since a whole map's fields are 100 MB.
+	var field: SignedDensityField = null
 	## The pools' water sheet in this chunk (CaveWaterMesher), empty when there is none.
 	var water_mesh_result: FlyingEdgesMesher.MeshResult = FlyingEdgesMesher.MeshResult.new()
 	var local_position: Vector3 = Vector3.ZERO
