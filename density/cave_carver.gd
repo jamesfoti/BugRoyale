@@ -34,7 +34,8 @@ extends RefCounted
 ## a hole, and the ground read as a sponge. Fewer, wider, smoother tunnels cut that to a
 ## quarter at the same share of air.
 
-## Tunnels and caverns narrow to nothing over this many metres above their start depth.
+## Tunnels and caverns narrow to nothing over this many metres above their start depth
+## (the fade field; this is its default).
 const FADE: float = 3.0
 ## Metres over which the deep band takes over from the cavern band.
 const BAND_FADE: float = 10.0
@@ -68,6 +69,11 @@ var tunnel_depth: float = 8.0
 ## map runs above shallow_cutoff to everywhere (0 is everywhere from the start).
 var tunnel_ramp: float = 30.0
 var shallow_cutoff: float = 0.35
+## The shape every seed shares, set on the terrain node rather than rolled: the metres over
+## which a tunnel, cavern or shaft band switches on at its start depth, and how big the
+## shallow map's patches are.
+var fade: float = FADE
+var shallow_size: float = 180.0
 ## Caverns: a slower noise, air wherever it runs above the cutoff (rounded rooms); deeper.
 ## Read with its height squeezed by cavern_squash, so the rooms are wider than they are tall.
 var cavern_frequency: float = 0.016
@@ -151,7 +157,10 @@ var _shallow_map: FastNoiseLite
 
 
 ## The underworld one seed draws, with bedrock at floor_y.
-static func from_seed(value: int, bedrock_y: float) -> CaveCarver:
+## Rolls a seed's caves. ranges, field name to Vector2 (least, most), replaces the range a
+## field is drawn from (the terrain node's Cave Range pairs); the draw order never changes,
+## so a seed's other numbers stay whatever one range is set to.
+static func from_seed(value: int, bedrock_y: float, ranges: Dictionary = {}) -> CaveCarver:
 	var carver := CaveCarver.new()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(Vector2i(value, 7919))
@@ -159,7 +168,7 @@ static func from_seed(value: int, bedrock_y: float) -> CaveCarver:
 	carver.floor_y = bedrock_y
 	carver.tunnel_frequency = rng.randf_range(0.014, 0.024)
 	carver.tunnel_threshold = rng.randf_range(0.25, 0.35)
-	carver.tunnel_depth = rng.randf_range(6.0, 12.0)
+	carver.tunnel_depth = _draw(rng, ranges, "tunnel_depth", 6.0, 12.0)
 	carver.cavern_frequency = rng.randf_range(0.009, 0.022)
 	carver.cavern_cutoff = rng.randf_range(0.38, 0.6)
 	carver.cavern_depth = rng.randf_range(16.0, 26.0)
@@ -197,10 +206,19 @@ static func from_seed(value: int, bedrock_y: float) -> CaveCarver:
 	carver.shaft_lean = rng.randf_range(0.08, 0.2)
 	carver.shaft_share = rng.randf_range(0.35, 0.55)
 	# Drawn last so the seeds' earlier rolls stayed as they were when the ramp came.
-	carver.tunnel_ramp = rng.randf_range(20.0, 40.0)
-	carver.shallow_cutoff = rng.randf_range(0.25, 0.45)
+	carver.tunnel_ramp = _draw(rng, ranges, "tunnel_ramp", 20.0, 40.0)
+	carver.shallow_cutoff = _draw(rng, ranges, "shallow_cutoff", 0.25, 0.45)
 	carver._make_noises()
 	return carver
+
+
+static func _draw(
+	rng: RandomNumberGenerator, ranges: Dictionary, field: String, least: float, most: float
+) -> float:
+	if ranges.has(field):
+		var range_value: Vector2 = ranges[field]
+		return rng.randf_range(range_value.x, range_value.y)
+	return rng.randf_range(least, most)
 
 
 ## The carver for a terrain's settings: bedrock FLOOR_MARGIN above the bottom of the grid,
@@ -208,10 +226,13 @@ static func from_seed(value: int, bedrock_y: float) -> CaveCarver:
 static func for_settings(settings: ChunkedTerrainWorld.SettingsSnapshot) -> CaveCarver:
 	var carver: CaveCarver = from_seed(
 		settings.noise_seed,
-		bedrock_y(settings.world_origin.y, settings.chunks_y, settings.chunk_world_size)
+		bedrock_y(settings.world_origin.y, settings.chunks_y, settings.chunk_world_size),
+		settings.open_terrain_cave_ranges
 	)
 	if settings.open_terrain_cave_roll == OpenTerrain.CaveRoll.FIXED:
 		carver.apply(settings.open_terrain_cave_values)
+	else:
+		carver.apply(settings.open_terrain_cave_shape)
 	return carver
 
 
@@ -275,7 +296,7 @@ func air(world_pos: Vector3, depth: float) -> float:
 		sinkhole_threshold + 0.1,
 		_sinkhole_noise.get_noise_2d(world_pos.x, world_pos.z)
 	)
-	var start: float = smoothstep(tunnel_depth - FADE, tunnel_depth + FADE, depth)
+	var start: float = smoothstep(tunnel_depth - fade, tunnel_depth + fade, depth)
 	if start > 0.0 and tunnel_ramp > 0.0 and depth < tunnel_depth + tunnel_ramp:
 		# Near the top only the shallow map's patches have tunnels; the map's cutoff sinks
 		# with depth until every spot is past it at the bottom of the ramp.
@@ -295,7 +316,7 @@ func air(world_pos: Vector3, depth: float) -> float:
 			)
 		)
 		best = tunnel / (2.0 * tunnel_frequency)
-	var cavern_mask: float = smoothstep(cavern_depth - FADE, cavern_depth + FADE, bed) * richness
+	var cavern_mask: float = smoothstep(cavern_depth - fade, cavern_depth + fade, bed) * richness
 	if cavern_mask > 0.0:
 		var grow: float = widen * lerpf(1.0, deep_rooms, deep)
 		var cutoff: float = lerpf(1.0, cavern_cutoff / grow, cavern_mask)
@@ -311,7 +332,7 @@ func air(world_pos: Vector3, depth: float) -> float:
 		best = _blend(best, hall * hall_size / 2.0)
 	if shaft_width > 0.0:
 		var shaft_mask: float = (
-			smoothstep(tunnel_depth - FADE, tunnel_depth + FADE, depth)
+			smoothstep(tunnel_depth - fade, tunnel_depth + fade, depth)
 			* smoothstep(
 				shaft_share - 0.1,
 				shaft_share + 0.1,
@@ -433,7 +454,7 @@ func _make_noises() -> void:
 	_shaft_noise = _noise(world_seed + 913, shaft_frequency, 1)
 	_shaft_noise_b = _noise(world_seed + 914, shaft_frequency, 1)
 	_shaft_map = _noise(world_seed + 915, 1.0 / 150.0, 1)
-	_shallow_map = _noise(world_seed + 916, 1.0 / 180.0, 1)
+	_shallow_map = _noise(world_seed + 916, 1.0 / shallow_size, 1)
 
 
 ## The deeper of two features' air, blended over BLEND metres where they are within it of

@@ -281,7 +281,10 @@ back). **Randomize** goes further on an open terrain: it rolls a seed and draws 
 Noise sliders from the Noise Roll ranges, writing the values into the inspector with
 Noise Roll set to Fixed, so the sliders show exactly what built and can be nudged from
 there; the grid, chunk and voxel sizes stay. The caves' numbers come the same way:
-**Cave Roll** on the node is Seeded (rolled from the seed, as the maps do) or Fixed (the
+**Cave Roll** on the node is Seeded (rolled from the seed, as the maps do, with the
+near-surface numbers drawn from the **Cave Range** pairs beside it: the tunnels' start
+depth, their ramp and the shallow cutoff, each a least and most, one value forcing it on
+every seed) or Fixed (the
 Cave Roll sliders as set: tunnel and cavern band, frequency and depth, regions, bands,
 seams, floors, halls, shafts, ravines, warp), and Randomize writes the roll into the
 sliders and sets Fixed. The rebuild line in the Output panel says what the seed rolled:

@@ -197,7 +197,10 @@ func _on_randomize_pressed(node_path: NodePath) -> void:
 	}
 	var caves: String = ""
 	if node.get("cave_roll") != null:
-		var carver: CaveCarver = CaveCarver.from_seed(values["noise_seed"], node.get_bedrock_y())
+		var carver: CaveCarver = CaveCarver.from_seed(
+			values["noise_seed"], node.get_bedrock_y(), node.call("cave_ranges")
+		)
+		carver.apply(node.call("cave_shape"))
 		var steps: Dictionary = OpenTerrain.CAVE_FIELDS
 		for field: String in steps:
 			values["cave_" + field] = snappedf(carver.get(field), steps[field])

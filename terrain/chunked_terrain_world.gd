@@ -991,6 +991,10 @@ class SettingsSnapshot:
 	## sliders set, by field name.
 	var open_terrain_cave_roll: int = 0
 	var open_terrain_cave_values: Dictionary = {}
+	## The ranges a seeded roll draws from (field name to Vector2), and the shape every
+	## seed shares whatever the roll (field name to value), both from the OpenTerrain node.
+	var open_terrain_cave_ranges: Dictionary = {}
+	var open_terrain_cave_shape: Dictionary = {}
 	## The noise roll (OpenTerrain.NoiseRoll) and the ranges a seed draws its noise from.
 	var open_terrain_noise_roll: int = 0
 	var open_terrain_roll_frequency: Vector2 = Vector2(0.004, 0.01)

@@ -36,6 +36,8 @@ const CAVE_FIELDS: Dictionary = {
 	"tunnel_depth": 0.5,
 	"tunnel_ramp": 1.0,
 	"shallow_cutoff": 0.01,
+	"fade": 0.5,
+	"shallow_size": 10.0,
 	"cavern_frequency": 0.001,
 	"cavern_cutoff": 0.01,
 	"cavern_depth": 1.0,
@@ -322,6 +324,33 @@ const CAVE_FIELDS: Dictionary = {
 	set(value):
 		cave_roll = value
 		_request_rebuild()
+## The ranges a Seeded roll draws the near-surface numbers from, least and most: the
+## metres down the tunnels start, the metres below that over which they spread from a few
+## patches to everywhere, and the shallow map's cutoff at the start (0.25 leaves a third of
+## the ground with tunnels, 0.45 a tenth). A range of one value forces it on every seed.
+@export var cave_range_tunnel_depth: Vector2 = Vector2(6.0, 12.0):
+	set(value):
+		cave_range_tunnel_depth = value
+		_request_rebuild()
+@export var cave_range_tunnel_ramp: Vector2 = Vector2(20.0, 40.0):
+	set(value):
+		cave_range_tunnel_ramp = value
+		_request_rebuild()
+@export var cave_range_shallow_cutoff: Vector2 = Vector2(0.25, 0.45):
+	set(value):
+		cave_range_shallow_cutoff = value
+		_request_rebuild()
+## The shape every seed shares, Seeded or Fixed: the metres over which a tunnel, cavern or
+## shaft band switches on at its start depth (short is a hard ceiling, long a gradual one),
+## and how many metres across the shallow map's patches are.
+@export_range(0.5, 15.0, 0.5) var cave_fade: float = CaveCarver.FADE:
+	set(value):
+		cave_fade = value
+		_request_rebuild()
+@export_range(40.0, 600.0, 10.0) var cave_shallow_size: float = 180.0:
+	set(value):
+		cave_shallow_size = value
+		_request_rebuild()
 ## Tunnel noise frequency: 0.014 is tunnels 70 m apart, 0.024 is 40 m apart and thinner.
 ## Above about 0.03 the tunnels turn to crawls and the ground to a sponge.
 @export_range(0.01, 0.05, 0.001) var cave_tunnel_frequency: float = 0.018:
@@ -546,6 +575,8 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_character_ridge_chance = character_ridge_chance
 	settings.open_terrain_character_ridge = character_ridge
 	settings.open_terrain_cave_roll = cave_roll
+	settings.open_terrain_cave_ranges = cave_ranges()
+	settings.open_terrain_cave_shape = cave_shape()
 	for field: String in CAVE_FIELDS:
 		settings.open_terrain_cave_values[field] = get("cave_" + field)
 	settings.open_terrain_noise_roll = noise_roll
@@ -736,3 +767,17 @@ func _duplicate_heightmap_image() -> Image:
 		return null
 	_heightmap_image_cache = image.duplicate()
 	return _heightmap_image_cache
+
+
+## The Cave Range pairs a Seeded roll draws from, CaveCarver field name to (least, most).
+func cave_ranges() -> Dictionary:
+	return {
+		"tunnel_depth": cave_range_tunnel_depth,
+		"tunnel_ramp": cave_range_tunnel_ramp,
+		"shallow_cutoff": cave_range_shallow_cutoff,
+	}
+
+
+## The shape every seed's caves share whatever the roll, CaveCarver field name to value.
+func cave_shape() -> Dictionary:
+	return {"fade": cave_fade, "shallow_size": cave_shallow_size}

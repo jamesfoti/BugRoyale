@@ -85,6 +85,24 @@ func test_the_cave_roll_sliders_travel_in_the_snapshot() -> void:
 		assert_not_null(CaveCarver.new().get(field), "%s is a CaveCarver field" % field)
 
 
+## The Cave Range pairs steer a seeded roll without moving its other numbers, and the shape
+## (fade, shallow size) applies whatever the roll.
+func test_the_cave_ranges_and_shape_travel_and_steer_the_roll() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.rebuild_on_ready = false
+	add_child_autofree(world)
+	world.cave_range_tunnel_ramp = Vector2(55.0, 55.0)
+	world.cave_fade = 5.0
+	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	var plain: CaveCarver = CaveCarver.from_seed(settings.noise_seed, -100.0)
+	var steered: CaveCarver = CaveCarver.for_settings(settings)
+	assert_almost_eq(steered.tunnel_ramp, 55.0, 0.0001, "the ramp comes from its range")
+	assert_almost_eq(steered.fade, 5.0, 0.0001, "the fade is the node's")
+	assert_almost_eq(steered.tunnel_depth, plain.tunnel_depth, 0.0001, "the other numbers stay")
+	assert_almost_eq(steered.cavern_cutoff, plain.cavern_cutoff, 0.0001)
+	assert_almost_eq(plain.fade, CaveCarver.FADE, 0.0001, "the plain roll keeps the default")
+
+
 func test_the_noise_roll_draws_in_range_and_the_same_seed_the_same() -> void:
 	var fixed: Dictionary = OpenTerrain.rolled_noise(_settings(false))
 	assert_almost_eq(float(fixed["amplitude"]), 12.0, 0.0001, "fixed is the sliders")
