@@ -187,6 +187,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_sky_chunks.gd` | The chunk builder's short cut: a chunk wholly above the ground is filled from its column heights without a voxel pass, a chunk the surface crosses is not, and a placed solid or a built edit in the sky brings the voxel pass back |
 | `test_footings.gd` | The footings under structures: solid from bedrock to the dirt where a 3D-noise underside is a sponge, kept clear of the caves under a solid one, dug as the map's own ground where a bed's soil digs as dirt, and sized by the terrain from its own bedrock to cover a footprint's corners |
 | `test_cave_systems.gd` | The carved cave systems: a seed always rolls the same ones and as many as the map's area says, every mouth sits on the surface inside the bounds and opens the ground, the passages go down and are air along their centre lines, a prepared region sees only the segments in reach, and far from every passage there is nothing |
+| `test_cave_water.gd` | The aquifers: a column's level is steady and in range or dry, about the rolled share of the map is wet, a wall of rock stands on the border between two cells of different levels and nowhere with the water off, and a chunk's water sheet lies at its columns' levels in cave air only |
 | `test_loose_rock.gd` | The loose rock pass on a chunk's field: a lone solid sample with air all round it is cleared and a lump over the limit kept, a lump on a chunk seam is judged the same from both sides, rock built with the brush stays while rock a dig thinned goes, a row of cave chunks loses only rock and agrees on every shared face, and the limit travels in the settings |
 
 GUT and `test/` are excluded from both export presets, so nothing test-related ships.
@@ -360,7 +361,12 @@ switch, a chance and ranges, and each named in the rebuild line:
   Minecraft's lush and dripstone caves: a slow noise 250 m across says what kind of cave
   the rock is in, mossy or plain within 40 m of the surface and plain, dripstone, fungal
   or crystal below, and the walls take the biome's tint half-blended over the shader's
-  rock; dripstone rooms stand on pillars a metre thick. Where two features meet, their air blends over 2 m, so a tunnel joins a room
+  rock; dripstone rooms stand on pillars a metre thick. **Aquifers**, Minecraft's: the
+  map is cut into cells 120 to 220 m across, four to eight in ten holding water to a level
+  of their own between bedrock and 15 m under the surface, and any cave air below the
+  level is a pool, drawn as a flat sheet with the terrarium's water; between two cells of
+  different levels a wall of rock 3 m thick keeps the pools apart, as Minecraft's aquifer
+  barriers do. The pools are a sight for now, not a swim. Where two features meet, their air blends over 2 m, so a tunnel joins a room
   or crosses a floor in a rounded mouth instead of leaving a sliver of wall thinner than
   a voxel (the floating pieces those made: at 1 m voxels the blend takes five in six of
   them away). What still floats is mostly the grid's own, a wall thinner than two voxels

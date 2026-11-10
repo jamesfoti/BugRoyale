@@ -38,6 +38,8 @@ const CAVE_FIELDS: Dictionary = {
 	"shallow_cutoff": 0.01,
 	"fade": 0.5,
 	"shallow_size": 10.0,
+	"water_share": 0.05,
+	"aquifer_size": 10.0,
 	"cavern_frequency": 0.001,
 	"cavern_cutoff": 0.01,
 	"cavern_depth": 1.0,
@@ -526,6 +528,17 @@ const CAVE_FIELDS: Dictionary = {
 @export_range(0.0, 2.0, 0.1) var cave_rubble: float = 0.5:
 	set(value):
 		cave_rubble = value
+		_request_rebuild()
+## Aquifers: the share of the map's cells that hold water (0 is dry caves), and the metres
+## across a cell is. Each wet cell's pool stands at its own level, with a wall of rock
+## between cells of different levels.
+@export_range(0.0, 1.0, 0.05) var cave_water_share: float = 0.6:
+	set(value):
+		cave_water_share = value
+		_request_rebuild()
+@export_range(60.0, 400.0, 10.0) var cave_aquifer_size: float = 160.0:
+	set(value):
+		cave_aquifer_size = value
 		_request_rebuild()
 
 @export_group("Edges")

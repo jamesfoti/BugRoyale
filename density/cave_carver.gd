@@ -70,6 +70,12 @@ const MOSSY_DEPTH: float = 40.0
 const PILLAR_CUTOFF: float = 0.55
 const PILLAR_FREQUENCY: float = 0.2
 const WALL_BAND: float = 4.0
+## Aquifers: the lowest a pool's level lies above bedrock, the half thickness of the rock
+## wall between two aquifers of different levels, and how far under the mean surface the
+## highest level may lie (set by for_settings; the tools leave the caves dry).
+const WATER_FLOOR: float = 6.0
+const BARRIER: float = 1.5
+const WATER_UNDER_SURFACE: float = 15.0
 
 var world_seed: int = 0
 ## Tunnel noise frequency (1 / metres between tunnels) and the half-width of the band around
@@ -157,6 +163,15 @@ var rubble: float = 0.5
 ## (biome), and the walls take its tint; dripstone rooms stand on pillars. A biome fixed
 ## here (not NONE) is everywhere, for tools and tests.
 var biome_fixed: Biome = Biome.NONE
+## Aquifers, Minecraft's: the map is cut into cells aquifer_size metres across, each dry or,
+## water_share of them, holding water to a level of its own between WATER_FLOOR above
+## bedrock and water_top; any cave air below the level is a pool (CaveWaterMesher draws the
+## sheet). Where two cells of different levels meet, a wall of rock BARRIER thick keeps the
+## pools apart below the higher level, as Minecraft's aquifer barriers do. water_top -INF
+## is no water at all.
+var water_share: float = 0.6
+var aquifer_size: float = 160.0
+var water_top: float = -INF
 var shaft_share: float = 0.45
 ## World Y below which everything is solid.
 var floor_y: float = -INF
@@ -238,6 +253,8 @@ static func from_seed(value: int, bedrock_y: float, ranges: Dictionary = {}) -> 
 	carver.shallow_cutoff = _draw(rng, ranges, "shallow_cutoff", 0.25, 0.45)
 	carver.ceiling_jag = _draw(rng, ranges, "ceiling_jag", 0.8, 2.0)
 	carver.rubble = _draw(rng, ranges, "rubble", 0.3, 0.8)
+	carver.water_share = _draw(rng, ranges, "water_share", 0.4, 0.8)
+	carver.aquifer_size = _draw(rng, ranges, "aquifer_size", 120.0, 220.0)
 	carver._make_noises()
 	return carver
 
@@ -263,6 +280,9 @@ static func for_settings(settings: ChunkedTerrainWorld.SettingsSnapshot) -> Cave
 		carver.apply(settings.open_terrain_cave_values)
 	else:
 		carver.apply(settings.open_terrain_cave_shape)
+	carver.water_top = (
+		settings.bounds_center.y + settings.open_terrain_surface_offset - WATER_UNDER_SURFACE
+	)
 	return carver
 
 
@@ -408,7 +428,62 @@ func air(world_pos: Vector3, depth: float) -> float:
 	# The carved systems cut through everything: bands, seams, regions and floors.
 	if systems != null:
 		best = _blend(best, systems.air(read_pos))
+	# The walls between aquifers of different levels cut through everything too.
+	if water_top > -INF:
+		best = minf(best, barrier(world_pos))
 	return best
+
+
+## The aquifer cell a column lies in and its neighbour: the cells are a jittered grid of
+## aquifer_size metres, and each draws from its hash whether it holds water and to what
+## level. Returns the nearest cell's level, the second nearest cell's, and the difference of
+## the two distances (0 on the border between them).
+func aquifer(world_x: float, world_z: float) -> Vector3:
+	var cell_x: int = floori(world_x / aquifer_size)
+	var cell_z: int = floori(world_z / aquifer_size)
+	var nearest: float = INF
+	var second: float = INF
+	var nearest_level: float = -INF
+	var second_level: float = -INF
+	for dz: int in range(-1, 2):
+		for dx: int in range(-1, 2):
+			var cx: int = cell_x + dx
+			var cz: int = cell_z + dz
+			var bits: int = hash(Vector3i(cx, cz, world_seed + 921)) & 0x7FFFFFFF
+			var centre := Vector2(
+				(float(cx) + 0.2 + 0.6 * float(bits & 0xFF) / 255.0) * aquifer_size,
+				(float(cz) + 0.2 + 0.6 * float((bits >> 8) & 0xFF) / 255.0) * aquifer_size
+			)
+			var distance: float = centre.distance_to(Vector2(world_x, world_z))
+			var level: float = -INF
+			if float((bits >> 16) & 0xFF) / 255.0 < water_share:
+				level = lerpf(floor_y + WATER_FLOOR, water_top, float((bits >> 24) & 0x7F) / 127.0)
+			if distance < nearest:
+				second = nearest
+				second_level = nearest_level
+				nearest = distance
+				nearest_level = level
+			elif distance < second:
+				second = distance
+				second_level = level
+	return Vector3(nearest_level, second_level, second - nearest)
+
+
+## The level a column's pool stands at, in world Y, or -INF for a dry column.
+func water_level(world_x: float, world_z: float) -> float:
+	if water_top == -INF:
+		return -INF
+	return aquifer(world_x, world_z).x
+
+
+## Metres of rock the aquifer walls put at a point: negative inside a wall (on the border
+## between two cells of different levels, below the higher one), positive metres to the
+## nearest wall, INF where none can be.
+func barrier(world_pos: Vector3) -> float:
+	var cells: Vector3 = aquifer(world_pos.x, world_pos.z)
+	if is_equal_approx(cells.x, cells.y) or world_pos.y > maxf(cells.x, cells.y) + 1.0:
+		return INF
+	return cells.z * 0.5 - BARRIER
 
 
 ## How riddled the rock is here: region_lean where the region noise runs low, region_rich
@@ -498,6 +573,11 @@ func summary() -> String:
 		floors = "floors every %d m" % roundi(floor_spacing)
 	var carved: String = "" if systems == null else ", " + systems.summary()
 	carved += ", ceilings %.1f m, rubble %.1f m" % [ceiling_jag, rubble]
+	if water_top > -INF:
+		carved += (
+			", water in %d%% of aquifers %d m across"
+			% [roundi(water_share * 100.0), roundi(aquifer_size)]
+		)
 	return (
 		(
 			(

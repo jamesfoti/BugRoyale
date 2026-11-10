@@ -120,6 +120,10 @@ static func build_chunk_into(
 	chunk_build_result.mesh_result = FlyingEdgesMesher.build_mesh(
 		field, extent, settings.iso_level, grid_offset, grid_world_origin, world_center, density
 	)
+	if density.caves != null and density.caves.water_top > -INF and not field.sky:
+		chunk_build_result.water_mesh_result = CaveWaterMesher.build(
+			field, density, grid_world_origin, grid_offset, world_step, extent, world_center
+		)
 	chunk_build_result.local_position = corner_local + half_extent
 
 
@@ -135,6 +139,8 @@ static func _chunk_corner_local(
 
 class ChunkBuildResult:
 	var mesh_result: FlyingEdgesMesher.MeshResult = FlyingEdgesMesher.MeshResult.new()
+	## The pools' water sheet in this chunk (CaveWaterMesher), empty when there is none.
+	var water_mesh_result: FlyingEdgesMesher.MeshResult = FlyingEdgesMesher.MeshResult.new()
 	var local_position: Vector3 = Vector3.ZERO
 
 
