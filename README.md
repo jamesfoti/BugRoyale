@@ -326,7 +326,10 @@ switch, a chance and ranges, and each named in the rebuild line:
   caves too. **Regions**: a 3D noise 150 to 400 m across says where the rock is riddled
   and where it is lean, solid on half the seeds and sparse on the rest, so a map has
   cave country and dead rock. **Depth bands**, Terraria's layers: burrow ground, then
-  tunnels, then caverns, then from 120 to 260 m down a deep band where the tunnels thin
+  tunnels, coming in by count rather than width (at their start depth, 6 to 12 m down,
+  they run only in a few patches of a slow map, and the patches spread over the next 20
+  to 40 m until the tunnels run everywhere, so the top of the ground is mostly ground),
+  then caverns, then from 120 to 260 m down a deep band where the tunnels thin
   and the rooms grow, with **seams** of near-solid rock a few metres thick between the
   bands, bent by a slow wave so they undulate like beds. The tunnels themselves are few
   and wide on purpose, 40 to 70 m apart and several metres across from a single octave

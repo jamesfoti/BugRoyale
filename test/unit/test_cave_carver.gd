@@ -54,7 +54,9 @@ func test_every_number_lands_in_its_range() -> void:
 		assert_between(carver.tunnel_threshold, 0.25, 0.35, "tunnel band, seed %d" % value)
 		assert_between(carver.cavern_cutoff, 0.38, 0.6, "cavern cutoff, seed %d" % value)
 		assert_between(carver.cavern_squash, 1.2, 2.2, "cavern squash, seed %d" % value)
-		assert_between(carver.tunnel_depth, 4.0, 8.0, "tunnel depth, seed %d" % value)
+		assert_between(carver.tunnel_depth, 6.0, 12.0, "tunnel depth, seed %d" % value)
+		assert_between(carver.tunnel_ramp, 20.0, 40.0, "tunnel ramp, seed %d" % value)
+		assert_between(carver.shallow_cutoff, 0.25, 0.45, "shallow cutoff, seed %d" % value)
 		assert_between(carver.cavern_depth, 16.0, 26.0, "cavern depth, seed %d" % value)
 		assert_gt(carver.cavern_depth, carver.tunnel_depth, "caverns lie under the tunnels")
 		assert_almost_eq(carver.floor_y, BEDROCK_Y, 0.001)
@@ -296,6 +298,24 @@ func _air_columns(carver: CaveCarver, depth: float) -> int:
 			if carver.air(spot, depth) > 0.0:
 				air += 1
 	return air
+
+
+## Near the top the tunnels run only in the shallow map's patches, and spread with depth
+## until the bottom of the ramp, where they run everywhere; without a ramp they run
+## everywhere from the start.
+func test_the_tunnels_spread_from_patches_to_everywhere_down_the_ramp() -> void:
+	var carver: CaveCarver = _plain_carver()
+	carver.cavern_cutoff = 2.0
+	carver.sinkhole_threshold = 2.0
+	var top: float = carver.tunnel_depth + 6.0
+	var bottom: float = carver.tunnel_depth + carver.tunnel_ramp + 6.0
+	var top_air: int = _air_columns(carver, top)
+	var bottom_air: int = _air_columns(carver, bottom)
+	assert_gt(top_air, 0, "some tunnel near the top")
+	assert_lt(top_air * 2, bottom_air, "fewer than half as many as at the ramp's bottom")
+	carver.tunnel_ramp = 0.0
+	var flat_top: int = _air_columns(carver, top)
+	assert_gt(flat_top * 2, bottom_air, "no ramp: as many near the top as below")
 
 
 ## Regions: on a seed whose lean rock is solid, no tunnel or cavern opens where the region

@@ -34,6 +34,8 @@ const CAVE_FIELDS: Dictionary = {
 	"tunnel_frequency": 0.001,
 	"tunnel_threshold": 0.01,
 	"tunnel_depth": 0.5,
+	"tunnel_ramp": 1.0,
+	"shallow_cutoff": 0.01,
 	"cavern_frequency": 0.001,
 	"cavern_cutoff": 0.01,
 	"cavern_depth": 1.0,
@@ -333,9 +335,21 @@ const CAVE_FIELDS: Dictionary = {
 		cave_tunnel_threshold = value
 		_request_rebuild()
 ## Metres below the surface the tunnels start; above it only sinkholes and ravines open.
-@export_range(0.0, 30.0, 0.5) var cave_tunnel_depth: float = 6.0:
+@export_range(0.0, 30.0, 0.5) var cave_tunnel_depth: float = 8.0:
 	set(value):
 		cave_tunnel_depth = value
+		_request_rebuild()
+## Metres below the start over which the tunnels spread from a few patches to everywhere;
+## 0 is everywhere from the start.
+@export_range(0.0, 80.0, 1.0) var cave_tunnel_ramp: float = 30.0:
+	set(value):
+		cave_tunnel_ramp = value
+		_request_rebuild()
+## The shallow map's cutoff: at the start depth tunnels run only where the map runs above
+## it. 0.25 is a third of the ground, 0.45 a tenth, -1 all of it.
+@export_range(-1.0, 1.0, 0.01) var cave_shallow_cutoff: float = 0.35:
+	set(value):
+		cave_shallow_cutoff = value
 		_request_rebuild()
 ## Cavern noise frequency: 0.01 is rooms 100 m apart, 0.02 is 50 m apart and smaller.
 @export_range(0.005, 0.04, 0.001) var cave_cavern_frequency: float = 0.016:

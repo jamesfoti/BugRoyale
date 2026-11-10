@@ -22,7 +22,11 @@ extends RefCounted
 ##
 ## Depth is metres below the surface of the column. Tunnels start at tunnel_depth, caverns at
 ## cavern_depth, and both widen with depth: the ground near the surface is for burrows, the
-## middle is tunnels, the bottom is rooms. Measured on the noises used here, a band of 0.3
+## middle is tunnels, the bottom is rooms. The tunnels come in by count, not by width: at
+## their start depth they run only where a slow shallow map rises above shallow_cutoff, a
+## patch here and there, and the patches spread with depth until, tunnel_ramp metres
+## further down, the tunnels run everywhere. Thinning them by width instead left the top of
+## the ground full of crawls. Measured on the noises used here, a band of 0.3
 ## shared by two single-octave noises is about a fifth of the ground, a cutoff of 0.5 about
 ## 12%. The tunnel noises have one octave and run 40 to 70 m apart on purpose: with two
 ## octaves and 20 to 45 m apart, a vertical slice crossed over two hundred tunnels, seven in
@@ -59,7 +63,11 @@ var world_seed: int = 0
 ## zero that both tunnel noises must be inside, in noise units; the depth tunnels start at.
 var tunnel_frequency: float = 0.018
 var tunnel_threshold: float = 0.3
-var tunnel_depth: float = 6.0
+var tunnel_depth: float = 8.0
+## Metres below tunnel_depth over which the tunnels spread from the patches where the shallow
+## map runs above shallow_cutoff to everywhere (0 is everywhere from the start).
+var tunnel_ramp: float = 30.0
+var shallow_cutoff: float = 0.35
 ## Caverns: a slower noise, air wherever it runs above the cutoff (rounded rooms); deeper.
 ## Read with its height squeezed by cavern_squash, so the rooms are wider than they are tall.
 var cavern_frequency: float = 0.016
@@ -139,6 +147,7 @@ var _hall_noise: FastNoiseLite
 var _shaft_noise: FastNoiseLite
 var _shaft_noise_b: FastNoiseLite
 var _shaft_map: FastNoiseLite
+var _shallow_map: FastNoiseLite
 
 
 ## The underworld one seed draws, with bedrock at floor_y.
@@ -150,7 +159,7 @@ static func from_seed(value: int, bedrock_y: float) -> CaveCarver:
 	carver.floor_y = bedrock_y
 	carver.tunnel_frequency = rng.randf_range(0.014, 0.024)
 	carver.tunnel_threshold = rng.randf_range(0.25, 0.35)
-	carver.tunnel_depth = rng.randf_range(4.0, 8.0)
+	carver.tunnel_depth = rng.randf_range(6.0, 12.0)
 	carver.cavern_frequency = rng.randf_range(0.009, 0.022)
 	carver.cavern_cutoff = rng.randf_range(0.38, 0.6)
 	carver.cavern_depth = rng.randf_range(16.0, 26.0)
@@ -187,6 +196,9 @@ static func from_seed(value: int, bedrock_y: float) -> CaveCarver:
 	carver.shaft_width = rng.randf_range(0.12, 0.2)
 	carver.shaft_lean = rng.randf_range(0.08, 0.2)
 	carver.shaft_share = rng.randf_range(0.35, 0.55)
+	# Drawn last so the seeds' earlier rolls stayed as they were when the ramp came.
+	carver.tunnel_ramp = rng.randf_range(20.0, 40.0)
+	carver.shallow_cutoff = rng.randf_range(0.25, 0.45)
 	carver._make_noises()
 	return carver
 
@@ -263,11 +275,16 @@ func air(world_pos: Vector3, depth: float) -> float:
 		sinkhole_threshold + 0.1,
 		_sinkhole_noise.get_noise_2d(world_pos.x, world_pos.z)
 	)
-	var tunnel_mask: float = (
-		maxf(smoothstep(tunnel_depth - FADE, tunnel_depth + FADE, depth), opening)
-		* richness
-		* lerpf(1.0, deep_tunnels, deep)
-	)
+	var start: float = smoothstep(tunnel_depth - FADE, tunnel_depth + FADE, depth)
+	if start > 0.0 and tunnel_ramp > 0.0 and depth < tunnel_depth + tunnel_ramp:
+		# Near the top only the shallow map's patches have tunnels; the map's cutoff sinks
+		# with depth until every spot is past it at the bottom of the ramp.
+		var spread: float = smoothstep(tunnel_depth, tunnel_depth + tunnel_ramp, depth)
+		var cut: float = lerpf(shallow_cutoff, -1.2, spread)
+		start *= smoothstep(
+			cut - 0.05, cut + 0.05, _shallow_map.get_noise_2d(world_pos.x, world_pos.z)
+		)
+	var tunnel_mask: float = maxf(start, opening) * richness * lerpf(1.0, deep_tunnels, deep)
 	var best: float = -INF
 	if tunnel_mask > 0.0:
 		var tunnel: float = (
@@ -376,13 +393,15 @@ func summary() -> String:
 		floors = "floors every %d m" % roundi(floor_spacing)
 	return (
 		(
-			"tunnels %.2f from %d m down, caverns %.2f from %d m down, deep from %d m, "
+			"tunnels %.2f from %d m down, everywhere from %d m, caverns %.2f from %d m down, "
+			+ "deep from %d m, "
 			+ "regions %d m (%.1f to %.1f), seams %d m, %s, halls %.2f, shafts %.2f, %s, "
 			+ "warp %d m, bedrock at %d m"
 		)
 		% [
 			tunnel_threshold,
 			roundi(tunnel_depth),
+			roundi(tunnel_depth + tunnel_ramp),
 			cavern_cutoff,
 			roundi(cavern_depth),
 			roundi(deep_depth),
@@ -414,6 +433,7 @@ func _make_noises() -> void:
 	_shaft_noise = _noise(world_seed + 913, shaft_frequency, 1)
 	_shaft_noise_b = _noise(world_seed + 914, shaft_frequency, 1)
 	_shaft_map = _noise(world_seed + 915, 1.0 / 150.0, 1)
+	_shallow_map = _noise(world_seed + 916, 1.0 / 180.0, 1)
 
 
 ## The deeper of two features' air, blended over BLEND metres where they are within it of
