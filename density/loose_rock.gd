@@ -281,6 +281,7 @@ func _clear_lump() -> int:
 			continue
 		var index: int = at.x + at.y * size.x + at.z * size.x * size.y
 		_values[index] = _iso + (_iso - _values[index])
+		_field.mark_changed(at)
 		cleared += 1
 	return cleared
 

@@ -9,6 +9,12 @@ signal brush_applied(world_position: Vector3, radius: float)
 ## "removed" (TerrainMaterials.Kind -> voxels dug out) and "added" (voxels turned solid). A
 ## host broadcasts these; a client applies them in sequence order.
 signal edit_applied(edit: Dictionary)
+## How far a rebuild of the whole map is, as it goes: the chunks meshed on the workers
+## count first, then the chunks placed in the scene, so total is twice the chunk count. A
+## blocking rebuild reports once, complete.
+signal build_progress(done: int, total: int)
+## Every chunk of a rebuild of the whole map stands.
+signal built
 
 const _CHUNK_SCRIPT = preload("res://terrain/terrain_chunk.gd")
 ## Worker threads a full rebuild is split over. GDScript on many threads contends in the
@@ -25,11 +31,9 @@ const FIELD_CACHE_CHUNKS: int = 64
 const FIGHTER_CLEARANCE: float = 0.1
 ## Points tested along a capsule's axis when checking an edit against it.
 const CAPSULE_SAMPLES: int = 6
-
-## Called from the blocking rebuild as the chunks come in, with (chunks built, chunks in
-## all, this world), and once more when every chunk stands: the loading screen draws its
-## bar from it, since nothing else gets a frame while a map builds. Invalid: no one watches.
-static var build_watcher: Callable = Callable()
+## Main-thread time a frame gives to placing built chunks in the scene (mesh upload and
+## collision) during the map's background build.
+const PLACE_BUDGET_USEC: int = 24000
 
 @export_group("Terrain Grid")
 @export_range(1.0, 128.0, 0.5, "or_greater") var chunk_size: float = 12.0:
@@ -151,15 +155,24 @@ var _bake_density: DensitySampler.WorldDensity
 ## Chunk coordinate -> the world-space box whose samples changed since the chunk was last
 ## built (an AABB of no volume: the chunk is built whole).
 var _pending_rebuild_chunk_coordinates: Dictionary = {}
-## Chunk coordinate -> the field it was last built from by a brush rebuild, at most
-## FIELD_CACHE_CHUNKS of them, oldest dropped: the next stroke there resamples only what it
-## changed instead of reading forty thousand samples again.
+## Chunk coordinate -> the field and mesh blocks of its last brush rebuild
+## (ChunkMeshBuilder.ChunkCache), at most FIELD_CACHE_CHUNKS of them, oldest dropped: the
+## next stroke there resamples only what it changed instead of reading forty thousand
+## samples again, and meshes only the blocks those samples touch.
 var _field_cache: Dictionary = {}
 var _pending_rebuild_collision: bool = false
 var _async_rebuild_requested: bool = false
 var _async_jobs: Dictionary = {}
 var _running_async_tasks: int = 0
 var _inflight_chunk_coordinates: Dictionary = {}
+## The map's build in the background (the game's rebuild on ready): its chunks are meshed
+## on the worker pool while frames keep coming, then placed a few a frame. Null: none runs.
+var _world_build: ChunkMeshBuilder.ParallelBuildJob = null
+var _world_build_task: int = -1
+var _world_build_settings: SettingsSnapshot = null
+var _world_build_grid: Vector3i = Vector3i.ZERO
+var _world_build_placed: int = 0
+var _world_build_started_msec: int = 0
 
 
 func _ready() -> void:
@@ -168,12 +181,14 @@ func _ready() -> void:
 		add_to_group("terrain_world")
 		_register_playable_groups()
 	if rebuild_on_ready and not Engine.is_editor_hint():
-		call_deferred("rebuild_all")
+		call_deferred("_begin_ready_build")
 
 
 func _process(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
+	if _world_build != null:
+		_poll_world_build()
 	_poll_async_rebuilds()
 	if _async_rebuild_requested:
 		_async_rebuild_requested = false
@@ -210,7 +225,11 @@ func rebuild_all_editor() -> void:
 	rebuild_all()
 
 
+## Rebuilds the whole map before returning: every chunk exists after this (the editor, the
+## tests and the terrarium's room rely on that). A map with many chunks takes seconds and no
+## frame is drawn meanwhile; the game's rebuild on ready goes through _begin_ready_build.
 func rebuild_all() -> void:
+	_abandon_world_build()
 	_invalidate_bake_density()
 	_ensure_world_defaults()
 	_clear_chunks()
@@ -219,10 +238,85 @@ func rebuild_all() -> void:
 	_rebuild_all_sync(settings, grid_dimensions)
 
 
-## Blocks until every chunk exists (callers such as spawning rely on that), but meshes the
-## chunks on all WorkerThreadPool threads when use_threaded_rebuild is on.
-func _rebuild_all_sync(settings: SettingsSnapshot, grid_dimensions: Vector3i) -> void:
-	var rebuild_start_milliseconds: int = Time.get_ticks_msec()
+## Whether the map's background build (see _begin_ready_build) is still going: until it is
+## done the ground is missing, so a spawn waits on this.
+func is_building() -> bool:
+	return _world_build != null
+
+
+## The game's build of the map: the chunks are meshed on the worker pool while the frames
+## keep coming (the loading screen draws its bar from build_progress), then placed in the
+## scene a few a frame. Without threads it builds blocking, as rebuild_all does.
+func _begin_ready_build() -> void:
+	if not use_threaded_rebuild:
+		rebuild_all()
+		return
+	_abandon_world_build()
+	_invalidate_bake_density()
+	_ensure_world_defaults()
+	_clear_chunks()
+	_world_build_settings = _make_settings_snapshot()
+	_world_build_grid = _get_grid_dimensions()
+	_world_build = _make_world_job(_world_build_settings, _world_build_grid)
+	_world_build_placed = 0
+	_world_build_started_msec = Time.get_ticks_msec()
+	_world_build_task = WorkerThreadPool.add_group_task(
+		ChunkMeshBuilder.run_parallel_job_element.bind(_world_build),
+		_world_build.chunk_coordinates.size(),
+		REBUILD_THREADS,
+		true,
+		"%s chunk rebuild" % _get_world_log_name()
+	)
+	build_progress.emit(0, _world_build.chunk_coordinates.size() * 2)
+
+
+func _poll_world_build() -> void:
+	var total: int = _world_build.chunk_coordinates.size()
+	if _world_build_task >= 0:
+		if not WorkerThreadPool.is_group_task_completed(_world_build_task):
+			build_progress.emit(_world_build.completed(), total * 2)
+			return
+		WorkerThreadPool.wait_for_group_task_completion(_world_build_task)
+		_world_build_task = -1
+	var deadline: int = Time.get_ticks_usec() + PLACE_BUDGET_USEC
+	while _world_build_placed < total:
+		_build_chunk_at(
+			_world_build.chunk_coordinates[_world_build_placed],
+			_world_build.results[_world_build_placed],
+			_world_build_settings
+		)
+		_world_build_placed += 1
+		if Time.get_ticks_usec() >= deadline:
+			break
+	build_progress.emit(total + _world_build_placed, total * 2)
+	if _world_build_placed < total:
+		return
+	_log_rebuild_complete(
+		_chunks.size(),
+		_world_build_settings,
+		_world_build_grid,
+		Time.get_ticks_msec() - _world_build_started_msec
+	)
+	_world_build = null
+	_world_build_settings = null
+	built.emit()
+
+
+## Drops a background build that is still going (a full rebuild asked for meanwhile takes
+## its place); the workers are let finish first, since their job holds the settings.
+func _abandon_world_build() -> void:
+	if _world_build == null:
+		return
+	if _world_build_task >= 0:
+		WorkerThreadPool.wait_for_group_task_completion(_world_build_task)
+	_world_build_task = -1
+	_world_build = null
+	_world_build_settings = null
+
+
+func _make_world_job(
+	settings: SettingsSnapshot, grid_dimensions: Vector3i
+) -> ChunkMeshBuilder.ParallelBuildJob:
 	var job: ChunkMeshBuilder.ParallelBuildJob = ChunkMeshBuilder.ParallelBuildJob.new()
 	job.settings = settings
 	for chunk_z: int in grid_dimensions.z:
@@ -230,6 +324,14 @@ func _rebuild_all_sync(settings: SettingsSnapshot, grid_dimensions: Vector3i) ->
 			for chunk_x: int in grid_dimensions.x:
 				job.chunk_coordinates.append(Vector3i(chunk_x, chunk_y, chunk_z))
 				job.results.append(ChunkMeshBuilder.ChunkBuildResult.new())
+	return job
+
+
+## Blocks until every chunk exists, but meshes the chunks on all WorkerThreadPool threads
+## when use_threaded_rebuild is on.
+func _rebuild_all_sync(settings: SettingsSnapshot, grid_dimensions: Vector3i) -> void:
+	var rebuild_start_milliseconds: int = Time.get_ticks_msec()
+	var job: ChunkMeshBuilder.ParallelBuildJob = _make_world_job(settings, grid_dimensions)
 	if use_threaded_rebuild and job.chunk_coordinates.size() > 1:
 		var group_task_id: int = WorkerThreadPool.add_group_task(
 			ChunkMeshBuilder.run_parallel_job_element.bind(job),
@@ -238,22 +340,16 @@ func _rebuild_all_sync(settings: SettingsSnapshot, grid_dimensions: Vector3i) ->
 			true,
 			"%s chunk rebuild" % _get_world_log_name()
 		)
-		if build_watcher.is_valid():
-			while not WorkerThreadPool.is_group_task_completed(group_task_id):
-				OS.delay_msec(50)
-				build_watcher.call(job.completed(), job.chunk_coordinates.size(), self)
 		WorkerThreadPool.wait_for_group_task_completion(group_task_id)
 	else:
 		for element_index: int in job.chunk_coordinates.size():
 			ChunkMeshBuilder.run_parallel_job_element(element_index, job)
-			if build_watcher.is_valid():
-				build_watcher.call(element_index + 1, job.chunk_coordinates.size(), self)
 	for element_index: int in job.chunk_coordinates.size():
 		_build_chunk_at(job.chunk_coordinates[element_index], job.results[element_index], settings)
-	if build_watcher.is_valid():
-		build_watcher.call(job.chunk_coordinates.size(), job.chunk_coordinates.size(), self)
 	var elapsed_milliseconds: int = Time.get_ticks_msec() - rebuild_start_milliseconds
 	_log_rebuild_complete(_chunks.size(), settings, grid_dimensions, elapsed_milliseconds)
+	build_progress.emit(job.chunk_coordinates.size() * 2, job.chunk_coordinates.size() * 2)
+	built.emit()
 
 
 func _build_chunk_at(
@@ -414,6 +510,29 @@ func end_continuous_edit() -> void:
 	_chunk_flush_pending = false
 	if not _pending_rebuild_chunk_coordinates.is_empty():
 		_dispatch_pending_rebuilds()
+
+
+## Warms the chunk cache round a spot the brush may strike next (its hover point): the
+## chunks the sphere touches that have no cached field get one built in the background,
+## so the first stroke there resamples a few samples instead of reading the whole chunk.
+## Cheap to call every frame; nothing is started for a chunk that is cached, in flight or
+## queued, or while the map itself is still building.
+func prepare_edit_around(world_position: Vector3, radius: float) -> void:
+	if _world_build != null or not _use_threaded_rebuild():
+		return
+	for chunk_coordinate: Vector3i in _get_chunk_coordinates_intersecting_sphere(
+		world_position, radius
+	):
+		if (
+			_field_cache.has(chunk_coordinate)
+			or _inflight_chunk_coordinates.has(chunk_coordinate)
+			or _pending_rebuild_chunk_coordinates.has(chunk_coordinate)
+			or not _chunks.has(chunk_coordinate)
+		):
+			continue
+		if _running_async_tasks >= max_concurrent_rebuild_tasks:
+			return
+		_start_single_chunk_async_rebuild(chunk_coordinate, false, AABB(), true)
 
 
 ## Queues a chunk for a rebuild of the samples inside bounds (world space), or whole when
@@ -817,19 +936,27 @@ func _schedule_chunk_coordinate_rebuilds(
 
 
 func _start_single_chunk_async_rebuild(
-	chunk_coordinate: Vector3i, rebuild_collision: bool, bounds: AABB = AABB()
+	chunk_coordinate: Vector3i,
+	rebuild_collision: bool,
+	bounds: AABB = AABB(),
+	prepare_only: bool = false
 ) -> void:
 	_inflight_chunk_coordinates[chunk_coordinate] = true
 	var async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob = ChunkMeshBuilder.AsyncRebuildJob.new()
 	async_rebuild_job.chunk_coordinates = [chunk_coordinate]
 	async_rebuild_job.rebuild_collision = rebuild_collision
+	async_rebuild_job.prepare_only = prepare_only
 	async_rebuild_job.settings = _make_thread_settings_snapshot()
 	async_rebuild_job.settings.keep_field = true
 	if bounds.has_volume() and _field_cache.has(chunk_coordinate):
-		async_rebuild_job.settings.cached_field = _field_cache[chunk_coordinate]
+		var cached: ChunkMeshBuilder.ChunkCache = _field_cache[chunk_coordinate]
+		async_rebuild_job.settings.cached_field = cached.field
+		async_rebuild_job.settings.cached_blocks = cached.blocks
 		async_rebuild_job.settings.resample_bounds = bounds
+	# High priority: the pool keeps most of its threads for these, and a stroke's chunks
+	# should all be in hand at once.
 	async_rebuild_job.task_id = WorkerThreadPool.add_task(
-		ChunkMeshBuilder.run_async_job.bind(async_rebuild_job)
+		ChunkMeshBuilder.run_async_job.bind(async_rebuild_job), true, "Chunk rebuild"
 	)
 	_async_jobs[async_rebuild_job.task_id] = async_rebuild_job
 	_running_async_tasks += 1
@@ -869,12 +996,16 @@ func _apply_async_job(async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob) -> vo
 		)
 		if chunk_build_result == null:
 			continue
-		chunk.apply_build_result(chunk_build_result, generate_collision)
-		if _effective_material() != null:
-			chunk.material_override = _effective_material()
+		if not async_rebuild_job.prepare_only:
+			chunk.apply_build_result(chunk_build_result, generate_collision)
+			if _effective_material() != null:
+				chunk.material_override = _effective_material()
 		if chunk_build_result.field != null:
+			var cached := ChunkMeshBuilder.ChunkCache.new()
+			cached.field = chunk_build_result.field
+			cached.blocks = chunk_build_result.blocks
 			_field_cache.erase(chunk_coordinate)
-			_field_cache[chunk_coordinate] = chunk_build_result.field
+			_field_cache[chunk_coordinate] = cached
 			while _field_cache.size() > FIELD_CACHE_CHUNKS:
 				_field_cache.erase(_field_cache.keys()[0])
 
@@ -1081,6 +1212,7 @@ class SettingsSnapshot:
 	## changed, so only those are read again; and whether the built field comes back with the
 	## result for the next stroke.
 	var cached_field: SignedDensityField = null
+	var cached_blocks: ChunkMeshBlocks = null
 	var resample_bounds: AABB = AABB()
 	var keep_field: bool = false
 	## Solid ground a map builder adds on top of the shape (DensitySampler.WorldDensity.solids).

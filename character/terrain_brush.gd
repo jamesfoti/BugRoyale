@@ -32,6 +32,8 @@ const MAX_BLOCK_SIZE: int = 6
 const BLOCK_SNAP_SLACK: float = 0.1
 ## The value of edit["tool"] on every edit this brush makes.
 const PICKAXE_TOOL: String = "pickaxe"
+## Metres beyond the brush round its hover point whose chunks are warmed for the next stroke.
+const PREPARE_MARGIN: float = 4.0
 
 @export var edit_distance: float = 20.0
 @export var brush_radius: float = 1.5
@@ -141,6 +143,7 @@ func _process(delta: float) -> void:
 				_is_painting = false
 				_terrain.end_continuous_edit()
 			return
+		_prepare_hovered_chunks()
 		_show_preview()
 		_process_paint_input(delta)
 		return
@@ -157,6 +160,7 @@ func _process(delta: float) -> void:
 		_hide_preview()
 		return
 
+	_prepare_hovered_chunks()
 	_show_preview()
 	_process_paint_input(delta)
 
@@ -241,6 +245,14 @@ func _block_edit() -> Dictionary:
 
 
 # --- Preview --------------------------------------------------------------------------------
+
+
+## The chunks round the hover point get their field and mesh blocks cached in the
+## background while the player aims, so the first stroke there is as quick as the rest.
+func _prepare_hovered_chunks() -> void:
+	if _terrain == null or _hover_hit.is_empty():
+		return
+	_terrain.prepare_edit_around(_hover_hit["position"], brush_radius + PREPARE_MARGIN)
 
 
 func _show_preview() -> void:

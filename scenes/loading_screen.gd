@@ -1,6 +1,8 @@
 class_name LoadingScreen
 extends Control
-## Shows the game sky while the main scene loads in the background.
+## Shows the game sky while the main scene loads in the background, then stays over the
+## game while its map builds: the sky and the bar sit on canvas layers above every HUD, and
+## the sky's viewport has a world of its own, so the map going in underneath never shows.
 
 enum PlayerCharacter {
 	ANT_WARRIOR,
@@ -30,10 +32,12 @@ static var pending_terrain_seed: int = 0
 ## Resolved once per load: the synchronous fallback must get the same map the threaded load
 ## was given, not the default scene (pending_scene_path is consumed on first use).
 var _resolved_scene_path: String = ""
-## Frames since the game scene went in: the screen stays over the game while its terrain
-## builds (the build blocks the frame, so these only count once it is done) and leaves a
-## few frames later.
+## Frames since the game scene went in and its terrain stood: the screen stays over the
+## game while the map builds in the background and leaves a few frames later.
 var _frames_since_start: int = -1
+## The map's terrain worlds, and how far each one's build is (done, total).
+var _terrains: Array[ChunkedTerrainWorld] = []
+var _terrain_progress: Dictionary = {}
 
 @onready var _title: Label = $UI/Margin/VBox/Title
 @onready var _status: Label = $UI/Margin/VBox/Status
@@ -129,10 +133,13 @@ func _set_progress(percent: int, message: String) -> void:
 
 
 func _start_game(game_scene: PackedScene) -> void:
-	_set_progress(100, "Loading")
+	_set_progress(0, "Building terrain")
 	var game_root: Node = game_scene.instantiate()
 	_randomize_terrain_seeds(game_root)
-	ChunkedTerrainWorld.build_watcher = _on_terrain_progress
+	for terrain: Node in game_root.find_children("*", "ChunkedTerrainWorld", true, false):
+		var world: ChunkedTerrainWorld = terrain as ChunkedTerrainWorld
+		_terrains.append(world)
+		world.build_progress.connect(_on_terrain_progress.bind(world))
 	get_tree().root.add_child(game_root)
 	get_tree().current_scene = game_root
 	_add_game_mode(game_root)
@@ -142,19 +149,25 @@ func _start_game(game_scene: PackedScene) -> void:
 func _process(_delta: float) -> void:
 	if _frames_since_start < 0:
 		return
+	for terrain: ChunkedTerrainWorld in _terrains:
+		if is_instance_valid(terrain) and terrain.is_building():
+			return
 	_frames_since_start += 1
 	if _frames_since_start > 5:
-		ChunkedTerrainWorld.build_watcher = Callable()
 		queue_free()
 
 
-## The terrain's blocking build, chunk by chunk: the bar and a frame drawn by hand, since
-## the build holds the main thread and no frame would come on its own.
-func _on_terrain_progress(done: int, total: int, _world: Node) -> void:
-	if total <= 0 or not is_inside_tree():
+## A terrain world's build, as it goes: the bar shows every world's chunks together.
+func _on_terrain_progress(done: int, total: int, world: ChunkedTerrainWorld) -> void:
+	_terrain_progress[world] = Vector2i(done, total)
+	var all_done: int = 0
+	var all_total: int = 0
+	for progress: Vector2i in _terrain_progress.values():
+		all_done += progress.x
+		all_total += progress.y
+	if all_total <= 0 or not is_inside_tree():
 		return
-	_set_progress(int(round(100.0 * float(done) / float(total))), "Building terrain")
-	RenderingServer.force_draw()
+	_set_progress(int(round(100.0 * float(all_done) / float(all_total))), "Building terrain")
 
 
 ## Adds the chosen mode's scene to the loaded map (no mode = free roam).

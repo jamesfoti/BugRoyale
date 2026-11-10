@@ -144,28 +144,44 @@ func test_the_biome_lists_and_their_weights_say_what_lies_where() -> void:
 	assert_eq(Biome.data_of([null, meadow]).size(), 1, "an empty slot is skipped")
 
 
-## A blocking rebuild tells its watcher how far it is, chunk by chunk, and once more when
-## every chunk stands.
-func test_a_rebuild_reports_its_progress_to_the_watcher() -> void:
+## The game's build on ready runs in the background: frames come while it builds, the
+## world says so and reports how far it is, and every chunk stands once it is done.
+func test_the_build_on_ready_runs_behind_the_frames_and_reports_its_progress() -> void:
 	var world: OpenTerrain = OpenTerrain.new()
-	world.rebuild_on_ready = false
 	world.chunk_size = 8.0
 	world.voxel_size = 4.0
-	add_child_autofree(world)
 	var reports: Array[Vector2i] = []
-	ChunkedTerrainWorld.build_watcher = func(done: int, total: int, _world: Node) -> void:
-		reports.append(Vector2i(done, total))
-	world.rebuild_all()
-	ChunkedTerrainWorld.build_watcher = Callable()
-	assert_gt(reports.size(), 0, "the watcher heard from the build")
-	var last: Vector2i = reports[reports.size() - 1]
-	assert_eq(last.x, last.y, "the last word is every chunk built")
+	world.build_progress.connect(
+		func(done: int, total: int) -> void: reports.append(Vector2i(done, total))
+	)
+	var stood: Array[bool] = []
+	world.built.connect(func() -> void: stood.append(true))
+	add_child_autofree(world)
+	await get_tree().process_frame
+	assert_true(world.is_building(), "building after the frame it entered on")
+	var frames: int = 0
+	while world.is_building() and frames < 600:
+		await get_tree().process_frame
+		frames += 1
+	assert_false(world.is_building(), "done within ten seconds")
 	var grid: Vector3i = world._get_grid_dimensions()
-	assert_eq(last.y, grid.x * grid.y * grid.z, "every chunk of the grid")
+	assert_eq(world.get_chunk_count(), grid.x * grid.y * grid.z, "every chunk of the grid")
+	assert_eq(stood.size(), 1, "built once")
+	assert_gt(reports.size(), 1, "progress came in more than once")
+	var last: Vector2i = reports[reports.size() - 1]
+	assert_eq(last.x, last.y, "the last word is complete")
+	assert_eq(last.y, grid.x * grid.y * grid.z * 2, "meshed and placed, each counted")
 	var previous: int = -1
 	for report: Vector2i in reports:
 		assert_true(report.x >= previous, "the count never falls")
 		previous = report.x
+	# A blocking rebuild reports once, complete.
+	reports.clear()
+	world.rebuild_all()
+	assert_eq(reports.size(), 1)
+	assert_eq(reports[0].x, reports[0].y)
+	# The chunks the rebuild replaced are freed at the end of the frame.
+	await get_tree().process_frame
 
 
 func test_the_cave_ranges_and_shape_travel_and_steer_the_roll() -> void:

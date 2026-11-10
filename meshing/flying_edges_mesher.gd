@@ -26,7 +26,10 @@ const _EDGE_AXIS: PackedInt32Array = [0, 2, 0, 2, 0, 2, 0, 2, 1, 1, 1, 1]
 
 ## grid_world_origin + (grid_offset + local sample) * step is each sample's world position;
 ## vertices are returned relative to chunk_world_center. With a density, normals come from
-## central differences of the sample grid; without one, from face normals.
+## central differences of the sample grid; without one, from face normals. cell_first and
+## cell_last (inclusive) mesh only those cells of the field; a negative cell_last means all.
+## A caller meshing a field in blocks passes one scratch array (three ints a sample) for all
+## of them, so each block clears only its own samples' entries instead of filling a new one.
 static func build_mesh(
 	field: SignedDensityField,
 	chunk_extent: float,
@@ -34,7 +37,10 @@ static func build_mesh(
 	grid_offset: Vector3i = Vector3i.ZERO,
 	grid_world_origin: Vector3 = Vector3.ZERO,
 	chunk_world_center: Vector3 = Vector3.ZERO,
-	density: DensitySampler.WorldDensity = null
+	density: DensitySampler.WorldDensity = null,
+	cell_first: Vector3i = Vector3i.ZERO,
+	cell_last: Vector3i = Vector3i(-1, -1, -1),
+	scratch: PackedInt32Array = PackedInt32Array()
 ) -> MeshResult:
 	var result := MeshResult.new()
 	if not field.is_valid():
@@ -44,6 +50,10 @@ static func build_mesh(
 		return result
 
 	var cells: Vector3i = field.cell_counts()
+	if cell_last.x < 0:
+		cell_last = cells - Vector3i.ONE
+	cell_first = cell_first.max(Vector3i.ZERO)
+	cell_last = cell_last.min(cells - Vector3i.ONE)
 	var world_step: float = chunk_extent / float(cells.x)
 	var tri_table: Array[PackedInt32Array] = FlyingEdgesTables.get_tri_table()
 	var values: PackedFloat32Array = field.values
@@ -72,9 +82,18 @@ static func build_mesh(
 		reader.step = world_step
 
 	# Edge vertex index keyed by (lower sample index * 3 + axis); -1 = not created yet.
-	var edge_vertex_index: PackedInt32Array = PackedInt32Array()
-	edge_vertex_index.resize(values.size() * 3)
-	edge_vertex_index.fill(-1)
+	var edge_vertex_index: PackedInt32Array = scratch
+	if edge_vertex_index.size() != values.size() * 3:
+		edge_vertex_index = PackedInt32Array()
+		edge_vertex_index.resize(values.size() * 3)
+		edge_vertex_index.fill(-1)
+	else:
+		for z in range(cell_first.z, cell_last.z + 2):
+			for y in range(cell_first.y, cell_last.y + 2):
+				var row_start: int = (cell_first.x + y * stride_y + z * stride_z) * 3
+				var row_end: int = (cell_last.x + 2 + y * stride_y + z * stride_z) * 3
+				for key in range(row_start, row_end):
+					edge_vertex_index[key] = -1
 	var edge_lower_offset: PackedInt32Array = PackedInt32Array()
 	edge_lower_offset.resize(12)
 	for edge_id in 12:
@@ -84,10 +103,10 @@ static func build_mesh(
 	var cell_edge_vertices: PackedInt32Array = PackedInt32Array()
 	cell_edge_vertices.resize(12)
 
-	for z in cells.z:
-		for y in cells.y:
+	for z in range(cell_first.z, cell_last.z + 1):
+		for y in range(cell_first.y, cell_last.y + 1):
 			var row_base: int = y * stride_y + z * stride_z
-			for x in cells.x:
+			for x in range(cell_first.x, cell_last.x + 1):
 				var i0: int = row_base + x
 				var case_index: int = 0
 				if values[i0] < iso_level:

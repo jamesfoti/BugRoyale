@@ -295,6 +295,8 @@ static func resample_chunk_field(
 	var last: Vector3i = (Vector3i(((bounds.end - corner) / step).ceil()) + Vector3i.ONE).min(
 		size - Vector3i.ONE
 	)
+	field.changed_first = first
+	field.changed_last = last.max(first)
 	if first.x <= last.x and first.y <= last.y and first.z <= last.z:
 		if (
 			not density.solids.is_empty()

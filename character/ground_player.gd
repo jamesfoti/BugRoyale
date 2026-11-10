@@ -591,6 +591,9 @@ func _spawn_on_terrain() -> void:
 		push_warning("[%s] No terrain assigned." % get_class())
 		return
 
+	# The map builds in the background after it loads: no ground to land on until it stands.
+	while terrain.has_method("is_building") and terrain.call("is_building"):
+		await get_tree().physics_frame
 	var spawn_data: Dictionary = _find_random_surface_spawn()
 	for _attempt: int in _SPAWN_ATTEMPTS:
 		await get_tree().physics_frame

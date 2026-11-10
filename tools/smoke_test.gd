@@ -95,14 +95,20 @@ class Runner:
 		if _mode == null or not is_instance_valid(_mode):
 			_mode = null
 			var scene: Node = get_tree().current_scene
+			var found: GameMode = null
 			if scene != null:
-				_mode = scene.get_node_or_null("GameMode") as GameMode
-			if _mode == null or not _mode._started:
+				found = scene.get_node_or_null("GameMode") as GameMode
+			if found == null or not found._started:
+				# The map's build in the background takes as long as it takes; the wait
+				# for the match is counted from when the ground stands.
+				if _terrain_building():
+					return
 				_frames_waited += 1
 				if _frames_waited > START_TIMEOUT_FRAMES:
 					print("SMOKE FAIL: the match never started.")
 					get_tree().quit(1)
 				return
+			_mode = found
 			print(
 				(
 					"[SmokeTest] Match started after %d frames with %d fighters."
@@ -158,6 +164,12 @@ class Runner:
 	## Exercises the terrain edit log once the match is running: an ADD at a bot's feet must be
 	## refused (it would bury the bot), a carve well away from everyone must go through with a
 	## sequence number, and exporting then importing the edit state must keep every override.
+	func _terrain_building() -> bool:
+		for world: Node in get_tree().get_nodes_in_group("terrain_world"):
+			if world.has_method("is_building") and world.call("is_building"):
+				return true
+		return false
+
 	func _test_terrain_edits() -> void:
 		var terrain: ChunkedTerrainWorld = _mode.map.editable_terrain()
 		if terrain == null:

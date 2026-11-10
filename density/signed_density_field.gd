@@ -12,6 +12,11 @@ var max_value: float = INF
 ## True when DensitySampler.build_chunk_field found the whole chunk above the ground and
 ## filled it with one clearance value instead of sampling every voxel.
 var sky: bool = false
+## The samples that may differ from the field this one was resampled from (inclusive, in
+## samples): a whole build marks them all, a resample marks the stroke's box, and the loose
+## rock pass adds what it cleared. The chunk's mesh blocks outside them are kept as they were.
+var changed_first: Vector3i = Vector3i.ZERO
+var changed_last: Vector3i = Vector3i.ZERO
 
 
 func _init(sample_size: Vector3i = Vector3i.ZERO) -> void:
@@ -24,6 +29,17 @@ func resize(sample_size: Vector3i) -> void:
 	var count := size.x * size.y * size.z
 	values.resize(count)
 	values.fill(1.0)
+	mark_all_changed()
+
+
+func mark_all_changed() -> void:
+	changed_first = Vector3i.ZERO
+	changed_last = size - Vector3i.ONE
+
+
+func mark_changed(at: Vector3i) -> void:
+	changed_first = changed_first.min(at)
+	changed_last = changed_last.max(at)
 
 
 func is_valid() -> bool:

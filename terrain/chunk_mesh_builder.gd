@@ -134,9 +134,28 @@ static func build_chunk_into(
 			settings.iso_level,
 			settings.loose_rock_voxels
 		)
-	chunk_build_result.mesh_result = FlyingEdgesMesher.build_mesh(
-		field, extent, settings.iso_level, grid_offset, grid_world_origin, world_center, density
-	)
+	if settings.keep_field:
+		# A brush rebuild meshes in blocks and keeps them: after a stroke, only the blocks the
+		# changed samples touch are meshed again.
+		var previous_blocks: ChunkMeshBlocks = (
+			settings.cached_blocks if settings.cached_field != null else null
+		)
+		var blocks: ChunkMeshBlocks = ChunkMeshBlocks.build(
+			field,
+			extent,
+			settings.iso_level,
+			grid_offset,
+			grid_world_origin,
+			world_center,
+			density,
+			previous_blocks
+		)
+		chunk_build_result.mesh_result = blocks.merge()
+		chunk_build_result.blocks = blocks
+	else:
+		chunk_build_result.mesh_result = FlyingEdgesMesher.build_mesh(
+			field, extent, settings.iso_level, grid_offset, grid_world_origin, world_center, density
+		)
 	if density.caves != null and density.caves.water_top > -INF and not field.sky:
 		chunk_build_result.water_mesh_result = CaveWaterMesher.build(
 			field, density, grid_world_origin, grid_offset, world_step, extent, world_center
@@ -159,9 +178,17 @@ class ChunkBuildResult:
 	## The chunk's field as meshed, kept when the settings ask (a brush rebuild, so the next
 	## stroke there resamples it); null otherwise, since a whole map's fields are 100 MB.
 	var field: SignedDensityField = null
+	## The chunk's mesh in blocks, kept with the field for the next stroke's partial remesh.
+	var blocks: ChunkMeshBlocks = null
 	## The pools' water sheet in this chunk (CaveWaterMesher), empty when there is none.
 	var water_mesh_result: FlyingEdgesMesher.MeshResult = FlyingEdgesMesher.MeshResult.new()
 	var local_position: Vector3 = Vector3.ZERO
+
+
+## What a brush-rebuilt chunk keeps for its next stroke: its field and its mesh blocks.
+class ChunkCache:
+	var field: SignedDensityField
+	var blocks: ChunkMeshBlocks
 
 
 class BatchBuildResult:
@@ -171,6 +198,9 @@ class BatchBuildResult:
 class AsyncRebuildJob:
 	var chunk_coordinates: Array[Vector3i] = []
 	var rebuild_collision: bool = false
+	## Build the field and mesh blocks for the chunk cache only; the chunk itself stays as
+	## it is (ChunkedTerrainWorld.prepare_edit_around).
+	var prepare_only: bool = false
 	var settings: ChunkedTerrainWorld.SettingsSnapshot
 	var batch_result: BatchBuildResult = BatchBuildResult.new()
 	var task_id: int = -1
