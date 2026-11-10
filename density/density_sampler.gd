@@ -197,7 +197,7 @@ static func build_chunk_field(
 	var size_x: int = sample_size.x
 	var size_y: int = sample_size.y
 	var size_z: int = sample_size.z
-	if not density.solids.is_empty():
+	if not density.solids.is_empty() or (density.caves != null and density.caves.systems != null):
 		var halo: Vector3 = Vector3.ONE * step * 2.0
 		var region_start: Vector3 = grid_world_origin + Vector3(grid_offset) * step - halo
 		density.prepare_for_region(AABB(region_start, Vector3(sample_size) * step + halo * 2.0))
@@ -439,6 +439,8 @@ class WorldDensity:
 			if region.intersects(solid_bounds(solid)):
 				_region_solids.append(solid)
 		_region_solid_count = _region_solids.size()
+		if caves != null and caves.systems != null:
+			caves.systems.prepare_region(region)
 
 	static func solid_bounds(solid: Dictionary) -> AABB:
 		var center: Vector3 = solid["center"]

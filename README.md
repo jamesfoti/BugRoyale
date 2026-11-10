@@ -186,6 +186,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_surface_character.gd` | The seeded surface character: a seed always rolls the same one and every number lands in its range, neutral values are the plain noise exactly, a power above 1 lowers the ground and keeps it within the amplitude, a warp moves the hills within the amplitude, and a ridged mix lifts the crests |
 | `test_sky_chunks.gd` | The chunk builder's short cut: a chunk wholly above the ground is filled from its column heights without a voxel pass, a chunk the surface crosses is not, and a placed solid or a built edit in the sky brings the voxel pass back |
 | `test_footings.gd` | The footings under structures: solid from bedrock to the dirt where a 3D-noise underside is a sponge, kept clear of the caves under a solid one, dug as the map's own ground where a bed's soil digs as dirt, and sized by the terrain from its own bedrock to cover a footprint's corners |
+| `test_cave_systems.gd` | The carved cave systems: a seed always rolls the same ones and as many as the map's area says, every mouth sits on the surface inside the bounds and opens the ground, the passages go down and are air along their centre lines, a prepared region sees only the segments in reach, and far from every passage there is nothing |
 | `test_loose_rock.gd` | The loose rock pass on a chunk's field: a lone solid sample with air all round it is cleared and a lump over the limit kept, a lump on a chunk seam is judged the same from both sides, rock built with the brush stays while rock a dig thinned goes, a row of cave chunks loses only rock and agrees on every shared face, and the limit travels in the settings |
 
 GUT and `test/` are excluded from both export presets, so nothing test-related ships.
@@ -347,7 +348,13 @@ switch, a chance and ranges, and each named in the rebuild line:
   the tunnels run through them. **Halls**: a very slow noise opens a chamber or two a
   world in the deep band, far bigger than any cavern. **Shafts**: in spots a map picks,
   vertical pits run from the tunnels to bedrock through the seams, tying the bands
-  together. Where two features meet, their air blends over 2 m, so a tunnel joins a room
+  together. **Carved systems**, Minecraft's old carver beside its noise caves: a seed's
+  handful of passages (ten to twenty-four a square kilometre) each start at a mouth on
+  the steepest ground of a few candidates, a hillside or cliff face, and worm down as a
+  random walk of capsules that curves with a persistent lean, swells and pinches,
+  branches now and then and ends in a chamber, cutting through bands, seams and regions
+  alike. Noise cannot give an entrance that leads somewhere, a passage with a direction
+  or a dead end; these do. Where two features meet, their air blends over 2 m, so a tunnel joins a room
   or crosses a floor in a rounded mouth instead of leaving a sliver of wall thinner than
   a voxel (the floating pieces those made: at 1 m voxels the blend takes five in six of
   them away). What still floats is mostly the grid's own, a wall thinner than two voxels

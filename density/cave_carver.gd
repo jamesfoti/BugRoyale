@@ -139,6 +139,9 @@ var shaft_lean: float = 0.12
 var shaft_share: float = 0.45
 ## World Y below which everything is solid.
 var floor_y: float = -INF
+## The seed's carved cave systems (CaveSystems), rolled once the surface is known; null
+## until then, and in tools that only paint the noise caves.
+var systems: CaveSystems = null
 
 var _tunnel_noise: FastNoiseLite
 var _tunnel_noise_b: FastNoiseLite
@@ -356,6 +359,9 @@ func air(world_pos: Vector3, depth: float) -> float:
 			- absf(_ravine_noise.get_noise_3d(read_pos.x, read_pos.y * ravine_lean, read_pos.z))
 		)
 		best = _blend(best, gash / (2.0 * ravine_frequency))
+	# The carved systems cut through everything: bands, seams, regions and floors.
+	if systems != null:
+		best = _blend(best, systems.air(read_pos))
 	return best
 
 
@@ -412,31 +418,35 @@ func summary() -> String:
 	var floors: String = "no floors"
 	if floor_thickness > 0.0:
 		floors = "floors every %d m" % roundi(floor_spacing)
+	var carved: String = "" if systems == null else ", " + systems.summary()
 	return (
 		(
-			"tunnels %.2f from %d m down, everywhere from %d m, caverns %.2f from %d m down, "
-			+ "deep from %d m, "
-			+ "regions %d m (%.1f to %.1f), seams %d m, %s, halls %.2f, shafts %.2f, %s, "
-			+ "warp %d m, bedrock at %d m"
+			(
+				"tunnels %.2f from %d m down, everywhere from %d m, caverns %.2f from %d m down, "
+				+ "deep from %d m, "
+				+ "regions %d m (%.1f to %.1f), seams %d m, %s, halls %.2f, shafts %.2f, %s, "
+				+ "warp %d m, bedrock at %d m"
+			)
+			% [
+				tunnel_threshold,
+				roundi(tunnel_depth),
+				roundi(tunnel_depth + tunnel_ramp),
+				cavern_cutoff,
+				roundi(cavern_depth),
+				roundi(deep_depth),
+				roundi(region_size),
+				region_lean,
+				region_rich,
+				roundi(seam_width),
+				floors,
+				hall_cutoff,
+				shaft_width,
+				ravines,
+				roundi(warp_metres),
+				roundi(floor_y)
+			]
 		)
-		% [
-			tunnel_threshold,
-			roundi(tunnel_depth),
-			roundi(tunnel_depth + tunnel_ramp),
-			cavern_cutoff,
-			roundi(cavern_depth),
-			roundi(deep_depth),
-			roundi(region_size),
-			region_lean,
-			region_rich,
-			roundi(seam_width),
-			floors,
-			hall_cutoff,
-			shaft_width,
-			ravines,
-			roundi(warp_metres),
-			roundi(floor_y)
-		]
+		+ carved
 	)
 
 

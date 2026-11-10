@@ -723,6 +723,14 @@ func _build_world_density(
 			settings.open_terrain_flat_spot_count,
 			settings.open_terrain_flat_spot_radius
 		)
+	# After every layer of the surface, so the cave mouths sit on the ground as built.
+	if density.caves != null:
+		density.caves.systems = CaveSystems.roll(
+			settings.noise_seed,
+			AABB(settings.bounds_center - settings.bounds_half, settings.bounds_half * 2.0),
+			Callable(density, "sample_open_terrain_height"),
+			density.caves.floor_y
+		)
 	return density
 
 

@@ -2,7 +2,8 @@ extends SceneTree
 ## Dev tool: paints a seed's underworld as a vertical slice, one pixel per step metres,
 ## white where the cave carver puts air and dark where it leaves rock, under a flat surface
 ## at the top edge. The fast way to see what a seed's caves are made of (regions, bands,
-## floors, halls, shafts) without building a single chunk. Headless, from the project folder:
+## floors, halls, shafts, carved systems) without building a single chunk. Headless, from
+## the project folder:
 ##   godot --headless --path . --script res://tools/cave_slice.gd -- seed=7 out=C:/tmp/slice.png
 ## Arguments: seed= (the lab's default), out=<png path>, step=<metres per pixel, 1>,
 ## width= and depth= (metres, 512 by 480), z=<the slice's z, 0>.
@@ -25,6 +26,13 @@ func _init() -> void:
 	var slice_z: float = float(options.get("z", 0.0))
 	var carver: CaveCarver = CaveCarver.from_seed(
 		seed_value, -float(depth) - CaveCarver.FLOOR_MARGIN
+	)
+	# The carved systems too, under the flat surface, so their mouths and passages show.
+	carver.systems = CaveSystems.roll(
+		seed_value,
+		AABB(Vector3(-float(width) / 2.0, carver.floor_y, -256.0), Vector3(width, depth, 512.0)),
+		func(_x: float, _z: float) -> float: return 0.0,
+		carver.floor_y
 	)
 	var image: Image = Image.create(width, depth, false, Image.FORMAT_RGB8)
 	var air: int = 0
