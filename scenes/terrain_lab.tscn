@@ -19,17 +19,14 @@ shadow_enabled = true
 
 [node name="TerrainWorld" type="Node3D" parent="." unique_id=521404953]
 script = ExtResource("2")
-chunks_x = 3
-chunks_z = 3
-terrace_chance = null
-terrace_step = null
-terrace_strength = null
-terrace_coverage = null
+chunks_x = 4
+chunks_y = 4
+chunks_z = 4
+solid_underside = true
 chunk_size = 32.0
-noise_seed = 26
-noise_frequency = 0.008
-noise_amplitude = 11.8
-noise_lacunarity = 2.4
+noise_seed = 668748
+noise_frequency = 0.005
+noise_amplitude = 12.0
 caves_enabled = true
 terrain_material = ExtResource("3")
 auto_rebuild_in_editor = true

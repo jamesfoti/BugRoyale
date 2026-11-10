@@ -50,6 +50,7 @@ enum Character { SEEDED, PLAIN }
 	set(value):
 		terraces = value
 		_request_rebuild()
+## The chance a seed is terraced at all, when Terraces is Seeded. 0 never, 1 always.
 @export_range(0.0, 1.0, 0.05) var terrace_chance: float = 0.4:
 	set(value):
 		terrace_chance = value
@@ -64,41 +65,48 @@ enum Character { SEEDED, PLAIN }
 	set(value):
 		terrace_strength = value
 		_request_rebuild()
+## The share of the ground the terraces appear on, 0 to 1; a slow noise picks where.
 @export_range(0.0, 1.0, 0.05) var terrace_coverage: float = 0.5:
 	set(value):
 		terrace_coverage = value
 		_request_rebuild()
 
+# The surface's character, rolled from the seed (DensitySampler.WorldDensity.roll_surface),
+# so seeds differ in kind and not only in where the hills are: a redistribution power, a
+# domain warp on some seeds and a ridged mix on some. To force one trait in the lab, set
+# its chance to 1 and narrow its range to one value.
 @export_group("Character")
-## The surface's character, rolled from the seed (DensitySampler.WorldDensity.roll_surface),
-## so seeds differ in kind and not only in where the hills are: a redistribution power
-## drawn from character_power (above 1 flat valleys and fewer, taller hills; below 1
-## plateaus), a domain warp of character_warp metres on character_warp_chance of seeds (the
-## blobs stretch into curved ridges and bays), and a ridged mix from character_ridge on
-## character_ridge_chance of them (sharp crests along lines). Plain turns it all off. To
-## force one trait in the lab, set its chance to 1 and narrow its range.
+## Seeded rolls the surface's character from the seed: a redistribution power for every
+## seed, a domain warp on some and a ridged mix on some. Plain is the bare noise.
 @export var character: Character = Character.SEEDED:
 	set(value):
 		character = value
 		_request_rebuild()
+## Redistribution power, least and most, drawn for every seed. 1 leaves the noise alone.
+## Above 1 the valleys flatten into plains and the hills grow fewer and taller; below 1
+## the ground rises into plateaus with narrow valleys between.
 @export var character_power: Vector2 = Vector2(0.7, 1.6):
 	set(value):
 		character_power = value
 		_request_rebuild()
+## The chance a seed is domain warped. 0 never, 1 always.
 @export_range(0.0, 1.0, 0.05) var character_warp_chance: float = 0.5:
 	set(value):
 		character_warp_chance = value
 		_request_rebuild()
-## Warp in metres, least and most.
+## Domain warp in metres, least and most: how far a slower noise pushes each column before
+## the height noise is read there, so round blobs stretch into curved ridges and bays.
 @export var character_warp: Vector2 = Vector2(10.0, 40.0):
 	set(value):
 		character_warp = value
 		_request_rebuild()
+## The chance a seed is ridged. 0 never, 1 always.
 @export_range(0.0, 1.0, 0.05) var character_ridge_chance: float = 0.35:
 	set(value):
 		character_ridge_chance = value
 		_request_rebuild()
-## Ridged mix, least and most, 0 to 1.
+## Ridged mix, least and most, 0 to 1: how much of the height comes from ridged noise, which
+## has sharp crests along lines instead of round hilltops. 0 is round hills, 1 all crests.
 @export var character_ridge: Vector2 = Vector2(0.2, 0.5):
 	set(value):
 		character_ridge = value
