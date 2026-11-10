@@ -210,7 +210,10 @@ static func build_chunk_field(
 	if use_column_heights:
 		column_heights.resize(size_x * size_z)
 		column_slopes.resize(size_x * size_z)
-		var want_slopes: bool = density.relief_amplitude > 0.0 and density.open_terrain_solid_fill
+		var want_slopes: bool = (
+			density.open_terrain_solid_fill
+			and (density.relief_amplitude > 0.0 or density.caves != null)
+		)
 		var highest: float = -INF
 		for z in size_z:
 			var world_z: float = grid_world_origin.z + float(grid_offset.z + z) * step
@@ -1074,7 +1077,10 @@ class WorldDensity:
 						* (1.0 - absf(above_surface) / relief_band)
 					)
 			if caves != null:
-				value = caves.carve(value, world_pos, surface_height)
+				# The caves open on steep faces, so near the surface they want the slope.
+				if slope < 0.0 and above_surface > -(caves.tunnel_depth + caves.fade):
+					slope = surface_slope(world_pos.x, world_pos.z, surface_height)
+				value = caves.carve(value, world_pos, surface_height, maxf(slope, 0.0))
 		elif above_surface >= OPEN_TERRAIN_NOISE_SKIP_HEIGHT:
 			# The scaled noise stays within the skip height, so the max() is exactly above_surface.
 			value = above_surface

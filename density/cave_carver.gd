@@ -76,6 +76,11 @@ const WALL_BAND: float = 4.0
 const WATER_FLOOR: float = 6.0
 const BARRIER: float = 1.5
 const WATER_UNDER_SURFACE: float = 15.0
+## The surface's slope (rise over run) from which the tunnels may run right up to it and
+## open on the face, and from which they always may: cave mouths on cliffs and steep
+## hillsides, where Minecraft's caves open too; flat ground keeps its burrow depth.
+const STEEP_START: float = 0.6
+const STEEP_END: float = 1.0
 
 var world_seed: int = 0
 ## Tunnel noise frequency (1 / metres between tunnels) and the half-width of the band around
@@ -308,10 +313,10 @@ static func bedrock_y(origin_y: float, chunks_y: int, chunk_world_size: float) -
 ## samples, which is only right when both sides are metres. Held at a constant inside, the
 ## ground pulled every slope vertex toward its grid column and the hills came out terraced.
 ## Carved right up to the surface, so a sinkhole or ravine opens to the sky with no skin.
-func carve(value: float, world_pos: Vector3, surface_height: float) -> float:
+func carve(value: float, world_pos: Vector3, surface_height: float, slope: float = 0.0) -> float:
 	var depth: float = surface_height - world_pos.y
 	if depth > 0.0 and world_pos.y > floor_y + FLOOR_CLEARANCE:
-		value = maxf(value, air(world_pos, depth))
+		value = maxf(value, air(world_pos, depth, slope))
 	return minf(value, world_pos.y - floor_y)
 
 
@@ -323,7 +328,7 @@ func carve(value: float, world_pos: Vector3, surface_height: float) -> float:
 ## cavern noise runs above its cutoff. Each narrows to nothing above its start depth, and a
 ## sinkhole lets a tunnel reach the sky. A ravine is the other way up: widest at the surface,
 ## pinching out at its depth.
-func air(world_pos: Vector3, depth: float) -> float:
+func air(world_pos: Vector3, depth: float, slope: float = 0.0) -> float:
 	var widen: float = minf(1.0 + depth * WIDEN_PER_METRE, WIDEN_MAX)
 	# Where the 3D noises are read: pushed sideways by the warp (two reads of one slow
 	# noise, offset for the second axis). The sinkhole read stays put, it is a map, not
@@ -355,6 +360,9 @@ func air(world_pos: Vector3, depth: float) -> float:
 		start *= smoothstep(
 			cut - 0.05, cut + 0.05, _shallow_map.get_noise_2d(world_pos.x, world_pos.z)
 		)
+	# On a steep face the tunnels run up to the surface and open on it.
+	if slope > STEEP_START:
+		start = maxf(start, smoothstep(STEEP_START, STEEP_END, slope))
 	var tunnel_mask: float = maxf(start, opening) * richness * lerpf(1.0, deep_tunnels, deep)
 	var best: float = -INF
 	if tunnel_mask > 0.0:

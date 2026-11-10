@@ -366,7 +366,10 @@ switch, a chance and ranges, and each named in the rebuild line:
   of their own between bedrock and 15 m under the surface, and any cave air below the
   level is a pool, drawn as a flat sheet with the terrarium's water; between two cells of
   different levels a wall of rock 3 m thick keeps the pools apart, as Minecraft's aquifer
-  barriers do. The pools are a sight for now, not a swim. Where two features meet, their air blends over 2 m, so a tunnel joins a room
+  barriers do. The pools are a sight for now, not a swim. On faces steeper than about 30
+  degrees the tunnels run right up to the surface and open on it, so cliffs and steep
+  hillsides have **cave mouths** where you expect them, while flat ground keeps its burrow
+  depth. Where two features meet, their air blends over 2 m, so a tunnel joins a room
   or crosses a floor in a rounded mouth instead of leaving a sliver of wall thinner than
   a voxel (the floating pieces those made: at 1 m voxels the blend takes five in six of
   them away). What still floats is mostly the grid's own, a wall thinner than two voxels

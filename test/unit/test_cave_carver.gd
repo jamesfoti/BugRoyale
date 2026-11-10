@@ -412,6 +412,24 @@ func _rock_in_square(carver: CaveCarver, room: Vector3) -> int:
 	return rock
 
 
+## On a steep face the tunnels run up to the surface: a metre and a half under it, no
+## tunnel opens on flat ground and some do on a cliff.
+func test_tunnels_open_on_steep_faces_only() -> void:
+	var carver: CaveCarver = _plain_carver()
+	carver.sinkhole_threshold = 2.0
+	var flat: int = 0
+	var cliff: int = 0
+	for step_x: int in 40:
+		for step_z: int in 40:
+			var spot := Vector3(float(step_x) * 7.0 - 140.0, -1.5, float(step_z) * 7.0 - 140.0)
+			if carver.air(spot, 1.5, 0.0) > 0.0:
+				flat += 1
+			if carver.air(spot, 1.5, 1.2) > 0.0:
+				cliff += 1
+	assert_eq(flat, 0, "no tunnel opens on flat ground this near the surface")
+	assert_gt(cliff, 0, "some open on a cliff face")
+
+
 ## Near the top the tunnels run only in the shallow map's patches, and spread with depth
 ## until the bottom of the ramp, where they run everywhere; without a ramp they run
 ## everywhere from the start.
