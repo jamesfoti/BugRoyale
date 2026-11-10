@@ -12,6 +12,9 @@ enum PlayerCharacter {
 }
 
 const DEFAULT_GAME_SCENE_PATH: String = "res://scenes/garden.tscn"
+## The bar is one scale: the scene's asset load fills this much of it, the map's build the
+## rest, so it never runs backwards between the two.
+const ASSET_SHARE: int = 20
 
 static var pending_scene_path: String = ""
 ## Game mode to start on the next loaded map (see ModeCatalog); empty = free roam.
@@ -92,7 +95,9 @@ func _begin_load() -> void:
 					)
 					await _load_sync()
 					return
-				_set_progress(int(round(progress * 100.0)), _asset_load_message(progress))
+				_set_progress(
+					int(round(progress * float(ASSET_SHARE))), _asset_load_message(progress)
+				)
 				await get_tree().process_frame
 			ResourceLoader.THREAD_LOAD_LOADED:
 				var game_scene: PackedScene = (
@@ -133,13 +138,13 @@ func _set_progress(percent: int, message: String) -> void:
 
 
 func _start_game(game_scene: PackedScene) -> void:
-	_set_progress(0, "Building terrain")
 	var game_root: Node = game_scene.instantiate()
 	_randomize_terrain_seeds(game_root)
 	for terrain: Node in game_root.find_children("*", "ChunkedTerrainWorld", true, false):
 		var world: ChunkedTerrainWorld = terrain as ChunkedTerrainWorld
 		_terrains.append(world)
 		world.build_progress.connect(_on_terrain_progress.bind(world))
+	_set_progress(ASSET_SHARE if not _terrains.is_empty() else 100, "Building terrain")
 	get_tree().root.add_child(game_root)
 	get_tree().current_scene = game_root
 	_add_game_mode(game_root)
@@ -167,7 +172,8 @@ func _on_terrain_progress(done: int, total: int, world: ChunkedTerrainWorld) -> 
 		all_total += progress.y
 	if all_total <= 0 or not is_inside_tree():
 		return
-	_set_progress(int(round(100.0 * float(all_done) / float(all_total))), "Building terrain")
+	var built: float = float(all_done) / float(all_total)
+	_set_progress(ASSET_SHARE + int(round(built * float(100 - ASSET_SHARE))), "Building terrain")
 
 
 ## Adds the chosen mode's scene to the loaded map (no mode = free roam).
