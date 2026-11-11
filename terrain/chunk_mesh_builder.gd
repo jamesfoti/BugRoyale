@@ -201,6 +201,8 @@ class AsyncRebuildJob:
 	## Build the field and mesh blocks for the chunk cache only; the chunk itself stays as
 	## it is (ChunkedTerrainWorld.prepare_edit_around).
 	var prepare_only: bool = false
+	## A chunk of the map's coarse first pass (ChunkedTerrainWorld.COARSE_VOXEL).
+	var coarse: bool = false
 	var settings: ChunkedTerrainWorld.SettingsSnapshot
 	var batch_result: BatchBuildResult = BatchBuildResult.new()
 	var task_id: int = -1

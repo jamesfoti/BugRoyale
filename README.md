@@ -440,6 +440,21 @@ tunnels (4 to 8 m across) resolve coarsely and their thin ends drop out; 2 m is
 the honest cross-section, or `tools/cave_slice.gd` for the raw field in a second. The built chunks
 are dropped before the scene is saved and rebuilt after, so the file stays small.
 
+### Loading a map
+
+In the game a map's terrain builds behind the loading screen without holding up a frame:
+every chunk is a task of its own on the worker pool, four at a time plus one queued, since
+GDScript on more threads than that runs slower (see `REBUILD_THREADS`). The whole map goes
+in coarse first, at 4 m voxels, a few seconds' work, so the ground looks complete and
+holds a body from the first frame; the fine chunks then replace it one by one, nearest the
+player's spawn first (`focus_build_at`), and the loading screen leaves once the map is
+coarse everywhere and the columns round the spawn are fine. A bot placed where the fine
+ground has not come yet stands still until it has (`is_ground_ready_around`), a body on a
+coarse chunk is lifted onto the fine surface when it lands, and an edit made at a chunk
+not yet placed waits for it. The rest of the map keeps building behind the game at about
+five chunks a second while the game runs, so a full 512 m map at 1 m takes a couple of
+minutes to come in fine; `tools/smoke_test.tscn` prints the count every five seconds.
+
 ### Mode tuning
 
 Each mode is a one-node scene in `modes/` (`burrow.tscn`, `hold_out.tscn`, `slayer.tscn`)

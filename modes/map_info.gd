@@ -181,6 +181,8 @@ func random_surface_point(
 		)
 		var hit: Dictionary = ground_hit(column)
 		if hit.is_empty():
+			hit = _unbuilt_ground(column)
+		if hit.is_empty():
 			continue
 		var point: Vector3 = hit.position + up_at(hit.position) * clearance
 		if point.y < min_height:
@@ -200,8 +202,23 @@ func ground_point_near(
 	offset *= randf_range(min_distance, max_distance)
 	var ground: Dictionary = ground_hit(point + offset)
 	if ground.is_empty():
+		ground = _unbuilt_ground(point + offset)
+	if ground.is_empty():
 		return point + up * clearance
 	return ground.position + up_at(ground.position) * clearance
+
+
+## The ground under a column the map's build has not reached yet, from the terrain's own
+## heights, as a raycast would report it; empty where the ground stands (so a miss there
+## is a real miss) or when the map cannot say.
+func _unbuilt_ground(column: Vector3) -> Dictionary:
+	var terrain: ChunkedTerrainWorld = editable_terrain()
+	if terrain == null or terrain.is_ground_ready_around(column):
+		return {}
+	if world == null or not world.has_method("get_surface_height_at"):
+		return {}
+	var height: float = float(world.call("get_surface_height_at", column))
+	return {"position": Vector3(column.x, height, column.z)}
 
 
 ## Heights above the ground flyers keep to (hornets): low under the

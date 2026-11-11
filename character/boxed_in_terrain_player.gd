@@ -21,7 +21,7 @@ func _cache_terrain_refs() -> void:
 		_walk_surface = terrain
 
 
-func _find_random_surface_spawn() -> Dictionary:
+func _find_random_surface_spawn(at: Vector3 = Vector3.INF) -> Dictionary:
 	if terrain is TerrariumRoom:
 		var terrarium_room: TerrariumRoom = terrain as TerrariumRoom
 		var playable: TerrariumTerrain = terrarium_room.get_playable_terrain()
@@ -31,7 +31,7 @@ func _find_random_surface_spawn() -> Dictionary:
 			"position": terrarium_room.get_spawn_position(spawn_clearance),
 			"from_raycast_hit": playable != null,
 		}
-	return _raycast_spawn_over(_walk_surface)
+	return _raycast_spawn_over(_walk_surface, at)
 
 
 func _is_terrain_collider(collider: Variant) -> bool:

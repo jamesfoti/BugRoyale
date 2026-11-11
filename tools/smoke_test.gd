@@ -82,6 +82,7 @@ class Runner:
 	var _mode: GameMode
 	var _frames_run: int = 0
 	var _frames_waited: int = 0
+	var _started_msec: int = Time.get_ticks_msec()
 	var _spawn_positions: Dictionary = {}
 	var _deaths: Dictionary = {}
 	var _bodies_hooked: Dictionary = {}
@@ -111,8 +112,12 @@ class Runner:
 			_mode = found
 			print(
 				(
-					"[SmokeTest] Match started after %d frames with %d fighters."
-					% [_frames_waited, _mode.fighters.size()]
+					"[SmokeTest] Match started after %d frames with %d fighters, %.1f s in."
+					% [
+						_frames_waited,
+						_mode.fighters.size(),
+						float(Time.get_ticks_msec() - _started_msec) / 1000.0
+					]
 				)
 			)
 		_hook_fighters()
@@ -127,7 +132,18 @@ class Runner:
 		if _frames_run == 120:
 			_test_terrain_edits()
 		if _frames_run % 300 == 0:
-			print("[SmokeTest] %d frames: %s" % [_frames_run, _mode._status_text()])
+			print(
+				(
+					"[SmokeTest] %d frames: %s (fine chunks %d, %s on the pool, %.1f s in)"
+					% [
+						_frames_run,
+						_mode._status_text(),
+						_chunk_count(),
+						_pool_use(),
+						float(Time.get_ticks_msec() - _started_msec) / 1000.0
+					]
+				)
+			)
 		if _frames_run >= frames_to_run:
 			_report()
 			get_tree().quit(0)
@@ -164,6 +180,27 @@ class Runner:
 	## Exercises the terrain edit log once the match is running: an ADD at a bot's feet must be
 	## refused (it would bury the bot), a carve well away from everyone must go through with a
 	## sequence number, and exporting then importing the edit state must keep every override.
+	## The terrain's tasks on the worker pool: the map's build and the brush's rebuilds.
+	func _pool_use() -> String:
+		for world: Node in get_tree().get_nodes_in_group("terrain_world"):
+			if world is ChunkedTerrainWorld:
+				var terrain: ChunkedTerrainWorld = world as ChunkedTerrainWorld
+				return (
+					"%d build + %d brush"
+					% [terrain._world_build_tasks.size(), terrain._running_async_tasks]
+				)
+		return "none"
+
+	## Fine chunks standing: while the map builds, the ones its fine pass has placed.
+	func _chunk_count() -> int:
+		var count: int = 0
+		for world: Node in get_tree().get_nodes_in_group("terrain_world"):
+			if world is ChunkedTerrainWorld and (world as ChunkedTerrainWorld).is_building():
+				count += (world as ChunkedTerrainWorld)._placed_fine.size()
+			elif world.has_method("get_chunk_count"):
+				count += int(world.call("get_chunk_count"))
+		return count
+
 	func _terrain_building() -> bool:
 		for world: Node in get_tree().get_nodes_in_group("terrain_world"):
 			if world.has_method("is_building") and world.call("is_building"):

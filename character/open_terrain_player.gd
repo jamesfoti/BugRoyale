@@ -12,5 +12,5 @@ func _cache_terrain_refs() -> void:
 		_open_terrain = terrain as OpenTerrain
 
 
-func _find_random_surface_spawn() -> Dictionary:
-	return _raycast_spawn_over(_open_terrain)
+func _find_random_surface_spawn(at: Vector3 = Vector3.INF) -> Dictionary:
+	return _raycast_spawn_over(_open_terrain, at)

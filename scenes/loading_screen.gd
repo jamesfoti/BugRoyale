@@ -41,6 +41,11 @@ var _frames_since_start: int = -1
 ## The map's terrain worlds, and how far each one's build is (done, total).
 var _terrains: Array[ChunkedTerrainWorld] = []
 var _terrain_progress: Dictionary = {}
+## The mode put on the map, when there is one: the screen stays until its match starts.
+var _game_mode: GameMode = null
+## The bar never runs backwards: the ground play waits for grows as the bots are placed.
+var _shown_percent: int = 0
+var _leaving: bool = false
 
 @onready var _title: Label = $UI/Margin/VBox/Title
 @onready var _status: Label = $UI/Margin/VBox/Status
@@ -151,12 +156,19 @@ func _start_game(game_scene: PackedScene) -> void:
 	_frames_since_start = 0
 
 
+## The screen leaves once the ground play needs stands (the map keeps building behind the
+## game) and the mode's match, when there is one, is under way.
 func _process(_delta: float) -> void:
 	if _frames_since_start < 0:
 		return
-	for terrain: ChunkedTerrainWorld in _terrains:
-		if is_instance_valid(terrain) and terrain.is_building():
+	if not _leaving:
+		for terrain: ChunkedTerrainWorld in _terrains:
+			if is_instance_valid(terrain) and not terrain.play_ground_ready():
+				return
+		if _game_mode != null and is_instance_valid(_game_mode) and not _game_mode.has_started():
 			return
+		_leaving = true
+		_set_progress(100, "Building terrain")
 	_frames_since_start += 1
 	if _frames_since_start > 5:
 		queue_free()
@@ -164,6 +176,8 @@ func _process(_delta: float) -> void:
 
 ## A terrain world's build, as it goes: the bar shows every world's chunks together.
 func _on_terrain_progress(done: int, total: int, world: ChunkedTerrainWorld) -> void:
+	if _leaving:
+		return
 	_terrain_progress[world] = Vector2i(done, total)
 	var all_done: int = 0
 	var all_total: int = 0
@@ -173,7 +187,10 @@ func _on_terrain_progress(done: int, total: int, world: ChunkedTerrainWorld) -> 
 	if all_total <= 0 or not is_inside_tree():
 		return
 	var built: float = float(all_done) / float(all_total)
-	_set_progress(ASSET_SHARE + int(round(built * float(100 - ASSET_SHARE))), "Building terrain")
+	_shown_percent = maxi(
+		_shown_percent, ASSET_SHARE + int(round(built * float(100 - ASSET_SHARE)))
+	)
+	_set_progress(_shown_percent, "Building terrain")
 
 
 ## Adds the chosen mode's scene to the loaded map (no mode = free roam).
@@ -193,6 +210,7 @@ func _add_game_mode(game_root: Node) -> void:
 	var game_mode: Node = mode_scene.instantiate()
 	game_mode.name = "GameMode"
 	game_root.add_child(game_mode)
+	_game_mode = game_mode as GameMode
 
 
 ## Reloads the current map with the current mode (Play Again).

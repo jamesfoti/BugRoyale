@@ -70,6 +70,11 @@ func _begin() -> void:
 	_started = true
 
 
+## Whether the match is under way: everyone placed and the clock running.
+func has_started() -> bool:
+	return _started
+
+
 func _process(delta: float) -> void:
 	if not _started:
 		return

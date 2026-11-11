@@ -10,6 +10,8 @@ extends FighterBody
 
 const _INPUT_DEADZONE: float = 0.01
 const _SPAWN_ATTEMPTS: int = 12
+## Metres round a spawn spot whose ground must stand before the body is let go.
+const GROUND_WAIT_RADIUS: float = 6.0
 const _SPAWN_RAY_HEIGHT: float = 80.0
 ## Height of the collision capsule's center above the feet.
 const _BODY_CENTER_HEIGHT: float = 0.6
@@ -67,6 +69,9 @@ var _flying: bool = false
 var _wall_push_time: float = 0.0
 var _stuck_time: float = 0.0
 var _last_position: Vector3 = Vector3.INF
+## Put down where the map's build has not reached yet: still, no physics, until it has.
+var _held_for_ground: bool = false
+var _ground_hold: int = 0
 
 @onready var _orbit_camera: OrbitCamera = get_node_or_null("OrbitCamera") as OrbitCamera
 
@@ -96,7 +101,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if terrain == null or not _spawned or not _in_play:
+	if terrain == null or not _spawned or not _in_play or _held_for_ground:
 		return
 	delta = begin_physics_frame(delta)
 	if delta < 0.0:
@@ -514,8 +519,9 @@ func _cache_terrain_refs() -> void:
 	pass
 
 
-## Returns {"position": Vector3, "from_raycast_hit": bool}.
-func _find_random_surface_spawn() -> Dictionary:
+## Returns {"position": Vector3, "from_raycast_hit": bool}: a random spot on the ground,
+## or the ground under a given column (at) when one is passed.
+func _find_random_surface_spawn(_at: Vector3 = Vector3.INF) -> Dictionary:
 	return {"position": Vector3(0.0, spawn_clearance, 0.0), "from_raycast_hit": false}
 
 
@@ -535,19 +541,21 @@ func _is_terrain_collider(collider: Variant) -> bool:
 
 ## Random spawn on a surface node that provides get_world_extents() and get_surface_height_at():
 ## raycasts down at a random spot, falling back to the surface height function.
-func _raycast_spawn_over(surface: Node3D) -> Dictionary:
+func _raycast_spawn_over(surface: Node3D, at: Vector3 = Vector3.INF) -> Dictionary:
 	var spawn_data: Dictionary = {
 		"position": Vector3(0.0, spawn_clearance, 0.0), "from_raycast_hit": false
 	}
 	if surface == null:
 		return spawn_data
-	var world_extents: Vector3 = surface.get_world_extents()
-	var random_offset: Vector3 = Vector3(
-		randf_range(-world_extents.x * 0.4, world_extents.x * 0.4),
-		0.0,
-		randf_range(-world_extents.z * 0.4, world_extents.z * 0.4)
-	)
-	var column: Vector3 = surface.global_position + random_offset
+	var column: Vector3 = Vector3(at.x, 0.0, at.z)
+	if at == Vector3.INF:
+		var world_extents: Vector3 = surface.get_world_extents()
+		var random_offset: Vector3 = Vector3(
+			randf_range(-world_extents.x * 0.4, world_extents.x * 0.4),
+			0.0,
+			randf_range(-world_extents.z * 0.4, world_extents.z * 0.4)
+		)
+		column = surface.global_position + random_offset
 	var raycast_hit: Dictionary = _cast(
 		column + Vector3.UP * _SPAWN_RAY_HEIGHT, column - Vector3.UP * _SPAWN_RAY_HEIGHT
 	)
@@ -591,15 +599,29 @@ func _spawn_on_terrain() -> void:
 		push_warning("[%s] No terrain assigned." % get_class())
 		return
 
-	# The map builds in the background after it loads: no ground to land on until it stands.
-	while terrain.has_method("is_building") and terrain.call("is_building"):
-		await get_tree().physics_frame
 	var spawn_data: Dictionary = _find_random_surface_spawn()
-	for _attempt: int in _SPAWN_ATTEMPTS:
-		await get_tree().physics_frame
-		spawn_data = _find_random_surface_spawn()
-		if spawn_data.get("from_raycast_hit", false):
-			break
+	if terrain.has_method("is_building") and terrain.call("is_building"):
+		# The map is still building: the spot comes from the ground's own heights, the
+		# build is pointed at it, and the fine ground there is waited for before the
+		# raycasts refine the landing.
+		var spot: Vector3 = spawn_data["position"]
+		terrain.call("focus_build_at", spot, GROUND_WAIT_RADIUS)
+		while (
+			is_inside_tree()
+			and not terrain.call("is_ground_ready_around", spot, GROUND_WAIT_RADIUS, true)
+		):
+			await get_tree().physics_frame
+		for _attempt: int in _SPAWN_ATTEMPTS:
+			await get_tree().physics_frame
+			spawn_data = _find_random_surface_spawn(spot)
+			if spawn_data.get("from_raycast_hit", false):
+				break
+	else:
+		for _attempt: int in _SPAWN_ATTEMPTS:
+			await get_tree().physics_frame
+			spawn_data = _find_random_surface_spawn()
+			if spawn_data.get("from_raycast_hit", false):
+				break
 
 	_apply_spawn(spawn_data)
 
@@ -619,6 +641,27 @@ func _apply_spawn(spawn_data: Dictionary) -> void:
 		_orbit_camera.rotation = Vector3(_orbit_camera.rotation.x, 0.0, _orbit_camera.rotation.z)
 	_skin.set_state("idle")
 	_spawned = true
+	_hold_for_ground(global_position)
+
+
+## A body put down where the map's build has not reached yet (a bot placed across the map
+## while the ground comes in) stands still, no physics, until the ground round it stands,
+## coarse or fine; the terrain lifts it onto the fine surface when that comes.
+func _hold_for_ground(spot: Vector3) -> void:
+	_ground_hold += 1
+	_held_for_ground = false
+	if terrain == null or not terrain.has_method("is_ground_ready_around"):
+		return
+	if terrain.call("is_ground_ready_around", spot, GROUND_WAIT_RADIUS):
+		return
+	var hold: int = _ground_hold
+	_held_for_ground = true
+	terrain.call("focus_build_at", spot, GROUND_WAIT_RADIUS)
+	while is_inside_tree() and not terrain.call("is_ground_ready_around", spot, GROUND_WAIT_RADIUS):
+		await get_tree().physics_frame
+		if hold != _ground_hold:
+			return
+	_held_for_ground = false
 
 
 # --- Animation --------------------------------------------------------------------------------

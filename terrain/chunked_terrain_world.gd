@@ -9,9 +9,10 @@ signal brush_applied(world_position: Vector3, radius: float)
 ## "removed" (TerrainMaterials.Kind -> voxels dug out) and "added" (voxels turned solid). A
 ## host broadcasts these; a client applies them in sequence order.
 signal edit_applied(edit: Dictionary)
-## How far a rebuild of the whole map is, as it goes: the chunks meshed on the workers
-## count first, then the chunks placed in the scene, so total is twice the chunk count. A
-## blocking rebuild reports once, complete.
+## How far the map's build is, as it goes, in chunks placed: while a build focus is set
+## (focus_build_at) and the ground round it is not yet complete, the count is of the
+## chunks that ground needs; after that, of the whole map. A blocking rebuild reports
+## once, complete.
 signal build_progress(done: int, total: int)
 ## Every chunk of a rebuild of the whole map stands.
 signal built
@@ -33,7 +34,14 @@ const FIGHTER_CLEARANCE: float = 0.1
 const CAPSULE_SAMPLES: int = 6
 ## Main-thread time a frame gives to placing built chunks in the scene (mesh upload and
 ## collision) during the map's background build.
-const PLACE_BUDGET_USEC: int = 24000
+const PLACE_BUDGET_USEC: int = 8000
+## Chunks of the map's background build on the pool at once: the four threads the build
+## scales to, plus one queued so no thread waits for the next frame's poll.
+const WORLD_BUILD_IN_FLIGHT: int = 5
+## The map's build first lays the whole map at this voxel size, a few seconds' work, so
+## the ground looks complete and holds a body from the first frame; the fine build then
+## replaces it chunk by chunk, nearest the focus first.
+const COARSE_VOXEL: float = 4.0
 
 @export_group("Terrain Grid")
 @export_range(1.0, 128.0, 0.5, "or_greater") var chunk_size: float = 12.0:
@@ -165,14 +173,40 @@ var _async_rebuild_requested: bool = false
 var _async_jobs: Dictionary = {}
 var _running_async_tasks: int = 0
 var _inflight_chunk_coordinates: Dictionary = {}
-## The map's build in the background (the game's rebuild on ready): its chunks are meshed
-## on the worker pool while frames keep coming, then placed a few a frame. Null: none runs.
-var _world_build: ChunkMeshBuilder.ParallelBuildJob = null
-var _world_build_task: int = -1
+## The map's build in the background (the game's rebuild on ready): each chunk its own
+## task on the worker pool, nearest the build's focus first, placed as it comes in.
+var _world_building: bool = false
+## Chunks not yet started, farthest first (the next is popped off the back).
+var _world_build_queue: Array[Vector3i] = []
+## Task id -> the job of a chunk on the pool.
+var _world_build_tasks: Dictionary = {}
 var _world_build_settings: SettingsSnapshot = null
 var _world_build_grid: Vector3i = Vector3i.ZERO
+var _world_build_total: int = 0
 var _world_build_placed: int = 0
 var _world_build_started_msec: int = 0
+## Where the ground is wanted first (focus_build_at): x, y, z and the radius round it.
+var _build_focus: Array[Vector4] = []
+## Chunk columns (x, z) the focuses cover: the ground play waits for.
+var _play_columns: Dictionary = {}
+## Chunk column (x, z) -> fine chunks of it placed so far, during the background build.
+var _placed_in_column: Dictionary = {}
+## The coarse pass of the map's build (COARSE_VOXEL): whether its chunks are still being
+## handed out, how many stand, and how many it has in all (0 when the map is that coarse
+## already or its chunks too small for it).
+var _coarse_pass: bool = false
+var _coarse_placed: int = 0
+var _coarse_total: int = 0
+## Chunk coordinate -> true once its fine chunk stands (the coarse one, if any, replaced).
+var _placed_fine: Dictionary = {}
+## Chunk coordinate -> true once any chunk stands there, coarse or fine, and chunk column
+## (x, z) -> how many of its chunks do.
+var _placed_any: Dictionary = {}
+var _standing_in_column: Dictionary = {}
+## Boxes of fine chunks that replaced coarse ones: a body standing there is lifted onto
+## the new ground a physics step or two later, since the fine surface can sit higher.
+var _lift_pending: Array[AABB] = []
+var _lift_checks: Array[AABB] = []
 
 
 func _ready() -> void:
@@ -187,7 +221,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
-	if _world_build != null:
+	if _world_building:
 		_poll_world_build()
 	_poll_async_rebuilds()
 	if _async_rebuild_requested:
@@ -238,15 +272,58 @@ func rebuild_all() -> void:
 	_rebuild_all_sync(settings, grid_dimensions)
 
 
-## Whether the map's background build (see _begin_ready_build) is still going: until it is
-## done the ground is missing, so a spawn waits on this.
+## Whether the map's background build (see _begin_ready_build) is still going. The ground
+## comes in nearest the build's focus first, so play starts before the map is done: a
+## spawn waits on is_ground_ready_around, the loading screen on play_ground_ready.
 func is_building() -> bool:
-	return _world_build != null
+	return _world_building
 
 
-## The game's build of the map: the chunks are meshed on the worker pool while the frames
-## keep coming (the loading screen draws its bar from build_progress), then placed in the
-## scene a few a frame. Without threads it builds blocking, as rebuild_all does.
+## Points the map's build at a spot: the chunks nearest it (and the other spots given so
+## far) come first, and the columns within radius of it are ground play waits for. A
+## spawn calls this with where it will stand. Takes effect within a few chunks.
+func focus_build_at(world_position: Vector3, radius: float = 0.0) -> void:
+	_build_focus.append(Vector4(world_position.x, world_position.y, world_position.z, radius))
+	for column: Vector2i in _columns_touching(world_position, radius):
+		_play_columns[column] = true
+	if _world_building:
+		_sort_world_build_queue()
+
+
+## Whether every chunk column within radius of a spot stands, coarse or fine (fine only,
+## with fine): always once the map's build is done, and for a spot off the grid. A body
+## can stand on coarse ground; it is lifted onto the fine surface when that comes.
+func is_ground_ready_around(
+	world_position: Vector3, radius: float = 0.0, fine: bool = false
+) -> bool:
+	if not _world_building:
+		return true
+	var counts: Dictionary = _placed_in_column if fine else _standing_in_column
+	for column: Vector2i in _columns_touching(world_position, radius):
+		if int(counts.get(column, 0)) < _world_build_grid.y:
+			return false
+	return true
+
+
+## Whether the ground play needs stands, so play can begin: the whole map coarse and the
+## columns every focus asked for fine. False while the map builds and no focus is set,
+## since nothing says yet where play is.
+func play_ground_ready() -> bool:
+	if not _world_building:
+		return true
+	if _coarse_placed < _coarse_total or _play_columns.is_empty():
+		return false
+	for column: Vector2i in _play_columns:
+		if int(_placed_in_column.get(column, 0)) < _world_build_grid.y:
+			return false
+	return true
+
+
+## The game's build of the map: each chunk is meshed on the worker pool as a task of its
+## own while the frames keep coming and placed in the scene as it comes in (the loading
+## screen draws its bar from build_progress). The whole map goes in coarse first
+## (COARSE_VOXEL), then fine, nearest the build's focus first. Without threads it builds
+## blocking, as rebuild_all does.
 func _begin_ready_build() -> void:
 	if not use_threaded_rebuild:
 		rebuild_all()
@@ -257,39 +334,74 @@ func _begin_ready_build() -> void:
 	_clear_chunks()
 	_world_build_settings = _make_settings_snapshot()
 	_world_build_grid = _get_grid_dimensions()
-	_world_build = _make_world_job(_world_build_settings, _world_build_grid)
+	_queue_every_chunk()
+	_world_build_total = _world_build_queue.size()
 	_world_build_placed = 0
+	_placed_in_column.clear()
+	_placed_fine.clear()
+	_placed_any.clear()
+	_standing_in_column.clear()
+	_lift_pending.clear()
+	_lift_checks.clear()
+	var coarse_cells: int = int(floor(_world_build_settings.chunk_world_size / COARSE_VOXEL))
+	_coarse_pass = _world_build_settings.voxel_size < COARSE_VOXEL and coarse_cells >= 2
+	_coarse_total = _world_build_total if _coarse_pass else 0
+	_coarse_placed = 0
 	_world_build_started_msec = Time.get_ticks_msec()
-	_world_build_task = WorkerThreadPool.add_group_task(
-		ChunkMeshBuilder.run_parallel_job_element.bind(_world_build),
-		_world_build.chunk_coordinates.size(),
-		REBUILD_THREADS,
-		true,
-		"%s chunk rebuild" % _get_world_log_name()
-	)
-	build_progress.emit(0, _world_build.chunk_coordinates.size() * 2)
+	_world_building = true
+	_sort_world_build_queue()
+	_fill_world_build()
+	_emit_build_progress()
 
 
+func _queue_every_chunk() -> void:
+	_world_build_queue.clear()
+	for chunk_z: int in _world_build_grid.z:
+		for chunk_y: int in _world_build_grid.y:
+			for chunk_x: int in _world_build_grid.x:
+				_world_build_queue.append(Vector3i(chunk_x, chunk_y, chunk_z))
+
+
+## Places the chunks whose tasks are done, within the frame's budget, and starts the next.
 func _poll_world_build() -> void:
-	var total: int = _world_build.chunk_coordinates.size()
-	if _world_build_task >= 0:
-		if not WorkerThreadPool.is_group_task_completed(_world_build_task):
-			build_progress.emit(_world_build.completed(), total * 2)
-			return
-		WorkerThreadPool.wait_for_group_task_completion(_world_build_task)
-		_world_build_task = -1
 	var deadline: int = Time.get_ticks_usec() + PLACE_BUDGET_USEC
-	while _world_build_placed < total:
-		_build_chunk_at(
-			_world_build.chunk_coordinates[_world_build_placed],
-			_world_build.results[_world_build_placed],
-			_world_build_settings
-		)
-		_world_build_placed += 1
+	var completed: Array[int] = []
+	for task_id_variant: Variant in _world_build_tasks.keys():
+		var task_id: int = task_id_variant as int
+		if WorkerThreadPool.is_task_completed(task_id):
+			completed.append(task_id)
+	for task_id: int in completed:
 		if Time.get_ticks_usec() >= deadline:
 			break
-	build_progress.emit(total + _world_build_placed, total * 2)
-	if _world_build_placed < total:
+		var job: ChunkMeshBuilder.AsyncRebuildJob = (
+			_world_build_tasks[task_id] as ChunkMeshBuilder.AsyncRebuildJob
+		)
+		WorkerThreadPool.wait_for_task_completion(task_id)
+		_world_build_tasks.erase(task_id)
+		var chunk_coordinate: Vector3i = job.chunk_coordinates[0]
+		var result: ChunkMeshBuilder.ChunkBuildResult = (
+			job.batch_result.chunks[chunk_coordinate] as ChunkMeshBuilder.ChunkBuildResult
+		)
+		if job.coarse:
+			_coarse_placed += 1
+			if not _placed_fine.has(chunk_coordinate):
+				_build_chunk_at(chunk_coordinate, result, job.settings)
+				_note_standing_chunk(chunk_coordinate)
+			continue
+		if _placed_fine.has(chunk_coordinate):
+			# The brush got there first, with a later snapshot.
+			continue
+		var coarse_chunk: TerrainChunk = _chunks.get(chunk_coordinate) as TerrainChunk
+		if coarse_chunk != null:
+			remove_child(coarse_chunk)
+			coarse_chunk.queue_free()
+			_lift_pending.append(_get_chunk_world_aabb(chunk_coordinate, job.settings))
+		_build_chunk_at(chunk_coordinate, result, job.settings)
+		_note_standing_chunk(chunk_coordinate)
+		_note_fine_chunk(chunk_coordinate)
+	_fill_world_build()
+	_emit_build_progress()
+	if _world_build_placed < _world_build_total or not _world_build_tasks.is_empty():
 		return
 	_log_rebuild_complete(
 		_chunks.size(),
@@ -297,21 +409,213 @@ func _poll_world_build() -> void:
 		_world_build_grid,
 		Time.get_ticks_msec() - _world_build_started_msec
 	)
-	_world_build = null
+	_world_building = false
 	_world_build_settings = null
+	_build_focus.clear()
+	_play_columns.clear()
 	built.emit()
 
 
-## Drops a background build that is still going (a full rebuild asked for meanwhile takes
-## its place); the workers are let finish first, since their job holds the settings.
-func _abandon_world_build() -> void:
-	if _world_build == null:
+## A chunk, coarse or fine, stands at a coordinate for the first time.
+func _note_standing_chunk(chunk_coordinate: Vector3i) -> void:
+	if _placed_any.has(chunk_coordinate):
 		return
-	if _world_build_task >= 0:
-		WorkerThreadPool.wait_for_group_task_completion(_world_build_task)
-	_world_build_task = -1
-	_world_build = null
+	_placed_any[chunk_coordinate] = true
+	var column := Vector2i(chunk_coordinate.x, chunk_coordinate.z)
+	_standing_in_column[column] = int(_standing_in_column.get(column, 0)) + 1
+
+
+## A fine chunk stands at a coordinate (placed by the map's build or by the brush).
+func _note_fine_chunk(chunk_coordinate: Vector3i) -> void:
+	if _placed_fine.has(chunk_coordinate):
+		return
+	_placed_fine[chunk_coordinate] = true
+	_world_build_placed += 1
+	var column := Vector2i(chunk_coordinate.x, chunk_coordinate.z)
+	_placed_in_column[column] = int(_placed_in_column.get(column, 0)) + 1
+
+
+## Starts chunks off the queue until the pool holds its share, the brush's own rebuilds
+## counted in, since GDScript on more threads than that runs slower, not faster. When the
+## coarse pass is all handed out, the fine pass is queued behind it.
+func _fill_world_build() -> void:
+	while _world_build_tasks.size() + _running_async_tasks < WORLD_BUILD_IN_FLIGHT:
+		if _world_build_queue.is_empty():
+			if not _coarse_pass:
+				return
+			_coarse_pass = false
+			_queue_every_chunk()
+			_sort_world_build_queue()
+			if _world_build_queue.is_empty():
+				return
+		var chunk_coordinate: Vector3i = _world_build_queue.pop_back()
+		if (
+			not _coarse_pass
+			and (
+				_placed_fine.has(chunk_coordinate)
+				or _inflight_chunk_coordinates.has(chunk_coordinate)
+			)
+		):
+			continue
+		# The edits so far go into this chunk's snapshot: a rebuild queued for it before
+		# now would only repeat the work.
+		_pending_rebuild_chunk_coordinates.erase(chunk_coordinate)
+		var job: ChunkMeshBuilder.AsyncRebuildJob = ChunkMeshBuilder.AsyncRebuildJob.new()
+		job.chunk_coordinates = [chunk_coordinate]
+		job.settings = _make_thread_settings_snapshot()
+		job.coarse = _coarse_pass
+		if _coarse_pass:
+			_coarsen(job.settings)
+		var task_id: int = WorkerThreadPool.add_task(
+			ChunkMeshBuilder.run_async_job.bind(job), true, "%s chunk build" % _get_world_log_name()
+		)
+		_world_build_tasks[task_id] = job
+
+
+## The coarse pass's settings: COARSE_VOXEL voxels, as near as divides the chunk, and no
+## loose rock pass, since at that size a lump is a boulder.
+func _coarsen(settings: SettingsSnapshot) -> void:
+	settings.cells_per_axis = int(floor(settings.chunk_world_size / COARSE_VOXEL))
+	settings.voxel_size = settings.chunk_world_size / float(settings.cells_per_axis)
+	settings.loose_rock_voxels = 0
+
+
+## Orders the chunks still to start: farthest from the focus first, so the nearest is at
+## the back where the next is taken; in one column, the top chunk first.
+func _sort_world_build_queue() -> void:
+	var settings: SettingsSnapshot = _world_build_settings
+	var extent: float = settings.chunk_world_size
+	var origin: Vector3 = global_position + _chunk_corner_local(Vector3i.ZERO, settings)
+	var keyed: Array = []
+	for chunk_coordinate: Vector3i in _world_build_queue:
+		var centre := Vector2(
+			origin.x + (float(chunk_coordinate.x) + 0.5) * extent,
+			origin.z + (float(chunk_coordinate.z) + 0.5) * extent
+		)
+		keyed.append([_focus_distance(centre), chunk_coordinate.y, chunk_coordinate])
+	keyed.sort_custom(
+		func(a: Array, b: Array) -> bool:
+			if a[0] != b[0]:
+				return a[0] > b[0]
+			return a[1] < b[1]
+	)
+	_world_build_queue.clear()
+	for entry: Array in keyed:
+		_world_build_queue.append(entry[2] as Vector3i)
+
+
+## How far a chunk column's centre is from the nearest focus, past its radius; from the
+## world's centre when no focus is set.
+func _focus_distance(column_centre: Vector2) -> float:
+	if _build_focus.is_empty():
+		return column_centre.distance_to(Vector2(global_position.x, global_position.z))
+	var nearest: float = INF
+	for focus: Vector4 in _build_focus:
+		var distance: float = column_centre.distance_to(Vector2(focus.x, focus.z)) - focus.w
+		nearest = minf(nearest, maxf(distance, 0.0))
+	return nearest
+
+
+## The chunk columns (x, z) within radius of a spot, those on the grid.
+func _columns_touching(world_position: Vector3, radius: float) -> Array[Vector2i]:
+	var settings: SettingsSnapshot = (
+		_world_build_settings if _world_build_settings != null else _make_settings_snapshot()
+	)
+	var grid: Vector3i = _get_grid_dimensions()
+	var extent: float = settings.chunk_world_size
+	var origin: Vector3 = global_position + _chunk_corner_local(Vector3i.ZERO, settings)
+	var first_x: int = maxi(floori((world_position.x - radius - origin.x) / extent), 0)
+	var last_x: int = mini(floori((world_position.x + radius - origin.x) / extent), grid.x - 1)
+	var first_z: int = maxi(floori((world_position.z - radius - origin.z) / extent), 0)
+	var last_z: int = mini(floori((world_position.z + radius - origin.z) / extent), grid.z - 1)
+	var columns: Array[Vector2i] = []
+	for column_x: int in range(first_x, last_x + 1):
+		for column_z: int in range(first_z, last_z + 1):
+			columns.append(Vector2i(column_x, column_z))
+	return columns
+
+
+## Until play can begin, the count is of what it waits for: the coarse map and the fine
+## chunks of the focus's columns (four columns' worth assumed until a focus says).
+func _emit_build_progress() -> void:
+	if _world_build_placed >= _world_build_total:
+		build_progress.emit(_world_build_total, _world_build_total)
+		return
+	if not play_ground_ready():
+		var play_done: int = 0
+		for column: Vector2i in _play_columns:
+			play_done += mini(int(_placed_in_column.get(column, 0)), _world_build_grid.y)
+		var play_columns: int = _play_columns.size() if not _play_columns.is_empty() else 4
+		var play_total: int = play_columns * _world_build_grid.y
+		build_progress.emit(_coarse_placed + play_done, _coarse_total + play_total)
+		return
+	build_progress.emit(_world_build_placed, _world_build_total)
+
+
+## A body standing where a fine chunk just replaced a coarse one may be under the new
+## surface, since the fine ground can sit higher: it is lifted onto it, two physics steps
+## after the chunk went in so its collision is in the space.
+func _physics_process(_delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
+	if not _lift_checks.is_empty():
+		var boxes: Array[AABB] = _lift_checks
+		_lift_checks = []
+		for node: Node in get_tree().get_nodes_in_group("fighter"):
+			var body: Node3D = node as Node3D
+			if body == null or not body.has_method("unstick"):
+				continue
+			for box: AABB in boxes:
+				if box.grow(1.0).has_point(body.global_position):
+					_lift_onto_ground(body)
+					break
+	if not _lift_pending.is_empty():
+		_lift_checks = _lift_pending
+		_lift_pending = []
+
+
+func _lift_onto_ground(body: Node3D) -> void:
+	var from: Vector3 = body.global_position + Vector3.UP * 4.0
+	var to: Vector3 = body.global_position - Vector3.UP * 1.0
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
+	if body is CollisionObject3D:
+		query.exclude = [(body as CollisionObject3D).get_rid()]
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty() or not is_ancestor_of(hit["collider"] as Node):
+		return
+	var clearance_value: Variant = body.get("spawn_clearance")
+	var clearance: float = float(clearance_value) if clearance_value != null else 1.0
+	var ground: Vector3 = hit["position"] as Vector3
+	if ground.y > body.global_position.y - clearance * 0.5:
+		body.call("unstick", ground + Vector3.UP * clearance)
+
+
+## Drops a background build that is still going (a full rebuild asked for meanwhile takes
+## its place, or the world leaves the tree): the chunks on the pool are let finish, since
+## their jobs hold the settings, and the rest are forgotten.
+func _abandon_world_build() -> void:
+	if not _world_building:
+		return
+	for task_id_variant: Variant in _world_build_tasks.keys():
+		WorkerThreadPool.wait_for_task_completion(task_id_variant as int)
+	_world_build_tasks.clear()
+	_world_build_queue.clear()
+	_world_building = false
+	_coarse_pass = false
+	_coarse_total = 0
+	_coarse_placed = 0
+	_placed_fine.clear()
+	_placed_any.clear()
+	_standing_in_column.clear()
+	_lift_pending.clear()
+	_lift_checks.clear()
 	_world_build_settings = null
+	_build_focus.clear()
+	_play_columns.clear()
+
+
+func _exit_tree() -> void:
+	_abandon_world_build()
 
 
 func _make_world_job(
@@ -516,9 +820,9 @@ func end_continuous_edit() -> void:
 ## chunks the sphere touches that have no cached field get one built in the background,
 ## so the first stroke there resamples a few samples instead of reading the whole chunk.
 ## Cheap to call every frame; nothing is started for a chunk that is cached, in flight or
-## queued, or while the map itself is still building.
+## queued, or that the map's build has not placed fine yet.
 func prepare_edit_around(world_position: Vector3, radius: float) -> void:
-	if _world_build != null or not _use_threaded_rebuild():
+	if not _use_threaded_rebuild():
 		return
 	for chunk_coordinate: Vector3i in _get_chunk_coordinates_intersecting_sphere(
 		world_position, radius
@@ -528,6 +832,7 @@ func prepare_edit_around(world_position: Vector3, radius: float) -> void:
 			or _inflight_chunk_coordinates.has(chunk_coordinate)
 			or _pending_rebuild_chunk_coordinates.has(chunk_coordinate)
 			or not _chunks.has(chunk_coordinate)
+			or (_world_building and not _placed_fine.has(chunk_coordinate))
 		):
 			continue
 		if _running_async_tasks >= max_concurrent_rebuild_tasks:
@@ -871,6 +1176,7 @@ func _clear_chunks() -> void:
 		child.queue_free()
 	_chunks.clear()
 	_field_cache.clear()
+	_pending_rebuild_chunk_coordinates.clear()
 
 
 func _request_rebuild() -> void:
@@ -902,7 +1208,8 @@ func _dispatch_pending_rebuilds() -> void:
 	var deferred_chunk_coordinates: Array[Vector3i] = []
 	for chunk_coordinate_variant: Variant in _pending_rebuild_chunk_coordinates.keys():
 		var chunk_coordinate: Vector3i = chunk_coordinate_variant as Vector3i
-		if _inflight_chunk_coordinates.has(chunk_coordinate):
+		# A chunk in flight, or one the map's build has not placed yet, keeps its turn.
+		if _inflight_chunk_coordinates.has(chunk_coordinate) or not _chunks.has(chunk_coordinate):
 			deferred_chunk_coordinates.append(chunk_coordinate)
 			continue
 		if _running_async_tasks >= max_concurrent_rebuild_tasks:
@@ -1000,6 +1307,13 @@ func _apply_async_job(async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob) -> vo
 			chunk.apply_build_result(chunk_build_result, generate_collision)
 			if _effective_material() != null:
 				chunk.material_override = _effective_material()
+			if _world_building and not _placed_fine.has(chunk_coordinate):
+				# A coarse chunk just turned fine under the brush: whoever stands on it may
+				# now be under its surface.
+				_lift_pending.append(
+					_get_chunk_world_aabb(chunk_coordinate, async_rebuild_job.settings)
+				)
+				_note_fine_chunk(chunk_coordinate)
 		if chunk_build_result.field != null:
 			var cached := ChunkMeshBuilder.ChunkCache.new()
 			cached.field = chunk_build_result.field
@@ -1079,7 +1393,16 @@ func _get_chunk_coordinates_intersecting_aabb(bounds: AABB) -> Array[Vector3i]:
 	var settings: SettingsSnapshot = _make_settings_snapshot()
 	var padding: float = get_voxel_size() * 2.0
 	var search_aabb: AABB = bounds.grow(padding)
-	for chunk_coordinate_variant: Variant in _chunks.keys():
+	# While the map builds, chunks not yet placed count too: an edit there waits for the
+	# chunk and rebuilds it once it stands.
+	var candidates: Array = _chunks.keys()
+	if _world_building:
+		candidates = []
+		for chunk_z: int in _world_build_grid.z:
+			for chunk_y: int in _world_build_grid.y:
+				for chunk_x: int in _world_build_grid.x:
+					candidates.append(Vector3i(chunk_x, chunk_y, chunk_z))
+	for chunk_coordinate_variant: Variant in candidates:
 		var chunk_coordinate: Vector3i = chunk_coordinate_variant as Vector3i
 		if _get_chunk_world_aabb(chunk_coordinate, settings).intersects(search_aabb):
 			chunk_coordinates.append(chunk_coordinate)

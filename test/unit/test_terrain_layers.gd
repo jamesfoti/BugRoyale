@@ -170,7 +170,7 @@ func test_the_build_on_ready_runs_behind_the_frames_and_reports_its_progress() -
 	assert_gt(reports.size(), 1, "progress came in more than once")
 	var last: Vector2i = reports[reports.size() - 1]
 	assert_eq(last.x, last.y, "the last word is complete")
-	assert_eq(last.y, grid.x * grid.y * grid.z * 2, "meshed and placed, each counted")
+	assert_eq(last.y, grid.x * grid.y * grid.z, "every chunk counted")
 	var previous: int = -1
 	for report: Vector2i in reports:
 		assert_true(report.x >= previous, "the count never falls")
@@ -182,6 +182,86 @@ func test_the_build_on_ready_runs_behind_the_frames_and_reports_its_progress() -
 	assert_eq(reports[0].x, reports[0].y)
 	# The chunks the rebuild replaced are freed at the end of the frame.
 	await get_tree().process_frame
+
+
+## The build comes in nearest its focus first: the column a spawn asked for stands while
+## the rest of the map is still building, the progress counts that ground until it does,
+## and an edit made meanwhile at a chunk not yet placed shows once the chunk is.
+func test_the_build_puts_the_focused_ground_first_and_keeps_an_early_edit() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.chunk_size = 8.0
+	world.voxel_size = 4.0
+	var reports: Array[Vector2i] = []
+	world.build_progress.connect(
+		func(done: int, total: int) -> void: reports.append(Vector2i(done, total))
+	)
+	add_child_autofree(world)
+	var extents: Vector3 = world.get_world_extents()
+	var near: Vector3 = world.global_position - extents * 0.5 + Vector3(1.0, 0.0, 1.0)
+	var far: Vector3 = world.global_position + extents * 0.5 - Vector3(1.0, 0.0, 1.0)
+	await get_tree().process_frame
+	assert_true(world.is_building())
+	assert_false(world.play_ground_ready(), "nothing says where play is yet")
+	assert_true(
+		world.is_ground_ready_around(far + Vector3(100.0, 0.0, 100.0)),
+		"off the grid: nothing to wait for"
+	)
+	world.focus_build_at(near, 0.0)
+	# A hole dug at the far corner before its chunk is placed: wide, since the voxels are
+	# four metres, and no deeper than the box.
+	var top: float = world.global_position.y + extents.y * 0.5
+	var dig := Vector3(far.x, minf(world.get_surface_height_at(far), top - 2.0), far.z)
+	world.apply_brush(dig, 6.0, false)
+	assert_gt(world.get_edited_voxel_count(), 0, "the hole took some voxels")
+	var stood_early: bool = false
+	var frames: int = 0
+	while world.is_building() and frames < 600:
+		if not stood_early and world.is_ground_ready_around(near, 0.0, true):
+			stood_early = world._world_build_placed < world._world_build_total
+			assert_true(world.play_ground_ready(), "the focus's ground is what play waits for")
+		await get_tree().process_frame
+		frames += 1
+	assert_true(stood_early, "the focused column stood before the map was done")
+	assert_false(world.is_building())
+	var grid: Vector3i = world._get_grid_dimensions()
+	var counted_the_focus: bool = false
+	for report: Vector2i in reports:
+		if report.y == grid.y:
+			counted_the_focus = true
+	assert_true(counted_the_focus, "progress counted the focus column's chunks while it waited")
+	assert_eq(reports[reports.size() - 1].y, grid.x * grid.y * grid.z, "then the whole map")
+	frames = 0
+	while (
+		(
+			not world._async_jobs.is_empty()
+			or not world._pending_rebuild_chunk_coordinates.is_empty()
+		)
+		and frames < 600
+	):
+		await get_tree().process_frame
+		frames += 1
+	# The far chunk carries the hole: not the surface the same chunk of the same map has undug.
+	var plain: OpenTerrain = OpenTerrain.new()
+	plain.rebuild_on_ready = false
+	plain.chunk_size = 8.0
+	plain.voxel_size = 4.0
+	add_child_autofree(plain)
+	plain.rebuild_all()
+	var dug_faces: PackedVector3Array = _faces_at(world, dig)
+	var plain_faces: PackedVector3Array = _faces_at(plain, dig)
+	assert_gt(plain_faces.size(), 0, "the surface crosses the far chunk")
+	assert_true(dug_faces != plain_faces, "the hole shows in the chunk placed after the edit")
+	await get_tree().process_frame
+
+
+## The triangles of the chunk holding a point, as the mesh has them.
+func _faces_at(world: OpenTerrain, point: Vector3) -> PackedVector3Array:
+	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	for chunk_coordinate: Vector3i in world._chunks:
+		if world._get_chunk_world_aabb(chunk_coordinate, settings).has_point(point):
+			var chunk: TerrainChunk = world._chunks[chunk_coordinate]
+			return chunk.mesh.get_faces() if chunk.mesh != null else PackedVector3Array()
+	return PackedVector3Array()
 
 
 func test_the_cave_ranges_and_shape_travel_and_steer_the_roll() -> void:
@@ -414,3 +494,40 @@ func test_flat_spots_are_level_inside_the_bounds_and_apart() -> void:
 	var none: DensitySampler.WorldDensity = _surface()
 	none.roll_flat_spots(SEED, Vector2i.ZERO, Vector2(10.0, 10.0))
 	assert_eq(none.flat_spot_summary(), "no flat spots")
+
+
+## The map's build lays the whole map coarse first, so every chunk stands within a few
+## frames, then replaces each with its fine chunk; the coarse one is freed.
+func test_the_build_lays_coarse_ground_over_the_whole_map_before_the_fine_pass() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.chunk_size = 8.0
+	world.voxel_size = 2.0
+	add_child_autofree(world)
+	await get_tree().process_frame
+	var grid: Vector3i = world._get_grid_dimensions()
+	var total: int = grid.x * grid.y * grid.z
+	assert_eq(world._coarse_total, total, "two-metre voxels: the coarse pass runs")
+	var coarse_everywhere: bool = false
+	var coarse_chunk: TerrainChunk = null
+	var coarse_coordinate: Vector3i = Vector3i.ZERO
+	var frames: int = 0
+	while world.is_building() and frames < 900:
+		if (
+			not coarse_everywhere
+			and world._chunks.size() == total
+			and world._world_build_placed < total
+		):
+			coarse_everywhere = true
+			for chunk_coordinate: Vector3i in world._chunks:
+				if not world._placed_fine.has(chunk_coordinate):
+					coarse_coordinate = chunk_coordinate
+					coarse_chunk = world._chunks[chunk_coordinate]
+					break
+		await get_tree().process_frame
+		frames += 1
+	assert_true(coarse_everywhere, "every chunk stood, coarse, before the fine pass was done")
+	assert_false(world.is_building())
+	assert_eq(world._placed_fine.size(), total, "every chunk fine at the end")
+	assert_eq(world.get_chunk_count(), total)
+	assert_true(coarse_chunk != world._chunks[coarse_coordinate], "the coarse chunk replaced")
+	assert_false(is_instance_valid(coarse_chunk), "and freed")
