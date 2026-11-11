@@ -446,14 +446,27 @@ In the game a map's terrain builds behind the loading screen without holding up 
 every chunk is a task of its own on the worker pool, four at a time plus one queued, since
 GDScript on more threads than that runs slower (see `REBUILD_THREADS`). The whole map goes
 in coarse first, at 4 m voxels, a few seconds' work, so the ground looks complete and
-holds a body from the first frame; the fine chunks then replace it one by one, nearest the
-player's spawn first (`focus_build_at`), and the loading screen leaves once the map is
-coarse everywhere and the columns round the spawn are fine. A bot placed where the fine
-ground has not come yet stands still until it has (`is_ground_ready_around`), a body on a
-coarse chunk is lifted onto the fine surface when it lands, and an edit made at a chunk
-not yet placed waits for it. The rest of the map keeps building behind the game at about
-five chunks a second while the game runs, so a full 512 m map at 1 m takes a couple of
-minutes to come in fine; `tools/smoke_test.tscn` prints the count every five seconds.
+holds a body from the first frame; the fine chunks then replace it in bands
+(`_sort_world_build_queue`): the surface two chunks each way round the player's spawn,
+the caves under that, the surface of the rest of the map nearest the player, and the rest
+of the caves last. The top layer of a map is sky and costs nothing, the surface layer is a
+third of the build and the cave layer two thirds, and nobody sees the caves until they
+dig, so the ground in view is fine three times sooner this way; a chunk is deep when its
+top lies 8 m under the lowest surface of its column. Every fighter's placement is a focus
+of the build (`focus_build_at`); the local player's is the primary one the order is
+measured from, and a respawn moves it. The loading screen leaves once the map is coarse
+everywhere and the surface round the player's spawn is fine (`play_ground_ready`), about
+five seconds in. A body placed while the map builds holds still, no physics, until the
+whole map stands and the surface under it is fine (`ground_stands_everywhere`,
+`is_ground_ready_around`), then seats itself on that surface: it was put down from the
+terrain's height function before any chunk stood there, a bot walks anywhere, and a body
+inside coarse rock or over a column with no chunk falls out of the world. A body on a
+coarse chunk is lifted onto the fine surface when it lands, a brush stroke on a coarse
+chunk rebuilds it fine at once, and an edit made at a chunk not yet placed waits for it.
+The rest of the map keeps building behind the game at about five chunks a second while
+the game runs, so the surface of a 512 m map at 1 m is fine within a minute and its caves
+a couple of minutes later; `tools/smoke_test.tscn` prints the count every five seconds
+and when play's ground is ready.
 
 ### Mode tuning
 

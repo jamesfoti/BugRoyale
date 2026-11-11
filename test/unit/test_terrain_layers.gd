@@ -531,3 +531,94 @@ func test_the_build_lays_coarse_ground_over_the_whole_map_before_the_fine_pass()
 	assert_eq(world.get_chunk_count(), total)
 	assert_true(coarse_chunk != world._chunks[coarse_coordinate], "the coarse chunk replaced")
 	assert_false(is_instance_valid(coarse_chunk), "and freed")
+
+
+## The fine pass lays the surface of the whole map before the caves under it: the chunks
+## a margin under their column's lowest surface are deep; the local player's ring of
+## columns comes first, their deep chunks next, the rest of the surface, the rest of the
+## deep; play begins once the ring's surface band is fine, with the deep chunks and the
+## far surface still to come; and the progress counts that band.
+func test_the_fine_pass_lays_the_surface_of_the_whole_map_before_the_caves() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.chunks_x = 4
+	world.chunks_y = 7
+	world.chunks_z = 4
+	world.chunk_size = 8.0
+	world.voxel_size = 4.0
+	var reports: Array[Vector2i] = []
+	world.build_progress.connect(
+		func(done: int, total: int) -> void: reports.append(Vector2i(done, total))
+	)
+	add_child_autofree(world)
+	var extents: Vector3 = world.get_world_extents()
+	var corner: Vector3 = world.global_position - extents * 0.5 + Vector3(1.0, 0.0, 1.0)
+	await get_tree().process_frame
+	assert_true(world.is_building())
+	# The surface lies about halfway up the 56 m box: the two layers topping out 8 m and
+	# 16 m up it are deep, the one topping out 24 m up is not.
+	assert_eq(world._deep.size(), 2 * 16, "two layers of deep chunks")
+	for chunk_coordinate: Vector3i in world._deep:
+		assert_lt(chunk_coordinate.y, 2, "the deep chunks are the bottom two layers")
+	# The chunks under way before the focus came are wherever the earlier order put them.
+	var early: Dictionary = {}
+	for job: ChunkMeshBuilder.AsyncRebuildJob in world._world_build_tasks.values():
+		early[job.chunk_coordinates[0]] = true
+	for chunk_coordinate: Vector3i in world._placed_fine:
+		early[chunk_coordinate] = true
+	world.focus_build_at(corner, 0.0, true)
+	assert_eq(world._play_columns.size(), 9, "two chunks each way round the corner")
+	await get_tree().process_frame
+	# Each chunk's group, taken now since the build forgets them when it is done.
+	var groups: Dictionary = {}
+	for chunk_z: int in 4:
+		for chunk_y: int in 7:
+			for chunk_x: int in 4:
+				var chunk_coordinate := Vector3i(chunk_x, chunk_y, chunk_z)
+				groups[chunk_coordinate] = world._build_group(chunk_coordinate)
+	# Off the back of the queue, where the next is taken: the ring's surface band, the
+	# ring's deep chunks, the rest of the surface, the rest of the deep.
+	var queue: Array[Vector3i] = world._world_build_queue
+	for index: int in range(1, queue.size()):
+		assert_true(
+			int(groups[queue[index - 1]]) >= int(groups[queue[index]]),
+			"the queue runs from the last group to the first"
+		)
+	var fine_at_play: Array[Vector3i] = []
+	var frames: int = 0
+	while world.is_building() and frames < 600:
+		if fine_at_play.is_empty() and world.play_ground_ready():
+			fine_at_play.assign(world._placed_fine.keys())
+		await get_tree().process_frame
+		frames += 1
+	assert_false(world.is_building())
+	assert_false(fine_at_play.is_empty(), "play began before the map was done")
+	for chunk_coordinate: Vector3i in fine_at_play:
+		if not early.has(chunk_coordinate):
+			assert_lte(int(groups[chunk_coordinate]), 1, "only the ring was fine when play began")
+	# Chunks are started in queue order with WORLD_BUILD_IN_FLIGHT of them on the pool, so
+	# the order they came in runs through the groups with at most that much overlap.
+	var first_of: Dictionary = {}
+	var last_of: Dictionary = {}
+	var order: Array = world._placed_fine.keys()
+	for index: int in order.size():
+		if early.has(order[index]):
+			continue
+		var group: int = int(groups[order[index]])
+		if not first_of.has(group):
+			first_of[group] = index
+		last_of[group] = index
+	for group: int in range(1, 4):
+		assert_true(
+			(
+				int(last_of[group - 1]) - int(first_of[group])
+				< ChunkedTerrainWorld.WORLD_BUILD_IN_FLIGHT
+			),
+			"group %d came in after group %d, within the pool's overlap" % [group, group - 1]
+		)
+	var counted_the_band: bool = false
+	for report: Vector2i in reports:
+		if report.y == 9 * 5:
+			counted_the_band = true
+	assert_true(counted_the_band, "progress counted the ring's surface band, five a column")
+	assert_eq(world._placed_fine.size(), 4 * 7 * 4, "every chunk fine at the end")
+	await get_tree().process_frame

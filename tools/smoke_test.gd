@@ -91,8 +91,24 @@ class Runner:
 	var _physics_peak: float = 0.0
 	var _process_total: float = 0.0
 	var _process_peak: float = 0.0
+	var _play_ready_logged: bool = false
 
 	func _physics_process(_delta: float) -> void:
+		if (
+			_mode != null
+			and is_instance_valid(_mode)
+			and not _play_ready_logged
+			and _play_ground_ready()
+		):
+			# What the loading screen waits for once the match has started: the map coarse
+			# everywhere and the surface round the spawns fine.
+			_play_ready_logged = true
+			print(
+				(
+					"[SmokeTest] Play ground ready %.1f s in (fine chunks %d)."
+					% [float(Time.get_ticks_msec() - _started_msec) / 1000.0, _chunk_count()]
+				)
+			)
 		if _mode == null or not is_instance_valid(_mode):
 			_mode = null
 			var scene: Node = get_tree().current_scene
@@ -200,6 +216,12 @@ class Runner:
 			elif world.has_method("get_chunk_count"):
 				count += int(world.call("get_chunk_count"))
 		return count
+
+	func _play_ground_ready() -> bool:
+		for world: Node in get_tree().get_nodes_in_group("terrain_world"):
+			if world.has_method("play_ground_ready") and not world.call("play_ground_ready"):
+				return false
+		return true
 
 	func _terrain_building() -> bool:
 		for world: Node in get_tree().get_nodes_in_group("terrain_world"):

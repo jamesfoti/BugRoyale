@@ -40,8 +40,17 @@ const PLACE_BUDGET_USEC: int = 8000
 const WORLD_BUILD_IN_FLIGHT: int = 5
 ## The map's build first lays the whole map at this voxel size, a few seconds' work, so
 ## the ground looks complete and holds a body from the first frame; the fine build then
-## replaces it chunk by chunk, nearest the focus first.
+## replaces it chunk by chunk, the surface nearest the player first
+## (_sort_world_build_queue).
 const COARSE_VOXEL: float = 4.0
+## The ground play waits for round the local player's spawn: this many chunks each way,
+## so a sprint from the spawn stays on fine ground. A bot waits for its own column only.
+const PLAY_RING_CHUNKS: int = 2
+## A chunk whose top lies this far under the lowest surface of its column is deep: caves
+## and bedrock, which nobody sees until they dig, so the fine pass lays the surface of the
+## whole map before them. Two coarse voxels, so the coarse chunk under a fine surface
+## chunk stays buried.
+const DEEP_MARGIN: float = 2.0 * COARSE_VOXEL
 
 @export_group("Terrain Grid")
 @export_range(1.0, 128.0, 0.5, "or_greater") var chunk_size: float = 12.0:
@@ -187,10 +196,21 @@ var _world_build_placed: int = 0
 var _world_build_started_msec: int = 0
 ## Where the ground is wanted first (focus_build_at): x, y, z and the radius round it.
 var _build_focus: Array[Vector4] = []
+## The local player's focus, the one the fine pass is ordered round when there is one: the
+## latest placement, since a respawn moves it.
+var _primary_focus: Array[Vector4] = []
+## Whether a focus came since the queue was sorted (it is sorted again before the next
+## chunk is started, once for however many came in the frame).
+var _queue_stale: bool = false
 ## Chunk columns (x, z) the focuses cover: the ground play waits for.
 var _play_columns: Dictionary = {}
-## Chunk column (x, z) -> fine chunks of it placed so far, during the background build.
+## Chunk column (x, z) -> fine chunks of its surface band placed so far, during the
+## background build (the deep chunks under it are not waited for).
 var _placed_in_column: Dictionary = {}
+## Chunk coordinate -> true for a deep chunk (DEEP_MARGIN under its column's lowest
+## surface), and chunk column (x, z) -> how many of its chunks are, during the build.
+var _deep: Dictionary = {}
+var _deep_in_column: Dictionary = {}
 ## The coarse pass of the map's build (COARSE_VOXEL): whether its chunks are still being
 ## handed out, how many stand, and how many it has in all (0 when the map is that coarse
 ## already or its chunks too small for it).
@@ -281,49 +301,81 @@ func is_building() -> bool:
 
 ## Points the map's build at a spot: the chunks nearest it (and the other spots given so
 ## far) come first, and the columns within radius of it are ground play waits for. A
-## spawn calls this with where it will stand. Takes effect within a few chunks.
-func focus_build_at(world_position: Vector3, radius: float = 0.0) -> void:
-	_build_focus.append(Vector4(world_position.x, world_position.y, world_position.z, radius))
-	for column: Vector2i in _columns_touching(world_position, radius):
+## spawn calls this with where it will stand. The local player's placement is primary:
+## the fine pass is ordered round it alone, a later one replaces it, and play waits for
+## the ground PLAY_RING_CHUNKS each way round it. Takes effect within a few chunks.
+func focus_build_at(world_position: Vector3, radius: float = 0.0, primary: bool = false) -> void:
+	var focus := Vector4(world_position.x, world_position.y, world_position.z, radius)
+	_build_focus.append(focus)
+	var reach: float = radius
+	if primary:
+		_primary_focus.clear()
+		_primary_focus.append(focus)
+		reach = maxf(radius, float(PLAY_RING_CHUNKS) * _build_settings().chunk_world_size)
+	for column: Vector2i in _columns_touching(world_position, reach):
 		_play_columns[column] = true
 	if _world_building:
-		_sort_world_build_queue()
+		_queue_stale = true
 
 
-## Whether every chunk column within radius of a spot stands, coarse or fine (fine only,
-## with fine): always once the map's build is done, and for a spot off the grid. A body
-## can stand on coarse ground; it is lifted onto the fine surface when that comes.
+## Whether every chunk column within radius of a spot stands, coarse or fine (its surface
+## band fine, with fine: the deep chunks under it come later): always once the map's
+## build is done, and for a spot off the grid. A body can stand on coarse ground; it is
+## lifted onto the fine surface when that comes.
 func is_ground_ready_around(
 	world_position: Vector3, radius: float = 0.0, fine: bool = false
 ) -> bool:
 	if not _world_building:
 		return true
-	var counts: Dictionary = _placed_in_column if fine else _standing_in_column
 	for column: Vector2i in _columns_touching(world_position, radius):
-		if int(counts.get(column, 0)) < _world_build_grid.y:
+		if fine:
+			if not _column_fine(column):
+				return false
+		elif int(_standing_in_column.get(column, 0)) < _world_build_grid.y:
 			return false
 	return true
 
 
 ## Whether the ground play needs stands, so play can begin: the whole map coarse and the
-## columns every focus asked for fine. False while the map builds and no focus is set,
-## since nothing says yet where play is.
+## surface band of the columns every focus asked for fine. False while the map builds and
+## no focus is set, since nothing says yet where play is.
 func play_ground_ready() -> bool:
 	if not _world_building:
 		return true
 	if _coarse_placed < _coarse_total or _play_columns.is_empty():
 		return false
 	for column: Vector2i in _play_columns:
-		if int(_placed_in_column.get(column, 0)) < _world_build_grid.y:
+		if not _column_fine(column):
 			return false
 	return true
+
+
+## Whether a chunk stands at every coordinate of the map, coarse or fine, so a body can
+## walk anywhere without stepping off the ground into a column that has none yet. Always
+## once the map's build is done.
+func ground_stands_everywhere() -> bool:
+	return not _world_building or _placed_any.size() >= _world_build_total
+
+
+## The chunks of a column that are not deep: what fine ground there means.
+func _surface_chunks(column: Vector2i) -> int:
+	return _world_build_grid.y - int(_deep_in_column.get(column, 0))
+
+
+func _column_fine(column: Vector2i) -> bool:
+	return int(_placed_in_column.get(column, 0)) >= _surface_chunks(column)
+
+
+## The settings the build runs on, or the next one would.
+func _build_settings() -> SettingsSnapshot:
+	return _world_build_settings if _world_build_settings != null else _make_settings_snapshot()
 
 
 ## The game's build of the map: each chunk is meshed on the worker pool as a task of its
 ## own while the frames keep coming and placed in the scene as it comes in (the loading
 ## screen draws its bar from build_progress). The whole map goes in coarse first
-## (COARSE_VOXEL), then fine, nearest the build's focus first. Without threads it builds
-## blocking, as rebuild_all does.
+## (COARSE_VOXEL), then fine: the surface nearest the player first and the deep chunks
+## last (_sort_world_build_queue). Without threads it builds blocking, as rebuild_all does.
 func _begin_ready_build() -> void:
 	if not use_threaded_rebuild:
 		rebuild_all()
@@ -334,6 +386,7 @@ func _begin_ready_build() -> void:
 	_clear_chunks()
 	_world_build_settings = _make_settings_snapshot()
 	_world_build_grid = _get_grid_dimensions()
+	_mark_deep_chunks()
 	_queue_every_chunk()
 	_world_build_total = _world_build_queue.size()
 	_world_build_placed = 0
@@ -360,6 +413,37 @@ func _queue_every_chunk() -> void:
 		for chunk_y: int in _world_build_grid.y:
 			for chunk_x: int in _world_build_grid.x:
 				_world_build_queue.append(Vector3i(chunk_x, chunk_y, chunk_z))
+
+
+## Marks the build's deep chunks, DEEP_MARGIN under the lowest surface of their column
+## (sampled nine times across it): an open terrain's caves and bedrock. Any other world
+## has none, since only an open terrain says where its surface is.
+func _mark_deep_chunks() -> void:
+	_deep.clear()
+	_deep_in_column.clear()
+	var density: DensitySampler.WorldDensity = _get_bake_density()
+	if not density.open_terrain_enabled or _world_build_grid.y < 2:
+		return
+	var settings: SettingsSnapshot = _world_build_settings
+	var extent: float = settings.chunk_world_size
+	var origin: Vector3 = global_position + _chunk_corner_local(Vector3i.ZERO, settings)
+	for column_x: int in _world_build_grid.x:
+		for column_z: int in _world_build_grid.z:
+			var lowest: float = INF
+			for sample_x: int in 3:
+				for sample_z: int in 3:
+					lowest = minf(
+						lowest,
+						density.sample_open_terrain_height(
+							origin.x + (float(column_x) + 0.5 * float(sample_x)) * extent,
+							origin.z + (float(column_z) + 0.5 * float(sample_z)) * extent
+						)
+					)
+			var column := Vector2i(column_x, column_z)
+			for chunk_y: int in _world_build_grid.y:
+				if origin.y + float(chunk_y + 1) * extent <= lowest - DEEP_MARGIN:
+					_deep[Vector3i(column_x, chunk_y, column_z)] = true
+					_deep_in_column[column] = int(_deep_in_column.get(column, 0)) + 1
 
 
 ## Places the chunks whose tasks are done, within the frame's budget, and starts the next.
@@ -412,7 +496,10 @@ func _poll_world_build() -> void:
 	_world_building = false
 	_world_build_settings = null
 	_build_focus.clear()
+	_primary_focus.clear()
 	_play_columns.clear()
+	_deep.clear()
+	_deep_in_column.clear()
 	built.emit()
 
 
@@ -431,6 +518,8 @@ func _note_fine_chunk(chunk_coordinate: Vector3i) -> void:
 		return
 	_placed_fine[chunk_coordinate] = true
 	_world_build_placed += 1
+	if _deep.has(chunk_coordinate):
+		return
 	var column := Vector2i(chunk_coordinate.x, chunk_coordinate.z)
 	_placed_in_column[column] = int(_placed_in_column.get(column, 0)) + 1
 
@@ -439,6 +528,8 @@ func _note_fine_chunk(chunk_coordinate: Vector3i) -> void:
 ## counted in, since GDScript on more threads than that runs slower, not faster. When the
 ## coarse pass is all handed out, the fine pass is queued behind it.
 func _fill_world_build() -> void:
+	if _queue_stale:
+		_sort_world_build_queue()
 	while _world_build_tasks.size() + _running_async_tasks < WORLD_BUILD_IN_FLIGHT:
 		if _world_build_queue.is_empty():
 			if not _coarse_pass:
@@ -480,9 +571,11 @@ func _coarsen(settings: SettingsSnapshot) -> void:
 	settings.loose_rock_voxels = 0
 
 
-## Orders the chunks still to start: farthest from the focus first, so the nearest is at
-## the back where the next is taken; in one column, the top chunk first.
+## Orders the chunks still to start: by group (_build_group), then nearest the focus
+## first, then in one column the top chunk first. The queue holds them the other way
+## round, since the next is taken off the back.
 func _sort_world_build_queue() -> void:
+	_queue_stale = false
 	var settings: SettingsSnapshot = _world_build_settings
 	var extent: float = settings.chunk_world_size
 	var origin: Vector3 = global_position + _chunk_corner_local(Vector3i.ZERO, settings)
@@ -492,25 +585,44 @@ func _sort_world_build_queue() -> void:
 			origin.x + (float(chunk_coordinate.x) + 0.5) * extent,
 			origin.z + (float(chunk_coordinate.z) + 0.5) * extent
 		)
-		keyed.append([_focus_distance(centre), chunk_coordinate.y, chunk_coordinate])
-	keyed.sort_custom(
-		func(a: Array, b: Array) -> bool:
-			if a[0] != b[0]:
-				return a[0] > b[0]
-			return a[1] < b[1]
-	)
+		var key: Array = [
+			_build_group(chunk_coordinate),
+			_focus_distance(centre),
+			-chunk_coordinate.y,
+			chunk_coordinate.x,
+			chunk_coordinate.z,
+			chunk_coordinate,
+		]
+		keyed.append(key)
+	keyed.sort()
 	_world_build_queue.clear()
-	for entry: Array in keyed:
-		_world_build_queue.append(entry[2] as Vector3i)
+	for index: int in range(keyed.size() - 1, -1, -1):
+		_world_build_queue.append((keyed[index] as Array)[5] as Vector3i)
 
 
-## How far a chunk column's centre is from the nearest focus, past its radius; from the
-## world's centre when no focus is set.
+## Where a chunk stands in the fine pass: the surface band of the columns play waits for
+## (0), the deep chunks under those (1, where the player digs first), the surface band of
+## the rest of the map (2) and its deep chunks (3). The surface layer of a map is a third
+## of its build and the cave layer two thirds, and nobody sees the caves until they dig,
+## so the ground in view is fine three times sooner this way. The coarse pass is one
+## group, nearest first.
+func _build_group(chunk_coordinate: Vector3i) -> int:
+	if _coarse_pass:
+		return 0
+	var deep: int = 1 if _deep.has(chunk_coordinate) else 0
+	if _play_columns.has(Vector2i(chunk_coordinate.x, chunk_coordinate.z)):
+		return deep
+	return 2 + deep
+
+
+## How far a chunk column's centre is from the nearest focus, past its radius: the local
+## player's when there is one, else any; from the world's centre when none is set.
 func _focus_distance(column_centre: Vector2) -> float:
-	if _build_focus.is_empty():
+	var foci: Array[Vector4] = _primary_focus if not _primary_focus.is_empty() else _build_focus
+	if foci.is_empty():
 		return column_centre.distance_to(Vector2(global_position.x, global_position.z))
 	var nearest: float = INF
-	for focus: Vector4 in _build_focus:
+	for focus: Vector4 in foci:
 		var distance: float = column_centre.distance_to(Vector2(focus.x, focus.z)) - focus.w
 		nearest = minf(nearest, maxf(distance, 0.0))
 	return nearest
@@ -518,9 +630,7 @@ func _focus_distance(column_centre: Vector2) -> float:
 
 ## The chunk columns (x, z) within radius of a spot, those on the grid.
 func _columns_touching(world_position: Vector3, radius: float) -> Array[Vector2i]:
-	var settings: SettingsSnapshot = (
-		_world_build_settings if _world_build_settings != null else _make_settings_snapshot()
-	)
+	var settings: SettingsSnapshot = _build_settings()
 	var grid: Vector3i = _get_grid_dimensions()
 	var extent: float = settings.chunk_world_size
 	var origin: Vector3 = global_position + _chunk_corner_local(Vector3i.ZERO, settings)
@@ -536,17 +646,20 @@ func _columns_touching(world_position: Vector3, radius: float) -> Array[Vector2i
 
 
 ## Until play can begin, the count is of what it waits for: the coarse map and the fine
-## chunks of the focus's columns (four columns' worth assumed until a focus says).
+## surface band of the focuses' columns (a ring of columns' worth assumed until a focus
+## says).
 func _emit_build_progress() -> void:
 	if _world_build_placed >= _world_build_total:
 		build_progress.emit(_world_build_total, _world_build_total)
 		return
 	if not play_ground_ready():
 		var play_done: int = 0
+		var play_total: int = 0
 		for column: Vector2i in _play_columns:
-			play_done += mini(int(_placed_in_column.get(column, 0)), _world_build_grid.y)
-		var play_columns: int = _play_columns.size() if not _play_columns.is_empty() else 4
-		var play_total: int = play_columns * _world_build_grid.y
+			play_done += mini(int(_placed_in_column.get(column, 0)), _surface_chunks(column))
+			play_total += _surface_chunks(column)
+		if _play_columns.is_empty():
+			play_total = (2 * PLAY_RING_CHUNKS + 1) ** 2 * _world_build_grid.y
 		build_progress.emit(_coarse_placed + play_done, _coarse_total + play_total)
 		return
 	build_progress.emit(_world_build_placed, _world_build_total)
@@ -611,7 +724,11 @@ func _abandon_world_build() -> void:
 	_lift_checks.clear()
 	_world_build_settings = null
 	_build_focus.clear()
+	_primary_focus.clear()
 	_play_columns.clear()
+	_deep.clear()
+	_deep_in_column.clear()
+	_queue_stale = false
 
 
 func _exit_tree() -> void:

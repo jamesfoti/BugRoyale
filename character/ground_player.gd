@@ -570,12 +570,12 @@ func _raycast_spawn_over(surface: Node3D, at: Vector3 = Vector3.INF) -> Dictiona
 
 func respawn_random() -> void:
 	_cache_terrain_refs()
-	_apply_spawn(_find_random_surface_spawn())
+	_apply_spawn(_find_random_surface_spawn(), is_local)
 
 
 func _place_at(position_on_map: Vector3) -> void:
 	_cache_terrain_refs()
-	_apply_spawn({"position": position_on_map, "from_raycast_hit": true})
+	_apply_spawn({"position": position_on_map, "from_raycast_hit": true}, is_local)
 
 
 ## "Stuck?" from the pause menu: drops the bug at a clear spot nearby, upright and still, with
@@ -602,13 +602,14 @@ func _spawn_on_terrain() -> void:
 	var spawn_data: Dictionary = _find_random_surface_spawn()
 	if terrain.has_method("is_building") and terrain.call("is_building"):
 		# The map is still building: the spot comes from the ground's own heights, the
-		# build is pointed at it, and the fine ground there is waited for before the
-		# raycasts refine the landing.
+		# build is pointed at it, and the ground there (coarse will do: the fine surface
+		# lifts the body when it comes) is waited for before the raycasts refine the
+		# landing.
 		var spot: Vector3 = spawn_data["position"]
 		terrain.call("focus_build_at", spot, GROUND_WAIT_RADIUS)
 		while (
 			is_inside_tree()
-			and not terrain.call("is_ground_ready_around", spot, GROUND_WAIT_RADIUS, true)
+			and not terrain.call("is_ground_ready_around", spot, GROUND_WAIT_RADIUS)
 		):
 			await get_tree().physics_frame
 		for _attempt: int in _SPAWN_ATTEMPTS:
@@ -626,7 +627,10 @@ func _spawn_on_terrain() -> void:
 	_apply_spawn(spawn_data)
 
 
-func _apply_spawn(spawn_data: Dictionary) -> void:
+## primary_focus: this is the local player's placement by the mode, the spot the map's
+## build is ordered round and play waits for (not the body's own first spawn, which the
+## mode moves).
+func _apply_spawn(spawn_data: Dictionary, primary_focus: bool = false) -> void:
 	global_position = spawn_data.get("position", Vector3.ZERO)
 	global_rotation = Vector3.ZERO
 	velocity = Vector3.ZERO
@@ -641,27 +645,51 @@ func _apply_spawn(spawn_data: Dictionary) -> void:
 		_orbit_camera.rotation = Vector3(_orbit_camera.rotation.x, 0.0, _orbit_camera.rotation.z)
 	_skin.set_state("idle")
 	_spawned = true
-	_hold_for_ground(global_position)
+	_hold_for_ground(global_position, primary_focus)
 
 
-## A body put down where the map's build has not reached yet (a bot placed across the map
-## while the ground comes in) stands still, no physics, until the ground round it stands,
-## coarse or fine; the terrain lifts it onto the fine surface when that comes.
-func _hold_for_ground(spot: Vector3) -> void:
+## A body put down while the map builds (placed from the terrain's height function, since
+## no chunk may stand there yet) stands still, no physics, until the whole map stands,
+## coarse or fine, and the surface under it is fine, then seats itself on that surface: a
+## bot walks anywhere, and a body inside coarse rock or over a column with no chunk falls
+## out of the world. The spot is a focus of the build: the local player's is the primary
+## one, which the fine pass is ordered round and play waits for.
+func _hold_for_ground(spot: Vector3, primary_focus: bool = false) -> void:
 	_ground_hold += 1
 	_held_for_ground = false
 	if terrain == null or not terrain.has_method("is_ground_ready_around"):
 		return
-	if terrain.call("is_ground_ready_around", spot, GROUND_WAIT_RADIUS):
+	if not terrain.has_method("is_building") or not terrain.call("is_building"):
 		return
+	terrain.call("focus_build_at", spot, GROUND_WAIT_RADIUS, primary_focus)
 	var hold: int = _ground_hold
 	_held_for_ground = true
-	terrain.call("focus_build_at", spot, GROUND_WAIT_RADIUS)
-	while is_inside_tree() and not terrain.call("is_ground_ready_around", spot, GROUND_WAIT_RADIUS):
+	while is_inside_tree() and not _ground_stands(spot):
 		await get_tree().physics_frame
 		if hold != _ground_hold:
 			return
 	_held_for_ground = false
+	_settle_on_ground()
+
+
+## Whether a held body may move: the whole map stands, coarse or fine, and the surface
+## of the columns round the spot is fine.
+func _ground_stands(spot: Vector3) -> bool:
+	if (
+		terrain.has_method("ground_stands_everywhere")
+		and not terrain.call("ground_stands_everywhere")
+	):
+		return false
+	return terrain.call("is_ground_ready_around", spot, GROUND_WAIT_RADIUS, true)
+
+
+## Seats a body released from its hold on the ground that now stands under it, which can
+## sit a little above or below the height it was put down at.
+func _settle_on_ground() -> void:
+	var spawn_data: Dictionary = _find_random_surface_spawn(global_position)
+	if spawn_data.get("from_raycast_hit", false):
+		global_position = spawn_data["position"]
+		velocity = Vector3.ZERO
 
 
 # --- Animation --------------------------------------------------------------------------------
