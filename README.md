@@ -507,7 +507,15 @@ build makes only the band down to 32 m under the lowest surface of each column
 96 m maps had; the chunks below are streamed (`stream_underground`). Every few physics
 frames the world looks where the bodies are: the streamed chunks within 48 m of the local
 player (what it sees in a cave) and 16 m of any other body are built, fine straight away,
-nearest first, and those more than 16 m beyond that are freed. Edits live apart from the
+nearest first, and those more than 16 m beyond that are freed. Round the local player the
+streamed chunks also stand coarse out to 128 m (`STREAM_ROUGH`), after the fine ones and on
+a couple of the pool's places, so a cavern or a tunnel longer than 48 m shows its far end;
+a fine chunk replaces the coarse one in place, and one the player has passed stays fine
+until it is beyond 128 m. The local player is told by `FighterBody.is_local`: every body's
+scene is in the "player" group. Above ground a haze in the map's colour fades the far
+ground (100 to 600 m); under a roof of rock the air blends to a black fog that is total by
+90 m and the ambient light drops (`Atmosphere`, attached with the player, on a copy of the
+scene's environment, so the editor's view is untouched). Edits live apart from the
 chunks, so a dug tunnel comes back as it was left. Until play can begin a streamed chunk
 gets a pool place only when it lies within 8 m of a body; after, they go before the map's
 own fine chunks. A body about to walk or fall into streamed ground not built yet stops

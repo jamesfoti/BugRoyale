@@ -812,6 +812,53 @@ func test_the_underground_streams_round_the_bodies() -> void:
 	await get_tree().process_frame
 
 
+## Round the local player the streamed chunks stand at least coarse out to STREAM_ROUGH, so a
+## long cavern shows its far end; within STREAM_VIEW they are fine, and a fine chunk replaces
+## the coarse one there.
+func test_the_underground_stands_coarse_farther_round_the_player() -> void:
+	var world: OpenTerrain = _streaming_world()
+	world.chunks_x = 16
+	world.chunks_z = 16
+	add_child_autofree(world)
+	await get_tree().process_frame
+	var frames: int = 0
+	while world.is_building() and frames < 1800:
+		await get_tree().process_frame
+		frames += 1
+	assert_false(world.is_building())
+	var corner: Vector3 = world._grid_corner()
+	var deep: Vector3 = corner + Vector3(12.0, 10.0, 12.0)
+	var body := Node3D.new()
+	body.add_to_group("fighter")
+	body.add_to_group("player")
+	add_child_autofree(body)
+	body.global_position = deep
+	var settled: Callable = func() -> bool:
+		return (
+			world._stream_queue.is_empty()
+			and world._rough_queue.is_empty()
+			and world._stream_inflight.is_empty()
+			and not world._stream_rough.is_empty()
+		)
+	assert_true(await _wait_for(settled), "the coarse chunks came in")
+	var near: int = 0
+	var far: int = 0
+	for chunk_coordinate: Vector3i in world._stream_rough:
+		var low: Vector3 = corner + Vector3(chunk_coordinate) * world.chunk_size
+		var nearest: Vector3 = deep.clamp(low, low + Vector3.ONE * world.chunk_size)
+		var distance: float = deep.distance_to(nearest)
+		assert_lte(distance, ChunkedTerrainWorld.STREAM_ROUGH + ChunkedTerrainWorld.STREAM_KEEP)
+		if distance > ChunkedTerrainWorld.STREAM_VIEW:
+			far += 1
+		else:
+			near += 1
+	assert_gt(far, 0, "coarse chunks past the fine reach")
+	assert_eq(near, 0, "within the fine reach every chunk is fine")
+	for chunk_coordinate: Vector3i in world._chunks_touching(deep, 2.0):
+		if world._is_streamed(chunk_coordinate):
+			assert_true(world._stream_loaded.has(chunk_coordinate), "fine round the player")
+
+
 func _streaming_world() -> OpenTerrain:
 	var world: OpenTerrain = OpenTerrain.new()
 	world.chunks_x = 8

@@ -33,6 +33,8 @@ func _spawn_player() -> void:
 	get_parent().add_child(player)
 	# Every playable map gets the minimap; it renders the real scene, so it needs no map data.
 	Minimap.attach(player, get_parent())
+	# And its air: a haze over the far ground, the dark underground.
+	Atmosphere.attach(get_parent())
 
 
 ## A body for a fighter of a class, not yet in the tree. With a controller (a BotBrain, later a

@@ -71,6 +71,12 @@ const STREAM_MARGIN: float = 32.0
 const STREAM_VIEW: float = 48.0
 const STREAM_BODY: float = 16.0
 const STREAM_KEEP: float = 16.0
+## Metres round the local player within which the streamed chunks stand at least coarse
+## (COARSE_VOXEL), so a cavern or a tunnel longer than STREAM_VIEW shows its far end; a chunk
+## the player has seen fine stays fine until it is this far off.
+const STREAM_ROUGH: float = 128.0
+## Looks between counts of the coarse chunks round the player (a wider reach, so rarer).
+const STREAM_ROUGH_EVERY: int = 3
 ## Physics frames between looks at where the bodies are.
 const STREAM_EVERY: int = 10
 ## Until play can begin, the streamed chunks get pool places only when one lies within
@@ -285,6 +291,13 @@ var _stream_wanted: Dictionary = {}
 var _stream_keep: Dictionary = {}
 var _stream_queue: Array[Vector3i] = []
 var _stream_tick: int = 0
+## The streamed chunks that stand coarse, and the coarse ones the local player wants and
+## keeps (STREAM_ROUGH), with those not yet started, farthest first.
+var _stream_rough: Dictionary = {}
+var _rough_wanted: Dictionary = {}
+var _rough_keep: Dictionary = {}
+var _rough_queue: Array[Vector3i] = []
+var _rough_look: int = 0
 ## Whether play still waits on the map's build (play_ground_ready, as of the last progress
 ## report): until it can begin, the streamed chunks take only a few of the pool's places.
 var _play_waiting: bool = true
@@ -477,7 +490,7 @@ func _ground_fine(chunks: Dictionary) -> bool:
 ## the map's build placed it (every one, when the build is done).
 func _stands(chunk_coordinate: Vector3i) -> bool:
 	if _is_streamed(chunk_coordinate):
-		return _stream_loaded.has(chunk_coordinate)
+		return _stream_loaded.has(chunk_coordinate) or _stream_rough.has(chunk_coordinate)
 	return not _world_building or _placed_any.has(chunk_coordinate)
 
 
@@ -682,6 +695,9 @@ func _fill_world_build() -> void:
 	var places: int = WORLD_BUILD_IN_FLIGHT
 	if _stream_waiting():
 		places -= STREAM_TASKS_IN_COARSE if _play_waiting else WORLD_BUILD_IN_FLIGHT - 1
+	elif not _play_waiting and not _rough_queue.is_empty():
+		# Once play has begun, the coarse chunks round the player take a couple of places.
+		places -= STREAM_TASKS_IN_COARSE
 	while _world_build_tasks.size() < places and _pool_load() < WORLD_BUILD_IN_FLIGHT:
 		if _world_build_queue.is_empty():
 			if not _coarse_pass:
@@ -970,26 +986,65 @@ func _look_for_streamed_chunks() -> void:
 		var body: Node3D = node as Node3D
 		if body == null or not body.is_inside_tree():
 			continue
-		var reach: float = STREAM_VIEW if body.is_in_group("player") else STREAM_BODY
+		var reach: float = STREAM_VIEW if _is_local_body(body) else STREAM_BODY
 		_want_round(body.global_position, reach, wanted, keep)
 	for focus: Vector4 in _build_focus:
 		_want_round(
 			Vector3(focus.x, focus.y, focus.z), maxf(focus.w, 0.0) + STREAM_BODY, wanted, keep
 		)
+	_rough_look += 1
+	if _rough_look % STREAM_ROUGH_EVERY == 1:
+		_look_for_rough_chunks()
+	# A chunk stays while a body keeps it fine or the player keeps it coarse; a fine chunk
+	# the player has passed stays fine until it is beyond STREAM_ROUGH.
 	for chunk_coordinate: Vector3i in _stream_loaded.keys():
-		if not keep.has(chunk_coordinate):
+		if not keep.has(chunk_coordinate) and not _rough_keep.has(chunk_coordinate):
+			_free_streamed_chunk(chunk_coordinate)
+	for chunk_coordinate: Vector3i in _stream_rough.keys():
+		if not keep.has(chunk_coordinate) and not _rough_keep.has(chunk_coordinate):
 			_free_streamed_chunk(chunk_coordinate)
 	_stream_wanted = wanted
 	_stream_keep = keep
 	var keyed: Array = []
 	for chunk_coordinate: Vector3i in wanted:
-		if _chunks.has(chunk_coordinate) or _stream_inflight.has(chunk_coordinate):
+		# A coarse chunk there is still wanted fine.
+		if _stream_loaded.has(chunk_coordinate) or _stream_inflight.has(chunk_coordinate):
 			continue
 		keyed.append([-float(wanted[chunk_coordinate]), chunk_coordinate])
 	keyed.sort()
 	_stream_queue.clear()
 	for key: Array in keyed:
 		_stream_queue.append(key[1] as Vector3i)
+
+
+## Whether a body is the player at this screen (FighterBody.is_local; every body's scene is in
+## the "player" group, so the group cannot say), or, for a plain node, in that group.
+static func _is_local_body(body: Node3D) -> bool:
+	if body is FighterBody:
+		return (body as FighterBody).is_local
+	return body.is_in_group("player")
+
+
+## The coarse chunks round the local player: wanted within STREAM_ROUGH, nearest first, kept
+## STREAM_KEEP farther; those standing (coarse or fine) or on the pool are not queued.
+func _look_for_rough_chunks() -> void:
+	var wanted: Dictionary = {}
+	var keep: Dictionary = {}
+	for node: Node in get_tree().get_nodes_in_group("fighter"):
+		var body: Node3D = node as Node3D
+		if body != null and body.is_inside_tree() and _is_local_body(body):
+			_want_round(body.global_position, STREAM_ROUGH, wanted, keep)
+	_rough_wanted = wanted
+	_rough_keep = keep
+	var keyed: Array = []
+	for chunk_coordinate: Vector3i in wanted:
+		if _chunks.has(chunk_coordinate) or _stream_inflight.has(chunk_coordinate):
+			continue
+		keyed.append([-float(wanted[chunk_coordinate]), chunk_coordinate])
+	keyed.sort()
+	_rough_queue.clear()
+	for key: Array in keyed:
+		_rough_queue.append(key[1] as Vector3i)
 
 
 ## Adds the streamed chunks within reach of a point to wanted (chunk -> metres from the
@@ -1024,6 +1079,7 @@ func _free_streamed_chunk(chunk_coordinate: Vector3i) -> void:
 		chunk.queue_free()
 	_chunks.erase(chunk_coordinate)
 	_stream_loaded.erase(chunk_coordinate)
+	_stream_rough.erase(chunk_coordinate)
 	_field_cache.erase(chunk_coordinate)
 	_pending_rebuild_chunk_coordinates.erase(chunk_coordinate)
 
@@ -1044,7 +1100,7 @@ func _fill_stream() -> void:
 		while batch.size() < per_task and _stream_waiting():
 			var chunk_coordinate: Vector3i = _stream_queue.pop_back()
 			if (
-				_chunks.has(chunk_coordinate)
+				_stream_loaded.has(chunk_coordinate)
 				or _stream_inflight.has(chunk_coordinate)
 				or _inflight_chunk_coordinates.has(chunk_coordinate)
 				or not _stream_wanted.has(chunk_coordinate)
@@ -1063,6 +1119,46 @@ func _fill_stream() -> void:
 			ChunkMeshBuilder.run_async_job.bind(job),
 			true,
 			"%s streamed chunk" % _get_world_log_name()
+		)
+		_stream_tasks[task_id] = job
+	if not holding_back:
+		_fill_rough()
+
+
+## Starts the coarse chunks round the player, nearest first, once the fine ones wanted are
+## all under way: a far wall comes in after the ground under the bodies.
+func _fill_rough() -> void:
+	var cells: int = int(floor(chunk_size / COARSE_VOXEL))
+	var samples: int = (cells + 1) * (cells + 1) * (cells + 1)
+	@warning_ignore("integer_division")
+	var per_task: int = clampi(BUILD_TASK_SAMPLES / samples, 1, 64)
+	while (
+		not _rough_queue.is_empty()
+		and _stream_queue.is_empty()
+		and _pool_load() < WORLD_BUILD_IN_FLIGHT
+	):
+		var batch: Array[Vector3i] = []
+		while batch.size() < per_task and not _rough_queue.is_empty():
+			var chunk_coordinate: Vector3i = _rough_queue.pop_back()
+			if (
+				_chunks.has(chunk_coordinate)
+				or _stream_inflight.has(chunk_coordinate)
+				or not _rough_wanted.has(chunk_coordinate)
+			):
+				continue
+			_stream_inflight[chunk_coordinate] = true
+			batch.append(chunk_coordinate)
+		if batch.is_empty():
+			continue
+		var job: ChunkMeshBuilder.AsyncRebuildJob = ChunkMeshBuilder.AsyncRebuildJob.new()
+		job.chunk_coordinates = batch
+		job.settings = _make_thread_settings_snapshot()
+		job.coarse = true
+		_coarsen(job.settings)
+		var task_id: int = WorkerThreadPool.add_task(
+			ChunkMeshBuilder.run_async_job.bind(job),
+			true,
+			"%s streamed coarse chunk" % _get_world_log_name()
 		)
 		_stream_tasks[task_id] = job
 
@@ -1098,11 +1194,23 @@ func _poll_stream() -> void:
 			var chunk_coordinate: Vector3i = job.chunk_coordinates[job.placed]
 			job.placed += 1
 			_stream_inflight.erase(chunk_coordinate)
-			if not _stream_keep.has(chunk_coordinate) or _chunks.has(chunk_coordinate):
-				continue
 			var result: ChunkMeshBuilder.ChunkBuildResult = (
 				job.batch_result.chunks[chunk_coordinate] as ChunkMeshBuilder.ChunkBuildResult
 			)
+			if job.coarse:
+				if _chunks.has(chunk_coordinate) or not _rough_keep.has(chunk_coordinate):
+					continue
+				_build_chunk_at(chunk_coordinate, result, job.settings)
+				_stream_rough[chunk_coordinate] = true
+				continue
+			if not _stream_keep.has(chunk_coordinate) or _stream_loaded.has(chunk_coordinate):
+				continue
+			if _stream_rough.has(chunk_coordinate):
+				# The fine chunk in place of the coarse one.
+				var coarse_chunk: Node = _chunks[chunk_coordinate]
+				remove_child(coarse_chunk)
+				coarse_chunk.queue_free()
+				_stream_rough.erase(chunk_coordinate)
 			_build_chunk_at(chunk_coordinate, result, job.settings)
 			_stream_loaded[chunk_coordinate] = true
 		if job.placed >= job.chunk_coordinates.size():
@@ -1122,6 +1230,11 @@ func _reset_stream() -> void:
 	_stream_inflight.clear()
 	_stream_loaded.clear()
 	_stream_wanted.clear()
+	_stream_rough.clear()
+	_rough_wanted.clear()
+	_rough_keep.clear()
+	_rough_queue.clear()
+	_rough_look = 0
 	_stream_keep.clear()
 	_stream_queue.clear()
 	_stream_tick = 0
@@ -1901,6 +2014,9 @@ func _apply_async_job(async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob) -> vo
 			continue
 		if not async_rebuild_job.prepare_only:
 			chunk.apply_build_result(chunk_build_result, generate_collision)
+			if _stream_rough.erase(chunk_coordinate):
+				# A dig on a coarse streamed chunk rebuilt it fine.
+				_stream_loaded[chunk_coordinate] = true
 			chunk_rebuilt.emit(_get_chunk_world_aabb(chunk_coordinate, async_rebuild_job.settings))
 			if _effective_material() != null:
 				chunk.material_override = _effective_material()
