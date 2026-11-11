@@ -51,7 +51,7 @@ func _on_resume_pressed() -> void:
 	_resume()
 
 
-## Hands over to the F9 reporter with this menu out of the way, so the report's screenshot is
+## Hands over to the bug reporter with this menu out of the way, so the report's screenshot is
 ## the frozen game and not the pause overlay. The game stays paused; the menu comes back
 ## when the form closes.
 func _on_report_pressed() -> void:

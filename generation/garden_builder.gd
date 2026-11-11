@@ -37,6 +37,11 @@ const CANOPY_COLORS: Array[Color] = [
 const FENCE_COLOR := Color(0.55, 0.57, 0.58)
 ## Chain-link fabric: diamonds of wire, cut out between them. See shaders/chain_link.gdshader.
 const CHAIN_LINK_SHADER: Shader = preload("res://shaders/chain_link.gdshader")
+## Metres under a plant's base that must be solid ground for it to stand (grass is not
+## planted over a hole the caves cut, and a dig clears what it leaves over air), and how far
+## past a dig's radius the plants are looked at.
+const GROUND_PROBE: float = 0.5
+const PLANT_CLEAR_MARGIN: float = 1.0
 ## How far inside the edge of the dirt the chain-link stands, in real metres.
 const FENCE_INSET: float = 0.5
 ## The lip turned in around the top of a bed, and how far the soil sits below the rim.
@@ -161,6 +166,9 @@ var _finishes: Array[String] = []
 var _materials: Dictionary = {}
 ## Plant kind -> {"mesh": ArrayMesh, "transforms": Array[Transform3D], "colors": Array[Color]}.
 var _plantings: Dictionary = {}
+## Every plant drawn: [MultiMesh, transforms] per kind, so a dig can clear the ones it leaves
+## hanging (_on_brush_applied).
+var _drawn_plants: Array = []
 ## Bed footprints in world space, for keeping lawn grass out: {"center": Vector3, "length", "width",
 ## "along_z"}.
 var _footprints: Array[Dictionary] = []
@@ -318,6 +326,7 @@ func build() -> void:
 	_center.y = _terrain.get_surface_datum_y()
 	_half = extents * 0.5
 	_plantings.clear()
+	_drawn_plants.clear()
 	_footprints.clear()
 
 	_deal_finishes()
@@ -686,6 +695,7 @@ func _commit_plantings() -> void:
 		instance.multimesh = multimesh
 		instance.material_override = material
 		plants.add_child(instance)
+		_drawn_plants.append([multimesh, planting["transforms"]])
 
 
 ## Plant meshes in real metres (the instance scale makes them world size).
@@ -1056,6 +1066,10 @@ func _build_lawn() -> void:
 		if _in_any_bed(spot, 0.12 * _s):
 			continue
 		spot.y = _dirt_height(spot) - 0.05
+		# The height knows nothing of what the caves cut open (a sinkhole, a ravine, a cave
+		# mouth): grass there would hang over the hole.
+		if not _terrain.is_solid_at(spot + Vector3.DOWN * GROUND_PROBE):
+			continue
 		var size: float = _s * _rng.randf_range(0.7, 1.3)
 		var basis: Basis = (
 			Basis(Vector3.UP, _rng.randf() * TAU) * Basis.from_scale(Vector3(size, size, size))
@@ -1082,6 +1096,30 @@ func _build_lawn() -> void:
 		plants.get_child(0).material_override if plants.get_child_count() > 0 else null
 	)
 	plants.add_child(instance)
+	_drawn_plants.append([multimesh, planting["transforms"]])
+	if not _terrain.brush_applied.is_connected(_on_brush_applied):
+		_terrain.brush_applied.connect(_on_brush_applied)
+
+
+## Clears the plants a dig or a blast left hanging: within its reach, any whose ground just
+## under it is now air.
+func _on_brush_applied(world_position: Vector3, radius: float) -> void:
+	var reach: float = radius + PLANT_CLEAR_MARGIN
+	for drawn: Array in _drawn_plants:
+		var multimesh: MultiMesh = drawn[0]
+		var transforms: Array = drawn[1]
+		for index: int in transforms.size():
+			var transform: Transform3D = transforms[index]
+			if transform.basis.x == Vector3.ZERO:
+				continue
+			if transform.origin.distance_to(world_position) > reach:
+				continue
+			if _terrain.is_solid_at(transform.origin + Vector3.DOWN * GROUND_PROBE):
+				continue
+			# Kept here too: a cleared plant is skipped by the next dig.
+			transform = Transform3D(Basis.from_scale(Vector3.ZERO), transform.origin)
+			transforms[index] = transform
+			multimesh.set_instance_transform(index, transform)
 
 
 func _in_any_bed(spot: Vector3, grow: float) -> bool:

@@ -81,7 +81,7 @@ class Runner:
 	var cam: Vector3 = Vector3.INF
 	var look: Vector3 = Vector3.INF
 	var dig: Vector3 = Vector3.INF
-	## 1: open the F9 form and save a report before capturing; 2: the pause menu's route.
+	## 1: open the report form and save a report before capturing; 2: the pause menu's route.
 	var report: int = 0
 	## Where to put the local player (x, h above the ground, z) and which way to point their
 	## orbit camera (pitch, yaw in degrees, third unused) before capturing through it.
@@ -302,7 +302,7 @@ class Runner:
 			camera.look_at(_above_ground(look))
 			camera.current = true
 		if report == 1:
-			# The F9 form over the frozen game, then a saved report to inspect.
+			# The report form over the frozen game, then a saved report to inspect.
 			BugReporter.open()
 			for _frame: int in 3:
 				await RenderingServer.frame_post_draw

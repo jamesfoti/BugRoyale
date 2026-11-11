@@ -69,8 +69,9 @@ single-player game, and the bots stay as backfill for lobbies that do not fill.
   (`LoadingScreen.pending_terrain_seed`), so every peer gets identical ground and props.
 - [x] Headless smoke test (`tools/smoke_test.tscn`) that runs any map and mode without a window
   and reports whether the bots move, shoot and die.
-- [x] In-game bug reports: F9 freezes the game and saves a screenshot, the match's seed and
-  state, and the log to a folder the player can attach anywhere.
+- [x] In-game bug reports: Report a bug in the pause menu freezes the game and saves a
+  screenshot, the match's seed and state, and the log to a folder the player can attach
+  anywhere.
 - [x] Host-ready plumbing: the human's aim and yaw travel in the input snapshot with a tick
   number; one authority gate (`Authority`) on all damage; terrain edits go through one logged
   entry point with export/import for late joiners and clearance checked against every fighter;
@@ -135,13 +136,14 @@ without a window and exit non-zero on failure, so they can gate a release.
 
 ### Reporting a bug
 
-Press F9 at any time, in a match or in the menus. The game freezes over the frame you were
-looking at and asks what happened. "Save report" writes a folder under the user data
+Pause (Esc) and choose Report a bug. The game freezes over the frame you were looking at
+and asks what happened. There is no hot key: F9 is the Godot editor's own key for
+suspending a running game, and pressed over one it froze it. "Save report" writes a folder under the user data
 directory (`%APPDATA%\Godot\app_userdata\BugRoyale\bug_reports\` on Windows) with that frame
 as `screenshot.png`, a `report.json` holding the game version, map, mode, seed, your position,
 the mode's status line, frame times and the last terrain edits, and the tail of the engine log
 as `log.txt`. "Open folder" shows it so the whole folder can be attached to an issue or a
-message. Esc or F9 closes the form. The autoload is `gui/bug_reporter.tscn`.
+message. Esc closes the form. The autoload is `gui/bug_reporter.tscn`.
 
 ### Style
 

@@ -1,10 +1,12 @@
 extends CanvasLayer
-## Autoload: the in-game bug reporter. F9 anywhere freezes the game over the frame the player
-## was looking at, asks what happened, and saves a report folder under user://bug_reports/:
+## Autoload: the in-game bug reporter, opened from the pause menu (Report a bug; no hot key,
+## since F9 is the editor's own suspend key and pressed over a running game froze it). It
+## freezes the game over the frame the player was looking at, asks what happened, and saves
+## a report folder under user://bug_reports/:
 ## that frame as a PNG, a JSON with everything a player would otherwise have to remember to
 ## write down (version, map, mode, seed, where they stood, the mode's status line, frame
 ## times, the last terrain edits) and the tail of the engine log. "Open folder" shows the
-## folder so the report can be attached to an issue or a message. Esc or F9 closes it.
+## folder so the report can be attached to an issue or a message. Esc closes it.
 
 ## The form went away (saved or not); the pause menu puts itself back.
 signal closed
@@ -39,19 +41,12 @@ func _ready() -> void:
 	_close_button.pressed.connect(close)
 
 
-## Before the GUI sees the key, so Esc closes this and not the pause menu underneath, and the
-## game, paused, never sees F9. Everything else falls through to the text box.
+## Before the GUI sees the key, so Esc closes this and not the pause menu underneath.
+## Everything else falls through to the text box.
 func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
-	var key: InputEventKey = event as InputEventKey
-	if key.keycode == KEY_F9:
-		if _open:
-			close()
-		else:
-			open()
-		get_viewport().set_input_as_handled()
-	elif _open and key.keycode == KEY_ESCAPE:
+	if _open and (event as InputEventKey).keycode == KEY_ESCAPE:
 		close()
 		get_viewport().set_input_as_handled()
 
