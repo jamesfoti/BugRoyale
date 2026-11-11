@@ -26,7 +26,7 @@ func apply_build_result(
 	position = chunk_build_result.local_position
 	_apply_water(chunk_build_result.water_mesh_result)
 	if rebuild_collision and _wants_collision():
-		_create_trimesh_collision()
+		_create_trimesh_collision(chunk_build_result.collision_faces)
 
 
 ## The pools' sheet as a child mesh with the water material, dropped when the chunk has none.
@@ -54,12 +54,19 @@ func _wants_collision() -> bool:
 	return not Engine.is_editor_hint() and mesh != null and mesh.get_surface_count() > 0
 
 
-func _create_trimesh_collision() -> void:
+## The chunk's collision, from the triangles the build made on its worker thread; without
+## them, from the mesh, which with a real renderer reads it back from the GPU and waits.
+func _create_trimesh_collision(faces: PackedVector3Array = PackedVector3Array()) -> void:
 	for child: Node in get_children():
 		if child is StaticBody3D:
 			child.queue_free()
 	var static_body: StaticBody3D = StaticBody3D.new()
 	var collision_shape: CollisionShape3D = CollisionShape3D.new()
-	collision_shape.shape = mesh.create_trimesh_shape()
+	if faces.is_empty():
+		collision_shape.shape = mesh.create_trimesh_shape()
+	else:
+		var shape := ConcavePolygonShape3D.new()
+		shape.set_faces(faces)
+		collision_shape.shape = shape
 	static_body.add_child(collision_shape)
 	add_child(static_body)

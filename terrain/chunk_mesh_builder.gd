@@ -156,11 +156,27 @@ static func build_chunk_into(
 		chunk_build_result.mesh_result = FlyingEdgesMesher.build_mesh(
 			field, extent, settings.iso_level, grid_offset, grid_world_origin, world_center, density
 		)
+	chunk_build_result.collision_faces = collision_faces(chunk_build_result.mesh_result)
 	if density.caves != null and density.caves.water_top > -INF and not field.sky:
 		chunk_build_result.water_mesh_result = CaveWaterMesher.build(
 			field, density, grid_world_origin, grid_offset, world_step, extent, world_center
 		)
 	chunk_build_result.local_position = corner_local + half_extent
+
+
+## A mesh's triangles as the flat list of corners a ConcavePolygonShape3D takes, in the
+## mesh's own winding, so the collision matches what create_trimesh_shape would give. Made
+## on the worker thread from the arrays in hand: create_trimesh_shape reads the mesh back
+## from the GPU, which with a real renderer waits on it, 4 to 5 ms a chunk on the main
+## thread (and nothing headless, where the mesh never leaves memory).
+static func collision_faces(mesh_result: FlyingEdgesMesher.MeshResult) -> PackedVector3Array:
+	var faces := PackedVector3Array()
+	var indices: PackedInt32Array = mesh_result.indices
+	var vertices: PackedVector3Array = mesh_result.vertices
+	faces.resize(indices.size())
+	for i: int in indices.size():
+		faces[i] = vertices[indices[i]]
+	return faces
 
 
 static func _chunk_corner_local(
@@ -183,6 +199,8 @@ class ChunkBuildResult:
 	## The pools' water sheet in this chunk (CaveWaterMesher), empty when there is none.
 	var water_mesh_result: FlyingEdgesMesher.MeshResult = FlyingEdgesMesher.MeshResult.new()
 	var local_position: Vector3 = Vector3.ZERO
+	## The mesh's triangles for its collision shape (collision_faces), made on the worker.
+	var collision_faces: PackedVector3Array = PackedVector3Array()
 
 
 ## What a brush-rebuilt chunk keeps for its next stroke: its field and its mesh blocks.
