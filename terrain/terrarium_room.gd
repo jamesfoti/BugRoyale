@@ -74,15 +74,15 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.
 		_request_rebuild()
 
 @export_subgroup("Grid")
-@export_range(1, 16, 1) var terrarium_chunks_x: int = 1:
+@export_range(1, 32, 1) var terrarium_chunks_x: int = 1:
 	set(value):
 		terrarium_chunks_x = maxi(value, 1)
 		_request_rebuild()
-@export_range(1, 16, 1) var terrarium_chunks_y: int = 1:
+@export_range(1, 32, 1) var terrarium_chunks_y: int = 1:
 	set(value):
 		terrarium_chunks_y = maxi(value, 1)
 		_request_rebuild()
-@export_range(1, 16, 1) var terrarium_chunks_z: int = 1:
+@export_range(1, 32, 1) var terrarium_chunks_z: int = 1:
 	set(value):
 		terrarium_chunks_z = maxi(value, 1)
 		_request_rebuild()

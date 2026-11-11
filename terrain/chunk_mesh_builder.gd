@@ -206,6 +206,10 @@ class AsyncRebuildJob:
 	var settings: ChunkedTerrainWorld.SettingsSnapshot
 	var batch_result: BatchBuildResult = BatchBuildResult.new()
 	var task_id: int = -1
+	## The map's build: whether the task's results were taken off the pool, and how many
+	## of its chunks the main thread has placed since (a frame's budget may not take all).
+	var collected: bool = false
+	var placed: int = 0
 
 
 ## Shared state for WorkerThreadPool group tasks. Result slots are created up front on the

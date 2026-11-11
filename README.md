@@ -18,7 +18,7 @@ Play
 
 - **Bugs:** Ant Warrior, Termite Soldier, Wasp (flies), Trapdoor Spider.
 - **Maps:** Backyard Garden, Crawlspace, Terrarium. All three are the same size (512 m
-  across, three chunks deep, dug at 1 m voxels), and every match's seed carves a new underworld into them
+  across, 96 m deep, dug at 1 m voxels in 16 m chunks), and every match's seed carves a new underworld into them
   (CaveCarver): worm tunnels from a few metres down, caverns from twenty, a few sinkholes
   open to the sky, on half the seeds ravines cut into the surface with leaning walls, and
   bedrock at the bottom; over the noise, regions of riddled and solid rock, depth bands
@@ -443,16 +443,18 @@ are dropped before the scene is saved and rebuilt after, so the file stays small
 ### Loading a map
 
 In the game a map's terrain builds behind the loading screen without holding up a frame:
-every chunk is a task of its own on the worker pool, four at a time plus one queued, since
-GDScript on more threads than that runs slower (see `REBUILD_THREADS`). The whole map goes
+the chunks go to the worker pool in tasks of a few at a time (`BUILD_TASK_SAMPLES`: three
+fine 16 m chunks, a hundred coarse ones, since the pool is refilled once a frame and a
+task shorter than a frame leaves its thread idle), four tasks at a time plus one queued,
+since GDScript on more threads than that runs slower (see `REBUILD_THREADS`). The whole map goes
 in coarse first, at 4 m voxels, a few seconds' work, so the ground looks complete and
 holds a body from the first frame; the fine chunks then replace it in bands
-(`_sort_world_build_queue`): the surface two chunks each way round the player's spawn,
-the caves under that, the surface of the rest of the map nearest the player, and the rest
-of the caves last. The top layer of a map is sky and costs nothing, the surface layer is a
-third of the build and the cave layer two thirds, and nobody sees the caves until they
-dig, so the ground in view is fine three times sooner this way; a chunk is deep when its
-top lies 8 m under the lowest surface of its column. Every fighter's placement is a focus
+(`_sort_world_build_queue`): the surface 64 m each way round the player's spawn
+(`play_ring`), the caves under that, the surface of the rest of the map nearest the
+player, and the rest of the caves last. The sky layers of a map cost nothing, the surface
+band is a third of the build at most and the cave layers the rest, and nobody sees the
+caves until they dig, so the ground in view is fine three times sooner this way; a chunk
+is deep when its top lies 8 m under the lowest surface of its column. Every fighter's placement is a focus
 of the build (`focus_build_at`); the local player's is the primary one the order is
 measured from, and a respawn moves it. The loading screen leaves once the map is coarse
 everywhere and the ground round the player's spawn is fine (`play_ground_ready`), about
@@ -478,7 +480,14 @@ questions to it for the bodies that hold, and the plants grow on the coarse grou
 it stands everywhere and follow the fine chunks as they land: a fine chunk reports the
 box it refined (`ground_refined`), and every plant and prop seated in it is probed again
 a physics step later, moved onto the new surface or cleared where that is more than 4 m
-away (a cave mouth the coarse ground did not show).
+away (a cave mouth the coarse ground did not show). The maps dig in 16 m chunks, 6,144 a
+map: a stroke rebuilds the chunks it touches, and the work done over a whole chunk, the
+loose-rock pass, the merge of its blocks and its collision, is an eighth of a 32 m
+chunk's, so on the crawlspace a cold stroke's hole shows in 114 ms instead of 528 and a
+warm one's in about 40 instead of 60, with the worst frame halved; the build itself is a
+tenth longer for the chunk count. The chunks a box touches are read off the grid
+(`_get_chunk_coordinates_intersecting_aabb`), since a test of every chunk's box costs
+6 ms a call at that count and the brush asks every frame.
 The rest of the map keeps building behind the game at about five chunks a second while
 the game runs, so the surface of a 512 m map at 1 m is fine within a minute and its caves
 a couple of minutes later; `tools/smoke_test.tscn` prints the count every five seconds

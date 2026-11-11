@@ -496,6 +496,44 @@ func test_flat_spots_are_level_inside_the_bounds_and_apart() -> void:
 	assert_eq(none.flat_spot_summary(), "no flat spots")
 
 
+## The chunks a box can touch come from its span of the grid, as a test of every chunk's
+## box would have them: a box ending on a seam does not take the chunk past it, one well
+## off the grid takes nothing, and the padding reaches the chunks whose edge samples the
+## box shares.
+func test_the_chunks_a_box_touches_come_from_its_span_of_the_grid() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.rebuild_on_ready = false
+	world.chunk_size = 8.0
+	world.voxel_size = 4.0
+	add_child_autofree(world)
+	world.rebuild_all()
+	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	var origin: Vector3 = world.global_position + world._chunk_corner_local(Vector3i.ZERO, settings)
+	var boxes: Array[AABB] = [
+		AABB(origin + Vector3(1.0, 1.0, 1.0), Vector3(2.0, 2.0, 2.0)),
+		AABB(origin + Vector3(6.0, 6.0, 6.0), Vector3(4.0, 4.0, 4.0)),
+		AABB(origin, Vector3(8.0, 8.0, 8.0)),
+		AABB(origin + Vector3(8.0, 8.0, 8.0), Vector3(8.0, 8.0, 8.0)),
+		AABB(origin + Vector3(-10.0, 3.0, 3.0), Vector3(2.0, 2.0, 2.0)),
+		AABB(origin + Vector3(-100.0, 0.0, 0.0), Vector3(2.0, 2.0, 2.0)),
+		AABB(origin + Vector3(37.0, 21.0, 37.0), Vector3(30.0, 30.0, 30.0)),
+	]
+	for box: AABB in boxes:
+		var expected: Array[Vector3i] = []
+		var search: AABB = box.grow(world.get_voxel_size() * 2.0)
+		for chunk_coordinate: Vector3i in world._chunks:
+			if world._get_chunk_world_aabb(chunk_coordinate, settings).intersects(search):
+				expected.append(chunk_coordinate)
+		var found: Array[Vector3i] = world._get_chunk_coordinates_intersecting_aabb(box)
+		expected.sort()
+		found.sort()
+		assert_eq(found, expected, "the box at %s" % str(box.position - origin))
+	assert_gt(
+		world._get_chunk_coordinates_intersecting_aabb(boxes[1]).size(), 1, "the seam box spans"
+	)
+	await get_tree().process_frame
+
+
 ## The map's build lays the whole map coarse first, so every chunk stands within a few
 ## frames, then replaces each with its fine chunk; the coarse one is freed, and the box
 ## of ground the fine chunk refined is reported (whatever stood on the coarse ground
@@ -551,6 +589,8 @@ func test_the_fine_pass_lays_the_surface_of_the_whole_map_before_the_caves() -> 
 	world.chunks_z = 4
 	world.chunk_size = 8.0
 	world.voxel_size = 4.0
+	# Two chunks each way round the spawn.
+	world.play_ring = 16.0
 	var reports: Array[Vector2i] = []
 	world.build_progress.connect(
 		func(done: int, total: int) -> void: reports.append(Vector2i(done, total))
@@ -570,7 +610,8 @@ func test_the_fine_pass_lays_the_surface_of_the_whole_map_before_the_caves() -> 
 	# The chunks under way before the focus came are wherever the earlier order put them.
 	var early: Dictionary = {}
 	for job: ChunkMeshBuilder.AsyncRebuildJob in world._world_build_tasks.values():
-		early[job.chunk_coordinates[0]] = true
+		for chunk_coordinate: Vector3i in job.chunk_coordinates:
+			early[chunk_coordinate] = true
 	for chunk_coordinate: Vector3i in world._placed_fine:
 		early[chunk_coordinate] = true
 	world.focus_build_at(corner, 0.0, true)

@@ -14,12 +14,12 @@
 
 [node name="TerrainWorld" type="Node3D" parent="."]
 script = ExtResource("1")
-chunks_x = 16
-chunks_y = 3
-chunks_z = 16
+chunks_x = 32
+chunks_y = 6
+chunks_z = 32
 solid_underside = true
 caves_enabled = true
-chunk_size = 32.0
+chunk_size = 16.0
 voxel_size = 1.0
 noise_seed = 21
 noise_frequency = 0.008

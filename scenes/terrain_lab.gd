@@ -11,8 +11,9 @@ extends Node3D
 ## This root keeps a New Seed button of its own and keeps the built chunks out of
 ## the saved scene: they are destroyed before a save and rebuilt after it.
 ##
-## The grid is the maps' own, 16 by 16 chunks of 32 m and three deep, at 4 m voxels so a
-## seed builds in a few seconds, with the noise rolled from the seed (Noise Roll) so seeds
+## The grid is the maps' extent, 16 by 16 chunks of 32 m and three deep (the maps dig in
+## 16 m chunks, which at the lab's 4 m voxels would be four cells across), so a seed
+## builds in a few seconds, with the noise rolled from the seed (Noise Roll) so seeds
 ## differ in hill size and height as well as in their regions, curve, relief and caves.
 ## Drop the voxel size to 2 m to see the terraces and ravines, 1 m for play quality. For
 ## the underground in cross-section: Chunks 16, 16, 3, Surface Layer 2, Boxed Edges off,
