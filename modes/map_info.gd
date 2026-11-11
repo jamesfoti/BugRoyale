@@ -95,6 +95,21 @@ func editable_terrain() -> ChunkedTerrainWorld:
 	return null
 
 
+## Every terrain world standing on the map: the open maps' TerrainWorld (the terrain_world
+## group) and a terrarium room's playable terrain, which the room spawns a frame after the
+## scene loads, so whoever waits on a build asks again until it is there.
+static func terrain_worlds(tree: SceneTree) -> Array[ChunkedTerrainWorld]:
+	var worlds: Array[ChunkedTerrainWorld] = []
+	for node: Node in tree.get_nodes_in_group("terrain_world"):
+		if node is ChunkedTerrainWorld:
+			worlds.append(node as ChunkedTerrainWorld)
+	for room: Node in tree.get_nodes_in_group("terrarium_room"):
+		var playable: ChunkedTerrainWorld = (room as TerrariumRoom).get_playable_terrain()
+		if playable != null and not worlds.has(playable):
+			worlds.append(playable)
+	return worlds
+
+
 ## Up at a point. World up on every map today; kept as the one place a curved map would
 ## change it, so nothing else hard-wires Vector3.UP.
 func up_at(_position: Vector3) -> Vector3:

@@ -198,34 +198,34 @@ class Runner:
 	## sequence number, and exporting then importing the edit state must keep every override.
 	## The terrain's tasks on the worker pool: the map's build and the brush's rebuilds.
 	func _pool_use() -> String:
-		for world: Node in get_tree().get_nodes_in_group("terrain_world"):
-			if world is ChunkedTerrainWorld:
-				var terrain: ChunkedTerrainWorld = world as ChunkedTerrainWorld
-				return (
-					"%d build + %d brush"
-					% [terrain._world_build_tasks.size(), terrain._running_async_tasks]
-				)
+		for terrain: ChunkedTerrainWorld in MapInfo.terrain_worlds(get_tree()):
+			return (
+				"%d build + %d brush"
+				% [terrain._world_build_tasks.size(), terrain._running_async_tasks]
+			)
 		return "none"
 
 	## Fine chunks standing: while the map builds, the ones its fine pass has placed.
 	func _chunk_count() -> int:
 		var count: int = 0
-		for world: Node in get_tree().get_nodes_in_group("terrain_world"):
-			if world is ChunkedTerrainWorld and (world as ChunkedTerrainWorld).is_building():
-				count += (world as ChunkedTerrainWorld)._placed_fine.size()
-			elif world.has_method("get_chunk_count"):
-				count += int(world.call("get_chunk_count"))
+		for terrain: ChunkedTerrainWorld in MapInfo.terrain_worlds(get_tree()):
+			if terrain.is_building():
+				count += terrain._placed_fine.size()
+			else:
+				count += terrain.get_chunk_count()
 		return count
 
 	func _play_ground_ready() -> bool:
-		for world: Node in get_tree().get_nodes_in_group("terrain_world"):
-			if world.has_method("play_ground_ready") and not world.call("play_ground_ready"):
+		for terrain: ChunkedTerrainWorld in MapInfo.terrain_worlds(get_tree()):
+			if not terrain.play_ground_ready():
 				return false
 		return true
 
+	## Whether a map's build is still going; a terrarium room's terrain counts once the room
+	## has spawned it (MapInfo.terrain_worlds).
 	func _terrain_building() -> bool:
-		for world: Node in get_tree().get_nodes_in_group("terrain_world"):
-			if world.has_method("is_building") and world.call("is_building"):
+		for terrain: ChunkedTerrainWorld in MapInfo.terrain_worlds(get_tree()):
+			if terrain.is_building():
 				return true
 		return false
 

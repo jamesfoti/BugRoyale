@@ -27,10 +27,7 @@ func _find_random_surface_spawn(at: Vector3 = Vector3.INF) -> Dictionary:
 		var playable: TerrariumTerrain = terrarium_room.get_playable_terrain()
 		if playable != null:
 			_walk_surface = playable
-		return {
-			"position": terrarium_room.get_spawn_position(spawn_clearance),
-			"from_raycast_hit": playable != null,
-		}
+		return terrarium_room.spawn_probe(at, spawn_clearance)
 	return _raycast_spawn_over(_walk_surface, at)
 
 

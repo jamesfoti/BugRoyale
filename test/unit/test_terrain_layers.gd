@@ -497,11 +497,15 @@ func test_flat_spots_are_level_inside_the_bounds_and_apart() -> void:
 
 
 ## The map's build lays the whole map coarse first, so every chunk stands within a few
-## frames, then replaces each with its fine chunk; the coarse one is freed.
+## frames, then replaces each with its fine chunk; the coarse one is freed, and the box
+## of ground the fine chunk refined is reported (whatever stood on the coarse ground
+## there follows it).
 func test_the_build_lays_coarse_ground_over_the_whole_map_before_the_fine_pass() -> void:
 	var world: OpenTerrain = OpenTerrain.new()
 	world.chunk_size = 8.0
 	world.voxel_size = 2.0
+	var refined: Array[AABB] = []
+	world.ground_refined.connect(func(box: AABB) -> void: refined.append(box))
 	add_child_autofree(world)
 	await get_tree().process_frame
 	var grid: Vector3i = world._get_grid_dimensions()
@@ -531,6 +535,8 @@ func test_the_build_lays_coarse_ground_over_the_whole_map_before_the_fine_pass()
 	assert_eq(world.get_chunk_count(), total)
 	assert_true(coarse_chunk != world._chunks[coarse_coordinate], "the coarse chunk replaced")
 	assert_false(is_instance_valid(coarse_chunk), "and freed")
+	assert_eq(refined.size(), total, "every fine chunk reported the ground it refined")
+	assert_eq(refined[0].size, Vector3.ONE * 8.0, "as its own box")
 
 
 ## The fine pass lays the surface of the whole map before the caves under it: the chunks

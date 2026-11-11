@@ -149,7 +149,12 @@ func _start_game(game_scene: PackedScene) -> void:
 		var world: ChunkedTerrainWorld = terrain as ChunkedTerrainWorld
 		_terrains.append(world)
 		world.build_progress.connect(_on_terrain_progress.bind(world))
-	_set_progress(ASSET_SHARE if not _terrains.is_empty() else 100, "Building terrain")
+	# A terrarium room spawns its terrain a frame after the scene goes in (_adopt_terrains).
+	var expects_terrain: bool = (
+		not _terrains.is_empty()
+		or not game_root.find_children("*", "TerrariumRoom", true, false).is_empty()
+	)
+	_set_progress(ASSET_SHARE if expects_terrain else 100, "Building terrain")
 	get_tree().root.add_child(game_root)
 	get_tree().current_scene = game_root
 	_add_game_mode(game_root)
@@ -162,6 +167,10 @@ func _process(_delta: float) -> void:
 	if _frames_since_start < 0:
 		return
 	if not _leaving:
+		_adopt_terrains()
+		for room: Node in get_tree().get_nodes_in_group("terrarium_room"):
+			if (room as TerrariumRoom).is_rebuilding():
+				return
 		for terrain: ChunkedTerrainWorld in _terrains:
 			if is_instance_valid(terrain) and not terrain.play_ground_ready():
 				return
@@ -172,6 +181,16 @@ func _process(_delta: float) -> void:
 	_frames_since_start += 1
 	if _frames_since_start > 5:
 		queue_free()
+
+
+## Takes in the terrain worlds the scene spawns after it goes in (a terrarium room's, a
+## frame later): the screen waits on their ground too, and the bar counts their chunks.
+func _adopt_terrains() -> void:
+	for terrain: ChunkedTerrainWorld in MapInfo.terrain_worlds(get_tree()):
+		if _terrains.has(terrain):
+			continue
+		_terrains.append(terrain)
+		terrain.build_progress.connect(_on_terrain_progress.bind(terrain))
 
 
 ## A terrain world's build, as it goes: the bar shows every world's chunks together.

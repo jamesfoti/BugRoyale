@@ -1,9 +1,9 @@
 @tool
 class_name TerrariumTerrain
 extends OpenTerrain
-## Open heightmap terrain sized to fit inside a glass terrarium. Its first build runs on the
-## worker threads like any world's (rebuild_all blocks until every chunk exists either way),
-## which is what makes a terrarium the size of the crawlspace load in seconds, not tens.
+## Open heightmap terrain sized to fit inside a glass terrarium. Its ground builds behind the
+## game like any map's (TerrariumRoom calls begin_build once the settings are set): coarse
+## everywhere in a few seconds, then fine round the player's spawn first.
 
 
 func _ready() -> void:

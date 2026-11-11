@@ -3,6 +3,8 @@ class_name TerrariumRoom
 extends Node3D
 ## Procedurally generates a furnished room with an optional glass terrarium and voxel terrain.
 
+## The room's content stands: shell, furniture, lights, the glass box and the terrain in it,
+## whose chunks come in behind the game (is_building) like any map's ground.
 signal content_rebuilt
 
 const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.tres"
@@ -232,23 +234,58 @@ func get_world_extents() -> Vector3:
 	return room_size * room_scale
 
 
+## The terrain's build, forwarded for a body that holds for the ground (GroundPlayer): the
+## terrarium's ground builds behind the game like the open maps', coarse everywhere first
+## and fine round the player's spawn. A room without a terrain is ready at once.
+func is_building() -> bool:
+	var playable: TerrariumTerrain = get_playable_terrain()
+	return playable != null and playable.is_building()
+
+
+func focus_build_at(world_position: Vector3, radius: float = 0.0, primary: bool = false) -> void:
+	var playable: TerrariumTerrain = get_playable_terrain()
+	if playable != null:
+		playable.focus_build_at(world_position, radius, primary)
+
+
+func is_ground_ready_around(
+	world_position: Vector3, radius: float = 0.0, fine: bool = false
+) -> bool:
+	var playable: TerrariumTerrain = get_playable_terrain()
+	return playable == null or playable.is_ground_ready_around(world_position, radius, fine)
+
+
+func ground_stands_everywhere() -> bool:
+	var playable: TerrariumTerrain = get_playable_terrain()
+	return playable == null or playable.ground_stands_everywhere()
+
+
 func get_spawn_position(spawn_clearance: float = 1.2) -> Vector3:
+	return spawn_probe(Vector3.INF, spawn_clearance)["position"]
+
+
+## A spot to stand on the terrarium's ground, at a column or (Vector3.INF) a random one
+## well inside the glass: {"position", "from_raycast_hit"}, the built ground under it
+## from a probe down the box when a chunk stands there, else its height from the terrain's
+## own heights, which the map's build has not reached (a body put there holds for it).
+func spawn_probe(column: Vector3 = Vector3.INF, spawn_clearance: float = 1.2) -> Dictionary:
 	var playable: TerrariumTerrain = get_playable_terrain()
 	if playable == null:
+		var fallback: Vector3 = global_position + Vector3(0.0, spawn_clearance, 0.0)
 		if _layout != null:
-			return global_position + _layout.spawn_position
-		return global_position + Vector3(0.0, spawn_clearance, 0.0)
-	return _probe_terrarium_spawn(playable, spawn_clearance)
-
-
-func _probe_terrarium_spawn(playable: TerrariumTerrain, spawn_clearance: float) -> Vector3:
+			fallback = global_position + _layout.spawn_position
+		return {"position": fallback, "from_raycast_hit": false}
 	var half_extents: Vector3 = playable.get_world_extents() * 0.5
-	var random_offset: Vector3 = Vector3(
-		randf_range(-half_extents.x * 0.35, half_extents.x * 0.35),
-		0.0,
-		randf_range(-half_extents.z * 0.35, half_extents.z * 0.35)
-	)
-	var probe_xz: Vector3 = playable.global_position + random_offset
+	if column == Vector3.INF:
+		column = (
+			playable.global_position
+			+ Vector3(
+				randf_range(-half_extents.x * 0.35, half_extents.x * 0.35),
+				0.0,
+				randf_range(-half_extents.z * 0.35, half_extents.z * 0.35)
+			)
+		)
+	var probe_xz := Vector3(column.x, playable.global_position.y, column.z)
 	var ray_top: Vector3 = probe_xz + Vector3.UP * half_extents.y * 0.95
 	var ray_bottom: Vector3 = probe_xz - Vector3.UP * half_extents.y * 1.05
 	if is_inside_tree():
@@ -259,9 +296,15 @@ func _probe_terrarium_spawn(playable: TerrariumTerrain, spawn_clearance: float) 
 		ray_query.collide_with_areas = false
 		var hit: Dictionary = space.intersect_ray(ray_query)
 		if not hit.is_empty() and _is_terrarium_collider(playable, hit.get("collider")):
-			return hit.position + Vector3.UP * spawn_clearance
+			return {
+				"position": hit.position + Vector3.UP * spawn_clearance,
+				"from_raycast_hit": true,
+			}
 	var surface_y: float = playable.get_surface_height_at(probe_xz)
-	return Vector3(probe_xz.x, surface_y + spawn_clearance, probe_xz.z)
+	return {
+		"position": Vector3(probe_xz.x, surface_y + spawn_clearance, probe_xz.z),
+		"from_raycast_hit": false,
+	}
 
 
 func _is_terrarium_collider(playable: TerrariumTerrain, collider: Variant) -> bool:
@@ -511,14 +554,19 @@ func _rebuild_terrarium_terrain() -> void:
 		_finish_rebuild()
 		return
 	_apply_terrarium_terrain_settings(_terrarium_terrain)
-	_terrarium_terrain.rebuild_all()
+	# The ground comes in behind the game like any map's: coarse everywhere, then fine
+	# round the player's spawn first (blocking in the editor). The room's content stands
+	# from here; a body holds for the ground (is_ground_ready_around) and the vegetation
+	# grows on the coarse ground and follows the fine chunks.
+	_terrarium_terrain.begin_build()
 	_grow_terrarium_vegetation()
 	_log_editor_build()
 	_finish_rebuild()
 
 
-## Grows the garden over the freshly built terrain (the vegetation lives under the terrarium
-## prop, so it is cleared with it). Seeded from the terrain so the same terrarium regrows alike.
+## Grows the garden over the terrain as its ground comes in (the vegetation lives under the
+## terrarium prop, so it is cleared with it). Seeded from the terrain so the same terrarium
+## regrows alike.
 func _grow_terrarium_vegetation() -> void:
 	if not spawn_terrarium_vegetation or _glass_box_root == null:
 		return

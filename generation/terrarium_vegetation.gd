@@ -2,13 +2,20 @@ class_name TerrariumVegetation
 extends Node3D
 ## Procedural terrarium garden: moss cushions, ferns, red nerve plants, mushrooms, slate rocks,
 ## driftwood and small branching trees, grown over the terrain the same way the terrain is grown
-## from noise. Placement samples the terrain's analytic surface height (no physics needed) with a
-## seeded RNG, so a terrarium always grows the same garden. Every plant kind draws through one
-## MultiMesh; trees, logs and rocks get simple collision so bugs walk around them. Carving the
-## terrain (pickaxe, explosions) clears whatever grew in the hole.
+## from noise. Placement probes the built ground with a seeded RNG, so a terrarium always grows
+## the same garden: on the coarse ground the map's build lays first, and each plant follows the
+## fine chunk that replaces the ground under it when that lands (ground_refined). Every plant
+## kind draws through one MultiMesh; trees, logs and rocks get simple collision so bugs walk
+## around them. Carving the terrain (pickaxe, explosions) clears whatever grew in the hole.
 
 const EDGE_MARGIN: float = 1.5
 const PLACEMENT_TRIES: int = 12
+## Metres a plant may move up or down to follow the fine ground under it; farther is a cave
+## mouth or a cliff the coarse ground did not show, and the plant goes.
+const RESEAT_LIMIT: float = 4.0
+## Physics steps between a fine chunk landing and the probes that seat its plants: the
+## physics server registers the chunk's collision on its next step.
+const RESEAT_DELAY_STEPS: int = 2
 ## Instances per 100 m² of terrarium floor at density 1.0.
 const MOSS_PER_100M2: float = 11.0
 const FERNS_PER_100M2: float = 3.0
@@ -43,6 +50,14 @@ var _patches: Dictionary = {}
 var _props: Array[Prop] = []
 ## Collision bodies of placed props, skipped by ground probes.
 var _exclude: Array[RID] = []
+## Plants and props by the chunk column they stand in (Vector2i -> Array of [Patch, index],
+## and of Prop), so a fine chunk landing reseats only what stands on it.
+var _plant_cells: Dictionary = {}
+var _prop_cells: Dictionary = {}
+var _cell_size: float = 32.0
+## Boxes of fine chunks that landed, each with the physics steps left before its plants
+## are probed.
+var _refined: Array[Dictionary] = []
 
 
 ## Configures a garden for a terrain; add it to the tree, then call grow().
@@ -58,14 +73,27 @@ static func build(
 	return vegetation
 
 
-## Grows once the terrain's fresh collision is queryable (the physics server registers new
-## bodies on its next step).
+## Grows once the ground stands everywhere, coarse or fine (the map's build lays coarse
+## ground over the whole map first; the plants grow on it and follow the fine chunks as
+## they land), and its collision is queryable (the physics server registers new bodies on
+## its next step).
 func grow_when_ready() -> void:
+	while is_inside_tree() and _ground_still_coming():
+		await get_tree().physics_frame
 	if not is_inside_tree():
 		return
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	grow()
+
+
+func _ground_still_coming() -> bool:
+	return (
+		_terrain != null
+		and is_instance_valid(_terrain)
+		and _terrain.is_building()
+		and not _terrain.ground_stands_everywhere()
+	)
 
 
 func grow() -> void:
@@ -85,8 +113,11 @@ func grow() -> void:
 	for patch: Patch in _patches.values():
 		_commit_patch(patch)
 		total += patch.transforms.size()
+	_index_cells()
 	if _terrain.has_signal("brush_applied"):
 		_terrain.brush_applied.connect(_on_brush_applied)
+	if _terrain.has_signal("ground_refined"):
+		_terrain.ground_refined.connect(_on_ground_refined)
 	if total == 0 and _props.is_empty():
 		push_warning(
 			"[TerrariumVegetation] Nothing grew: no terrain collision found under the terrarium."
@@ -216,10 +247,15 @@ func _patch(key: StringName, mesh: Mesh, material: Material, shadows: bool) -> P
 	return patch
 
 
-func _place(patch: Patch, transform: Transform3D, color: Color, radius: float) -> int:
+## Adds an instance to a patch; anchor_y is the height of the ground it was seated on (NAN
+## for one that moves with its prop, a canopy), which the fine ground is measured from.
+func _place(
+	patch: Patch, transform: Transform3D, color: Color, radius: float, anchor_y: float
+) -> int:
 	patch.transforms.append(transform)
 	patch.colors.append(color)
 	patch.radii.append(radius)
+	patch.anchors.append(anchor_y)
 	return patch.transforms.size() - 1
 
 
@@ -274,7 +310,13 @@ func _grow_moss(count: int) -> void:
 			var basis: Basis = _ground_basis(spot.normal, _rng.randf() * TAU, scale)
 			# Sunk a little so the cushion's rim meets the dirt.
 			var origin: Vector3 = spot.position - spot.normal * scale.y * 0.1
-			_place(patch, Transform3D(basis, origin), _vary(tint, 0.12), maxf(scale.x, scale.z))
+			_place(
+				patch,
+				Transform3D(basis, origin),
+				_vary(tint, 0.12),
+				maxf(scale.x, scale.z),
+				spot.position.y
+			)
 			placed += 1
 
 
@@ -288,7 +330,9 @@ func _grow_ferns(count: int) -> void:
 		var up: Vector3 = Vector3.UP.slerp(spot.normal, 0.3).normalized()
 		var basis: Basis = _ground_basis(up, _rng.randf() * TAU, Vector3.ONE * size)
 		var tint: Color = FERN_TINTS[_rng.randi() % FERN_TINTS.size()]
-		_place(patch, Transform3D(basis, spot.position), _vary(tint, 0.1), size * 0.8)
+		_place(
+			patch, Transform3D(basis, spot.position), _vary(tint, 0.1), size * 0.8, spot.position.y
+		)
 
 
 func _grow_red_plants(count: int) -> void:
@@ -300,7 +344,13 @@ func _grow_red_plants(count: int) -> void:
 			continue
 		var up: Vector3 = Vector3.UP.slerp(spot.normal, 0.4).normalized()
 		var basis: Basis = _ground_basis(up, _rng.randf() * TAU, Vector3.ONE * size)
-		_place(patch, Transform3D(basis, spot.position), _vary(Color.WHITE, 0.1), size * 0.5)
+		_place(
+			patch,
+			Transform3D(basis, spot.position),
+			_vary(Color.WHITE, 0.1),
+			size * 0.5,
+			spot.position.y
+		)
 
 
 ## Mushrooms: clusters of toadstools, buttons and ink caps on damp, level ground. Big ones get
@@ -342,16 +392,18 @@ func _grow_mushrooms(clusters: int) -> void:
 			)
 			var cap_radius: float = float(built["cap_radius"]) * size
 			var transform := Transform3D(basis, spot.position - up * 0.04)
-			_place(patch, transform, _vary(Color.WHITE, 0.08), cap_radius)
+			_place(patch, transform, _vary(Color.WHITE, 0.08), cap_radius, spot.position.y)
 			if cap_radius >= 0.75:
-				_add_mushroom_collision(transform, built, basis.get_scale())
+				_add_mushroom_collision(transform, built, basis.get_scale(), spot.position.y)
 
 
 ## A cylinder for the stem and a flat one for the cap, sized in world units under an unscaled
 ## node. (Shapes under the mushroom's scaled transform were scaled a second time, which gave
 ## every big mushroom an invisible stem and cap far wider than the one on screen: bugs walked
 ## into walls they could not see and got wedged under them.)
-func _add_mushroom_collision(transform: Transform3D, built: Dictionary, scale: Vector3) -> void:
+func _add_mushroom_collision(
+	transform: Transform3D, built: Dictionary, scale: Vector3, anchor_y: float
+) -> void:
 	var width: float = maxf(scale.x, scale.z)
 	var height: float = scale.y
 	var stem := CylinderShape3D.new()
@@ -362,7 +414,8 @@ func _add_mushroom_collision(transform: Transform3D, built: Dictionary, scale: V
 		"Mushroom",
 		unscaled,
 		stem,
-		Transform3D(Basis.IDENTITY, Vector3(0.0, stem.height * 0.5, 0.0))
+		Transform3D(Basis.IDENTITY, Vector3(0.0, stem.height * 0.5, 0.0)),
+		anchor_y
 	)
 	var cap := CylinderShape3D.new()
 	cap.radius = float(built["cap_radius"]) * width * 0.9
@@ -396,7 +449,7 @@ func _grow_rocks(count: int) -> void:
 		var unscaled: Basis = _ground_basis(tilt, _rng.randf() * TAU, Vector3.ONE)
 		var origin: Vector3 = spot.position - Vector3.UP * scale.y * 0.35
 		var transform := Transform3D(unscaled * Basis.from_scale(scale), origin)
-		_place(patch, transform, _vary(Color.WHITE, 0.15), maxf(scale.x, scale.z))
+		_place(patch, transform, _vary(Color.WHITE, 0.15), maxf(scale.x, scale.z), spot.position.y)
 
 		var scaled_points := PackedVector3Array()
 		for point: Vector3 in rock_points:
@@ -404,7 +457,7 @@ func _grow_rocks(count: int) -> void:
 		var shape := ConvexPolygonShape3D.new()
 		shape.points = scaled_points
 		var prop: Prop = _add_prop(
-			"Rock", Transform3D(unscaled, origin), shape, Transform3D.IDENTITY
+			"Rock", Transform3D(unscaled, origin), shape, Transform3D.IDENTITY, spot.position.y
 		)
 		prop.radius = maxf(scale.x, scale.z)
 
@@ -440,7 +493,11 @@ func _grow_logs(count: int) -> void:
 		shape.height = trunk.start.distance_to(trunk.end) + shape.radius * 2.0
 		var origin: Vector3 = spot.position - Vector3.UP * radius * 0.35
 		var prop: Prop = _add_prop(
-			"Driftwood", Transform3D(Basis.IDENTITY, origin), shape, _segment_shape_transform(trunk)
+			"Driftwood",
+			Transform3D(Basis.IDENTITY, origin),
+			shape,
+			_segment_shape_transform(trunk),
+			spot.position.y
 		)
 		var mesh_instance := MeshInstance3D.new()
 		mesh_instance.mesh = _make_branch_mesh(segments, 7)
@@ -481,7 +538,8 @@ func _grow_trees(count: int) -> void:
 			"Tree",
 			Transform3D(Basis.IDENTITY, spot.position),
 			shape,
-			_segment_shape_transform(trunk)
+			_segment_shape_transform(trunk),
+			spot.position.y
 		)
 		var mesh_instance := MeshInstance3D.new()
 		mesh_instance.mesh = _make_branch_mesh(segments, 6)
@@ -497,7 +555,7 @@ func _grow_trees(count: int) -> void:
 				Vector3(size, size * _rng.randf_range(0.65, 0.85), size)
 			)
 			var index: int = _place(
-				canopy, Transform3D(basis, spot.position + tip), _vary(tint, 0.14), size
+				canopy, Transform3D(basis, spot.position + tip), _vary(tint, 0.14), size, NAN
 			)
 			prop.canopy_indices.append(index)
 
@@ -551,7 +609,11 @@ func _grow_branches(
 ## A prop node with a static collider on the terrain layer, so ground probes and bugs treat it
 ## like terrain.
 func _add_prop(
-	prop_name: String, transform: Transform3D, shape: Shape3D, shape_transform: Transform3D
+	prop_name: String,
+	transform: Transform3D,
+	shape: Shape3D,
+	shape_transform: Transform3D,
+	anchor_y: float
 ) -> Prop:
 	var prop := Prop.new()
 	prop.node = Node3D.new()
@@ -559,6 +621,7 @@ func _add_prop(
 	add_child(prop.node)
 	prop.node.global_transform = transform
 	prop.position = transform.origin
+	prop.anchor_y = anchor_y
 	var body := StaticBody3D.new()
 	body.collision_layer = MapInfo.TERRAIN_LAYER
 	body.collision_mask = 0
@@ -597,12 +660,7 @@ func _on_brush_applied(world_position: Vector3, radius: float) -> void:
 		if prop.node == null or not is_instance_valid(prop.node):
 			continue
 		if prop.position.distance_to(world_position) < radius + prop.radius:
-			prop.node.queue_free()
-			prop.node = null
-			var canopy: Patch = _patches.get(&"Canopy")
-			if canopy != null:
-				for index: int in prop.canopy_indices:
-					_clear_instance(canopy, index)
+			_remove_prop(prop)
 
 
 func _clear_instance(patch: Patch, index: int) -> void:
@@ -610,6 +668,127 @@ func _clear_instance(patch: Patch, index: int) -> void:
 	patch.multimesh_instance.multimesh.set_instance_transform(
 		index, Transform3D(Basis.from_scale(Vector3.ZERO), patch.transforms[index].origin)
 	)
+
+
+## Takes a prop out, and the canopy a tree carries.
+func _remove_prop(prop: Prop) -> void:
+	prop.node.queue_free()
+	prop.node = null
+	var canopy: Patch = _patches.get(&"Canopy")
+	if canopy != null:
+		for index: int in prop.canopy_indices:
+			_clear_instance(canopy, index)
+
+
+# --- Following the fine ground -----------------------------------------------------------
+
+
+## Files every plant and prop under the chunk column it stands in.
+func _index_cells() -> void:
+	_plant_cells.clear()
+	_prop_cells.clear()
+	_cell_size = maxf(_terrain.get_chunk_world_extent(), 1.0)
+	for patch: Patch in _patches.values():
+		for index: int in patch.transforms.size():
+			if patch.radii[index] < 0.0 or is_nan(patch.anchors[index]):
+				continue
+			var cell: Vector2i = _cell_of(patch.transforms[index].origin)
+			var plants: Array = _plant_cells.get(cell, [])
+			plants.append([patch, index])
+			_plant_cells[cell] = plants
+	for prop: Prop in _props:
+		var cell: Vector2i = _cell_of(prop.position)
+		var props: Array = _prop_cells.get(cell, [])
+		props.append(prop)
+		_prop_cells[cell] = props
+
+
+func _cell_of(position: Vector3) -> Vector2i:
+	return Vector2i(
+		floori((position.x - _bounds.position.x) / _cell_size),
+		floori((position.z - _bounds.position.z) / _cell_size)
+	)
+
+
+## A fine chunk replaced the coarse ground in a box: its plants are probed again once the
+## physics server has the chunk's collision.
+func _on_ground_refined(box: AABB) -> void:
+	_refined.append({"box": box, "steps": RESEAT_DELAY_STEPS})
+
+
+func _physics_process(_delta: float) -> void:
+	if _refined.is_empty():
+		return
+	var due: Array[AABB] = []
+	var waiting: Array[Dictionary] = []
+	for entry: Dictionary in _refined:
+		entry["steps"] = int(entry["steps"]) - 1
+		if int(entry["steps"]) <= 0:
+			due.append(entry["box"])
+		else:
+			waiting.append(entry)
+	_refined = waiting
+	for box: AABB in due:
+		_reseat_in(box)
+
+
+## Seats the plants and props in a box on the ground that now stands there: the fine
+## chunk's surface can sit a couple of metres from the coarse one they grew on. A plant
+## whose ground is gone, or farther than RESEAT_LIMIT (a cave mouth, a cliff the coarse
+## ground did not show), is cleared; a prop takes its canopy with it.
+func _reseat_in(box: AABB) -> void:
+	var reach: AABB = box.grow(1.0)
+	var low: Vector2i = _cell_of(reach.position)
+	var high: Vector2i = _cell_of(reach.end)
+	for cell_z: int in range(low.y, high.y + 1):
+		for cell_x: int in range(low.x, high.x + 1):
+			var cell := Vector2i(cell_x, cell_z)
+			for entry: Array in _plant_cells.get(cell, []):
+				_reseat_plant(entry[0] as Patch, int(entry[1]), reach)
+			for prop: Prop in _prop_cells.get(cell, []):
+				_reseat_prop(prop, reach)
+
+
+func _reseat_plant(patch: Patch, index: int, reach: AABB) -> void:
+	if patch.radii[index] < 0.0:
+		return
+	var transform: Transform3D = patch.transforms[index]
+	var anchor: float = patch.anchors[index]
+	if not reach.has_point(Vector3(transform.origin.x, anchor, transform.origin.z)):
+		return
+	var ground: Dictionary = _ground(transform.origin.x, transform.origin.z)
+	if ground.is_empty() or absf(ground.position.y - anchor) > RESEAT_LIMIT:
+		_clear_instance(patch, index)
+		return
+	transform.origin.y += ground.position.y - anchor
+	patch.transforms[index] = transform
+	patch.anchors[index] = ground.position.y
+	patch.multimesh_instance.multimesh.set_instance_transform(index, transform)
+
+
+func _reseat_prop(prop: Prop, reach: AABB) -> void:
+	if prop.node == null or not is_instance_valid(prop.node):
+		return
+	if not reach.has_point(Vector3(prop.position.x, prop.anchor_y, prop.position.z)):
+		return
+	var ground: Dictionary = _ground(prop.position.x, prop.position.z)
+	if ground.is_empty() or absf(ground.position.y - prop.anchor_y) > RESEAT_LIMIT:
+		_remove_prop(prop)
+		return
+	var lift: float = ground.position.y - prop.anchor_y
+	prop.node.global_position.y += lift
+	prop.position.y += lift
+	prop.anchor_y = ground.position.y
+	var canopy: Patch = _patches.get(&"Canopy")
+	if canopy == null:
+		return
+	for index: int in prop.canopy_indices:
+		if canopy.radii[index] < 0.0:
+			continue
+		var transform: Transform3D = canopy.transforms[index]
+		transform.origin.y += lift
+		canopy.transforms[index] = transform
+		canopy.multimesh_instance.multimesh.set_instance_transform(index, transform)
 
 
 # --- Meshes -----------------------------------------------------------------------------------
@@ -918,6 +1097,9 @@ class Patch:
 	var colors: PackedColorArray = PackedColorArray()
 	## Footprint radius per instance; negative once the instance has been cleared.
 	var radii: PackedFloat32Array = PackedFloat32Array()
+	## Height of the ground each instance was seated on; NAN for one that moves with its
+	## prop (a tree's canopy).
+	var anchors: PackedFloat32Array = PackedFloat32Array()
 
 
 ## One tapered branch of a tree or log.
@@ -933,4 +1115,6 @@ class Prop:
 	var node: Node3D
 	var position: Vector3
 	var radius: float
+	## Height of the ground the prop was seated on.
+	var anchor_y: float = 0.0
 	var canopy_indices: PackedInt32Array = PackedInt32Array()

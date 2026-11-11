@@ -16,6 +16,11 @@ signal edit_applied(edit: Dictionary)
 signal build_progress(done: int, total: int)
 ## Every chunk of a rebuild of the whole map stands.
 signal built
+## A fine chunk replaced the coarse ground in this world-space box (the map's build, or
+## the brush on a coarse chunk): whatever was put on the coarse ground there may now
+## stand above or below the fine surface. Its collision is in the physics server a step
+## later.
+signal ground_refined(box: AABB)
 
 const _CHUNK_SCRIPT = preload("res://terrain/terrain_chunk.gd")
 ## Worker threads a full rebuild is split over. GDScript on many threads contends in the
@@ -235,7 +240,7 @@ func _ready() -> void:
 		add_to_group("terrain_world")
 		_register_playable_groups()
 	if rebuild_on_ready and not Engine.is_editor_hint():
-		call_deferred("_begin_ready_build")
+		call_deferred("begin_build")
 
 
 func _process(_delta: float) -> void:
@@ -280,8 +285,8 @@ func rebuild_all_editor() -> void:
 
 
 ## Rebuilds the whole map before returning: every chunk exists after this (the editor, the
-## tests and the terrarium's room rely on that). A map with many chunks takes seconds and no
-## frame is drawn meanwhile; the game's rebuild on ready goes through _begin_ready_build.
+## tests rely on that). A map with many chunks takes seconds and no frame is drawn
+## meanwhile; the game's rebuild on ready goes through begin_build.
 func rebuild_all() -> void:
 	_abandon_world_build()
 	_invalidate_bake_density()
@@ -292,7 +297,7 @@ func rebuild_all() -> void:
 	_rebuild_all_sync(settings, grid_dimensions)
 
 
-## Whether the map's background build (see _begin_ready_build) is still going. The ground
+## Whether the map's background build (see begin_build) is still going. The ground
 ## comes in nearest the build's focus first, so play starts before the map is done: a
 ## spawn waits on is_ground_ready_around, the loading screen on play_ground_ready.
 func is_building() -> bool:
@@ -409,9 +414,12 @@ func _build_settings() -> SettingsSnapshot:
 ## own while the frames keep coming and placed in the scene as it comes in (the loading
 ## screen draws its bar from build_progress). The whole map goes in coarse first
 ## (COARSE_VOXEL), then fine: the surface nearest the player first and the deep chunks
-## last (_sort_world_build_queue). Without threads it builds blocking, as rebuild_all does.
-func _begin_ready_build() -> void:
-	if not use_threaded_rebuild:
+## last (_sort_world_build_queue). What the build on ready runs; a world another node
+## sets up and drives (a terrarium's terrain) calls it once its settings are set, so its
+## ground comes in like any map's. Blocking without threads, as rebuild_all is, and in
+## the editor, where nothing polls the pool.
+func begin_build() -> void:
+	if not _use_threaded_rebuild():
 		rebuild_all()
 		return
 	_abandon_world_build()
@@ -506,13 +514,17 @@ func _poll_world_build() -> void:
 			# The brush got there first, with a later snapshot.
 			continue
 		var coarse_chunk: TerrainChunk = _chunks.get(chunk_coordinate) as TerrainChunk
+		var refined: AABB = AABB()
 		if coarse_chunk != null:
 			remove_child(coarse_chunk)
 			coarse_chunk.queue_free()
-			_lift_pending.append(_get_chunk_world_aabb(chunk_coordinate, job.settings))
+			refined = _get_chunk_world_aabb(chunk_coordinate, job.settings)
+			_lift_pending.append(refined)
 		_build_chunk_at(chunk_coordinate, result, job.settings)
 		_note_standing_chunk(chunk_coordinate)
 		_note_fine_chunk(chunk_coordinate)
+		if refined.has_volume():
+			ground_refined.emit(refined)
 	_fill_world_build()
 	_emit_build_progress()
 	if _world_build_placed < _world_build_total or not _world_build_tasks.is_empty():
@@ -1469,10 +1481,12 @@ func _apply_async_job(async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob) -> vo
 			if _world_building and not _placed_fine.has(chunk_coordinate):
 				# A coarse chunk just turned fine under the brush: whoever stands on it may
 				# now be under its surface.
-				_lift_pending.append(
-					_get_chunk_world_aabb(chunk_coordinate, async_rebuild_job.settings)
+				var refined: AABB = _get_chunk_world_aabb(
+					chunk_coordinate, async_rebuild_job.settings
 				)
+				_lift_pending.append(refined)
 				_note_fine_chunk(chunk_coordinate)
+				ground_refined.emit(refined)
 		if chunk_build_result.field != null:
 			var cached := ChunkMeshBuilder.ChunkCache.new()
 			cached.field = chunk_build_result.field

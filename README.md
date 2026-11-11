@@ -471,6 +471,14 @@ before any chunk stood there, or at a saved spot, a bot walks anywhere, and a bo
 inside coarse rock or over a column with no chunk falls out of the world. A body on a
 coarse chunk is lifted onto the fine surface when it lands, a brush stroke on a coarse
 chunk rebuilds it fine at once, and an edit made at a chunk not yet placed waits for it.
+The terrarium's ground builds the same way: its room spawns the terrain a frame after
+the scene goes in and starts the build (`begin_build`), the loading screen takes the
+terrain in when it appears (`MapInfo.terrain_worlds`), the room forwards the build's
+questions to it for the bodies that hold, and the plants grow on the coarse ground once
+it stands everywhere and follow the fine chunks as they land: a fine chunk reports the
+box it refined (`ground_refined`), and every plant and prop seated in it is probed again
+a physics step later, moved onto the new surface or cleared where that is more than 4 m
+away (a cave mouth the coarse ground did not show).
 The rest of the map keeps building behind the game at about five chunks a second while
 the game runs, so the surface of a 512 m map at 1 m is fine within a minute and its caves
 a couple of minutes later; `tools/smoke_test.tscn` prints the count every five seconds
