@@ -32,7 +32,6 @@ terrarium_chunks_y = 66
 terrarium_surface_layer = 3
 terrarium_surface_height_offset = -8.0
 terrarium_stream_underground = true
-terrarium_build_before_play = true
 terrarium_chunks_z = 32
 terrarium_chunk_size = 16.0
 terrarium_voxel_size = 1.0

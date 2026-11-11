@@ -475,6 +475,15 @@ before any chunk stood there, or at a saved spot, a bot walks anywhere, and a bo
 inside coarse rock or over a column with no chunk falls out of the world. A body on a
 coarse chunk is lifted onto the fine surface when it lands, a brush stroke on a coarse
 chunk rebuilds it fine at once, and an edit made at a chunk not yet placed waits for it.
+Where a fine chunk meets a coarse one their surfaces part by a metre or two at the face
+they share; every chunk hangs a skirt from the edges where its surface meets its faces
+(`ChunkSkirts`), a strip in the face's plane running into the solid side, up to 8 m and
+never past the first air its own samples show (so none hangs into a cave across a seam),
+facing out of the chunk and drawn only, so whichever side stands higher covers the crack.
+Between chunks that meet, the skirts lie inside the rock. They add about a fifth to a
+surface chunk's triangles. A map can instead build every chunk fine before play
+(`build_before_play`, off on the maps): no coarse ground and no cracks, but play begins
+about 55 s in rather than 8.
 The terrarium's ground builds the same way: its room spawns the terrain a frame after
 the scene goes in and starts the build (`begin_build`), the loading screen takes the
 terrain in when it appears (`MapInfo.terrain_worlds`), the room forwards the build's

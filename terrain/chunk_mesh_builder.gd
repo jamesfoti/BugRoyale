@@ -157,6 +157,8 @@ static func build_chunk_into(
 			field, extent, settings.iso_level, grid_offset, grid_world_origin, world_center, density
 		)
 	chunk_build_result.collision_faces = collision_faces(chunk_build_result.mesh_result)
+	# After the collision: the skirts are drawn only.
+	ChunkSkirts.add(chunk_build_result.mesh_result, field, extent, settings.iso_level)
 	if density.caves != null and density.caves.water_top > -INF and not field.sky:
 		chunk_build_result.water_mesh_result = CaveWaterMesher.build(
 			field, density, grid_world_origin, grid_offset, world_step, extent, world_center
