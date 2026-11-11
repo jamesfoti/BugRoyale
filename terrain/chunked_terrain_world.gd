@@ -179,6 +179,12 @@ const STREAM_HOLD_REACH: float = 2.0
 ## map far deeper than anyone sees at once (the maps are a kilometre deep). Off, every chunk
 ## is built with the map.
 @export var stream_underground: bool = false
+## Builds every chunk of the map's build fine before play begins: no coarse pass, and the
+## loading screen and every body wait until the whole map stands, so nothing is played on
+## half-built ground (no cracks where a fine chunk meets a coarse one, nothing lifted onto
+## ground that came in late). The streamed underground still comes in round the bodies. Off,
+## play begins on coarse ground with the fine chunks following nearest the player first.
+@export var build_before_play: bool = false
 
 ## Brush edits are refused outside this box (world space). Zero size: editable anywhere.
 var edit_bounds: AABB = AABB()
@@ -409,6 +415,8 @@ func is_ground_ready_around(
 func play_ground_ready() -> bool:
 	if not _world_building:
 		return true
+	if build_before_play:
+		return false
 	if _coarse_placed < _coarse_total or _play_columns.is_empty():
 		return false
 	return _ground_fine(_play_ground())
@@ -512,7 +520,11 @@ func begin_build() -> void:
 	_lift_pending.clear()
 	_lift_checks.clear()
 	var coarse_cells: int = int(floor(_world_build_settings.chunk_world_size / COARSE_VOXEL))
-	_coarse_pass = _world_build_settings.voxel_size < COARSE_VOXEL and coarse_cells >= 2
+	_coarse_pass = (
+		not build_before_play
+		and _world_build_settings.voxel_size < COARSE_VOXEL
+		and coarse_cells >= 2
+	)
 	_coarse_total = _world_build_total if _coarse_pass else 0
 	_coarse_placed = 0
 	_world_build_started_msec = Time.get_ticks_msec()
@@ -828,6 +840,9 @@ func _chunks_touching(world_position: Vector3, radius: float) -> Array[Vector3i]
 ## ground the focuses asked for (a ring of columns' worth assumed until a focus says).
 func _emit_build_progress() -> void:
 	_play_waiting = _world_building and not play_ground_ready()
+	if build_before_play or _world_build_placed >= _world_build_total:
+		build_progress.emit(mini(_world_build_placed, _world_build_total), _world_build_total)
+		return
 	if _world_build_placed >= _world_build_total:
 		build_progress.emit(_world_build_total, _world_build_total)
 		return

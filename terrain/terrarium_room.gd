@@ -138,6 +138,11 @@ var terrarium_surface_height_offset: float = OpenTerrainPreset.SURFACE_HEIGHT_OF
 	set(value):
 		terrarium_stream_underground = value
 		_request_rebuild()
+## Builds the whole tank fine before play (ChunkedTerrainWorld.build_before_play).
+@export var terrarium_build_before_play: bool = false:
+	set(value):
+		terrarium_build_before_play = value
+		_request_rebuild()
 ## Carves the seeded underworld (tunnels, caverns, sinkholes, bedrock) out of a solid underside.
 @export var terrarium_caves_enabled: bool = false:
 	set(value):
@@ -622,6 +627,7 @@ func _apply_terrarium_terrain_settings(terrain: TerrariumTerrain) -> void:
 	terrain.caves_enabled = terrarium_caves_enabled
 	terrain.surface_layer = terrarium_surface_layer
 	terrain.stream_underground = terrarium_stream_underground
+	terrain.build_before_play = terrarium_build_before_play
 	var material: Material = terrarium_material
 	if material == null and ResourceLoader.exists(DEFAULT_TERRAIN_MATERIAL_PATH):
 		material = load(DEFAULT_TERRAIN_MATERIAL_PATH) as Material
