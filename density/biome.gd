@@ -1,3 +1,4 @@
+@tool
 class_name Biome
 extends Resource
 ## One kind of ground on top or of cave below, as data: its weight against the other kinds in

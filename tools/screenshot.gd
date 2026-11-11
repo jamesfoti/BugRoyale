@@ -105,6 +105,7 @@ class Runner:
 	var _frames_run: int = 0
 	var _frames_waited: int = 0
 	var _done: bool = false
+	var _placed: bool = false
 
 	func _physics_process(_delta: float) -> void:
 		if _done:
@@ -125,7 +126,8 @@ class Runner:
 			_dig()
 		if _frames_run == 30 and not replay_path.is_empty():
 			_replay()
-		if _frames_run == 90 and player_at != Vector3.INF:
+		if _frames_run >= 90 and player_at != Vector3.INF and not _placed and not _spawn_held():
+			_placed = true
 			_place_player()
 		if _frames_run >= frames_to_run:
 			_done = true
@@ -212,6 +214,12 @@ class Runner:
 		print("SCREENSHOT: player placed at %s" % str(player.global_position))
 		if arm != null:
 			_arm = arm
+
+	## Whether the local player's spawn still waits for the ground (GroundPlayer): placed
+	## meanwhile, it would be seated again when the wait ends, on the surface over a cave.
+	func _spawn_held() -> bool:
+		var player: Node = get_tree().get_first_node_in_group("player")
+		return player != null and bool(player.get("_held_for_ground"))
 
 	## What the orbit camera's arm did, for camera bug hunts.
 	func _describe_arm() -> void:

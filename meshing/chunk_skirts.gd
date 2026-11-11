@@ -16,9 +16,15 @@ const LENGTH: float = 2.0 * ChunkedTerrainWorld.COARSE_VOXEL
 
 
 ## Adds skirts to a chunk's mesh (vertices about the chunk's centre), from the field it was
-## meshed from; extent is the chunk's size in metres.
+## meshed from; extent is the chunk's size in metres. outer: the faces that are the map's own
+## edge (bits as below), where no chunk stands beyond to meet and a skirt would hang in the
+## open, facing whoever looks at that edge.
 static func add(
-	mesh: FlyingEdgesMesher.MeshResult, field: SignedDensityField, extent: float, iso: float
+	mesh: FlyingEdgesMesher.MeshResult,
+	field: SignedDensityField,
+	extent: float,
+	iso: float,
+	outer: int = 0
 ) -> void:
 	if mesh.indices.is_empty() or not field.is_valid():
 		return
@@ -45,7 +51,7 @@ static func add(
 	for corner: int in indices.size():
 		var a: int = indices[corner]
 		var b: int = indices[corner - corner % 3 + (corner % 3 + 1) % 3]
-		var shared: int = on_face[a] & on_face[b]
+		var shared: int = on_face[a] & on_face[b] & ~outer
 		if shared == 0:
 			continue
 		for bit: int in 6:
@@ -56,6 +62,18 @@ static func add(
 				continue
 			done[key] = true
 			_hang(mesh, field, a, b, bit, half, step, iso, vertices, normals)
+
+
+## The faces of a chunk that are the map's edge, as add() takes them: a bit for each of -x,
+## +x, -y, +y, -z, +z.
+static func outer_faces(chunk_coordinate: Vector3i, grid: Vector3i) -> int:
+	var faces: int = 0
+	for axis: int in 3:
+		if chunk_coordinate[axis] == 0:
+			faces |= 1 << (axis * 2)
+		if chunk_coordinate[axis] == grid[axis] - 1:
+			faces |= 1 << (axis * 2 + 1)
+	return faces
 
 
 ## Hangs one skirt from the edge a-b on a face (bit: axis * 2, plus 1 on the + side).

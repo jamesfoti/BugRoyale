@@ -198,3 +198,28 @@ func _covered(skirts: Array, point: Vector2) -> bool:
 		if Geometry2D.point_is_inside_triangle(point, a, b, c):
 			return true
 	return false
+
+
+## The map's own edge has no chunk beyond it to meet: a chunk there hangs no skirt on that
+## face (it would hang in the open, facing whoever looks at the edge), only on its others.
+func test_no_skirts_on_the_edge_of_the_map() -> void:
+	var world: OpenTerrain = _world()
+	world.boxed_edges_enabled = false
+	add_child_autofree(world)
+	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	var found: bool = false
+	for chunk_y: int in 3:
+		var result: ChunkMeshBuilder.ChunkBuildResult = ChunkMeshBuilder.build_chunk(
+			Vector3i(0, chunk_y, 1), settings
+		)
+		if result.mesh_result.indices.is_empty():
+			continue
+		found = true
+		var inner: int = 0
+		for skirt: Array in _skirt_triangles(result.mesh_result, 4.0):
+			var face: Vector3 = skirt[3]
+			assert_false(face.x < 0.0, "no skirt on the map's edge")
+			if face.x > 0.0:
+				inner += 1
+		assert_gt(inner, 0, "the face toward the next chunk keeps its skirts")
+	assert_true(found, "the surface crosses the edge column")
