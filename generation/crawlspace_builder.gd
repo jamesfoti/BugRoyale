@@ -34,6 +34,10 @@ const GAS_RADIUS: float = 0.0125
 ## How far under the surface the foundation walls reach: the bottom of the 96 m box the
 ## map had, so a deeper map does not stand them a kilometre into the rock.
 const FOUNDATION_DEPTH: float = 48.0
+## Metres under a small object's base that must be solid ground for it to lie there: the
+## height function knows nothing of what the caves cut open (a sinkhole, a cave mouth), and a
+## dig clears what it leaves over air (_on_brush_applied).
+const GROUND_PROBE: float = 0.5
 
 ## Masonry rolled by the matches so far this session, so the style never repeats more than
 ## twice in a row: a fair coin alone can run the same way four or five matches straight.
@@ -120,6 +124,11 @@ var _rolled: bool = false
 var _pier_boxes: Array[AABB] = []
 ## Z of every main already laid, so the next one keeps its distance.
 var _main_zs: Array = []
+## The small things lying on the dirt, for a dig to clear what it leaves over air: debris
+## as [node, the point on the dirt it rests on], and each mushroom patch as [MultiMesh, its
+## transforms, transform index -> collider].
+var _resting: Array = []
+var _mushroom_patches: Array = []
 ## The ductwork, whose solid volumes (ducts, furnace, piers) debris must keep out of.
 var _network: DuctNetwork
 var _lightning_in: float = 4.0
@@ -194,6 +203,10 @@ func build() -> void:
 		return
 	for child: Node in get_children():
 		child.queue_free()
+	_resting.clear()
+	_mushroom_patches.clear()
+	if not _terrain.brush_applied.is_connected(_on_brush_applied):
+		_terrain.brush_applied.connect(_on_brush_applied)
 	if not _rolled:
 		_roll_layout()
 	var extents: Vector3 = _terrain.get_world_extents()
@@ -1336,6 +1349,7 @@ func _build_debris() -> void:
 		mesh_instance.position = spot - Vector3.UP * size * 0.3
 		mesh_instance.rotation.y = _rng.randf() * TAU
 		debris.add_child(mesh_instance)
+		_resting.append([mesh_instance, spot])
 		if size > 0.9:
 			var body := StaticBody3D.new()
 			body.collision_layer = MapInfo.TERRAIN_LAYER
@@ -1398,7 +1412,13 @@ func _build_mushrooms() -> void:
 			instance.multimesh = multimesh
 			instance.material_override = material
 			root.add_child(instance)
-			patches[key] = {"built": built, "instance": instance, "transforms": [], "colors": []}
+			patches[key] = {
+				"built": built,
+				"instance": instance,
+				"transforms": [],
+				"colors": [],
+				"colliders": {}
+			}
 		var patch: Dictionary = patches[key]
 		var built: Dictionary = patch["built"]
 		var center: Vector3 = _damp_spot()
@@ -1410,7 +1430,7 @@ func _build_mushrooms() -> void:
 				var distance: float = _rng.randf_range(size * 1.5, size * 4.0)
 				spot = center + Vector3(cos(angle) * distance, 0.0, sin(angle) * distance)
 				spot.y = _dirt_height(spot)
-				if not _spot_clear(spot, size * float(built["cap_radius"])):
+				if not _spot_clear(spot, size * float(built["cap_radius"])) or not _on_dirt(spot):
 					continue
 			var basis: Basis = (
 				Basis(Vector3.UP, _rng.randf() * TAU)
@@ -1423,7 +1443,9 @@ func _build_mushrooms() -> void:
 			patch["colors"].append(tint)
 			var cap_radius: float = float(built["cap_radius"]) * size
 			if cap_radius >= 0.75:
-				_mushroom_collider(root, transform, built, basis.get_scale().y)
+				patch["colliders"][patch["transforms"].size() - 1] = _mushroom_collider(
+					root, transform, built, basis.get_scale().y
+				)
 	var total: int = 0
 	for patch: Dictionary in patches.values():
 		var multimesh: MultiMesh = patch["instance"].multimesh
@@ -1432,6 +1454,7 @@ func _build_mushrooms() -> void:
 			multimesh.set_instance_transform(index, patch["transforms"][index])
 			multimesh.set_instance_color(index, patch["colors"][index])
 		total += patch["transforms"].size()
+		_mushroom_patches.append([multimesh, patch["transforms"], patch["colliders"]])
 	print("[Crawlspace] %d mushrooms in %d kinds" % [total, patches.size()])
 
 
@@ -1459,7 +1482,7 @@ func _damp_spot() -> Vector3:
 		else:
 			return _ground_spot(0.03 * _s)
 		spot.y = _dirt_height(spot)
-		if _spot_clear(spot, 0.03 * _s):
+		if _spot_clear(spot, 0.03 * _s) and _on_dirt(spot):
 			return spot
 	return _ground_spot(0.03 * _s)
 
@@ -1467,7 +1490,7 @@ func _damp_spot() -> Vector3:
 ## A cylinder for the stem and a flat one for the cap, so bugs can climb up and stand on top.
 func _mushroom_collider(
 	parent: Node3D, transform: Transform3D, built: Dictionary, size: float
-) -> void:
+) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.name = "MushroomCollider"
 	body.collision_layer = MapInfo.TERRAIN_LAYER
@@ -1490,6 +1513,7 @@ func _mushroom_collider(
 	)
 	body.add_child(cap_shape)
 	parent.add_child(body)
+	return body
 
 
 ## A box lying on the dirt at a random spot and yaw, sometimes tipped on its side. The dirt is
@@ -1552,6 +1576,8 @@ func _tumbled_box(
 	box.basis = basis
 	if collide:
 		(box.get_child(0) as Node3D).basis = Basis.IDENTITY
+	# Measured from the dirt under its middle: a tilted box rests on its high corners.
+	_resting.append([box, spot])
 
 
 func _dirt_height(point: Vector3) -> float:
@@ -1563,13 +1589,57 @@ func _dirt_height(point: Vector3) -> float:
 func _ground_spot(reach: float = 0.0) -> Vector3:
 	var margin: float = _wall + 0.2 * _s
 	var spot: Vector3 = _center
-	for _attempt: int in 24:
+	var on_dirt: Vector3 = Vector3.INF
+	for _attempt: int in 48:
 		var x: float = _center.x + _rng.randf_range(-_half.x + margin, _half.x - margin)
 		var z: float = _center.z + _rng.randf_range(-_half.z + margin, _half.z - margin)
 		spot = Vector3(x, _terrain.get_surface_height_at(Vector3(x, 0.0, z)), z)
+		if not _on_dirt(spot):
+			continue
+		on_dirt = spot
 		if _network == null or _spot_clear(spot, reach):
-			break
-	return spot
+			return spot
+	return on_dirt if on_dirt != Vector3.INF else spot
+
+
+## Whether the dirt under a spot on the surface is solid, not a hole the caves cut.
+func _on_dirt(spot: Vector3) -> bool:
+	return _terrain.is_solid_at(spot + Vector3.DOWN * GROUND_PROBE)
+
+
+## Clears the small things a dig or a blast left over air: debris and mushrooms whose dirt,
+## within the edit's reach, is gone.
+func _on_brush_applied(world_position: Vector3, radius: float) -> void:
+	for resting: Array in _resting:
+		var node: Node3D = resting[0]
+		if node == null or not is_instance_valid(node):
+			continue
+		var base: Vector3 = resting[1]
+		var size: float = 0.0
+		if node is VisualInstance3D:
+			size = ((node as VisualInstance3D).get_aabb().size * node.scale).length()
+		if base.distance_to(world_position) > radius + size * 0.5 + 1.0:
+			continue
+		if not _on_dirt(base):
+			node.queue_free()
+	for drawn: Array in _mushroom_patches:
+		var multimesh: MultiMesh = drawn[0]
+		var transforms: Array = drawn[1]
+		var colliders: Dictionary = drawn[2]
+		for index: int in transforms.size():
+			var transform: Transform3D = transforms[index]
+			if transform.basis.x == Vector3.ZERO:
+				continue
+			if transform.origin.distance_to(world_position) > radius + 1.0:
+				continue
+			if _on_dirt(transform.origin):
+				continue
+			transform = Transform3D(Basis.from_scale(Vector3.ZERO), transform.origin)
+			transforms[index] = transform
+			multimesh.set_instance_transform(index, transform)
+			var collider: Node = colliders.get(index)
+			if collider != null and is_instance_valid(collider):
+				collider.queue_free()
 
 
 ## A random spot on the dirt where a box `half_along` long (along `along`) and `half_across`
@@ -1581,6 +1651,8 @@ func _ground_spot_along(along: Vector3, half_along: float, half_across: float) -
 		var x: float = _center.x + _rng.randf_range(-_half.x + margin, _half.x - margin)
 		var z: float = _center.z + _rng.randf_range(-_half.z + margin, _half.z - margin)
 		spot = Vector3(x, _terrain.get_surface_height_at(Vector3(x, 0.0, z)), z)
+		if not _on_dirt(spot):
+			continue
 		if _network == null or _span_clear(spot, along, half_along, half_across):
 			return spot
 	# No room found: the caller leaves this piece out rather than jamming it into something.

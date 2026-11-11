@@ -543,7 +543,10 @@ func _is_terrain_collider(collider: Variant) -> bool:
 
 
 ## Random spawn on a surface node that provides get_world_extents() and get_surface_height_at():
-## raycasts down at a random spot, falling back to the surface height function.
+## raycasts down at a random spot, falling back to the surface height function. The probe is
+## laid about the surface's height there, not the node's: on a deep map the node's centre is
+## hundreds of metres underground, and a probe about it finds nothing, so a body put inside
+## a raised bed baked into the map stayed in it and fell through.
 func _raycast_spawn_over(surface: Node3D, at: Vector3 = Vector3.INF) -> Dictionary:
 	var spawn_data: Dictionary = {
 		"position": Vector3(0.0, spawn_clearance, 0.0), "from_raycast_hit": false
@@ -559,12 +562,12 @@ func _raycast_spawn_over(surface: Node3D, at: Vector3 = Vector3.INF) -> Dictiona
 			randf_range(-world_extents.z * 0.4, world_extents.z * 0.4)
 		)
 		column = surface.global_position + random_offset
+	column.y = surface.get_surface_height_at(column)
 	var raycast_hit: Dictionary = _cast(
 		column + Vector3.UP * _SPAWN_RAY_HEIGHT, column - Vector3.UP * _SPAWN_RAY_HEIGHT
 	)
 	if raycast_hit.is_empty() or not _is_terrain_collider(raycast_hit.get("collider")):
-		var fallback_height: float = surface.get_surface_height_at(column)
-		spawn_data.position = Vector3(column.x, fallback_height + spawn_clearance, column.z)
+		spawn_data.position = Vector3(column.x, column.y + spawn_clearance, column.z)
 		return spawn_data
 	spawn_data.position = raycast_hit.position + Vector3.UP * spawn_clearance
 	spawn_data.from_raycast_hit = true

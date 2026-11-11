@@ -21,6 +21,10 @@ signal built
 ## stand above or below the fine surface. Its collision is in the physics server a step
 ## later.
 signal ground_refined(box: AABB)
+## A chunk was rebuilt after an edit (a dig, a blast, a saved world's edits) and its new mesh
+## and collision are in, in this world-space box; whatever rested on it may want to look
+## again (the collision is in the physics server a step later).
+signal chunk_rebuilt(box: AABB)
 
 const _CHUNK_SCRIPT = preload("res://terrain/terrain_chunk.gd")
 ## Worker threads a full rebuild is split over. GDScript on many threads contends in the
@@ -1882,6 +1886,7 @@ func _apply_async_job(async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob) -> vo
 			continue
 		if not async_rebuild_job.prepare_only:
 			chunk.apply_build_result(chunk_build_result, generate_collision)
+			chunk_rebuilt.emit(_get_chunk_world_aabb(chunk_coordinate, async_rebuild_job.settings))
 			if _effective_material() != null:
 				chunk.material_override = _effective_material()
 			if (

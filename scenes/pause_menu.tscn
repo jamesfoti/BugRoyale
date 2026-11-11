@@ -67,7 +67,7 @@ text = "Stuck?"
 [node name="ReportButton" type="Button" parent="Panel/Margin/MainMenu"]
 layout_mode = 2
 tooltip_text = "Saves a screenshot, the match's seed and state, and the log to a folder you can send."
-text = "Report a bug (F9)"
+text = "Report a bug"
 
 [node name="SettingsButton" type="Button" parent="Panel/Margin/MainMenu"]
 layout_mode = 2
