@@ -18,7 +18,7 @@ Play
 
 - **Bugs:** Ant Warrior, Termite Soldier, Wasp (flies), Trapdoor Spider.
 - **Maps:** Backyard Garden, Crawlspace, Terrarium. All three are the same size (512 m
-  across, 96 m deep, dug at 1 m voxels in 16 m chunks), and every match's seed carves a new underworld into them
+  across, a kilometre deep, dug at 1 m voxels in 16 m chunks), and every match's seed carves a new underworld into them
   (CaveCarver): worm tunnels from a few metres down, caverns from twenty, a few sinkholes
   open to the sky, on half the seeds ravines cut into the surface with leaning walls, and
   bedrock at the bottom; over the noise, regions of riddled and solid rock, depth bands
@@ -421,9 +421,9 @@ across), amplitude 0 to 40 m, one to five octaves, gain 0.3 to 0.65 (smooth swel
 craggy detail), lacunarity 1.8 to 2.6, and the surface offset 8 m either way. Frequency
 and amplitude set the slope together: 12 m on 200 m hills is a 20 degree roll, 36 m a 45
 degree mountainside, and past that at 2 m voxels the shape goes blocky, so raise one and
-lower the other. The surface sits at the box's centre and nothing is built above the top
-chunk, so amplitude plus offset must stay under half the box height (48 m on the maps) or
-the peaks come out flat-topped. Code may still set any value; the ranges bind the
+lower the other. Nothing is built above the top chunk, so amplitude plus offset must stay
+under the sky over the surface (half the box in the lab, where the surface sits at its
+centre; 48 m on the maps, Surface Layer 3 less 8 m) or the peaks come out flat-topped. Code may still set any value; the ranges bind the
 sliders, not the setters.
 
 Terraces are a seeded feature of every open terrain, under **Terraces** on the
@@ -488,6 +488,24 @@ warm one's in about 40 instead of 60, with the worst frame halved; the build its
 tenth longer for the chunk count. The chunks a box touches are read off the grid
 (`_get_chunk_coordinates_intersecting_aabb`), since a test of every chunk's box costs
 6 ms a call at that count and the brush asks every frame.
+
+The maps are a kilometre deep: 66 chunk layers, the surface on the seam 48 m under the
+top (Surface Layer 3, Surface Height Offset -8) and bedrock a kilometre under it. Their
+build makes only the band down to 32 m under the lowest surface of each column
+(`STREAM_MARGIN`), everything a body on the surface sees into, about the 6,000 chunks the
+96 m maps had; the chunks below are streamed (`stream_underground`). Every few physics
+frames the world looks where the bodies are: the streamed chunks within 48 m of the local
+player (what it sees in a cave) and 16 m of any other body are built, fine straight away,
+nearest first, and those more than 16 m beyond that are freed. Edits live apart from the
+chunks, so a dug tunnel comes back as it was left. Until play can begin a streamed chunk
+gets a pool place only when it lies within 8 m of a body; after, they go before the map's
+own fine chunks. A body about to walk or fall into streamed ground not built yet stops
+where it is, its velocity kept, until it is (`hold_for_ground`): dropped down a 150 m
+shaft, the player held under a second in all and landed alive at the bottom. The builders
+stand their structures on the surface's datum (`get_surface_datum_y`), the crawlspace's
+foundation walls reach 48 m under it as before, and the terrarium's pool keeps its height
+and depth under the surface (`TerrariumWater.POOL_REFERENCE_HEIGHT`), so the deep caves are
+dry. Saved worlds of the 96 m maps do not load (WorldSave version 3).
 The rest of the map keeps building behind the game at about five chunks a second while
 the game runs, so the surface of a 512 m map at 1 m is fine within a minute and its caves
 a couple of minutes later; `tools/smoke_test.tscn` prints the count every five seconds

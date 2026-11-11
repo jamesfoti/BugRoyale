@@ -9,6 +9,10 @@ const SPLASH_PARTICLE_MATERIAL_PATH: String = "res://materials/water_splash_part
 const MIN_WATER_LEVEL_RATIO: float = 0.05
 const MAX_WATER_LEVEL_RATIO: float = 0.6
 const DEFAULT_WATER_LEVEL_RATIO: float = 0.18
+## The pool is laid out as in a tank this tall centred on the surface (the tank the
+## terrarium had): its level is the ratio of this above its floor. A deeper tank keeps it so
+## under the surface, rather than flooding everything below some share of its height.
+const POOL_REFERENCE_HEIGHT: float = 96.0
 const SURFACE_INSET: float = 0.04
 const SPLASH_MIN_SPEED: float = 0.35
 const SPLASH_COOLDOWN_SEC: float = 0.3
@@ -70,6 +74,11 @@ func _physics_process(_delta: float) -> void:
 
 func get_water_surface_y() -> float:
 	return global_position.y + _water_level_y
+
+
+## Whether a height is in the pool: under its level and above its floor.
+func covers_height(y: float) -> bool:
+	return y < get_water_surface_y() and y >= global_position.y
 
 
 func _configure(world_size: Vector3, water_level_ratio: float) -> void:

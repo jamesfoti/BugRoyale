@@ -31,6 +31,9 @@ const ROCK_COLOR := Color(0.36, 0.34, 0.32)
 const DRAIN_RADIUS: float = 0.05
 const PEX_RADIUS: float = 0.01
 const GAS_RADIUS: float = 0.0125
+## How far under the surface the foundation walls reach: the bottom of the 96 m box the
+## map had, so a deeper map does not stand them a kilometre into the rock.
+const FOUNDATION_DEPTH: float = 48.0
 
 ## Masonry rolled by the matches so far this session, so the style never repeats more than
 ## twice in a row: a fair coin alone can run the same way four or five matches straight.
@@ -260,6 +263,7 @@ func _roll_layout() -> void:
 		_clearance = _rng.randf_range(0.8, 1.0)
 	var extents: Vector3 = _terrain.get_world_extents()
 	_center = _terrain.global_position
+	_center.y = _terrain.get_surface_datum_y()
 	_half = extents * 0.5
 	_ceiling = _center.y + _clearance * _s
 	# The pier grid: a row under each beam, a pier every _pier_spacing along it.
@@ -642,7 +646,9 @@ func _build_foundation_walls(extents: Vector3) -> void:
 	var foundation := Node3D.new()
 	foundation.name = "Foundation"
 	add_child(foundation)
-	var bottom: float = _center.y - _half.y + 0.5
+	var bottom: float = (
+		maxf(_terrain.global_position.y - _half.y, _center.y - FOUNDATION_DEPTH) + 0.5
+	)
 	# The wall stops under a sill plate; the joists bear on that.
 	var wall_top: float = _ceiling - _joist_depth - sill_thickness * _s
 	# Vents sit just under the sill, above grade.

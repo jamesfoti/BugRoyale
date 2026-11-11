@@ -80,7 +80,7 @@ func _is_head_underwater() -> bool:
 		_water = get_tree().get_first_node_in_group(WATER_GROUP) as TerrariumWater
 		if _water == null:
 			return false
-	return _body.global_position.y + head_height < _water.get_water_surface_y()
+	return _water.covers_height(_body.global_position.y + head_height)
 
 
 func _reset() -> void:

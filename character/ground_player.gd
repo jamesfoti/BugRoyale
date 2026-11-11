@@ -662,9 +662,11 @@ func _hold_for_ground(spot: Vector3, primary_focus: bool = false) -> void:
 	_held_for_ground = false
 	if terrain == null or not terrain.has_method("is_ground_ready_around"):
 		return
-	if not terrain.has_method("is_building") or not terrain.call("is_building"):
+	if terrain.has_method("is_building") and terrain.call("is_building"):
+		terrain.call("focus_build_at", spot, GROUND_WAIT_RADIUS, primary_focus)
+	elif _ground_stands(spot):
+		# Built, and (on a map that streams its underground) the chunks there stand.
 		return
-	terrain.call("focus_build_at", spot, GROUND_WAIT_RADIUS, primary_focus)
 	var hold: int = _ground_hold
 	_held_for_ground = true
 	while is_inside_tree() and not _ground_stands(spot):
@@ -673,6 +675,25 @@ func _hold_for_ground(spot: Vector3, primary_focus: bool = false) -> void:
 			return
 	_held_for_ground = false
 	_settle_on_ground()
+
+
+## Stops the body where it is, its velocity kept, until the streamed ground under it is
+## built (ChunkedTerrainWorld.streamed_ground_missing_under: it walked or fell into reach
+## of chunks under the surface band that no body had near it), then lets it go on as it
+## was. A respawn or a placement meanwhile takes over.
+func hold_for_ground() -> void:
+	if _held_for_ground or terrain == null:
+		return
+	if not terrain.has_method("streamed_ground_missing_under"):
+		return
+	_ground_hold += 1
+	var hold: int = _ground_hold
+	_held_for_ground = true
+	while is_inside_tree() and terrain.call("streamed_ground_missing_under", self):
+		await get_tree().physics_frame
+		if hold != _ground_hold:
+			return
+	_held_for_ground = false
 
 
 ## Whether a held body may move: the whole map stands, coarse or fine, and the ground

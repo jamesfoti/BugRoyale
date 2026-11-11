@@ -198,6 +198,7 @@ func _fill_beds() -> void:
 	_terrain = terrain
 	_s = structure_scale
 	_center = terrain.global_position
+	_center.y = terrain.get_surface_datum_y()
 	_half = terrain.get_world_extents() * 0.5
 	var solids: Array[Dictionary] = []
 	var footings: Array[Dictionary] = []
@@ -314,6 +315,7 @@ func build() -> void:
 	_s = structure_scale
 	var extents: Vector3 = _terrain.get_world_extents()
 	_center = _terrain.global_position
+	_center.y = _terrain.get_surface_datum_y()
 	_half = extents * 0.5
 	_plantings.clear()
 	_footprints.clear()

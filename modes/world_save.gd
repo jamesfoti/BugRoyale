@@ -7,7 +7,7 @@ extends RefCounted
 ## (FileAccess.store_var, objects refused), small enough to read for its summary line.
 
 const DIRECTORY: String = "user://worlds"
-const VERSION: int = 2
+const VERSION: int = 3
 
 ## Off, nothing is written or read: headless smoke runs must not touch the player's worlds.
 static var enabled: bool = true

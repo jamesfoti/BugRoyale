@@ -742,3 +742,93 @@ func test_play_waits_for_the_chunks_round_a_body_below_the_surface_band() -> voi
 			counted = true
 	assert_true(counted, "progress counted the band and the chunks round the spot")
 	await get_tree().process_frame
+
+
+## A world that streams its underground builds only the band down to STREAM_MARGIN under
+## the surface; the chunks below come in round a body there and go when it leaves, and
+## one built after an edit was made there while nobody was near carries the edit.
+func test_the_underground_streams_round_the_bodies() -> void:
+	var world: OpenTerrain = _streaming_world()
+	add_child_autofree(world)
+	await get_tree().process_frame
+	assert_true(world.is_building())
+	var frames: int = 0
+	while world.is_building() and frames < 900:
+		await get_tree().process_frame
+		frames += 1
+	assert_false(world.is_building(), "the band built")
+	var grid: Vector3i = world._get_grid_dimensions()
+	var streamed: int = 0
+	for chunk_z: int in grid.z:
+		for chunk_y: int in grid.y:
+			for chunk_x: int in grid.x:
+				if world._is_streamed(Vector3i(chunk_x, chunk_y, chunk_z)):
+					streamed += 1
+	assert_gt(streamed, grid.x * grid.z, "more than a layer is streamed")
+	assert_eq(world.get_chunk_count(), grid.x * grid.y * grid.z - streamed, "the band alone")
+	var corner: Vector3 = world._grid_corner()
+	var deep: Vector3 = corner + Vector3(12.0, 10.0, 12.0)
+	var far: Vector3 = corner + Vector3(grid.x * 8.0 - 4.0, 6.0, grid.z * 8.0 - 4.0)
+	assert_true(world._is_streamed(world._chunks_touching(deep, 0.0)[0]), "the spot is streamed")
+	assert_false(world.is_ground_ready_around(deep, 2.0, true), "nothing there yet")
+	# A hole dug far off while nobody is near: no chunk there to rebuild.
+	world.apply_brush(far, 3.0, false)
+	assert_true(world._pending_rebuild_chunk_coordinates.is_empty(), "no rebuild queued")
+	var body := Node3D.new()
+	body.add_to_group("fighter")
+	add_child_autofree(body)
+	body.global_position = deep
+	assert_true(
+		await _wait_for(func() -> bool: return world.is_ground_ready_around(deep, 2.0, true))
+	)
+	assert_false(world.streamed_ground_missing_under(body), "the ground under it stands")
+	var round_body: Array[Vector3i] = []
+	for chunk_coordinate: Vector3i in world._chunks_touching(deep, 2.0):
+		if world._is_streamed(chunk_coordinate):
+			round_body.append(chunk_coordinate)
+	assert_false(round_body.is_empty())
+	body.global_position = far
+	assert_true(
+		await _wait_for(func() -> bool: return world.is_ground_ready_around(far, 2.0, true))
+	)
+	var freed: Callable = func() -> bool:
+		for chunk_coordinate: Vector3i in round_body:
+			if world._chunks.has(chunk_coordinate):
+				return false
+		return true
+	assert_true(await _wait_for(freed), "freed once the body left")
+	var plain: OpenTerrain = _streaming_world()
+	plain.rebuild_on_ready = false
+	add_child_autofree(plain)
+	plain.rebuild_all()
+	var plain_body := Node3D.new()
+	plain_body.add_to_group("fighter")
+	add_child_autofree(plain_body)
+	plain_body.global_position = far
+	assert_true(
+		await _wait_for(func() -> bool: return plain.is_ground_ready_around(far, 2.0, true))
+	)
+	assert_true(_faces_at(world, far) != _faces_at(plain, far), "the hole is in the chunk")
+	await get_tree().process_frame
+
+
+func _streaming_world() -> OpenTerrain:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.chunks_x = 8
+	world.chunks_y = 14
+	world.chunks_z = 8
+	world.chunk_size = 8.0
+	world.voxel_size = 4.0
+	world.solid_underside = true
+	world.surface_layer = 2
+	world.stream_underground = true
+	return world
+
+
+## Waits up to five seconds of physics frames for a condition.
+func _wait_for(condition: Callable) -> bool:
+	for _frame: int in 300:
+		if condition.call():
+			return true
+		await get_tree().physics_frame
+	return bool(condition.call())

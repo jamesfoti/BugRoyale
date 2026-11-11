@@ -149,7 +149,13 @@ static func _build_at(
 		result.terrain = terrain
 
 	if spawn_water:
-		var water: TerrariumWater = TerrariumWater.create(grid_config.world_size, water_level_ratio)
+		# Laid out as in the tank the terrarium had; TerrariumRoom puts it under the surface.
+		var pool_size := Vector3(
+			grid_config.world_size.x,
+			minf(grid_config.world_size.y, TerrariumWater.POOL_REFERENCE_HEIGHT),
+			grid_config.world_size.z
+		)
+		var water: TerrariumWater = TerrariumWater.create(pool_size, water_level_ratio)
 		root.add_child(water)
 		result.water = water
 	result.root = root

@@ -177,7 +177,11 @@ func side_of(position: Vector3) -> float:
 func random_surface_point(
 	clearance: float = 1.2, side: float = 0.0, min_height: float = -INF
 ) -> Vector3:
-	var best: Vector3 = center() + up_at(center()) * clearance
+	# The middle of a deep map is underground: the ground under it, if all else fails.
+	var middle: Dictionary = ground_hit(center())
+	var best: Vector3 = (
+		(middle.position if not middle.is_empty() else center()) + up_at(center()) * clearance
+	)
 	for attempt: int in _SPAWN_TRIES:
 		var margin: float = 0.12
 		var x_min: float = lerpf(bounds.position.x, bounds.end.x, margin)
@@ -228,12 +232,13 @@ func ground_point_near(
 ## is a real miss) or when the map cannot say.
 func _unbuilt_ground(column: Vector3) -> Dictionary:
 	var terrain: ChunkedTerrainWorld = editable_terrain()
-	if terrain == null or terrain.is_ground_ready_around(column):
-		return {}
-	if world == null or not world.has_method("get_surface_height_at"):
+	if terrain == null or world == null or not world.has_method("get_surface_height_at"):
 		return {}
 	var height: float = float(world.call("get_surface_height_at", column))
-	return {"position": Vector3(column.x, height, column.z)}
+	var ground := Vector3(column.x, height, column.z)
+	if terrain.is_ground_ready_around(ground):
+		return {}
+	return {"position": ground}
 
 
 ## Heights above the ground flyers keep to (hornets): low under the
@@ -269,7 +274,7 @@ func water_surface_y() -> float:
 
 ## True when a point is below the water surface (always false off the terrarium).
 func is_underwater(position: Vector3) -> bool:
-	return water != null and position.y < water.get_water_surface_y()
+	return water != null and water.covers_height(position.y)
 
 
 ## Keeps a flying point inside the playable box (terrarium glass, battlefield edges).

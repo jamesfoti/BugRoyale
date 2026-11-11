@@ -3,7 +3,7 @@ extends RefCounted
 ## Derives terrarium terrain and glass box dimensions from chunk grid settings.
 
 const MIN_CHUNKS_PER_AXIS: int = 1
-const MAX_CHUNKS_PER_AXIS: int = 32
+const MAX_CHUNKS_PER_AXIS: int = 128
 const MIN_CHUNK_SIZE: float = 1.0
 const MAX_CHUNK_SIZE: float = 64.0
 const MIN_VOXEL_SIZE: float = 0.25

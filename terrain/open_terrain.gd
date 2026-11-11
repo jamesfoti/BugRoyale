@@ -75,7 +75,7 @@ const CAVE_FIELDS: Dictionary = {
 	set(value):
 		chunks_x = maxi(value, 1)
 		_request_rebuild()
-@export_range(1, 32, 1) var chunks_y: int = 3:
+@export_range(1, 128, 1) var chunks_y: int = 3:
 	set(value):
 		chunks_y = maxi(value, 1)
 		_request_rebuild()
@@ -191,8 +191,8 @@ const CAVE_FIELDS: Dictionary = {
 	set(value):
 		roll_frequency = value
 		_request_rebuild()
-## Amplitude in metres, least and most. The surface sits at the box's centre and nothing
-## is built above the top chunk, so keep the most under half the box height.
+## Amplitude in metres, least and most. Nothing is built above the top chunk, so keep the
+## most under the sky over the surface.
 @export var roll_amplitude: Vector2 = Vector2(8.0, 40.0):
 	set(value):
 		roll_amplitude = value
@@ -604,6 +604,24 @@ func _get_world_log_name() -> String:
 	return "OpenTerrain"
 
 
+## The height the surface is laid about: in the middle of Surface Layer, counted from the
+## top, or the box's centre, moved by Surface Height Offset.
+func get_surface_datum_y() -> float:
+	return (
+		global_position.y
+		+ surface_height_offset
+		+ surface_layer_offset(get_world_extents().y * 0.5, chunk_size)
+	)
+
+
+## Metres from the box's centre up to the middle of the chosen layer, counted from the top
+## (0 for Surface Layer 0: the surface at the box's centre).
+func surface_layer_offset(half_height: float, chunk_extent: float) -> float:
+	if surface_layer <= 0:
+		return 0.0
+	return half_height - (float(surface_layer) - 0.5) * chunk_extent
+
+
 func get_surface_height_at(world_position: Vector3) -> float:
 	var density: DensitySampler.WorldDensity = _get_bake_density()
 	if density.open_terrain_enabled:
@@ -617,12 +635,10 @@ func _apply_world_specific_settings(settings: ChunkedTerrainWorld.SettingsSnapsh
 	settings.open_terrain_edges_enabled = boxed_edges_enabled
 	settings.open_terrain_solid_fill = solid_underside
 	settings.open_terrain_heightmap_image = _duplicate_heightmap_image()
-	settings.open_terrain_surface_offset = surface_height_offset
-	if surface_layer > 0:
-		# From the box's centre up to the middle of the chosen layer, counted from the top.
-		settings.open_terrain_surface_offset += (
-			settings.bounds_half.y - (float(surface_layer) - 0.5) * settings.chunk_world_size
-		)
+	settings.open_terrain_surface_offset = (
+		surface_height_offset
+		+ surface_layer_offset(settings.bounds_half.y, settings.chunk_world_size)
+	)
 	settings.open_terrain_terraces = terraces
 	settings.open_terrain_terrace_chance = terrace_chance
 	settings.open_terrain_terrace_step = terrace_step

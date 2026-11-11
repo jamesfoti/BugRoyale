@@ -74,15 +74,15 @@ const DEFAULT_TERRAIN_MATERIAL_PATH: String = "res://materials/terrarium_ground.
 		_request_rebuild()
 
 @export_subgroup("Grid")
-@export_range(1, 32, 1) var terrarium_chunks_x: int = 1:
+@export_range(1, 128, 1) var terrarium_chunks_x: int = 1:
 	set(value):
 		terrarium_chunks_x = maxi(value, 1)
 		_request_rebuild()
-@export_range(1, 32, 1) var terrarium_chunks_y: int = 1:
+@export_range(1, 128, 1) var terrarium_chunks_y: int = 1:
 	set(value):
 		terrarium_chunks_y = maxi(value, 1)
 		_request_rebuild()
-@export_range(1, 32, 1) var terrarium_chunks_z: int = 1:
+@export_range(1, 128, 1) var terrarium_chunks_z: int = 1:
 	set(value):
 		terrarium_chunks_z = maxi(value, 1)
 		_request_rebuild()
@@ -125,6 +125,18 @@ var terrarium_surface_height_offset: float = OpenTerrainPreset.SURFACE_HEIGHT_OF
 @export var terrarium_solid_underside: bool = false:
 	set(value):
 		terrarium_solid_underside = value
+		_request_rebuild()
+## Which chunk layer from the top the surface sits in (OpenTerrain.surface_layer): 0 the
+## box's centre; on a deep tank, near the top, with the ground below.
+@export_range(0, 32, 1) var terrarium_surface_layer: int = 0:
+	set(value):
+		terrarium_surface_layer = maxi(value, 0)
+		_request_rebuild()
+## Streams the chunks under the surface band round the bodies (ChunkedTerrainWorld
+## .stream_underground), for a tank far deeper than anyone sees at once.
+@export var terrarium_stream_underground: bool = false:
+	set(value):
+		terrarium_stream_underground = value
 		_request_rebuild()
 ## Carves the seeded underworld (tunnels, caverns, sinkholes, bedrock) out of a solid underside.
 @export var terrarium_caves_enabled: bool = false:
@@ -258,6 +270,11 @@ func is_ground_ready_around(
 func ground_stands_everywhere() -> bool:
 	var playable: TerrariumTerrain = get_playable_terrain()
 	return playable == null or playable.ground_stands_everywhere()
+
+
+func streamed_ground_missing_under(body: Node3D) -> bool:
+	var playable: TerrariumTerrain = get_playable_terrain()
+	return playable != null and playable.streamed_ground_missing_under(body)
 
 
 func get_spawn_position(spawn_clearance: float = 1.2) -> Vector3:
@@ -478,6 +495,7 @@ func _spawn_glass_or_terrarium(placements: Array[InteriorRoomFurniture.Placement
 		add_child(_glass_box_root)
 		if _terrarium_terrain != null:
 			_apply_terrarium_terrain_settings(_terrarium_terrain)
+			_seat_water(_terrarium_terrain)
 		_refresh_glass_box_visuals(_glass_box_root)
 		_register_generated_node(_glass_box_root)
 		if _terrarium_terrain != null:
@@ -602,11 +620,29 @@ func _apply_terrarium_terrain_settings(terrain: TerrariumTerrain) -> void:
 	terrain.boxed_edges_enabled = terrarium_boxed_edges_enabled
 	terrain.solid_underside = terrarium_solid_underside
 	terrain.caves_enabled = terrarium_caves_enabled
+	terrain.surface_layer = terrarium_surface_layer
+	terrain.stream_underground = terrarium_stream_underground
 	var material: Material = terrarium_material
 	if material == null and ResourceLoader.exists(DEFAULT_TERRAIN_MATERIAL_PATH):
 		material = load(DEFAULT_TERRAIN_MATERIAL_PATH) as Material
 	if material != null:
 		terrain.terrain_material = material
+
+
+## Puts the pool where it was in the tank the terrarium had (TerrariumWater
+## .POOL_REFERENCE_HEIGHT), measured from the surface: in a deep tank its level and its
+## floor keep their height under the surface, so the deep caves are dry.
+func _seat_water(terrain: TerrariumTerrain) -> void:
+	if _terrarium_water == null:
+		return
+	var extents: Vector3 = terrain.get_world_extents()
+	var datum: float = (
+		terrain.position.y
+		+ terrain.surface_height_offset
+		+ terrain.surface_layer_offset(extents.y * 0.5, terrain.chunk_size)
+	)
+	var height: float = minf(extents.y, TerrariumWater.POOL_REFERENCE_HEIGHT)
+	_terrarium_water.position.y = datum - height * 0.5
 
 
 func _ensure_export_defaults() -> void:
