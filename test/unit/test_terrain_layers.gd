@@ -554,6 +554,8 @@ func test_the_fine_pass_lays_the_surface_of_the_whole_map_before_the_caves() -> 
 	var corner: Vector3 = world.global_position - extents * 0.5 + Vector3(1.0, 0.0, 1.0)
 	await get_tree().process_frame
 	assert_true(world.is_building())
+	# The player spawns on the surface, so the chunk it stands in is one of the band's.
+	corner.y = world.get_surface_height_at(corner) + 1.0
 	# The surface lies about halfway up the 56 m box: the two layers topping out 8 m and
 	# 16 m up it are deep, the one topping out 24 m up is not.
 	assert_eq(world._deep.size(), 2 * 16, "two layers of deep chunks")
@@ -621,4 +623,75 @@ func test_the_fine_pass_lays_the_surface_of_the_whole_map_before_the_caves() -> 
 			counted_the_band = true
 	assert_true(counted_the_band, "progress counted the ring's surface band, five a column")
 	assert_eq(world._placed_fine.size(), 4 * 7 * 4, "every chunk fine at the end")
+	await get_tree().process_frame
+
+
+## Play waits for the chunks a body stands in, chunk by chunk, not only the surface band:
+## a focus below the band (a saved spot underground) makes its cave chunks ground play
+## waits for, first in the queue with the band; a body there is held until they and the
+## band over them are fine, and until a rebuild queued for one of them (a saved world's
+## edits) has landed; and the progress counts them with the band.
+func test_play_waits_for_the_chunks_round_a_body_below_the_surface_band() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.chunks_x = 4
+	world.chunks_y = 7
+	world.chunks_z = 4
+	world.chunk_size = 8.0
+	world.voxel_size = 4.0
+	var reports: Array[Vector2i] = []
+	world.build_progress.connect(
+		func(done: int, total: int) -> void: reports.append(Vector2i(done, total))
+	)
+	add_child_autofree(world)
+	await get_tree().process_frame
+	assert_true(world.is_building())
+	# A spot in the middle of column (1, 1), 9 m up the 56 m box: in the second layer from
+	# the bottom, a deep one, with six metres' reach into the bottom layer under it.
+	var cave: Vector3 = world.global_position + Vector3(-4.0, -19.0, -4.0)
+	var reach: float = 6.0
+	assert_true(world._deep.has(Vector3i(1, 1, 1)), "the spot's chunk is deep")
+	world.focus_build_at(cave, reach)
+	assert_eq(world._play_columns.size(), 9, "the columns within reach")
+	assert_eq(world._play_chunks.size(), 18, "the two deep layers of those columns")
+	for chunk_coordinate: Vector3i in world._play_chunks:
+		assert_true(world._deep.has(chunk_coordinate), "the chunks round the spot are deep")
+		assert_eq(world._build_group(chunk_coordinate), 0, "and come first, with the band")
+	for chunk_coordinate: Vector3i in world._deep:
+		if not world._play_chunks.has(chunk_coordinate):
+			assert_gt(world._build_group(chunk_coordinate), 1, "the other deep chunks wait")
+	var ground: Dictionary = world._ground_round(cave, reach)
+	assert_eq(ground.size(), 9 * 5 + 18, "the band of nine columns and the chunks round it")
+	var ready_at: Array[Vector3i] = []
+	var play_at: Array[Vector3i] = []
+	var held_for_rebuild: bool = false
+	var released_again: bool = false
+	var frames: int = 0
+	while world.is_building() and frames < 600:
+		if ready_at.is_empty() and world.is_ground_ready_around(cave, reach, true):
+			ready_at.assign(world._placed_fine.keys())
+			# A saved world's edits: a rebuild queued for a chunk the body stands in holds it.
+			world._queue_chunk_rebuild(Vector3i(1, 1, 1), AABB())
+			held_for_rebuild = not world.is_ground_ready_around(cave, reach, true)
+			world._dispatch_pending_rebuilds()
+		elif not ready_at.is_empty() and not released_again:
+			released_again = world.is_ground_ready_around(cave, reach, true)
+		if play_at.is_empty() and world.play_ground_ready():
+			play_at.assign(world._placed_fine.keys())
+		await get_tree().process_frame
+		frames += 1
+	assert_false(world.is_building())
+	assert_false(ready_at.is_empty(), "the ground round the spot was fine before the map was done")
+	assert_lt(ready_at.size(), 4 * 7 * 4, "well before")
+	for chunk_coordinate: Vector3i in ground:
+		assert_true(ready_at.has(chunk_coordinate), "every chunk round the spot was fine by then")
+	assert_true(held_for_rebuild, "a rebuild queued for a chunk round the spot held the body")
+	assert_true(released_again, "and let it go once the rebuild landed")
+	assert_false(play_at.is_empty(), "play began before the map was done")
+	for chunk_coordinate: Vector3i in ground:
+		assert_true(play_at.has(chunk_coordinate), "play waited for the same ground")
+	var counted: bool = false
+	for report: Vector2i in reports:
+		if report.y == 9 * 5 + 18:
+			counted = true
+	assert_true(counted, "progress counted the band and the chunks round the spot")
 	await get_tree().process_frame

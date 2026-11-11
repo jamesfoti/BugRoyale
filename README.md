@@ -455,11 +455,19 @@ dig, so the ground in view is fine three times sooner this way; a chunk is deep 
 top lies 8 m under the lowest surface of its column. Every fighter's placement is a focus
 of the build (`focus_build_at`); the local player's is the primary one the order is
 measured from, and a respawn moves it. The loading screen leaves once the map is coarse
-everywhere and the surface round the player's spawn is fine (`play_ground_ready`), about
-five seconds in. A body placed while the map builds holds still, no physics, until the
-whole map stands and the surface under it is fine (`ground_stands_everywhere`,
-`is_ground_ready_around`), then seats itself on that surface: it was put down from the
-terrain's height function before any chunk stood there, a bot walks anywhere, and a body
+everywhere and the ground round the player's spawn is fine (`play_ground_ready`), about
+five seconds in: the surface band of the ring and, chunk by chunk, whatever the body
+stands in, which is more than the band for a spawn below it (a saved spot underground
+gets its cave chunks, queued first with the ring). A body placed while the map builds
+holds still, no physics, until the whole map stands and the ground round it is fine the
+same way, with no rebuild of those chunks queued, since a saved world's edits go in on
+the brush's lane and before them a chunk is yesterday's ground
+(`ground_stands_everywhere`, `is_ground_ready_around`); then it seats itself on that
+ground with a probe from just over its head, not from the sky, whose first ground over a
+cave is the roof; a body with nothing under it at all is inside ground the height it was
+put down from knows nothing of (a raised bed baked into the map), and takes the first
+ground under the sky as before. It was put down from the terrain's height function
+before any chunk stood there, or at a saved spot, a bot walks anywhere, and a body
 inside coarse rock or over a column with no chunk falls out of the world. A body on a
 coarse chunk is lifted onto the fine surface when it lands, a brush stroke on a coarse
 chunk rebuilds it fine at once, and an edit made at a chunk not yet placed waits for it.

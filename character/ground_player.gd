@@ -13,6 +13,9 @@ const _SPAWN_ATTEMPTS: int = 12
 ## Metres round a spawn spot whose ground must stand before the body is let go.
 const GROUND_WAIT_RADIUS: float = 6.0
 const _SPAWN_RAY_HEIGHT: float = 80.0
+## Metres over a body released from its hold that the probe seating it starts from: just
+## over its head, since the first ground under the sky over a body in a cave is the roof.
+const _SETTLE_REACH_UP: float = 4.0
 ## Height of the collision capsule's center above the feet.
 const _BODY_CENTER_HEIGHT: float = 0.6
 ## Pushing but going nowhere for this long means wedged; the bug gets shoved free.
@@ -649,11 +652,11 @@ func _apply_spawn(spawn_data: Dictionary, primary_focus: bool = false) -> void:
 
 
 ## A body put down while the map builds (placed from the terrain's height function, since
-## no chunk may stand there yet) stands still, no physics, until the whole map stands,
-## coarse or fine, and the surface under it is fine, then seats itself on that surface: a
-## bot walks anywhere, and a body inside coarse rock or over a column with no chunk falls
-## out of the world. The spot is a focus of the build: the local player's is the primary
-## one, which the fine pass is ordered round and play waits for.
+## no chunk may stand there yet, or at a saved spot) stands still, no physics, until the
+## whole map stands, coarse or fine, and the ground round it is fine, then seats itself
+## on that ground: a bot walks anywhere, and a body inside coarse rock or over a column
+## with no chunk falls out of the world. The spot is a focus of the build: the local
+## player's is the primary one, which the fine pass is ordered round and play waits for.
 func _hold_for_ground(spot: Vector3, primary_focus: bool = false) -> void:
 	_ground_hold += 1
 	_held_for_ground = false
@@ -672,8 +675,9 @@ func _hold_for_ground(spot: Vector3, primary_focus: bool = false) -> void:
 	_settle_on_ground()
 
 
-## Whether a held body may move: the whole map stands, coarse or fine, and the surface
-## of the columns round the spot is fine.
+## Whether a held body may move: the whole map stands, coarse or fine, and the ground
+## round the spot is fine chunk by chunk (for a spot underground, the chunks it stands in
+## as well as the surface band over them).
 func _ground_stands(spot: Vector3) -> bool:
 	if (
 		terrain.has_method("ground_stands_everywhere")
@@ -684,12 +688,27 @@ func _ground_stands(spot: Vector3) -> bool:
 
 
 ## Seats a body released from its hold on the ground that now stands under it, which can
-## sit a little above or below the height it was put down at.
+## sit above or below the height it was put down at. The probe starts just over the body,
+## not up in the sky, since over a body in a cave the first ground under the sky is the
+## roof. A body with no ground under it at all is inside the ground (a raised bed baked
+## into the map, which the height it was put down from knows nothing of), and the first
+## ground under the sky is the place for it, as it was before.
 func _settle_on_ground() -> void:
-	var spawn_data: Dictionary = _find_random_surface_spawn(global_position)
-	if spawn_data.get("from_raycast_hit", false):
-		global_position = spawn_data["position"]
-		velocity = Vector3.ZERO
+	var hit: Dictionary = _cast(
+		global_position + Vector3.UP * _SETTLE_REACH_UP,
+		global_position - Vector3.UP * _SPAWN_RAY_HEIGHT
+	)
+	var seat: Vector3 = Vector3.INF
+	if not hit.is_empty() and _is_terrain_collider(hit.get("collider")):
+		seat = (hit["position"] as Vector3) + Vector3.UP * spawn_clearance
+	else:
+		var spawn_data: Dictionary = _find_random_surface_spawn(global_position)
+		if spawn_data.get("from_raycast_hit", false):
+			seat = spawn_data["position"]
+	if seat == Vector3.INF:
+		return
+	global_position = seat
+	velocity = Vector3.ZERO
 
 
 # --- Animation --------------------------------------------------------------------------------
