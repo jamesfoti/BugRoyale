@@ -138,11 +138,6 @@ var terrarium_surface_height_offset: float = OpenTerrainPreset.SURFACE_HEIGHT_OF
 	set(value):
 		terrarium_stream_underground = value
 		_request_rebuild()
-## Builds the whole tank fine before play (ChunkedTerrainWorld.build_before_play).
-@export var terrarium_build_before_play: bool = false:
-	set(value):
-		terrarium_build_before_play = value
-		_request_rebuild()
 ## Carves the seeded underworld (tunnels, caverns, sinkholes, bedrock) out of a solid underside.
 @export var terrarium_caves_enabled: bool = false:
 	set(value):
@@ -252,8 +247,8 @@ func get_world_extents() -> Vector3:
 
 
 ## The terrain's build, forwarded for a body that holds for the ground (GroundPlayer): the
-## terrarium's ground builds behind the game like the open maps', coarse everywhere first
-## and fine round the player's spawn. A room without a terrain is ready at once.
+## terrarium's ground builds behind the game like the open maps', round the player's spawn
+## first. A room without a terrain is ready at once.
 func is_building() -> bool:
 	var playable: TerrariumTerrain = get_playable_terrain()
 	return playable != null and playable.is_building()
@@ -265,21 +260,14 @@ func focus_build_at(world_position: Vector3, radius: float = 0.0, primary: bool 
 		playable.focus_build_at(world_position, radius, primary)
 
 
-func is_ground_ready_around(
-	world_position: Vector3, radius: float = 0.0, fine: bool = false
-) -> bool:
+func is_ground_ready_around(world_position: Vector3, radius: float = 0.0) -> bool:
 	var playable: TerrariumTerrain = get_playable_terrain()
-	return playable == null or playable.is_ground_ready_around(world_position, radius, fine)
+	return playable == null or playable.is_ground_ready_around(world_position, radius)
 
 
-func ground_stands_everywhere() -> bool:
+func ground_missing_under(body: Node3D) -> bool:
 	var playable: TerrariumTerrain = get_playable_terrain()
-	return playable == null or playable.ground_stands_everywhere()
-
-
-func streamed_ground_missing_under(body: Node3D) -> bool:
-	var playable: TerrariumTerrain = get_playable_terrain()
-	return playable != null and playable.streamed_ground_missing_under(body)
+	return playable != null and playable.ground_missing_under(body)
 
 
 func get_spawn_position(spawn_clearance: float = 1.2) -> Vector3:
@@ -577,10 +565,10 @@ func _rebuild_terrarium_terrain() -> void:
 		_finish_rebuild()
 		return
 	_apply_terrarium_terrain_settings(_terrarium_terrain)
-	# The ground comes in behind the game like any map's: coarse everywhere, then fine
-	# round the player's spawn first (blocking in the editor). The room's content stands
-	# from here; a body holds for the ground (is_ground_ready_around) and the vegetation
-	# grows on the coarse ground and follows the fine chunks.
+	# The ground comes in behind the game like any map's, round the player's spawn first
+	# (blocking in the editor). The room's content stands from here; a body holds for the
+	# ground (is_ground_ready_around) and the vegetation grows from the ground's heights and
+	# follows each chunk as it stands.
 	_terrarium_terrain.begin_build()
 	_grow_terrarium_vegetation()
 	_log_editor_build()
@@ -627,7 +615,6 @@ func _apply_terrarium_terrain_settings(terrain: TerrariumTerrain) -> void:
 	terrain.caves_enabled = terrarium_caves_enabled
 	terrain.surface_layer = terrarium_surface_layer
 	terrain.stream_underground = terrarium_stream_underground
-	terrain.build_before_play = terrarium_build_before_play
 	var material: Material = terrarium_material
 	if material == null and ResourceLoader.exists(DEFAULT_TERRAIN_MATERIAL_PATH):
 		material = load(DEFAULT_TERRAIN_MATERIAL_PATH) as Material

@@ -608,9 +608,8 @@ func _spawn_on_terrain() -> void:
 	var spawn_data: Dictionary = _find_random_surface_spawn()
 	if terrain.has_method("is_building") and terrain.call("is_building"):
 		# The map is still building: the spot comes from the ground's own heights, the
-		# build is pointed at it, and the ground there (coarse will do: the fine surface
-		# lifts the body when it comes) is waited for before the raycasts refine the
-		# landing.
+		# build is pointed at it, and the ground there is waited for before the raycasts
+		# refine the landing.
 		var spot: Vector3 = spawn_data["position"]
 		terrain.call("focus_build_at", spot, GROUND_WAIT_RADIUS)
 		while (
@@ -656,10 +655,9 @@ func _apply_spawn(spawn_data: Dictionary, primary_focus: bool = false) -> void:
 
 ## A body put down while the map builds (placed from the terrain's height function, since
 ## no chunk may stand there yet, or at a saved spot) stands still, no physics, until the
-## whole map stands, coarse or fine, and the ground round it is fine, then seats itself
-## on that ground: a bot walks anywhere, and a body inside coarse rock or over a column
-## with no chunk falls out of the world. The spot is a focus of the build: the local
-## player's is the primary one, which the fine pass is ordered round and play waits for.
+## ground round it stands, then seats itself on that ground; walking on toward ground not
+## built yet holds it again (hold_for_ground). The spot is a focus of the build: the local
+## player's is the primary one, which the build is ordered round and play waits for.
 func _hold_for_ground(spot: Vector3, primary_focus: bool = false) -> void:
 	_ground_hold += 1
 	_held_for_ground = false
@@ -680,35 +678,29 @@ func _hold_for_ground(spot: Vector3, primary_focus: bool = false) -> void:
 	_settle_on_ground()
 
 
-## Stops the body where it is, its velocity kept, until the streamed ground under it is
-## built (ChunkedTerrainWorld.streamed_ground_missing_under: it walked or fell into reach
-## of chunks under the surface band that no body had near it), then lets it go on as it
-## was. A respawn or a placement meanwhile takes over.
+## Stops the body where it is, its velocity kept, until the ground round it is built
+## (ChunkedTerrainWorld.ground_missing_under: it walked toward ground the map's build has
+## not laid yet, or fell into reach of underground chunks no body had near it), then lets it
+## go on as it was. A respawn or a placement meanwhile takes over.
 func hold_for_ground() -> void:
 	if _held_for_ground or terrain == null:
 		return
-	if not terrain.has_method("streamed_ground_missing_under"):
+	if not terrain.has_method("ground_missing_under"):
 		return
 	_ground_hold += 1
 	var hold: int = _ground_hold
 	_held_for_ground = true
-	while is_inside_tree() and terrain.call("streamed_ground_missing_under", self):
+	while is_inside_tree() and terrain.call("ground_missing_under", self):
 		await get_tree().physics_frame
 		if hold != _ground_hold:
 			return
 	_held_for_ground = false
 
 
-## Whether a held body may move: the whole map stands, coarse or fine, and the ground
-## round the spot is fine chunk by chunk (for a spot underground, the chunks it stands in
-## as well as the surface band over them).
+## Whether a held body may move: the ground round the spot stands chunk by chunk (for a
+## spot underground, the chunks it stands in as well as the surface band over them).
 func _ground_stands(spot: Vector3) -> bool:
-	if (
-		terrain.has_method("ground_stands_everywhere")
-		and not terrain.call("ground_stands_everywhere")
-	):
-		return false
-	return terrain.call("is_ground_ready_around", spot, GROUND_WAIT_RADIUS, true)
+	return terrain.call("is_ground_ready_around", spot, GROUND_WAIT_RADIUS)
 
 
 ## Seats a body released from its hold on the ground that now stands under it, which can

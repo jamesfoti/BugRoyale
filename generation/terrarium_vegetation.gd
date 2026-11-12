@@ -2,18 +2,19 @@ class_name TerrariumVegetation
 extends Node3D
 ## Procedural terrarium garden: moss cushions, ferns, red nerve plants, mushrooms, slate rocks,
 ## driftwood and small branching trees, grown over the terrain the same way the terrain is grown
-## from noise. Placement probes the built ground with a seeded RNG, so a terrarium always grows
-## the same garden: on the coarse ground the map's build lays first, and each plant follows the
-## fine chunk that replaces the ground under it when that lands (ground_refined). Every plant
+## from noise. Placement probes the ground with a seeded RNG, so a terrarium always grows the
+## same garden: the built ground where it stands, the ground's own heights where the map's
+## build has not reached yet, and each plant follows the chunk under it when that stands
+## (ground_placed). Every plant
 ## kind draws through one MultiMesh; trees, logs and rocks get simple collision so bugs walk
 ## around them. Carving the terrain (pickaxe, explosions) clears whatever grew in the hole.
 
 const EDGE_MARGIN: float = 1.5
 const PLACEMENT_TRIES: int = 12
-## Metres a plant may move up or down to follow the fine ground under it; farther is a cave
-## mouth or a cliff the coarse ground did not show, and the plant goes.
+## Metres a plant may move up or down to follow the built ground under it; farther is a cave
+## mouth or a cliff the ground's heights did not show, and the plant goes.
 const RESEAT_LIMIT: float = 4.0
-## Physics steps between a fine chunk landing and the probes that seat its plants: the
+## Physics steps between a chunk standing and the probes that seat its plants: the
 ## physics server registers the chunk's collision on its next step.
 const RESEAT_DELAY_STEPS: int = 2
 ## Instances per 100 m² of terrarium floor at density 1.0.
@@ -87,12 +88,14 @@ func grow_when_ready() -> void:
 	grow()
 
 
+## Whether the ground round the player is still to come: the garden grows once it stands,
+## the rest from the ground's heights.
 func _ground_still_coming() -> bool:
 	return (
 		_terrain != null
 		and is_instance_valid(_terrain)
 		and _terrain.is_building()
-		and not _terrain.ground_stands_everywhere()
+		and not _terrain.play_ground_ready()
 	)
 
 
@@ -116,8 +119,8 @@ func grow() -> void:
 	_index_cells()
 	if _terrain.has_signal("brush_applied"):
 		_terrain.brush_applied.connect(_on_brush_applied)
-	if _terrain.has_signal("ground_refined"):
-		_terrain.ground_refined.connect(_on_ground_refined)
+	if _terrain.has_signal("ground_placed"):
+		_terrain.ground_placed.connect(_on_ground_placed)
 	if total == 0 and _props.is_empty():
 		push_warning(
 			"[TerrariumVegetation] Nothing grew: no terrain collision found under the terrarium."
@@ -196,8 +199,21 @@ func _ground(x: float, z: float) -> Dictionary:
 	query.collide_with_areas = false
 	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty():
-		return {}
+		return _unbuilt_ground(x, z)
 	return {"position": hit.position, "normal": hit.normal}
+
+
+## The ground over a column the map's build has not reached yet, from the terrain's own
+## heights (the plant there is seated on the chunk when it stands); empty where the ground
+## stands, so a miss there is a real miss.
+func _unbuilt_ground(x: float, z: float) -> Dictionary:
+	if _terrain == null or not _terrain.has_method("get_surface_height_at"):
+		return {}
+	var column := Vector3(x, 0.0, z)
+	column.y = _terrain.get_surface_height_at(column)
+	if _terrain.is_ground_ready_around(column):
+		return {}
+	return {"position": column, "normal": Vector3.UP}
 
 
 ## Basis whose Y is up, spun by yaw and scaled.
@@ -710,9 +726,9 @@ func _cell_of(position: Vector3) -> Vector2i:
 	)
 
 
-## A fine chunk replaced the coarse ground in a box: its plants are probed again once the
-## physics server has the chunk's collision.
-func _on_ground_refined(box: AABB) -> void:
+## A chunk stood in a box: its plants are probed again once the physics server has the
+## chunk's collision.
+func _on_ground_placed(box: AABB) -> void:
 	_refined.append({"box": box, "steps": RESEAT_DELAY_STEPS})
 
 

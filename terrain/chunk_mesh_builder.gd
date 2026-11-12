@@ -157,16 +157,6 @@ static func build_chunk_into(
 			field, extent, settings.iso_level, grid_offset, grid_world_origin, world_center, density
 		)
 	chunk_build_result.collision_faces = collision_faces(chunk_build_result.mesh_result)
-	# After the collision: the skirts are drawn only.
-	ChunkSkirts.add(
-		chunk_build_result.mesh_result,
-		field,
-		extent,
-		settings.iso_level,
-		ChunkSkirts.outer_faces(
-			chunk_coordinate, Vector3i(settings.chunks_x, settings.chunks_y, settings.chunks_z)
-		)
-	)
 	if density.caves != null and density.caves.water_top > -INF and not field.sky:
 		chunk_build_result.water_mesh_result = CaveWaterMesher.build(
 			field, density, grid_world_origin, grid_offset, world_step, extent, world_center
@@ -229,8 +219,6 @@ class AsyncRebuildJob:
 	## Build the field and mesh blocks for the chunk cache only; the chunk itself stays as
 	## it is (ChunkedTerrainWorld.prepare_edit_around).
 	var prepare_only: bool = false
-	## A chunk of the map's coarse first pass (ChunkedTerrainWorld.COARSE_VOXEL).
-	var coarse: bool = false
 	var settings: ChunkedTerrainWorld.SettingsSnapshot
 	var batch_result: BatchBuildResult = BatchBuildResult.new()
 	var task_id: int = -1

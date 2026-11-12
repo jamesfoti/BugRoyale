@@ -58,7 +58,7 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	for terrain: ChunkedTerrainWorld in MapInfo.terrain_worlds(get_tree()):
 		terrain.chunk_rebuilt.connect(_on_ground_changed)
-		terrain.ground_refined.connect(_on_ground_changed)
+		terrain.ground_placed.connect(_on_ground_changed)
 
 
 func _physics_process(_delta: float) -> void:
@@ -69,8 +69,8 @@ func _physics_process(_delta: float) -> void:
 		_settle()
 
 
-## The ground in a box was built again (a dig's rebuild, or the fine chunk in place of the
-## coarse one): if it lies there, it looks at the ground under it once the new collision is in.
+## The ground in a box was built (a dig's rebuild, or the map's build reaching it): if it
+## lies there, it looks at the ground under it once the new collision is in.
 func _on_ground_changed(box: AABB) -> void:
 	if box.grow(1.0).has_point(global_position):
 		_settle_in = SETTLE_STEPS

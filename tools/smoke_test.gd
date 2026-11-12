@@ -210,7 +210,7 @@ class Runner:
 		var count: int = 0
 		for terrain: ChunkedTerrainWorld in MapInfo.terrain_worlds(get_tree()):
 			if terrain.is_building():
-				count += terrain._placed_fine.size()
+				count += terrain._placed.size()
 			else:
 				count += terrain.get_chunk_count()
 		return count

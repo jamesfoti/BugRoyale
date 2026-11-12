@@ -216,7 +216,7 @@ func test_the_build_puts_the_focused_ground_first_and_keeps_an_early_edit() -> v
 	var stood_early: bool = false
 	var frames: int = 0
 	while world.is_building() and frames < 600:
-		if not stood_early and world.is_ground_ready_around(near, 0.0, true):
+		if not stood_early and world.is_ground_ready_around(near, 0.0):
 			stood_early = world._world_build_placed < world._world_build_total
 			assert_true(world.play_ground_ready(), "the focus's ground is what play waits for")
 		await get_tree().process_frame
@@ -534,55 +534,67 @@ func test_the_chunks_a_box_touches_come_from_its_span_of_the_grid() -> void:
 	await get_tree().process_frame
 
 
-## The map's build lays the whole map coarse first, so every chunk stands within a few
-## frames, then replaces each with its fine chunk; the coarse one is freed, and the box
-## of ground the fine chunk refined is reported (whatever stood on the coarse ground
-## there follows it).
-func test_the_build_lays_coarse_ground_over_the_whole_map_before_the_fine_pass() -> void:
+## The map's build places every chunk once, at full detail (nothing is laid first and
+## replaced), and reports the box of each as it stands. Until a chunk stands there is no
+## ground there: a body by it is held (ground_missing_under), and the built ground's reach is
+## measured to it for the haze; once the map is built nothing holds and the reach is endless.
+func test_the_build_places_each_chunk_once_at_full_detail() -> void:
 	var world: OpenTerrain = OpenTerrain.new()
 	world.chunk_size = 8.0
 	world.voxel_size = 2.0
-	var refined: Array[AABB] = []
-	world.ground_refined.connect(func(box: AABB) -> void: refined.append(box))
+	var placed: Array[AABB] = []
+	world.ground_placed.connect(func(box: AABB) -> void: placed.append(box))
 	add_child_autofree(world)
 	await get_tree().process_frame
 	var grid: Vector3i = world._get_grid_dimensions()
 	var total: int = grid.x * grid.y * grid.z
-	assert_eq(world._coarse_total, total, "two-metre voxels: the coarse pass runs")
-	var coarse_everywhere: bool = false
-	var coarse_chunk: TerrainChunk = null
-	var coarse_coordinate: Vector3i = Vector3i.ZERO
+	var body := CharacterBody3D.new()
+	body.add_to_group("fighter")
+	add_child_autofree(body)
+	var first_node: Dictionary = {}
+	var held_somewhere: bool = false
+	var reach_while_building: float = INF
 	var frames: int = 0
 	while world.is_building() and frames < 900:
-		if (
-			not coarse_everywhere
-			and world._chunks.size() == total
-			and world._world_build_placed < total
-		):
-			coarse_everywhere = true
-			for chunk_coordinate: Vector3i in world._chunks:
-				if not world._placed_fine.has(chunk_coordinate):
-					coarse_coordinate = chunk_coordinate
-					coarse_chunk = world._chunks[chunk_coordinate]
-					break
+		for chunk_coordinate: Vector3i in world._chunks:
+			if not first_node.has(chunk_coordinate):
+				first_node[chunk_coordinate] = world._chunks[chunk_coordinate]
+		# A body by a chunk not built yet is held.
+		for chunk_z: int in grid.z:
+			for chunk_x: int in grid.x:
+				var chunk_coordinate := Vector3i(chunk_x, grid.y - 2, chunk_z)
+				if not held_somewhere and not world._chunks.has(chunk_coordinate):
+					var box: AABB = world._get_chunk_world_aabb(
+						chunk_coordinate, world._build_settings()
+					)
+					body.global_position = box.get_center()
+					held_somewhere = world.ground_missing_under(body)
+		reach_while_building = minf(reach_while_building, world.get_built_reach(Vector3.ZERO))
 		await get_tree().process_frame
 		frames += 1
-	assert_true(coarse_everywhere, "every chunk stood, coarse, before the fine pass was done")
 	assert_false(world.is_building())
-	assert_eq(world._placed_fine.size(), total, "every chunk fine at the end")
+	assert_eq(world._placed.size(), total, "every chunk placed")
 	assert_eq(world.get_chunk_count(), total)
-	assert_true(coarse_chunk != world._chunks[coarse_coordinate], "the coarse chunk replaced")
-	assert_false(is_instance_valid(coarse_chunk), "and freed")
-	assert_eq(refined.size(), total, "every fine chunk reported the ground it refined")
-	assert_eq(refined[0].size, Vector3.ONE * 8.0, "as its own box")
+	for chunk_coordinate: Vector3i in first_node:
+		assert_true(
+			first_node[chunk_coordinate] == world._chunks[chunk_coordinate],
+			"the chunk first placed is the one that stays"
+		)
+	assert_eq(placed.size(), total, "every chunk reported the ground it placed")
+	assert_eq(placed[0].size, Vector3.ONE * 8.0, "as its own box")
+	assert_true(held_somewhere, "a body by a chunk not built yet was held")
+	assert_lt(reach_while_building, INF, "the built ground's reach was measured while building")
+	assert_eq(world.get_built_reach(Vector3.ZERO), INF, "and is endless once built")
+	body.global_position = world.global_position
+	assert_false(world.ground_missing_under(body), "nothing holds a body once built")
 
 
-## The fine pass lays the surface of the whole map before the caves under it: the chunks
+## The build lays the surface of the whole map before the caves under it: the chunks
 ## a margin under their column's lowest surface are deep; the local player's ring of
 ## columns comes first, their deep chunks next, the rest of the surface, the rest of the
-## deep; play begins once the ring's surface band is fine, with the deep chunks and the
+## deep; play begins once the ring's surface band stands, with the deep chunks and the
 ## far surface still to come; and the progress counts that band.
-func test_the_fine_pass_lays_the_surface_of_the_whole_map_before_the_caves() -> void:
+func test_the_build_lays_the_surface_of_the_whole_map_before_the_caves() -> void:
 	var world: OpenTerrain = OpenTerrain.new()
 	world.chunks_x = 4
 	world.chunks_y = 7
@@ -612,7 +624,7 @@ func test_the_fine_pass_lays_the_surface_of_the_whole_map_before_the_caves() -> 
 	for job: ChunkMeshBuilder.AsyncRebuildJob in world._world_build_tasks.values():
 		for chunk_coordinate: Vector3i in job.chunk_coordinates:
 			early[chunk_coordinate] = true
-	for chunk_coordinate: Vector3i in world._placed_fine:
+	for chunk_coordinate: Vector3i in world._placed:
 		early[chunk_coordinate] = true
 	world.focus_build_at(corner, 0.0, true)
 	assert_eq(world._play_columns.size(), 9, "two chunks each way round the corner")
@@ -636,19 +648,19 @@ func test_the_fine_pass_lays_the_surface_of_the_whole_map_before_the_caves() -> 
 	var frames: int = 0
 	while world.is_building() and frames < 600:
 		if fine_at_play.is_empty() and world.play_ground_ready():
-			fine_at_play.assign(world._placed_fine.keys())
+			fine_at_play.assign(world._placed.keys())
 		await get_tree().process_frame
 		frames += 1
 	assert_false(world.is_building())
 	assert_false(fine_at_play.is_empty(), "play began before the map was done")
 	for chunk_coordinate: Vector3i in fine_at_play:
 		if not early.has(chunk_coordinate):
-			assert_lte(int(groups[chunk_coordinate]), 1, "only the ring was fine when play began")
+			assert_lte(int(groups[chunk_coordinate]), 1, "only the ring stood when play began")
 	# Chunks are started in queue order with WORLD_BUILD_IN_FLIGHT of them on the pool, so
 	# the order they came in runs through the groups with at most that much overlap.
 	var first_of: Dictionary = {}
 	var last_of: Dictionary = {}
-	var order: Array = world._placed_fine.keys()
+	var order: Array = world._placed.keys()
 	for index: int in order.size():
 		if early.has(order[index]):
 			continue
@@ -669,14 +681,14 @@ func test_the_fine_pass_lays_the_surface_of_the_whole_map_before_the_caves() -> 
 		if report.y == 9 * 5:
 			counted_the_band = true
 	assert_true(counted_the_band, "progress counted the ring's surface band, five a column")
-	assert_eq(world._placed_fine.size(), 4 * 7 * 4, "every chunk fine at the end")
+	assert_eq(world._placed.size(), 4 * 7 * 4, "every chunk placed at the end")
 	await get_tree().process_frame
 
 
 ## Play waits for the chunks a body stands in, chunk by chunk, not only the surface band:
 ## a focus below the band (a saved spot underground) makes its cave chunks ground play
 ## waits for, first in the queue with the band; a body there is held until they and the
-## band over them are fine, and until a rebuild queued for one of them (a saved world's
+## band over them stand, and until a rebuild queued for one of them (a saved world's
 ## edits) has landed; and the progress counts them with the band.
 func test_play_waits_for_the_chunks_round_a_body_below_the_surface_band() -> void:
 	var world: OpenTerrain = OpenTerrain.new()
@@ -714,23 +726,23 @@ func test_play_waits_for_the_chunks_round_a_body_below_the_surface_band() -> voi
 	var released_again: bool = false
 	var frames: int = 0
 	while world.is_building() and frames < 600:
-		if ready_at.is_empty() and world.is_ground_ready_around(cave, reach, true):
-			ready_at.assign(world._placed_fine.keys())
+		if ready_at.is_empty() and world.is_ground_ready_around(cave, reach):
+			ready_at.assign(world._placed.keys())
 			# A saved world's edits: a rebuild queued for a chunk the body stands in holds it.
 			world._queue_chunk_rebuild(Vector3i(1, 1, 1), AABB())
-			held_for_rebuild = not world.is_ground_ready_around(cave, reach, true)
+			held_for_rebuild = not world.is_ground_ready_around(cave, reach)
 			world._dispatch_pending_rebuilds()
 		elif not ready_at.is_empty() and not released_again:
-			released_again = world.is_ground_ready_around(cave, reach, true)
+			released_again = world.is_ground_ready_around(cave, reach)
 		if play_at.is_empty() and world.play_ground_ready():
-			play_at.assign(world._placed_fine.keys())
+			play_at.assign(world._placed.keys())
 		await get_tree().process_frame
 		frames += 1
 	assert_false(world.is_building())
-	assert_false(ready_at.is_empty(), "the ground round the spot was fine before the map was done")
+	assert_false(ready_at.is_empty(), "the ground round the spot stood before the map was done")
 	assert_lt(ready_at.size(), 4 * 7 * 4, "well before")
 	for chunk_coordinate: Vector3i in ground:
-		assert_true(ready_at.has(chunk_coordinate), "every chunk round the spot was fine by then")
+		assert_true(ready_at.has(chunk_coordinate), "every chunk round the spot stood by then")
 	assert_true(held_for_rebuild, "a rebuild queued for a chunk round the spot held the body")
 	assert_true(released_again, "and let it go once the rebuild landed")
 	assert_false(play_at.is_empty(), "play began before the map was done")
@@ -770,7 +782,7 @@ func test_the_underground_streams_round_the_bodies() -> void:
 	var deep: Vector3 = corner + Vector3(12.0, 10.0, 12.0)
 	var far: Vector3 = corner + Vector3(grid.x * 8.0 - 4.0, 6.0, grid.z * 8.0 - 4.0)
 	assert_true(world._is_streamed(world._chunks_touching(deep, 0.0)[0]), "the spot is streamed")
-	assert_false(world.is_ground_ready_around(deep, 2.0, true), "nothing there yet")
+	assert_false(world.is_ground_ready_around(deep, 2.0), "nothing there yet")
 	# A hole dug far off while nobody is near: no chunk there to rebuild.
 	world.apply_brush(far, 3.0, false)
 	assert_true(world._pending_rebuild_chunk_coordinates.is_empty(), "no rebuild queued")
@@ -778,19 +790,15 @@ func test_the_underground_streams_round_the_bodies() -> void:
 	body.add_to_group("fighter")
 	add_child_autofree(body)
 	body.global_position = deep
-	assert_true(
-		await _wait_for(func() -> bool: return world.is_ground_ready_around(deep, 2.0, true))
-	)
-	assert_false(world.streamed_ground_missing_under(body), "the ground under it stands")
+	assert_true(await _wait_for(func() -> bool: return world.is_ground_ready_around(deep, 2.0)))
+	assert_false(world.ground_missing_under(body), "the ground under it stands")
 	var round_body: Array[Vector3i] = []
 	for chunk_coordinate: Vector3i in world._chunks_touching(deep, 2.0):
 		if world._is_streamed(chunk_coordinate):
 			round_body.append(chunk_coordinate)
 	assert_false(round_body.is_empty())
 	body.global_position = far
-	assert_true(
-		await _wait_for(func() -> bool: return world.is_ground_ready_around(far, 2.0, true))
-	)
+	assert_true(await _wait_for(func() -> bool: return world.is_ground_ready_around(far, 2.0)))
 	var freed: Callable = func() -> bool:
 		for chunk_coordinate: Vector3i in round_body:
 			if world._chunks.has(chunk_coordinate):
@@ -805,58 +813,9 @@ func test_the_underground_streams_round_the_bodies() -> void:
 	plain_body.add_to_group("fighter")
 	add_child_autofree(plain_body)
 	plain_body.global_position = far
-	assert_true(
-		await _wait_for(func() -> bool: return plain.is_ground_ready_around(far, 2.0, true))
-	)
+	assert_true(await _wait_for(func() -> bool: return plain.is_ground_ready_around(far, 2.0)))
 	assert_true(_faces_at(world, far) != _faces_at(plain, far), "the hole is in the chunk")
 	await get_tree().process_frame
-
-
-## Round the local player the streamed chunks stand at least coarse out to STREAM_ROUGH, so a
-## long cavern shows its far end; within STREAM_VIEW they are fine, and a fine chunk replaces
-## the coarse one there.
-func test_the_underground_stands_coarse_farther_round_the_player() -> void:
-	var world: OpenTerrain = _streaming_world()
-	world.chunks_x = 16
-	world.chunks_z = 16
-	add_child_autofree(world)
-	await get_tree().process_frame
-	var frames: int = 0
-	while world.is_building() and frames < 1800:
-		await get_tree().process_frame
-		frames += 1
-	assert_false(world.is_building())
-	var corner: Vector3 = world._grid_corner()
-	var deep: Vector3 = corner + Vector3(12.0, 10.0, 12.0)
-	var body := Node3D.new()
-	body.add_to_group("fighter")
-	body.add_to_group("player")
-	add_child_autofree(body)
-	body.global_position = deep
-	var settled: Callable = func() -> bool:
-		return (
-			world._stream_queue.is_empty()
-			and world._rough_queue.is_empty()
-			and world._stream_inflight.is_empty()
-			and not world._stream_rough.is_empty()
-		)
-	assert_true(await _wait_for(settled), "the coarse chunks came in")
-	var near: int = 0
-	var far: int = 0
-	for chunk_coordinate: Vector3i in world._stream_rough:
-		var low: Vector3 = corner + Vector3(chunk_coordinate) * world.chunk_size
-		var nearest: Vector3 = deep.clamp(low, low + Vector3.ONE * world.chunk_size)
-		var distance: float = deep.distance_to(nearest)
-		assert_lte(distance, ChunkedTerrainWorld.STREAM_ROUGH + ChunkedTerrainWorld.STREAM_KEEP)
-		if distance > ChunkedTerrainWorld.STREAM_VIEW:
-			far += 1
-		else:
-			near += 1
-	assert_gt(far, 0, "coarse chunks past the fine reach")
-	assert_eq(near, 0, "within the fine reach every chunk is fine")
-	for chunk_coordinate: Vector3i in world._chunks_touching(deep, 2.0):
-		if world._is_streamed(chunk_coordinate):
-			assert_true(world._stream_loaded.has(chunk_coordinate), "fine round the player")
 
 
 func _streaming_world() -> OpenTerrain:

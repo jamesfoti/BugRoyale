@@ -16,11 +16,11 @@ signal edit_applied(edit: Dictionary)
 signal build_progress(done: int, total: int)
 ## Every chunk of a rebuild of the whole map stands.
 signal built
-## A fine chunk replaced the coarse ground in this world-space box (the map's build, or
-## the brush on a coarse chunk): whatever was put on the coarse ground there may now
-## stand above or below the fine surface. Its collision is in the physics server a step
-## later.
-signal ground_refined(box: AABB)
+## A chunk stood for the first time in this world-space box (the map's build, or the
+## underground streamed round a body): whatever was put there from the ground's heights
+## before it stood (a plant, a dropped crumb) may want to look at the ground again. Its
+## collision is in the physics server a step later.
+signal ground_placed(box: AABB)
 ## A chunk was rebuilt after an edit (a dig, a blast, a saved world's edits) and its new mesh
 ## and collision are in, in this world-space box; whatever rested on it may want to look
 ## again (the collision is in the physics server a step later).
@@ -48,19 +48,13 @@ const PLACE_BUDGET_USEC: int = 8000
 ## scales to, plus one queued so no thread waits for the next frame's poll.
 const WORLD_BUILD_IN_FLIGHT: int = 5
 ## Samples a build task takes at once, in chunks (_build_task_chunks): the pool is refilled
-## once a frame, so a task shorter than a frame (a coarse chunk is 2 ms, a fine 16 m chunk
-## 20 ms) leaves its thread idle until the next; this many samples is tens of milliseconds.
+## once a frame, so a task shorter than a frame (a 16 m chunk is 20 ms or so) leaves its
+## thread idle until the next; this many samples is tens of milliseconds.
 const BUILD_TASK_SAMPLES: int = 16000
-## The map's build first lays the whole map at this voxel size, a few seconds' work, so
-## the ground looks complete and holds a body from the first frame; the fine build then
-## replaces it chunk by chunk, the surface nearest the player first
-## (_sort_world_build_queue).
-const COARSE_VOXEL: float = 4.0
 ## A chunk whose top lies this far under the lowest surface of its column is deep: caves
-## and bedrock, which nobody sees until they dig, so the fine pass lays the surface of the
-## whole map before them. Two coarse voxels, so the coarse chunk under a fine surface
-## chunk stays buried.
-const DEEP_MARGIN: float = 2.0 * COARSE_VOXEL
+## and bedrock, which nobody sees until they dig, so the build lays the surface of the
+## whole map before them.
+const DEEP_MARGIN: float = 8.0
 ## A map that streams its underground (stream_underground) builds with the map only the
 ## ground down to this far under the lowest surface of each column, everything a body on
 ## the surface sees into; the chunks below it are streamed.
@@ -71,23 +65,19 @@ const STREAM_MARGIN: float = 32.0
 const STREAM_VIEW: float = 48.0
 const STREAM_BODY: float = 16.0
 const STREAM_KEEP: float = 16.0
-## Metres round the local player within which the streamed chunks stand at least coarse
-## (COARSE_VOXEL), so a cavern or a tunnel longer than STREAM_VIEW shows its far end; a chunk
-## the player has seen fine stays fine until it is this far off.
-const STREAM_ROUGH: float = 128.0
-## Looks between counts of the coarse chunks round the player (a wider reach, so rarer).
-const STREAM_ROUGH_EVERY: int = 3
 ## Physics frames between looks at where the bodies are.
 const STREAM_EVERY: int = 10
 ## Until play can begin, the streamed chunks get pool places only when one lies within
 ## this many metres of a body (it stands or is held there), and only this many places: the
-## coarse map and the ground round the spawn come first. After it, they go before the
-## map's own fine chunks.
+## ground round the spawn comes first. After it, they go before the map's own chunks.
 const STREAM_URGENT: float = 8.0
-const STREAM_TASKS_IN_COARSE: int = 2
-## How far under a body the streamed ground must stand before it may go on, plus a
-## quarter of a second of its fall.
-const STREAM_HOLD_REACH: float = 2.0
+const STREAM_TASKS_BEFORE_PLAY: int = 2
+## How far round a body's feet the ground must stand before it may go on, plus a quarter of
+## a second of its fall: a body walking or falling toward ground not built yet is held.
+const GROUND_HOLD_REACH: float = 2.0
+## Physics frames between moves of the build's order to where the local player is now, once
+## play has begun: the ground nearest it comes next wherever it went.
+const ORDER_EVERY: int = 120
 
 @export_group("Terrain Grid")
 @export_range(1.0, 128.0, 0.5, "or_greater") var chunk_size: float = 12.0:
@@ -177,20 +167,15 @@ const STREAM_HOLD_REACH: float = 2.0
 @export var use_threaded_rebuild: bool = true
 @export_range(1, 8, 1) var max_concurrent_rebuild_tasks: int = 4
 ## Metres of ground each way round the local player's spawn that play waits for (its
-## surface band fine), so a sprint from the spawn stays on fine ground. A bot waits for
-## its own ground only.
-@export_range(0.0, 256.0, 1.0, "suffix:m") var play_ring: float = 64.0
+## surface band, at full detail), so a sprint from the spawn stays on built ground; the rest
+## of the map follows nearest the player first, the haze (Atmosphere) hiding where it ends.
+## A bot waits for its own ground only.
+@export_range(0.0, 256.0, 1.0, "suffix:m") var play_ring: float = 96.0
 ## Builds only the ground down to STREAM_MARGIN under the surface with the map, and the
 ## chunks below that round the bodies that need them, freeing them when none is near: for a
 ## map far deeper than anyone sees at once (the maps are a kilometre deep). Off, every chunk
 ## is built with the map.
 @export var stream_underground: bool = false
-## Builds every chunk of the map's build fine before play begins: no coarse pass, and the
-## loading screen and every body wait until the whole map stands, so nothing is played on
-## half-built ground (no cracks where a fine chunk meets a coarse one, nothing lifted onto
-## ground that came in late). The streamed underground still comes in round the bodies. Off,
-## play begins on coarse ground with the fine chunks following nearest the player first.
-@export var build_before_play: bool = false
 
 ## Brush edits are refused outside this box (world space). Zero size: editable anywhere.
 var edit_bounds: AABB = AABB()
@@ -234,8 +219,9 @@ var _async_rebuild_requested: bool = false
 var _async_jobs: Dictionary = {}
 var _running_async_tasks: int = 0
 var _inflight_chunk_coordinates: Dictionary = {}
-## The map's build in the background (the game's rebuild on ready): each chunk its own
-## task on the worker pool, nearest the build's focus first, placed as it comes in.
+## The map's build in the background (the game's rebuild on ready): chunks built at full
+## detail a few to a task on the worker pool, nearest the build's focus first, placed as
+## they come in. Where none stands yet there is no ground at all.
 var _world_building: bool = false
 ## Chunks not yet started, farthest first (the next is popped off the back).
 var _world_build_queue: Array[Vector3i] = []
@@ -263,25 +249,20 @@ var _play_chunks: Dictionary = {}
 ## Chunk coordinate -> true for a deep chunk (DEEP_MARGIN under its column's lowest
 ## surface), during the build.
 var _deep: Dictionary = {}
-## The coarse pass of the map's build (COARSE_VOXEL): whether its chunks are still being
-## handed out, how many stand, and how many it has in all (0 when the map is that coarse
-## already or its chunks too small for it).
-var _coarse_pass: bool = false
-var _coarse_placed: int = 0
-var _coarse_total: int = 0
-## Chunk coordinate -> true once its fine chunk stands (the coarse one, if any, replaced).
-var _placed_fine: Dictionary = {}
-## Chunk coordinate -> true once any chunk stands there, coarse or fine.
-var _placed_any: Dictionary = {}
-## Boxes of fine chunks that replaced coarse ones: a body standing there is lifted onto
-## the new ground a physics step or two later, since the fine surface can sit higher.
-var _lift_pending: Array[AABB] = []
-var _lift_checks: Array[AABB] = []
+## Chunk coordinate -> true once the map's build (or the brush) placed its chunk.
+var _placed: Dictionary = {}
+## Per chunk column (x + z * grid.x), how many of its chunks above the deep ones the build
+## has still to place: a column at 0 shows all the ground anyone sees there.
+var _column_missing: PackedInt32Array = PackedInt32Array()
+## Where the build's order is measured from once play has begun (the local player, moved
+## every ORDER_EVERY physics frames), and the frames since.
+var _order_focus: Array[Vector4] = []
+var _order_tick: int = 0
 ## Streaming (stream_underground): per chunk column (x + z * grid.x), how many of its bottom
-## chunks are streamed, measured with the build and kept; the streamed chunks that stand
-## (fine, they never come coarse); those on the pool, by chunk and by task; the ones the
-## bodies want (chunk -> metres to the nearest) and keep (_look_for_streamed_chunks); and
-## the wanted ones not yet started, farthest first (the next is popped off the back).
+## chunks are streamed, measured with the build and kept; the streamed chunks that stand;
+## those on the pool, by chunk and by task; the ones the bodies want (chunk -> metres to the
+## nearest) and keep (_look_for_streamed_chunks); and the wanted ones not yet started,
+## farthest first (the next is popped off the back).
 var _stream_floor: PackedInt32Array = PackedInt32Array()
 var _stream_grid: Vector3i = Vector3i.ZERO
 var _stream_loaded: Dictionary = {}
@@ -291,13 +272,6 @@ var _stream_wanted: Dictionary = {}
 var _stream_keep: Dictionary = {}
 var _stream_queue: Array[Vector3i] = []
 var _stream_tick: int = 0
-## The streamed chunks that stand coarse, and the coarse ones the local player wants and
-## keeps (STREAM_ROUGH), with those not yet started, farthest first.
-var _stream_rough: Dictionary = {}
-var _rough_wanted: Dictionary = {}
-var _rough_keep: Dictionary = {}
-var _rough_queue: Array[Vector3i] = []
-var _rough_look: int = 0
 ## Whether play still waits on the map's build (play_ground_ready, as of the last progress
 ## report): until it can begin, the streamed chunks take only a few of the pool's places.
 var _play_waiting: bool = true
@@ -404,42 +378,44 @@ func focus_build_at(world_position: Vector3, radius: float = 0.0, primary: bool 
 		_queue_stale = true
 
 
-## Whether the ground a body within radius of a spot needs stands (_ground_round), coarse
-## or fine; or, with fine, fine chunk by chunk. Always once the map's build is done and,
-## on a map that streams its underground, the streamed chunks there stand; and for a spot
-## off the grid. A body can stand on coarse ground; it is lifted onto the fine surface when
-## that comes.
-func is_ground_ready_around(
-	world_position: Vector3, radius: float = 0.0, fine: bool = false
-) -> bool:
+## Whether the ground a body within radius of a spot needs stands (_ground_round), with no
+## rebuild of it queued or in flight. Always once the map's build is done and, on a map that
+## streams its underground, the streamed chunks there stand; and for a spot off the grid.
+func is_ground_ready_around(world_position: Vector3, radius: float = 0.0) -> bool:
 	if not _world_building and not _streaming():
 		return true
-	if fine:
-		return _ground_fine(_ground_round(world_position, radius))
-	for chunk_coordinate: Vector3i in _ground_round(world_position, radius):
-		if not _stands(chunk_coordinate):
-			return false
-	return true
+	return _ground_complete(_ground_round(world_position, radius))
 
 
-## Whether the ground play needs stands, so play can begin: the whole map coarse and the
-## ground every focus asked for fine. False while the map builds and no focus is set,
-## since nothing says yet where play is.
+## Whether the ground play needs stands, so play can begin: the ground every focus asked for
+## (the surface band play_ring round the local player's). False while the map builds and no
+## focus is set, since nothing says yet where play is.
 func play_ground_ready() -> bool:
 	if not _world_building:
 		return true
-	if build_before_play:
+	if _play_columns.is_empty():
 		return false
-	if _coarse_placed < _coarse_total or _play_columns.is_empty():
-		return false
-	return _ground_fine(_play_ground())
+	return _ground_complete(_play_ground())
 
 
-## Whether a chunk stands at every coordinate of the map, coarse or fine, so a body can
-## walk anywhere without stepping off the ground into a column that has none yet. Always
-## once the map's build is done.
-func ground_stands_everywhere() -> bool:
-	return not _world_building or _placed_any.size() >= _world_build_total
+## Metres from a point to the nearest ground the map's build has not laid yet (a column whose
+## surface band is not all placed), across the map; INF once the build is done. The haze
+## closes in to hide where the built ground ends (Atmosphere).
+func get_built_reach(world_position: Vector3) -> float:
+	if not _world_building or _column_missing.is_empty():
+		return INF
+	var extent: float = _build_settings().chunk_world_size
+	var origin: Vector3 = global_position + _chunk_corner_local(Vector3i.ZERO, _build_settings())
+	var point := Vector2(world_position.x - origin.x, world_position.z - origin.z)
+	var nearest: float = INF
+	for column_z: int in _world_build_grid.z:
+		for column_x: int in _world_build_grid.x:
+			if _column_missing[column_x + column_z * _world_build_grid.x] <= 0:
+				continue
+			var low := Vector2(column_x, column_z) * extent
+			var closest: Vector2 = point.clamp(low, low + Vector2.ONE * extent)
+			nearest = minf(nearest, point.distance_to(closest))
+	return nearest
 
 
 ## The ground a body within radius of a spot needs, as chunk coordinates: the surface
@@ -472,13 +448,13 @@ func _add_surface_band(column: Vector2i, chunks: Dictionary) -> void:
 			chunks[chunk_coordinate] = true
 
 
-## Whether every chunk of a set stands fine, with no rebuild of it queued or in flight: a
-## saved world's edits go in on the brush's lane, and until they land the chunk there is
+## Whether every chunk of a set stands, with no rebuild of it queued or in flight: a saved
+## world's edits go in on the brush's lane, and until they land the chunk there is
 ## yesterday's ground.
-func _ground_fine(chunks: Dictionary) -> bool:
+func _ground_complete(chunks: Dictionary) -> bool:
 	for chunk_coordinate: Vector3i in chunks:
 		if (
-			not _is_fine(chunk_coordinate)
+			not _stands(chunk_coordinate)
 			or _pending_rebuild_chunk_coordinates.has(chunk_coordinate)
 			or _inflight_chunk_coordinates.has(chunk_coordinate)
 		):
@@ -486,19 +462,12 @@ func _ground_fine(chunks: Dictionary) -> bool:
 	return true
 
 
-## Whether a chunk stands, coarse or fine: a streamed one once it is built, any other once
-## the map's build placed it (every one, when the build is done).
+## Whether a chunk stands: a streamed one once it is built, any other once the map's build
+## placed it (every one, when the build is done).
 func _stands(chunk_coordinate: Vector3i) -> bool:
 	if _is_streamed(chunk_coordinate):
-		return _stream_loaded.has(chunk_coordinate) or _stream_rough.has(chunk_coordinate)
-	return not _world_building or _placed_any.has(chunk_coordinate)
-
-
-## Whether a chunk stands fine.
-func _is_fine(chunk_coordinate: Vector3i) -> bool:
-	if _is_streamed(chunk_coordinate):
 		return _stream_loaded.has(chunk_coordinate)
-	return not _world_building or _placed_fine.has(chunk_coordinate)
+	return not _world_building or _placed.has(chunk_coordinate)
 
 
 ## The settings the build runs on, or the next one would.
@@ -506,11 +475,12 @@ func _build_settings() -> SettingsSnapshot:
 	return _world_build_settings if _world_build_settings != null else _make_settings_snapshot()
 
 
-## The game's build of the map: each chunk is meshed on the worker pool as a task of its
-## own while the frames keep coming and placed in the scene as it comes in (the loading
-## screen draws its bar from build_progress). The whole map goes in coarse first
-## (COARSE_VOXEL), then fine: the surface nearest the player first and the deep chunks
-## last (_sort_world_build_queue). What the build on ready runs; a world another node
+## The game's build of the map: the chunks are meshed at full detail on the worker pool
+## while the frames keep coming and placed in the scene as they come in (the loading screen
+## draws its bar from build_progress): the ground play waits for first, then the surface
+## nearest the player and the deep chunks last (_sort_world_build_queue). Where no chunk
+## stands yet there is nothing: a body is held off it (ground_missing_under) and the haze
+## hides it (get_built_reach). What the build on ready runs; a world another node
 ## sets up and drives (a terrarium's terrain) calls it once its settings are set, so its
 ## ground comes in like any map's. Blocking without threads, as rebuild_all is, and in
 ## the editor, where nothing polls the pool.
@@ -528,18 +498,10 @@ func begin_build() -> void:
 	_queue_every_chunk()
 	_world_build_total = _world_build_queue.size()
 	_world_build_placed = 0
-	_placed_fine.clear()
-	_placed_any.clear()
-	_lift_pending.clear()
-	_lift_checks.clear()
-	var coarse_cells: int = int(floor(_world_build_settings.chunk_world_size / COARSE_VOXEL))
-	_coarse_pass = (
-		not build_before_play
-		and _world_build_settings.voxel_size < COARSE_VOXEL
-		and coarse_cells >= 2
-	)
-	_coarse_total = _world_build_total if _coarse_pass else 0
-	_coarse_placed = 0
+	_placed.clear()
+	_count_missing_columns()
+	_order_focus.clear()
+	_order_tick = 0
 	_world_build_started_msec = Time.get_ticks_msec()
 	_world_building = true
 	_sort_world_build_queue()
@@ -599,6 +561,15 @@ func _mark_deep_chunks(settings: SettingsSnapshot, grid: Vector3i) -> void:
 	_stream_floor = floors
 
 
+## Counts, per column, the chunks above the deep ones the build has to place.
+func _count_missing_columns() -> void:
+	_column_missing = PackedInt32Array()
+	_column_missing.resize(_world_build_grid.x * _world_build_grid.z)
+	for chunk_coordinate: Vector3i in _world_build_queue:
+		if not _deep.has(chunk_coordinate):
+			_column_missing[chunk_coordinate.x + chunk_coordinate.z * _world_build_grid.x] += 1
+
+
 ## Places the chunks whose tasks are done, within the frame's budget, and starts the next.
 ## A task's chunks are placed in order; what the budget does not take waits for the next
 ## frame, the task holding its place on the pool's count meanwhile.
@@ -635,89 +606,56 @@ func _poll_world_build() -> void:
 	_world_build_settings = null
 	_build_focus.clear()
 	_primary_focus.clear()
+	_order_focus.clear()
 	_play_columns.clear()
 	_play_chunks.clear()
 	_deep.clear()
+	_column_missing = PackedInt32Array()
 	built.emit()
 
 
-## Puts one chunk of a done build task in the scene: a coarse chunk unless a fine one
-## already stands there; a fine chunk in place of the coarse one, unless the brush got
-## there first with a later snapshot.
+## Puts one chunk of a done build task in the scene, unless the brush got there first with
+## a later snapshot.
 func _place_built_chunk(job: ChunkMeshBuilder.AsyncRebuildJob, chunk_coordinate: Vector3i) -> void:
+	if _placed.has(chunk_coordinate):
+		return
 	var result: ChunkMeshBuilder.ChunkBuildResult = (
 		job.batch_result.chunks[chunk_coordinate] as ChunkMeshBuilder.ChunkBuildResult
 	)
-	if job.coarse:
-		_coarse_placed += 1
-		if not _placed_fine.has(chunk_coordinate):
-			_build_chunk_at(chunk_coordinate, result, job.settings)
-			_note_standing_chunk(chunk_coordinate)
-		return
-	if _placed_fine.has(chunk_coordinate):
-		return
-	var coarse_chunk: TerrainChunk = _chunks.get(chunk_coordinate) as TerrainChunk
-	var refined: AABB = AABB()
-	if coarse_chunk != null:
-		remove_child(coarse_chunk)
-		coarse_chunk.queue_free()
-		refined = _get_chunk_world_aabb(chunk_coordinate, job.settings)
-		_lift_pending.append(refined)
 	_build_chunk_at(chunk_coordinate, result, job.settings)
-	_note_standing_chunk(chunk_coordinate)
-	_note_fine_chunk(chunk_coordinate)
-	if refined.has_volume():
-		ground_refined.emit(refined)
+	_note_placed_chunk(chunk_coordinate)
+	ground_placed.emit(_get_chunk_world_aabb(chunk_coordinate, job.settings))
 
 
-## A chunk, coarse or fine, stands at a coordinate for the first time.
-func _note_standing_chunk(chunk_coordinate: Vector3i) -> void:
-	_placed_any[chunk_coordinate] = true
-
-
-## A fine chunk stands at a coordinate (placed by the map's build or by the brush).
-func _note_fine_chunk(chunk_coordinate: Vector3i) -> void:
-	if _placed_fine.has(chunk_coordinate):
+## A chunk of the map's build stands at a coordinate.
+func _note_placed_chunk(chunk_coordinate: Vector3i) -> void:
+	if _placed.has(chunk_coordinate):
 		return
-	_placed_fine[chunk_coordinate] = true
+	_placed[chunk_coordinate] = true
 	_world_build_placed += 1
+	if not _deep.has(chunk_coordinate) and not _column_missing.is_empty():
+		_column_missing[chunk_coordinate.x + chunk_coordinate.z * _world_build_grid.x] -= 1
 
 
 ## Starts tasks off the queue, each of _build_task_chunks chunks, until the pool holds its
 ## share, the brush's own rebuilds counted in, since GDScript on more threads than that
-## runs slower, not faster. When the coarse pass is all handed out, the fine pass is
-## queued behind it.
+## runs slower, not faster.
 func _fill_world_build() -> void:
 	if _queue_stale:
 		_sort_world_build_queue()
 	# Streamed chunks waiting go first: a body is standing near them. Until play can begin,
-	# the ground it waits on keeps all but STREAM_TASKS_IN_COARSE of the places.
+	# the ground it waits on keeps all but STREAM_TASKS_BEFORE_PLAY of the places.
 	var places: int = WORLD_BUILD_IN_FLIGHT
 	if _stream_waiting():
-		places -= STREAM_TASKS_IN_COARSE if _play_waiting else WORLD_BUILD_IN_FLIGHT - 1
-	elif not _play_waiting and not _rough_queue.is_empty():
-		# Once play has begun, the coarse chunks round the player take a couple of places.
-		places -= STREAM_TASKS_IN_COARSE
+		places -= STREAM_TASKS_BEFORE_PLAY if _play_waiting else WORLD_BUILD_IN_FLIGHT - 1
 	while _world_build_tasks.size() < places and _pool_load() < WORLD_BUILD_IN_FLIGHT:
 		if _world_build_queue.is_empty():
-			if not _coarse_pass:
-				return
-			_coarse_pass = false
-			_queue_every_chunk()
-			_sort_world_build_queue()
-			if _world_build_queue.is_empty():
-				return
+			return
 		var batch: Array[Vector3i] = []
 		var wanted: int = _build_task_chunks()
 		while batch.size() < wanted and not _world_build_queue.is_empty():
 			var chunk_coordinate: Vector3i = _world_build_queue.pop_back()
-			if (
-				not _coarse_pass
-				and (
-					_placed_fine.has(chunk_coordinate)
-					or _inflight_chunk_coordinates.has(chunk_coordinate)
-				)
-			):
+			if _placed.has(chunk_coordinate) or _inflight_chunk_coordinates.has(chunk_coordinate):
 				continue
 			# The edits so far go into this chunk's snapshot: a rebuild queued for it
 			# before now would only repeat the work.
@@ -728,9 +666,6 @@ func _fill_world_build() -> void:
 		var job: ChunkMeshBuilder.AsyncRebuildJob = ChunkMeshBuilder.AsyncRebuildJob.new()
 		job.chunk_coordinates = batch
 		job.settings = _make_thread_settings_snapshot()
-		job.coarse = _coarse_pass
-		if _coarse_pass:
-			_coarsen(job.settings)
 		var task_id: int = WorkerThreadPool.add_task(
 			ChunkMeshBuilder.run_async_job.bind(job), true, "%s chunk build" % _get_world_log_name()
 		)
@@ -747,19 +682,9 @@ func _pool_load() -> int:
 ## order round the player holds and a small grid still builds in many tasks.
 func _build_task_chunks() -> int:
 	var cells: int = _world_build_settings.cells_per_axis
-	if _coarse_pass:
-		cells = int(floor(_world_build_settings.chunk_world_size / COARSE_VOXEL))
 	var samples: int = (cells + 1) * (cells + 1) * (cells + 1)
 	@warning_ignore("integer_division")
 	return clampi(BUILD_TASK_SAMPLES / samples, 1, maxi(_world_build_total / 64, 1))
-
-
-## The coarse pass's settings: COARSE_VOXEL voxels, as near as divides the chunk, and no
-## loose rock pass, since at that size a lump is a boulder.
-func _coarsen(settings: SettingsSnapshot) -> void:
-	settings.cells_per_axis = int(floor(settings.chunk_world_size / COARSE_VOXEL))
-	settings.voxel_size = settings.chunk_world_size / float(settings.cells_per_axis)
-	settings.loose_rock_voxels = 0
 
 
 ## Orders the chunks still to start: by group (_build_group), then nearest the focus
@@ -791,14 +716,14 @@ func _sort_world_build_queue() -> void:
 		_world_build_queue.append((keyed[index] as Array)[5] as Vector3i)
 
 
-## Where a chunk stands in the fine pass: the ground play waits for (0: the surface band
-## of the focuses' columns and the chunks round each focus), the deep chunks under those
-## columns (1, where the player digs first), the surface band of the rest of the map (2)
-## and its deep chunks (3). The surface layer of a map is a third of its build and the
-## cave layer two thirds, and nobody sees the caves until they dig, so the ground in view
-## is fine three times sooner this way. The coarse pass is one group, nearest first.
+## Where a chunk stands in the build: the ground play waits for (0: the surface band of the
+## focuses' columns and the chunks round each focus), the deep chunks under those columns
+## (1, where the player digs first), the surface band of the rest of the map (2) and its
+## deep chunks (3). The surface layer of a map is a third of its build and the cave layer
+## two thirds, and nobody sees the caves until they dig, so the ground in view is in three
+## times sooner this way.
 func _build_group(chunk_coordinate: Vector3i) -> int:
-	if _coarse_pass or _play_chunks.has(chunk_coordinate):
+	if _play_chunks.has(chunk_coordinate):
 		return 0
 	var deep: int = 1 if _deep.has(chunk_coordinate) else 0
 	if _play_columns.has(Vector2i(chunk_coordinate.x, chunk_coordinate.z)):
@@ -806,10 +731,13 @@ func _build_group(chunk_coordinate: Vector3i) -> int:
 	return 2 + deep
 
 
-## How far a chunk column's centre is from the nearest focus, past its radius: the local
-## player's when there is one, else any; from the world's centre when none is set.
+## How far a chunk column's centre is from the nearest focus, past its radius: where the
+## local player is now once play has begun, else its placement when there is one, else any;
+## from the world's centre when none is set.
 func _focus_distance(column_centre: Vector2) -> float:
-	var foci: Array[Vector4] = _primary_focus if not _primary_focus.is_empty() else _build_focus
+	var foci: Array[Vector4] = _order_focus
+	if foci.is_empty():
+		foci = _primary_focus if not _primary_focus.is_empty() else _build_focus
 	if foci.is_empty():
 		return column_centre.distance_to(Vector2(global_position.x, global_position.z))
 	var nearest: float = INF
@@ -852,78 +780,55 @@ func _chunks_touching(world_position: Vector3, radius: float) -> Array[Vector3i]
 	return chunks
 
 
-## Until play can begin, the count is of what it waits for: the coarse map and the fine
-## ground the focuses asked for (a ring of columns' worth assumed until a focus says).
+## Until play can begin, the count is of what it waits for: the ground the focuses asked
+## for (a ring of columns' worth assumed until a focus says); after, of the whole map.
 func _emit_build_progress() -> void:
 	_play_waiting = _world_building and not play_ground_ready()
-	if build_before_play or _world_build_placed >= _world_build_total:
+	if not _play_waiting or _world_build_placed >= _world_build_total:
 		build_progress.emit(mini(_world_build_placed, _world_build_total), _world_build_total)
 		return
-	if _world_build_placed >= _world_build_total:
-		build_progress.emit(_world_build_total, _world_build_total)
-		return
-	if _play_waiting:
-		var play_done: int = 0
-		var play_total: int = 0
-		for chunk_coordinate: Vector3i in _play_ground():
-			play_total += 1
-			if _is_fine(chunk_coordinate):
-				play_done += 1
-		if _play_columns.is_empty():
-			var ring: int = ceili(play_ring / _build_settings().chunk_world_size)
-			var band: int = ceili(
-				(
-					float(_world_build_total)
-					/ float(maxi(_world_build_grid.x * _world_build_grid.z, 1))
-				)
-			)
-			play_total = (2 * ring + 1) ** 2 * band
-		build_progress.emit(_coarse_placed + play_done, _coarse_total + play_total)
-		return
-	build_progress.emit(_world_build_placed, _world_build_total)
+	var play_done: int = 0
+	var play_total: int = 0
+	for chunk_coordinate: Vector3i in _play_ground():
+		play_total += 1
+		if _stands(chunk_coordinate):
+			play_done += 1
+	if _play_columns.is_empty():
+		var ring: int = ceili(play_ring / _build_settings().chunk_world_size)
+		var band: int = ceili(
+			float(_world_build_total) / float(maxi(_world_build_grid.x * _world_build_grid.z, 1))
+		)
+		play_total = (2 * ring + 1) ** 2 * band
+	build_progress.emit(play_done, play_total)
 
 
-## A body standing where a fine chunk just replaced a coarse one may be under the new
-## surface, since the fine ground can sit higher: it is lifted onto it, two physics steps
-## after the chunk went in so its collision is in the space.
+## Looks at where the bodies are for the streamed underground, moves the build's order to
+## the local player, and holds any body about to walk or fall onto ground not built yet.
 func _physics_process(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
-	if not _lift_checks.is_empty():
-		var boxes: Array[AABB] = _lift_checks
-		_lift_checks = []
-		for node: Node in get_tree().get_nodes_in_group("fighter"):
-			var body: Node3D = node as Node3D
-			if body == null or not body.has_method("unstick"):
-				continue
-			for box: AABB in boxes:
-				if box.grow(1.0).has_point(body.global_position):
-					_lift_onto_ground(body)
-					break
-	if not _lift_pending.is_empty():
-		_lift_checks = _lift_pending
-		_lift_pending = []
 	if _streaming():
 		_stream_tick += 1
 		if _stream_tick % STREAM_EVERY == 1:
 			_look_for_streamed_chunks()
+	if _world_building and not _play_waiting:
+		_order_tick += 1
+		if _order_tick % ORDER_EVERY == 1:
+			_follow_local_player()
+	if _streaming() or _world_building:
 		_hold_bodies_off_missing_ground()
 
 
-func _lift_onto_ground(body: Node3D) -> void:
-	var from: Vector3 = body.global_position + Vector3.UP * 4.0
-	var to: Vector3 = body.global_position - Vector3.UP * 1.0
-	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
-	if body is CollisionObject3D:
-		query.exclude = [(body as CollisionObject3D).get_rid()]
-	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty() or not is_ancestor_of(hit["collider"] as Node):
-		return
-	var clearance_value: Variant = body.get("spawn_clearance")
-	var clearance: float = float(clearance_value) if clearance_value != null else 1.0
-	var ground: Vector3 = hit["position"] as Vector3
-	if ground.y > body.global_position.y - clearance * 0.5:
-		body.call("unstick", ground + Vector3.UP * clearance)
+## Orders the rest of the build round where the local player is now.
+func _follow_local_player() -> void:
+	for node: Node in get_tree().get_nodes_in_group("fighter"):
+		var body: Node3D = node as Node3D
+		if body != null and body.is_inside_tree() and _is_local_body(body):
+			var at: Vector3 = body.global_position
+			_order_focus.clear()
+			_order_focus.append(Vector4(at.x, at.y, at.z, 0.0))
+			_queue_stale = true
+			return
 
 
 # --- Streaming the underground -------------------------------------------------------------
@@ -992,22 +897,13 @@ func _look_for_streamed_chunks() -> void:
 		_want_round(
 			Vector3(focus.x, focus.y, focus.z), maxf(focus.w, 0.0) + STREAM_BODY, wanted, keep
 		)
-	_rough_look += 1
-	if _rough_look % STREAM_ROUGH_EVERY == 1:
-		_look_for_rough_chunks()
-	# A chunk stays while a body keeps it fine or the player keeps it coarse; a fine chunk
-	# the player has passed stays fine until it is beyond STREAM_ROUGH.
 	for chunk_coordinate: Vector3i in _stream_loaded.keys():
-		if not keep.has(chunk_coordinate) and not _rough_keep.has(chunk_coordinate):
-			_free_streamed_chunk(chunk_coordinate)
-	for chunk_coordinate: Vector3i in _stream_rough.keys():
-		if not keep.has(chunk_coordinate) and not _rough_keep.has(chunk_coordinate):
+		if not keep.has(chunk_coordinate):
 			_free_streamed_chunk(chunk_coordinate)
 	_stream_wanted = wanted
 	_stream_keep = keep
 	var keyed: Array = []
 	for chunk_coordinate: Vector3i in wanted:
-		# A coarse chunk there is still wanted fine.
 		if _stream_loaded.has(chunk_coordinate) or _stream_inflight.has(chunk_coordinate):
 			continue
 		keyed.append([-float(wanted[chunk_coordinate]), chunk_coordinate])
@@ -1023,28 +919,6 @@ static func _is_local_body(body: Node3D) -> bool:
 	if body is FighterBody:
 		return (body as FighterBody).is_local
 	return body.is_in_group("player")
-
-
-## The coarse chunks round the local player: wanted within STREAM_ROUGH, nearest first, kept
-## STREAM_KEEP farther; those standing (coarse or fine) or on the pool are not queued.
-func _look_for_rough_chunks() -> void:
-	var wanted: Dictionary = {}
-	var keep: Dictionary = {}
-	for node: Node in get_tree().get_nodes_in_group("fighter"):
-		var body: Node3D = node as Node3D
-		if body != null and body.is_inside_tree() and _is_local_body(body):
-			_want_round(body.global_position, STREAM_ROUGH, wanted, keep)
-	_rough_wanted = wanted
-	_rough_keep = keep
-	var keyed: Array = []
-	for chunk_coordinate: Vector3i in wanted:
-		if _chunks.has(chunk_coordinate) or _stream_inflight.has(chunk_coordinate):
-			continue
-		keyed.append([-float(wanted[chunk_coordinate]), chunk_coordinate])
-	keyed.sort()
-	_rough_queue.clear()
-	for key: Array in keyed:
-		_rough_queue.append(key[1] as Vector3i)
 
 
 ## Adds the streamed chunks within reach of a point to wanted (chunk -> metres from the
@@ -1079,14 +953,12 @@ func _free_streamed_chunk(chunk_coordinate: Vector3i) -> void:
 		chunk.queue_free()
 	_chunks.erase(chunk_coordinate)
 	_stream_loaded.erase(chunk_coordinate)
-	_stream_rough.erase(chunk_coordinate)
 	_field_cache.erase(chunk_coordinate)
 	_pending_rebuild_chunk_coordinates.erase(chunk_coordinate)
 
 
 ## Starts the wanted streamed chunks, nearest first, a few to a task, on the pool's free
-## places (only STREAM_TASKS_IN_COARSE of them while the map's coarse pass goes out). They
-## are built fine straight away: a body only goes where they stand.
+## places (only STREAM_TASKS_BEFORE_PLAY of them until play can begin).
 func _fill_stream() -> void:
 	var cells: int = get_cells_per_axis()
 	var samples: int = (cells + 1) * (cells + 1) * (cells + 1)
@@ -1094,7 +966,7 @@ func _fill_stream() -> void:
 	var per_task: int = clampi(BUILD_TASK_SAMPLES / samples, 1, 8)
 	var holding_back: bool = _world_building and _play_waiting
 	while _stream_waiting() and _pool_load() < WORLD_BUILD_IN_FLIGHT:
-		if holding_back and _stream_tasks.size() >= STREAM_TASKS_IN_COARSE:
+		if holding_back and _stream_tasks.size() >= STREAM_TASKS_BEFORE_PLAY:
 			return
 		var batch: Array[Vector3i] = []
 		while batch.size() < per_task and _stream_waiting():
@@ -1119,46 +991,6 @@ func _fill_stream() -> void:
 			ChunkMeshBuilder.run_async_job.bind(job),
 			true,
 			"%s streamed chunk" % _get_world_log_name()
-		)
-		_stream_tasks[task_id] = job
-	if not holding_back:
-		_fill_rough()
-
-
-## Starts the coarse chunks round the player, nearest first, once the fine ones wanted are
-## all under way: a far wall comes in after the ground under the bodies.
-func _fill_rough() -> void:
-	var cells: int = int(floor(chunk_size / COARSE_VOXEL))
-	var samples: int = (cells + 1) * (cells + 1) * (cells + 1)
-	@warning_ignore("integer_division")
-	var per_task: int = clampi(BUILD_TASK_SAMPLES / samples, 1, 64)
-	while (
-		not _rough_queue.is_empty()
-		and _stream_queue.is_empty()
-		and _pool_load() < WORLD_BUILD_IN_FLIGHT
-	):
-		var batch: Array[Vector3i] = []
-		while batch.size() < per_task and not _rough_queue.is_empty():
-			var chunk_coordinate: Vector3i = _rough_queue.pop_back()
-			if (
-				_chunks.has(chunk_coordinate)
-				or _stream_inflight.has(chunk_coordinate)
-				or not _rough_wanted.has(chunk_coordinate)
-			):
-				continue
-			_stream_inflight[chunk_coordinate] = true
-			batch.append(chunk_coordinate)
-		if batch.is_empty():
-			continue
-		var job: ChunkMeshBuilder.AsyncRebuildJob = ChunkMeshBuilder.AsyncRebuildJob.new()
-		job.chunk_coordinates = batch
-		job.settings = _make_thread_settings_snapshot()
-		job.coarse = true
-		_coarsen(job.settings)
-		var task_id: int = WorkerThreadPool.add_task(
-			ChunkMeshBuilder.run_async_job.bind(job),
-			true,
-			"%s streamed coarse chunk" % _get_world_log_name()
 		)
 		_stream_tasks[task_id] = job
 
@@ -1197,22 +1029,11 @@ func _poll_stream() -> void:
 			var result: ChunkMeshBuilder.ChunkBuildResult = (
 				job.batch_result.chunks[chunk_coordinate] as ChunkMeshBuilder.ChunkBuildResult
 			)
-			if job.coarse:
-				if _chunks.has(chunk_coordinate) or not _rough_keep.has(chunk_coordinate):
-					continue
-				_build_chunk_at(chunk_coordinate, result, job.settings)
-				_stream_rough[chunk_coordinate] = true
-				continue
 			if not _stream_keep.has(chunk_coordinate) or _stream_loaded.has(chunk_coordinate):
 				continue
-			if _stream_rough.has(chunk_coordinate):
-				# The fine chunk in place of the coarse one.
-				var coarse_chunk: Node = _chunks[chunk_coordinate]
-				remove_child(coarse_chunk)
-				coarse_chunk.queue_free()
-				_stream_rough.erase(chunk_coordinate)
 			_build_chunk_at(chunk_coordinate, result, job.settings)
 			_stream_loaded[chunk_coordinate] = true
+			ground_placed.emit(_get_chunk_world_aabb(chunk_coordinate, job.settings))
 		if job.placed >= job.chunk_coordinates.size():
 			_stream_tasks.erase(task_id)
 
@@ -1230,27 +1051,22 @@ func _reset_stream() -> void:
 	_stream_inflight.clear()
 	_stream_loaded.clear()
 	_stream_wanted.clear()
-	_stream_rough.clear()
-	_rough_wanted.clear()
-	_rough_keep.clear()
-	_rough_queue.clear()
-	_rough_look = 0
 	_stream_keep.clear()
 	_stream_queue.clear()
 	_stream_tick = 0
 
 
-## Whether a streamed chunk under a body (within STREAM_HOLD_REACH of its feet, and as far
-## again as it falls in a quarter of a second) is not built yet: a body going on would fall
-## through it.
-func streamed_ground_missing_under(body: Node3D) -> bool:
-	if not _streaming() or body == null:
+## Whether a chunk round a body (within GROUND_HOLD_REACH of its feet, and as far again as
+## it falls in a quarter of a second) is not built yet, while the map builds or on a map that
+## streams its underground: a body going on would walk off the built ground or fall through.
+func ground_missing_under(body: Node3D) -> bool:
+	if body == null or not (_world_building or _streaming()):
 		return false
 	var feet: Vector3 = body.global_position
 	var fall: float = 0.0
 	if body is CharacterBody3D:
 		fall = maxf(-(body as CharacterBody3D).velocity.y, 0.0) * 0.25
-	var reach: float = STREAM_HOLD_REACH
+	var reach: float = GROUND_HOLD_REACH
 	var corner: Vector3 = _grid_corner()
 	var low_point := Vector3(feet.x - reach, feet.y - reach - fall, feet.z - reach)
 	var high_point := Vector3(feet.x + reach, feet.y + reach, feet.z + reach)
@@ -1262,19 +1078,19 @@ func streamed_ground_missing_under(body: Node3D) -> bool:
 		for chunk_z: int in range(low.z, high.z + 1):
 			for chunk_y: int in range(low.y, high.y + 1):
 				var chunk_coordinate := Vector3i(chunk_x, chunk_y, chunk_z)
-				if _is_streamed(chunk_coordinate) and not _stream_loaded.has(chunk_coordinate):
+				if not _stands(chunk_coordinate):
 					return true
 	return false
 
 
-## Stops any body about to walk or fall into streamed ground that is not built yet
+## Stops any body about to walk or fall onto ground that is not built yet
 ## (GroundPlayer.hold_for_ground), until it is.
 func _hold_bodies_off_missing_ground() -> void:
 	for node: Node in get_tree().get_nodes_in_group("fighter"):
 		var body: Node3D = node as Node3D
 		if body == null or not body.has_method("hold_for_ground"):
 			continue
-		if streamed_ground_missing_under(body):
+		if ground_missing_under(body):
 			body.call("hold_for_ground")
 
 
@@ -1293,16 +1109,12 @@ func _abandon_world_build() -> void:
 	_world_build_tasks.clear()
 	_world_build_queue.clear()
 	_world_building = false
-	_coarse_pass = false
-	_coarse_total = 0
-	_coarse_placed = 0
-	_placed_fine.clear()
-	_placed_any.clear()
-	_lift_pending.clear()
-	_lift_checks.clear()
+	_placed.clear()
+	_column_missing = PackedInt32Array()
 	_world_build_settings = null
 	_build_focus.clear()
 	_primary_focus.clear()
+	_order_focus.clear()
 	_play_columns.clear()
 	_play_chunks.clear()
 	_deep.clear()
@@ -1531,7 +1343,7 @@ func prepare_edit_around(world_position: Vector3, radius: float) -> void:
 			or _inflight_chunk_coordinates.has(chunk_coordinate)
 			or _pending_rebuild_chunk_coordinates.has(chunk_coordinate)
 			or not _chunks.has(chunk_coordinate)
-			or not _is_fine(chunk_coordinate)
+			or not _stands(chunk_coordinate)
 		):
 			continue
 		if _running_async_tasks >= max_concurrent_rebuild_tasks:
@@ -2014,25 +1826,9 @@ func _apply_async_job(async_rebuild_job: ChunkMeshBuilder.AsyncRebuildJob) -> vo
 			continue
 		if not async_rebuild_job.prepare_only:
 			chunk.apply_build_result(chunk_build_result, generate_collision)
-			if _stream_rough.erase(chunk_coordinate):
-				# A dig on a coarse streamed chunk rebuilt it fine.
-				_stream_loaded[chunk_coordinate] = true
 			chunk_rebuilt.emit(_get_chunk_world_aabb(chunk_coordinate, async_rebuild_job.settings))
 			if _effective_material() != null:
 				chunk.material_override = _effective_material()
-			if (
-				_world_building
-				and not _placed_fine.has(chunk_coordinate)
-				and not _is_streamed(chunk_coordinate)
-			):
-				# A coarse chunk just turned fine under the brush: whoever stands on it may
-				# now be under its surface.
-				var refined: AABB = _get_chunk_world_aabb(
-					chunk_coordinate, async_rebuild_job.settings
-				)
-				_lift_pending.append(refined)
-				_note_fine_chunk(chunk_coordinate)
-				ground_refined.emit(refined)
 		if chunk_build_result.field != null:
 			var cached := ChunkMeshBuilder.ChunkCache.new()
 			cached.field = chunk_build_result.field

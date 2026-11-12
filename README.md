@@ -444,91 +444,72 @@ are dropped before the scene is saved and rebuilt after, so the file stays small
 
 ### Loading a map
 
-In the game a map's terrain builds behind the loading screen without holding up a frame:
-the chunks go to the worker pool in tasks of a few at a time (`BUILD_TASK_SAMPLES`: three
-fine 16 m chunks, a hundred coarse ones, since the pool is refilled once a frame and a
-task shorter than a frame leaves its thread idle), four tasks at a time plus one queued,
-since GDScript on more threads than that runs slower (see `REBUILD_THREADS`). The whole map goes
-in coarse first, at 4 m voxels, a few seconds' work, so the ground looks complete and
-holds a body from the first frame; the fine chunks then replace it in bands
-(`_sort_world_build_queue`): the surface 64 m each way round the player's spawn
-(`play_ring`), the caves under that, the surface of the rest of the map nearest the
-player, and the rest of the caves last. The sky layers of a map cost nothing, the surface
-band is a third of the build at most and the cave layers the rest, and nobody sees the
-caves until they dig, so the ground in view is fine three times sooner this way; a chunk
-is deep when its top lies 8 m under the lowest surface of its column. Every fighter's placement is a focus
-of the build (`focus_build_at`); the local player's is the primary one the order is
-measured from, and a respawn moves it. The loading screen leaves once the map is coarse
-everywhere and the ground round the player's spawn is fine (`play_ground_ready`), about
-five seconds in: the surface band of the ring and, chunk by chunk, whatever the body
-stands in, which is more than the band for a spawn below it (a saved spot underground
-gets its cave chunks, queued first with the ring). A body placed while the map builds
-holds still, no physics, until the whole map stands and the ground round it is fine the
-same way, with no rebuild of those chunks queued, since a saved world's edits go in on
-the brush's lane and before them a chunk is yesterday's ground
-(`ground_stands_everywhere`, `is_ground_ready_around`); then it seats itself on that
-ground with a probe from just over its head, not from the sky, whose first ground over a
-cave is the roof; a body with nothing under it at all is inside ground the height it was
-put down from knows nothing of (a raised bed baked into the map), and takes the first
-ground under the sky as before. It was put down from the terrain's height function
-before any chunk stood there, or at a saved spot, a bot walks anywhere, and a body
-inside coarse rock or over a column with no chunk falls out of the world. A body on a
-coarse chunk is lifted onto the fine surface when it lands, a brush stroke on a coarse
-chunk rebuilds it fine at once, and an edit made at a chunk not yet placed waits for it.
-Where a fine chunk meets a coarse one their surfaces part by a metre or two at the face
-they share; every chunk hangs a skirt from the edges where its surface meets its faces
-(`ChunkSkirts`), a strip in the face's plane running into the solid side, up to 8 m and
-never past the first air its own samples show (so none hangs into a cave across a seam),
-facing out of the chunk and drawn only, so whichever side stands higher covers the crack.
-Between chunks that meet, the skirts lie inside the rock. They add about a fifth to a
-surface chunk's triangles. A map can instead build every chunk fine before play
-(`build_before_play`, off on the maps): no coarse ground and no cracks, but play begins
-about 55 s in rather than 8.
+In the game a map's terrain builds behind the loading screen without holding up a frame,
+and every chunk is built once, at full detail: nothing is laid rough first and replaced, so
+no seam opens where two kinds of chunk meet and nothing set on the ground has to follow a
+surface that moved. The chunks go to the worker pool in tasks of a few at a time
+(`BUILD_TASK_SAMPLES`, since the pool is refilled once a frame and a task shorter than a
+frame leaves its thread idle), four tasks at a time plus one queued (`REBUILD_THREADS`).
+They come in by groups (`_sort_world_build_queue`): the surface 96 m each way round the
+player's spawn (`play_ring`), the caves under that, the surface of the rest of the map
+nearest the player, and the rest of the caves last; once play has begun the order follows
+the local player wherever it goes (`ORDER_EVERY`). The sky layers of a map cost nothing,
+the surface band is a third of the build at most and the cave layers the rest, and nobody
+sees the caves until they dig; a chunk is deep when its top lies 8 m under the lowest
+surface of its column. Every fighter's placement is a focus of the build
+(`focus_build_at`); the local player's is the primary one the order is measured from, and
+a respawn moves it. The loading screen leaves once the ground round the player's spawn
+stands (`play_ground_ready`): the surface band of the ring and, chunk by chunk, whatever
+the body stands in, which is more than the band for a spawn below it (a saved spot
+underground gets its cave chunks, queued first with the ring). Where no chunk stands yet
+there is no ground at all. A body placed while the map builds holds still, no physics,
+until the ground round it stands with no rebuild of those chunks queued, since a saved
+world's edits go in on the brush's lane and before them a chunk is yesterday's ground
+(`is_ground_ready_around`); then it seats itself on that ground with a probe from just
+over its head, not from the sky, whose first ground over a cave is the roof; a body with
+nothing under it at all is inside ground the height it was put down from knows nothing of
+(a raised bed baked into the map), and takes the first ground under the sky as before. A
+body that walks or falls toward ground not built yet stops where it is, its velocity
+kept, until it stands (`ground_missing_under`, `hold_for_ground`). An edit made at a chunk
+not yet placed waits for it. Above ground the haze closes in short of the nearest ground not
+built yet (`get_built_reach`, at least 60 m off), so the edge of the built ground never
+shows, and opens out as the build spreads.
 The terrarium's ground builds the same way: its room spawns the terrain a frame after
 the scene goes in and starts the build (`begin_build`), the loading screen takes the
 terrain in when it appears (`MapInfo.terrain_worlds`), the room forwards the build's
-questions to it for the bodies that hold, and the plants grow on the coarse ground once
-it stands everywhere and follow the fine chunks as they land: a fine chunk reports the
-box it refined (`ground_refined`), and every plant and prop seated in it is probed again
-a physics step later, moved onto the new surface or cleared where that is more than 4 m
-away (a cave mouth the coarse ground did not show). The maps dig in 16 m chunks, 6,144 a
-map: a stroke rebuilds the chunks it touches, and the work done over a whole chunk, the
-loose-rock pass, the merge of its blocks and its collision, is an eighth of a 32 m
-chunk's, so on the crawlspace a cold stroke's hole shows in 114 ms instead of 528 and a
-warm one's in about 40 instead of 60, with the worst frame halved; the build itself is a
-tenth longer for the chunk count. The chunks a box touches are read off the grid
+questions to it for the bodies that hold, and the plants grow once the ground round the
+player stands: on the built ground where it stands and from the ground's heights where it
+does not yet. Each chunk reports its box as it stands (`ground_placed`), and every plant and
+prop seated in it is probed again a physics step later, moved onto the surface or cleared
+where that is more than 4 m away (a cave mouth the heights did not show). The maps dig in
+16 m chunks, 6,144 a map: a stroke rebuilds the chunks it touches, and the work done over
+a whole chunk, the loose-rock pass, the merge of its blocks and its collision, is an eighth
+of a 32 m chunk's. The chunks a box touches are read off the grid
 (`_get_chunk_coordinates_intersecting_aabb`), since a test of every chunk's box costs
 6 ms a call at that count and the brush asks every frame.
 
 The maps are a kilometre deep: 66 chunk layers, the surface on the seam 48 m under the
 top (Surface Layer 3, Surface Height Offset -8) and bedrock a kilometre under it. Their
 build makes only the band down to 32 m under the lowest surface of each column
-(`STREAM_MARGIN`), everything a body on the surface sees into, about the 6,000 chunks the
-96 m maps had; the chunks below are streamed (`stream_underground`). Every few physics
-frames the world looks where the bodies are: the streamed chunks within 48 m of the local
-player (what it sees in a cave) and 16 m of any other body are built, fine straight away,
-nearest first, and those more than 16 m beyond that are freed. Round the local player the
-streamed chunks also stand coarse out to 128 m (`STREAM_ROUGH`), after the fine ones and on
-a couple of the pool's places, so a cavern or a tunnel longer than 48 m shows its far end;
-a fine chunk replaces the coarse one in place, and one the player has passed stays fine
-until it is beyond 128 m. The local player is told by `FighterBody.is_local`: every body's
+(`STREAM_MARGIN`), everything a body on the surface sees into, about 6,000 chunks; the
+chunks below are streamed (`stream_underground`). Every few physics frames the world looks
+where the bodies are: the streamed chunks within 48 m of the local player (what it sees in
+a cave) and 16 m of any other body are built, nearest first, and those more than 16 m
+beyond that are freed. The local player is told by `FighterBody.is_local`: every body's
 scene is in the "player" group. Above ground a haze in the map's colour fades the far
 ground (100 to 600 m); under a roof of rock the air blends to a black fog that is total by
-90 m and the ambient light drops (`Atmosphere`, attached with the player, on a copy of the
-scene's environment, so the editor's view is untouched). Edits live apart from the
-chunks, so a dug tunnel comes back as it was left. Until play can begin a streamed chunk
-gets a pool place only when it lies within 8 m of a body; after, they go before the map's
-own fine chunks. A body about to walk or fall into streamed ground not built yet stops
-where it is, its velocity kept, until it is (`hold_for_ground`): dropped down a 150 m
-shaft, the player held under a second in all and landed alive at the bottom. The builders
-stand their structures on the surface's datum (`get_surface_datum_y`), the crawlspace's
-foundation walls reach 48 m under it as before, and the terrarium's pool keeps its height
-and depth under the surface (`TerrariumWater.POOL_REFERENCE_HEIGHT`), so the deep caves are
-dry. Saved worlds of the 96 m maps do not load (WorldSave version 3).
-The rest of the map keeps building behind the game at about five chunks a second while
-the game runs, so the surface of a 512 m map at 1 m is fine within a minute and its caves
-a couple of minutes later; `tools/smoke_test.tscn` prints the count every five seconds
-and when play's ground is ready.
+40 m, inside the 48 m the underground stands round the player, and the ambient light drops
+(`Atmosphere`, attached with the player, on a copy of the scene's environment, so the
+editor's view is untouched). Edits live apart from the chunks, so a dug tunnel comes back as
+it was left. Until play can begin a streamed chunk gets a pool place only when it lies
+within 8 m of a body; after, they go before the map's own chunks. Dropped down a 150 m
+shaft, the player is held under a second in all and lands alive at the bottom. The
+builders stand their structures on the surface's datum (`get_surface_datum_y`), the
+crawlspace's foundation walls reach 48 m under it as before, and the terrarium's pool keeps
+its height and depth under the surface (`TerrariumWater.POOL_REFERENCE_HEIGHT`), so the deep
+caves are dry. Saved worlds of the 96 m maps do not load (WorldSave version 3).
+`tools/smoke_test.tscn` prints the chunk count every five seconds and when play's ground is
+ready.
 
 ### Mode tuning
 
