@@ -520,7 +520,8 @@ body that walks or falls toward ground not built yet stops where it is, its velo
 kept, until it stands (`ground_missing_under`, `hold_for_ground`). An edit made at a chunk
 not yet placed waits for it. Above ground the haze closes in short of the nearest ground not
 built yet (`get_built_reach`, at least 60 m off), so the edge of the built ground never
-shows, and opens out as the build spreads.
+shows, and opens out as the build spreads; once the map is built the air above ground is
+clear.
 The terrarium's ground builds the same way: its room spawns the terrain a frame after
 the scene goes in and starts the build (`begin_build`), the loading screen takes the
 terrain in when it appears (`MapInfo.terrain_worlds`), the room forwards the build's
@@ -543,8 +544,8 @@ chunks below are streamed (`stream_underground`). Every few physics frames the w
 where the bodies are: the streamed chunks within 48 m of the local player (what it sees in
 a cave) and 16 m of any other body are built, nearest first, and those more than 16 m
 beyond that are freed. The local player is told by `FighterBody.is_local`: every body's
-scene is in the "player" group. Above ground a haze in the map's colour fades the far
-ground (100 to 600 m); under a roof of rock the air blends to a black fog that is total by
+scene is in the "player" group. Above ground the air is clear once the map is built (the
+haze is only there while the build spreads); under a roof of rock the air blends to a black fog that is total by
 40 m, inside the 48 m the underground stands round the player, and the ambient light drops
 (`Atmosphere`, attached with the player, on a copy of the scene's environment, so the
 editor's view is untouched). A scene with a fog of its own keeps it above ground instead of
