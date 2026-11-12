@@ -4,15 +4,16 @@ extends RefCounted
 ## eggs the queen lays from it (one a day at most, each costing FOOD_PER_EGG), the room dug
 ## for them under the ground, and the workers the eggs become. An egg laid by day hatches at
 ## the next dawn if it is still there; the colony's size (workers up plus eggs waiting) never
-## exceeds what the room allows: the founding four, plus one per ROOM_PER_WORKER_M3 dug below
-## the surface once the colony is founded. The founding four come as eggs the queen lays the
-## moment she is out of her own egg (found), free of food. Pure numbers: Burrow owns one, the
-## tests another.
+## exceeds what the room allows: four to start with, plus one per ROOM_PER_WORKER_M3 dug below
+## the surface once the colony is founded. Before any of that the queen's own egg is fed:
+## QUEEN_FOOD of the first food goes to it, and it hatches at a dawn once it has had it
+## (hatch_queen). Pure numbers: Burrow owns one, the tests another.
 
 ## The numbers changed (a delivery, an egg, a hatching, a loss, new room).
 signal changed
 
 const STARTING_WORKERS: int = 4
+const QUEEN_FOOD: int = 6
 const FOOD_PER_EGG: int = 6
 const EGGS_PER_DAY: int = 1
 const ROOM_PER_WORKER_M3: float = 40.0
@@ -20,6 +21,7 @@ const ROOM_PER_WORKER_M3: float = 40.0
 ## The numbers this colony runs on, the constants above unless Burrow hands it the ones set
 ## in the editor.
 var starting_workers: int = STARTING_WORKERS
+var queen_food: int = QUEEN_FOOD
 var food_per_egg: int = FOOD_PER_EGG
 var eggs_per_day: int = EGGS_PER_DAY
 var room_per_worker_m3: float = ROOM_PER_WORKER_M3
@@ -55,12 +57,19 @@ func lay(workers_alive: int) -> bool:
 	return true
 
 
-## The queen's first eggs, laid as she hatches: no food, no day's limit.
-func found(count: int) -> void:
-	if count <= 0:
-		return
-	eggs += count
+## Whether the queen's egg has had its food and can hatch.
+func can_hatch_queen() -> bool:
+	return food >= queen_food
+
+
+## The queen's egg hatches on the food in store; false (and nothing spent) when it has not had
+## enough.
+func hatch_queen() -> bool:
+	if not can_hatch_queen():
+		return false
+	food -= queen_food
 	changed.emit()
+	return true
 
 
 ## Food carried to the entrance.

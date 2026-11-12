@@ -1,7 +1,7 @@
 extends GutTest
 ## The queen in her egg: it starts as a crowned egg with the queen's body hidden, set down for
-## good it cracks open after HATCH_SECONDS and she comes out (hatched, once), a dropped egg
-## lies where it was put, and only a hatched queen under earth mends.
+## good it waits until the mode hatches it and she comes out (hatched, once), a dropped egg
+## lies where it was put and cannot hatch, and only a hatched queen under earth mends.
 
 
 func _queen() -> QueenAnt:
@@ -19,30 +19,32 @@ func test_she_starts_as_an_egg_wearing_a_crown() -> void:
 	assert_false((queen.get_node("Body") as Node3D).visible, "the queen's body waits inside")
 
 
-func test_a_set_down_egg_hatches_once_after_its_time() -> void:
+func test_a_set_down_egg_waits_until_it_is_hatched_and_hatches_once() -> void:
 	var queen: QueenAnt = _queen()
 	var hatched: Array[int] = [0]
 	queen.hatched.connect(func() -> void: hatched[0] += 1)
 	queen.place(Vector3(5.0, 0.0, 5.0))
 	assert_eq(queen.state, QueenAnt.State.HATCHING)
-	queen._process(QueenAnt.HATCH_SECONDS * 0.5)
-	assert_eq(hatched[0], 0, "not yet")
+	queen.fed = true
+	queen._process(30.0)
+	assert_eq(hatched[0], 0, "fed, it still waits for the dawn (the mode's word)")
 	assert_true(queen.is_egg())
-	queen._process(QueenAnt.HATCH_SECONDS * 0.6)
+	queen.hatch()
 	assert_eq(hatched[0], 1, "out of her egg")
 	assert_eq(queen.state, QueenAnt.State.SETTLED)
 	assert_false((queen.get_node("Egg") as Node3D).visible, "the shell is gone")
 	assert_true((queen.get_node("Body") as Node3D).visible, "and the queen shows")
 	assert_eq(queen.global_position, Vector3(5.0, 0.0, 5.0), "on the spot the egg was put")
-	queen._process(QueenAnt.HATCH_SECONDS)
+	queen.hatch()
 	assert_eq(hatched[0], 1, "she hatches once")
 
 
 func test_a_dropped_egg_lies_where_it_was_put_and_does_not_hatch() -> void:
 	var queen: QueenAnt = _queen()
 	queen.set_down(Vector3(-4.0, 0.5, 2.0))
-	queen._process(QueenAnt.HATCH_SECONDS * 2.0)
-	assert_eq(queen.state, QueenAnt.State.DOWN)
+	queen.hatch()
+	queen._process(1.0)
+	assert_eq(queen.state, QueenAnt.State.DOWN, "only an egg set down for good hatches")
 	assert_eq(queen.global_position, Vector3(-4.0, 0.5, 2.0))
 
 

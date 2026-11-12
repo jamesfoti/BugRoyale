@@ -30,10 +30,11 @@ Play
   stands firm whether the underside is solid with caves or, with the terrain's **Solid
   Underside** off, a sponge of 3D noise.
 - **Three modes on the menu.** Burrow (survival as the colony's soldier: you carry the
-  queen's egg, a crowned egg on your back, and set it down wherever you choose; she hatches
-  there and lays the four eggs of the colony's first workers, out at dawn; in the open she is
-  hornet prey, under earth you dug she is safe and mends; then dig by day and build with what
-  you carve while the workers forage crumbs, seeds and sugar to the entrance, every six food is an egg that hatches a worker at dawn, the room
+  queen's egg, a crowned egg on your back, and set it down wherever you choose; bring it six
+  food and the queen hatches there at the next dawn, and from then on lays an egg a day for
+  every six food, each hatching a worker at the following dawn; in the open she is hornet
+  prey, under earth you dug she is safe and mends; dig by day and build with what you carve
+  while you, and then the workers, forage crumbs, seeds and sugar to the entrance; the room
   you dig below ground caps how many the colony can be, a fallen worker is gone for good,
   hornets hunt by day and by night, trapdoor spiders lurk among the food, hold the burrow
   after dark against husks and raiding ants, and keep the queen alive, because the colony

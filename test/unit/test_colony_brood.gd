@@ -1,7 +1,7 @@
 extends GutTest
 ## The colony's ledger: food becomes an egg at six, one egg a day, never past the room dug for
 ## the colony, eggs hatch at dawn, a lost egg is gone, and the whole thing survives a save. The
-## queen's founding eggs cost no food and fill the founding room.
+## queen's own egg hatches on six food, spent only when it does.
 
 var _brood: ColonyBrood
 
@@ -18,14 +18,16 @@ func test_starts_with_nothing_and_the_founding_four_as_the_cap() -> void:
 	assert_eq(_brood.text(), "Food 0  ·  Eggs 0")
 
 
-func test_the_founding_eggs_cost_nothing_and_hatch_at_dawn() -> void:
-	_brood.found(ColonyBrood.STARTING_WORKERS)
-	assert_eq(_brood.eggs, ColonyBrood.STARTING_WORKERS)
-	assert_eq(_brood.food, 0, "no food spent")
-	assert_eq(_brood.laid_today, 0, "and not the day's egg")
-	_brood.deliver(6)
-	assert_false(_brood.lay(0), "the founding eggs fill the founding room")
-	assert_eq(_brood.dawn(), ColonyBrood.STARTING_WORKERS)
+func test_the_queens_egg_hatches_on_six_food() -> void:
+	_brood.deliver(ColonyBrood.QUEEN_FOOD - 1)
+	assert_false(_brood.can_hatch_queen())
+	assert_false(_brood.hatch_queen(), "one short")
+	assert_eq(_brood.food, ColonyBrood.QUEEN_FOOD - 1, "nothing spent on a refusal")
+	_brood.deliver(3)
+	assert_true(_brood.can_hatch_queen())
+	assert_true(_brood.hatch_queen())
+	assert_eq(_brood.food, 2, "what was brought past her six stays in store")
+	assert_eq(_brood.eggs, 0, "she brings no eggs with her")
 	assert_signal_emitted(_brood, "changed")
 
 

@@ -3,14 +3,15 @@ extends Node3D
 ## The queen: the colony's one life. Burrow opens with her still in her egg, a big pale egg
 ## wearing a little gold crown, riding on the player's back; the player fights as usual with it
 ## there. Wherever the player sets it down for good (found_colony, G), anywhere at all, it
-## cracks open and the queen comes out on that spot to lay the colony's first eggs. Dropped
-## when its bearer falls, the egg lies on the ground until a bug picks it up again. Out in the
+## waits to be fed; the mode hatches it at a dawn once it has had its food (it rocks on the
+## ground when it has), and the queen comes out on that spot to lay. Dropped when its bearer
+## falls, the egg lies on the ground until a bug picks it up again. Out in the
 ## open, egg or queen, she is prey (hornets go for her); with ground standing over her (a
 ## burrow the player dug) she is out of their reach, and the queen mends there. If she dies
 ## the colony is over. The mode moves her: who carries the egg, when it is set down, whether
 ## she is sheltered.
 
-## She has hatched where the egg was set down: the mode lays the founding eggs.
+## She has hatched where the egg was set down: from now on she lays.
 signal hatched
 
 enum State { CARRIED, DOWN, HATCHING, SETTLED }
@@ -20,9 +21,7 @@ const MAX_HEALTH: float = 160.0
 ## The egg on its bearer's back: this high over the bearer's position and this far behind.
 const CARRY_HEIGHT: float = 0.4
 const CARRY_BEHIND: float = 0.6
-## How long the set-down egg takes to crack open, and how fast the queen mends once out and
-## sheltered.
-const HATCH_SECONDS: float = 4.0
+## How fast the queen mends once out and sheltered.
 const MEND_PER_SECOND: float = 4.0
 const BODY_COLOR := Color(0.93, 0.82, 0.58)
 const EYE_COLOR := Color(0.12, 0.08, 0.05)
@@ -42,9 +41,11 @@ var bearer: Fighter
 ## Ground stands over her (the mode decides, every so often): out of the hornets' reach, and
 ## a hatched queen mends there.
 var sheltered: bool = false
+## The set-down egg has had its food (the mode keeps this current): it rocks, ready to hatch at
+## dawn.
+var fed: bool = false
 
 var _time: float = 0.0
-var _hatch_left: float = 0.0
 ## The egg (shell and crown) and the queen's body, one shown at a time.
 var _egg: Node3D
 var _body: Node3D
@@ -81,12 +82,9 @@ func _process(delta: float) -> void:
 			if bearer != null and bearer.is_alive():
 				global_position = _on_back_of(bearer)
 		State.HATCHING:
-			_hatch_left -= delta
-			# The shell rocks harder as it is about to crack.
-			var shake: float = 0.25 * (1.0 - _hatch_left / HATCH_SECONDS)
+			# Fed, the shell rocks now and then: something inside is ready.
+			var shake: float = 0.12 * maxf(sin(_time * 1.3), 0.0) if fed else 0.0
 			_egg.rotation = Vector3(sin(_time * 21.0), 0.0, cos(_time * 17.0)) * shake
-			if _hatch_left <= 0.0:
-				_hatch()
 		State.SETTLED:
 			if sheltered and health.is_alive():
 				health.heal(MEND_PER_SECOND * delta)
@@ -112,12 +110,21 @@ func set_down(at: Vector3) -> void:
 	global_position = at
 
 
-## The egg is set down for good at a point and cracks open there in HATCH_SECONDS.
+## The egg is set down for good at a point, to wait there until it hatches.
 func place(at: Vector3) -> void:
 	bearer = null
 	state = State.HATCHING
-	_hatch_left = HATCH_SECONDS
 	global_position = at
+
+
+## The set-down egg cracks open and the queen comes out (hatched, once).
+func hatch() -> void:
+	if state != State.HATCHING:
+		return
+	state = State.SETTLED
+	_egg.rotation = Vector3.ZERO
+	_show_hatched(true)
+	hatched.emit()
 
 
 ## Already hatched (a saved colony): the queen at her spot.
@@ -134,12 +141,6 @@ func is_egg() -> bool:
 
 func is_alive() -> bool:
 	return health != null and health.is_alive()
-
-
-func _hatch() -> void:
-	state = State.SETTLED
-	_show_hatched(true)
-	hatched.emit()
 
 
 func _show_hatched(out: bool) -> void:

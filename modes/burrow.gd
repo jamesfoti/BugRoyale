@@ -1,29 +1,28 @@
 extends GameMode
-## Burrow: survival on a map that keeps what is dug into it, played from the ground as the
-## colony's soldier. It opens with you alone, the queen still in her egg (a big egg with a
-## crown) riding on your back while you fight as usual. Wherever you choose, anywhere at all,
-## you set it down for good (found_colony, G): it cracks open and the queen lays the colony's
-## first four eggs there, which hatch into its workers at the next dawn. Nothing is dug for
-## her: in the open she is the hornets' prey, egg or queen, and under earth (a burrow you dug
-## first, or one you dig over her) she is out of their reach and mends. Fall with the egg and
-## it lies where you fell until a bug picks it up again. Days are for digging (a carve pays out
-## what it removed, building with the pickaxe spends it) and for food: crumbs, seeds and sugar
-## lie about the surface, the workers carry them to where the egg was set down one at a time,
-## and so can you. Every six food the queen lays an egg, one a day, which lies by her and
-## hatches a worker at the next dawn if it is still there. The colony can only be as big as the
-## room dug for it: the founding four, plus one more for every forty cubic metres dug below the
-## surface once it is founded.
-## Hornets hunt by day and by night: a few now and then through the day, more when the
-## colony is loud, and more often after dark. They drift about the colony's patch and only
-## dive at a bug that comes close; a forager carrying food is what they want most. Nights
-## belong to the map besides: husks (bugs the fungus took)
-## shambling for the burrow, and from the second night a raiding party of black ants from a
-## rival colony, all gone at dawn. Days have their own danger once the colony is founded:
-## trapdoor spiders lurk where the food lies, more of them as the days pass, and strike at
-## whatever comes near, gone to ground at dusk. A worker that falls is gone for good,
-## and its food lies where it fell; you are back at the burrow after a few seconds. The burrow
-## is saved to disk with the ground it stands in (WorldSave) and is there, as left, next time.
-## If the queen dies the colony is over.
+## Burrow: survival on a map that keeps what is dug into it, played from the ground as the colony's
+## soldier. It opens with you alone, the queen still in her egg (a big egg with a crown) riding on
+## your back while you fight as usual. Wherever you choose, anywhere at all, you set it down for
+## good (found_colony, G). Then it wants feeding: bring six food to it and it hatches at the next
+## dawn (or the first dawn after it has them), and from then on the queen lays, an egg a day from
+## the food. There are no workers until her first egg hatches. Nothing is dug for her: in the open
+## she is the hornets' prey, egg or queen, and under earth (a burrow you dug first, or one you dig
+## over her) she is out of their reach and mends. Fall with the egg and it lies where you fell until
+## a bug picks it up again. Days are for digging (a carve pays out what it removed, building with
+## the pickaxe spends it) and for food: crumbs, seeds and sugar lie about the surface, you carry
+## them to where the egg was set down, and once there are workers they do too, one at a time. Every
+## six food the hatched queen lays an egg, one a day, which lies by her and hatches a worker at the
+## next dawn if it is still there. The colony can only be as big as the room dug for it: four to
+## start with, plus one more for every forty cubic metres dug below the surface once it is founded.
+## Hornets hunt by day and by night: a few now and then through the day, more when the colony is
+## loud, and more often after dark. They drift about the colony's patch and only dive at a bug that
+## comes close; a forager carrying food is what they want most. Nights belong to the map besides:
+## husks (bugs the fungus took) shambling for the burrow, and from the second night a raiding party
+## of black ants from a rival colony, all gone at dawn. Days have their own danger once the colony
+## is founded: trapdoor spiders lurk where the food lies, more of them as the days pass, and strike
+## at whatever comes near, gone to ground at dusk. A worker that falls is gone for good, and its
+## food lies where it fell; you are back at the burrow after a few seconds. The burrow is saved to
+## disk with the ground it stands in (WorldSave) and is there, as left, next time. If the queen dies
+## the colony is over.
 
 enum Carry { NOBODY, YOU }
 
@@ -92,10 +91,11 @@ const FOUND_ACTION: StringName = &"found_colony"
 @export var spider_bite_cooldown: float = 1.5
 @export var spider_bite_range: float = 2.5
 @export_group("Colony")
-## The colony: the queen lays this many eggs when she hatches (its first workers, out at the
-## next dawn), and a worker goes at this share of a soldier's pace. The rest is the brood's
-## arithmetic (ColonyBrood): food per egg, eggs a day at most, and the room dug below the
-## surface that each worker past the founding ones needs.
+## The colony: the food the queen's egg must have to hatch at dawn, how many workers it has
+## room for before any digging, and a worker's share of a soldier's pace. The rest is the
+## brood's arithmetic (ColonyBrood): food per egg, eggs a day at most, and the room dug below
+## the surface that each worker past the first ones needs.
+@export var queen_food: int = ColonyBrood.QUEEN_FOOD
 @export var starting_workers: int = ColonyBrood.STARTING_WORKERS
 @export var worker_speed: float = 0.8
 @export var food_per_egg: int = ColonyBrood.FOOD_PER_EGG
@@ -185,6 +185,7 @@ var _eggs: Array[AntEgg] = []
 func _ready() -> void:
 	super()
 	brood.starting_workers = starting_workers
+	brood.queen_food = queen_food
 	brood.food_per_egg = food_per_egg
 	brood.eggs_per_day = eggs_per_day
 	brood.room_per_worker_m3 = room_per_worker_m3
@@ -418,6 +419,7 @@ func _tend_queen(delta: float) -> void:
 	queen_position = queen.global_position
 	queen_state = queen.state
 	queen_carry = Carry.YOU if queen.state == QueenAnt.State.CARRIED else Carry.NOBODY
+	queen.fed = brood.can_hatch_queen()
 
 
 ## Before the founding: a fallen bearer drops the egg where it fell, and a bug that comes to a
@@ -481,8 +483,8 @@ func request_found(fighter: Fighter) -> bool:
 	return true
 
 
-## The colony starts at a spot: the egg cracks open there, and the food and the day's spiders
-## come out round it.
+## The colony starts at a spot: the egg waits there for its food, and the food and the day's
+## spiders come out round it.
 func _found(spot: Vector3) -> void:
 	founded = true
 	home = spot
@@ -493,26 +495,41 @@ func _found(spot: Vector3) -> void:
 	_scatter_food()
 	if not cycle.is_night():
 		_send_day_spiders()
-	announce("You set the queen's egg down. The colony starts here.", 5.0)
+	announce(
+		(
+			"The colony starts here. Bring the egg %d food and the queen hatches at dawn."
+			% brood.queen_food
+		),
+		6.0
+	)
 	save_world()
 
 
-## Out of her egg, the queen lays the colony's first eggs round her; they hatch at the next
-## dawn into its first workers.
+## Dawn on a set-down egg: it hatches if it has had its food, and waits another day if not.
+func _dawn_on_the_egg() -> void:
+	if queen == null or not queen.is_alive() or queen.state != QueenAnt.State.HATCHING:
+		return
+	if brood.hatch_queen():
+		queen.hatch()
+		return
+	announce(
+		(
+			"The queen's egg did not hatch: it needs %d more food by the next dawn."
+			% (brood.queen_food - brood.food)
+		),
+		5.0
+	)
+
+
+## Out of her egg, the queen starts laying: an egg a day for every food_per_egg food.
 func _on_queen_hatched() -> void:
 	if match_over:
 		return
-	brood.found(starting_workers)
-	for _index: int in starting_workers:
-		_place_egg()
 	queen_state = queen.state
 	announce(
 		(
-			(
-				"The queen is out of her egg and has laid %d eggs: the colony's first workers, "
-				+ "out at dawn. Every %d food after that is another egg."
-			)
-			% [starting_workers, brood.food_per_egg]
+			"The queen has hatched! From now on every %d food is an egg, one a day."
+			% brood.food_per_egg
 		),
 		6.0
 	)
@@ -684,7 +701,7 @@ func _hand_in(fighter: Fighter) -> void:
 	brood.deliver(count)
 	_set_carried(fighter, 0)
 	if _dwellers.has(fighter):
-		announce_to(fighter, "%d food handed in. %s" % [count, brood.text()], 2.5)
+		announce_to(fighter, "%d food handed in. %s" % [count, _brood_text()], 2.5)
 
 
 ## Idle workers keep to the entrance; a laden one comes right up to it to hand in.
@@ -806,6 +823,7 @@ func _on_dawn() -> void:
 	director.hasten_lull(first_hornets_seconds)
 	if founded:
 		_hatch()
+		_dawn_on_the_egg()
 		_scatter_food()
 		_send_day_spiders()
 	save_world()
@@ -1000,7 +1018,7 @@ func _status_text() -> String:
 			enemies += "  ·  Raiders %d" % raiders_left
 		return (
 			"Night %d  ·  %s to dawn  ·  %s  ·  %s  ·  %s  ·  Deaths %d"
-			% [nights + 1, change, enemies, brood.text(), workers_text, deaths]
+			% [nights + 1, change, enemies, _brood_text(), workers_text, deaths]
 		)
 	var day_text: String = "Day %d  ·  %s to dusk" % [nights + 1, change]
 	if hornets_left > 0:
@@ -1009,8 +1027,18 @@ func _status_text() -> String:
 		day_text += "  ·  Spiders %d" % spiders_left
 	return (
 		"%s  ·  %s  ·  %s  ·  %s  ·  Deaths %d"
-		% [day_text, brood.text(), stock.text(), workers_text, deaths]
+		% [day_text, _brood_text(), stock.text(), workers_text, deaths]
 	)
+
+
+## The brood for the status line: while the queen is still in her egg, how far it is fed.
+func _brood_text() -> String:
+	if queen_state != QueenAnt.State.HATCHING:
+		return brood.text()
+	var fed: int = mini(brood.food, brood.queen_food)
+	if fed >= brood.queen_food:
+		return "Queen's egg fed %d/%d: hatches at dawn" % [fed, brood.queen_food]
+	return "Queen's egg fed %d/%d" % [fed, brood.queen_food]
 
 
 func _present() -> void:

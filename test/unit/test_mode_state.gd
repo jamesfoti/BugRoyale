@@ -141,11 +141,34 @@ func test_status_text_reads_from_state_alone() -> void:
 	assert_string_contains(burrow._status_text(), "Dirt 12, Stone 3")
 	assert_string_contains(burrow._status_text(), "Food 4  ·  Eggs 1")
 	assert_string_contains(burrow._status_text(), "Workers 3/5", "room for one more than four")
+	burrow.apply_state({"queen_state": 2, "brood": {"food": 4}})
+	assert_string_contains(burrow._status_text(), "Queen's egg fed 4/6", "set down, being fed")
+	burrow.apply_state({"brood": {"food": 7}})
+	assert_string_contains(burrow._status_text(), "Queen's egg fed 6/6: hatches at dawn")
 	burrow.apply_state({"founded": false, "queen_carry": 1, "queen_health": 80.0})
 	assert_string_contains(burrow._status_text(), "You carry the queen's egg")
 	assert_string_contains(burrow._status_text(), "Egg 50%")
 	burrow.apply_state({"queen_carry": 0})
 	assert_string_contains(burrow._status_text(), "The queen's egg is down")
+
+
+func test_burrow_hatches_the_queens_egg_at_dawn_only_once_it_is_fed() -> void:
+	var burrow: GameMode = _new_mode("burrow")
+	burrow.hud = ModeHud.new()
+	add_child_autofree(burrow.hud)
+	var queen: QueenAnt = QueenAnt.spawn(self, Vector3.ZERO, Vector3.UP, 0)
+	autofree(queen)
+	queen.place(Vector3.ZERO)
+	burrow.queen = queen
+	burrow.brood.deliver(ColonyBrood.QUEEN_FOOD - 2)
+	burrow._dawn_on_the_egg()
+	assert_true(queen.is_egg(), "short of its food, the egg waits another day")
+	assert_eq(burrow.brood.food, ColonyBrood.QUEEN_FOOD - 2, "and keeps what it was brought")
+	burrow.brood.deliver(3)
+	burrow._dawn_on_the_egg()
+	assert_false(queen.is_egg(), "fed, it hatches at dawn")
+	assert_eq(burrow.brood.food, 1, "spending six; the rest is for her first egg")
+	assert_eq(burrow.brood.eggs, 0, "no free eggs: she lays from food, one a day")
 
 
 func test_catalog_formats_and_maps_agree() -> void:
