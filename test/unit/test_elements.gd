@@ -8,14 +8,14 @@ const SEED: int = 4242
 const OTHER_SEED: int = 99
 
 
-func _ground(noise_seed: int = SEED) -> DensitySampler.WorldDensity:
+func _ground(noise_seed: int = SEED) -> WorldDensity:
 	return DensitySampler.create_open_terrain_world_density(
 		noise_seed, 0.01, 3.0, 3, 2.0, 0.5, Vector3.ZERO, Vector3(256.0, 48.0, 256.0)
 	)
 
 
 ## What the ground is at a grid of points, this many metres down: Kind -> how many points.
-func _tally(ground: DensitySampler.WorldDensity, depth: float, steps: int = 40) -> Dictionary:
+func _tally(ground: WorldDensity, depth: float, steps: int = 40) -> Dictionary:
 	var counts: Dictionary = {}
 	for step_x: int in steps:
 		for step_z: int in steps:
@@ -43,7 +43,7 @@ func test_every_element_is_in_the_table_once() -> void:
 		assert_gt(TerrainMaterials.ore_weight(kind), 0, name)
 		assert_gte(
 			TerrainMaterials.ore_depth(kind),
-			DensitySampler.WorldDensity.TOPSOIL_DEPTH,
+			WorldDensity.topsoil_depth(),
 			"%s lies under the topsoil" % name
 		)
 		assert_ne(TerrainMaterials.color(kind), Color.WHITE, "%s has a colour" % name)
@@ -77,13 +77,13 @@ func test_names_symbols_and_numbers() -> void:
 
 
 func test_the_topsoil_is_the_maps_own_ground() -> void:
-	var ground: DensitySampler.WorldDensity = _ground()
+	var ground: WorldDensity = _ground()
 	var counts: Dictionary = _tally(ground, 1.0, 10)
 	assert_eq(counts.keys(), [TerrainMaterials.Kind.NATURAL])
 
 
 func test_no_element_lies_above_its_depth() -> void:
-	var ground: DensitySampler.WorldDensity = _ground()
+	var ground: WorldDensity = _ground()
 	var elements_found: int = 0
 	for depth: float in [1.8, 2.0, 4.0, 7.0, 10.0, 14.0, 17.0, 20.0, 26.0]:
 		var counts: Dictionary = _tally(ground, depth, 25)
@@ -104,7 +104,7 @@ func test_no_element_lies_above_its_depth() -> void:
 
 
 func test_ore_is_a_share_of_the_stone_and_the_deep_ground_has_many_elements() -> void:
-	var ground: DensitySampler.WorldDensity = _ground()
+	var ground: WorldDensity = _ground()
 	var counts: Dictionary = _tally(ground, 25.0)
 	var stone: int = int(counts.get(TerrainMaterials.Kind.STONE, 0))
 	var ore: int = 0

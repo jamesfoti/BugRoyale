@@ -27,10 +27,14 @@ func test_the_same_seed_rolls_the_same_systems_and_as_many_as_the_area_says() ->
 	assert_ne(first.starts, _systems(8).starts, "another seed, other passages")
 	var km2: float = BOUNDS.size.x * BOUNDS.size.z / 1000000.0
 	assert_between(
-		float(first.count), floor(CaveSystems.PER_KM2.x * km2), ceil(CaveSystems.PER_KM2.y * km2)
+		float(first.count),
+		floor(CaveSystems.per_km2_range().x * km2),
+		ceil(CaveSystems.per_km2_range().y * km2)
 	)
 	assert_eq(first.mouths.size(), first.count, "a mouth per system")
-	assert_gt(first.starts.size(), first.count * CaveSystems.STEPS.x / 2, "passages of many steps")
+	assert_gt(
+		first.starts.size(), first.count * CaveSystems.steps_range().x / 2, "passages of many steps"
+	)
 
 
 func test_every_mouth_sits_on_the_surface_inside_the_bounds() -> void:
@@ -43,7 +47,7 @@ func test_every_mouth_sits_on_the_surface_inside_the_bounds() -> void:
 		for second: int in range(first + 1, systems.mouths.size()):
 			var a: Vector3 = systems.mouths[first]
 			var b: Vector3 = systems.mouths[second]
-			if Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z)) < CaveSystems.MOUTH_SPACING:
+			if Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z)) < CaveSystems.mouth_spacing():
 				close_pairs += 1
 	assert_lt(close_pairs, 2, "the mouths keep apart")
 
@@ -55,7 +59,7 @@ func test_the_passages_go_down_and_are_air_along_their_centre_lines() -> void:
 		var middle: Vector3 = (systems.starts[index] + systems.ends[index]) * 0.5
 		assert_gt(systems.air(middle), 0.0, "air at the centre of segment %d" % index)
 		assert_gt(
-			systems.ends[index].y, FLOOR_Y + CaveSystems.FLOOR_CLEARANCE - 0.01, "above bedrock"
+			systems.ends[index].y, FLOOR_Y + CaveSystems.floor_clearance() - 0.01, "above bedrock"
 		)
 		deepest = minf(deepest, systems.ends[index].y)
 	assert_lt(deepest, systems.mouths[0].y - 20.0, "some passage is well under its mouth")
@@ -72,7 +76,7 @@ func test_a_prepared_region_sees_only_the_segments_in_reach() -> void:
 
 
 func test_the_mouths_open_the_ground_under_a_solid_open_terrain() -> void:
-	var density: DensitySampler.WorldDensity = DensitySampler.create_open_terrain_world_density(
+	var density: WorldDensity = DensitySampler.create_open_terrain_world_density(
 		SEED, 0.01, 3.0, 3, 2.0, 0.5, Vector3.ZERO, BOUNDS.size * 0.5, 0.5, false, null, 0.0, true
 	)
 	density.caves = CaveCarver.from_seed(SEED, FLOOR_Y)

@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://blovmxbx8ae11"]
 
 [ext_resource type="Script" uid="uid://bqvjyo3kwwq5p" path="res://scenes/terrain_lab.gd" id="1"]
-[ext_resource type="Script" uid="uid://dofbkoqb0rg1l" path="res://terrain/open_terrain.gd" id="2"]
 [ext_resource type="Material" path="res://materials/garden_lawn.tres" id="3"]
 [ext_resource type="Environment" uid="uid://brcqpo8f7y5it" path="res://materials/battlefield_env.tres" id="4"]
 
@@ -17,8 +16,7 @@ light_color = Color(1, 0.97, 0.9, 1)
 light_energy = 1.35
 shadow_enabled = true
 
-[node name="TerrainWorld" type="Node3D" parent="." unique_id=521404953]
-script = ExtResource("2")
+[node name="TerrainWorld" type="OpenTerrain" parent="." unique_id=521404953]
 chunks_x = 16
 chunks_y = 16
 chunks_z = 3

@@ -14,9 +14,9 @@ const ORIGIN: Vector3 = Vector3.ZERO
 const LIMIT: int = 8
 
 
-## Air everywhere but inside the given solids (DensitySampler.WorldDensity.solids).
-func _air_with(solids: Array[Dictionary]) -> DensitySampler.WorldDensity:
-	var density: DensitySampler.WorldDensity = DensitySampler.WorldDensity.new()
+## Air everywhere but inside the given solids (WorldDensity.solids).
+func _air_with(solids: Array[Dictionary]) -> WorldDensity:
+	var density: WorldDensity = WorldDensity.new()
 	density.noise_enabled = false
 	density.solids = solids
 	return density
@@ -35,13 +35,11 @@ func _lump(centre: Vector3, reach_x: int = 0, reach_across: int = 0) -> Dictiona
 	}
 
 
-func _field(density: DensitySampler.WorldDensity, chunk: Vector3i) -> SignedDensityField:
+func _field(density: WorldDensity, chunk: Vector3i) -> SignedDensityField:
 	return DensitySampler.build_chunk_field(density, SAMPLES, ORIGIN, chunk * CELLS, STEP)
 
 
-func _clear(
-	field: SignedDensityField, density: DensitySampler.WorldDensity, chunk: Vector3i
-) -> int:
+func _clear(field: SignedDensityField, density: WorldDensity, chunk: Vector3i) -> int:
 	return LooseRock.clear(field, density, ORIGIN, chunk * CELLS, STEP, CELLS, 0.0, LIMIT)
 
 
@@ -50,7 +48,7 @@ func _solid_at(field: SignedDensityField, x: int, y: int, z: int) -> bool:
 
 
 func test_a_lone_sample_is_cleared_and_a_lump_over_the_limit_kept() -> void:
-	var density: DensitySampler.WorldDensity = _air_with(
+	var density: WorldDensity = _air_with(
 		[_lump(Vector3(3.0, 6.0, 3.0)), _lump(Vector3(8.0, 6.0, 8.0), 1, 1)]
 	)
 	var field: SignedDensityField = _field(density, Vector3i.ZERO)
@@ -71,7 +69,7 @@ func test_a_lump_on_a_seam_is_judged_the_same_from_both_chunks() -> void:
 	# Three lumps on the face between chunks 0 and 1 along x (world x 12): one sample on the
 	# face, three samples from a sample before it to a sample past it, and three from the
 	# face to two samples past it, which only chunk 1 could see whole.
-	var density: DensitySampler.WorldDensity = _air_with(
+	var density: WorldDensity = _air_with(
 		[
 			_lump(Vector3(12.0, 6.0, 2.0)),
 			_lump(Vector3(12.0, 6.0, 6.0), 1),
@@ -98,7 +96,7 @@ func test_a_lump_on_a_seam_is_judged_the_same_from_both_chunks() -> void:
 
 
 func test_built_rock_stays_and_thinned_rock_goes() -> void:
-	var density: DensitySampler.WorldDensity = _air_with([_lump(Vector3(3.0, 6.0, 9.0))])
+	var density: WorldDensity = _air_with([_lump(Vector3(3.0, 6.0, 9.0))])
 	density.prepare_for_region(AABB(Vector3.ONE * -100.0, Vector3.ONE * 200.0))
 	var edits: TerrainEdits = TerrainEdits.new()
 	edits.set_voxel_size(STEP)
@@ -125,7 +123,7 @@ func test_built_rock_stays_and_thinned_rock_goes() -> void:
 
 
 func test_a_cave_chunk_loses_only_rock_and_agrees_with_its_neighbour() -> void:
-	var density: DensitySampler.WorldDensity = DensitySampler.create_open_terrain_world_density(
+	var density: WorldDensity = DensitySampler.create_open_terrain_world_density(
 		7,
 		0.01,
 		3.0,

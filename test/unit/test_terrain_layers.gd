@@ -1,5 +1,5 @@
 extends GutTest
-## The layers a seed adds over the height noise (DensitySampler.WorldDensity and OpenTerrain):
+## The layers a seed adds over the height noise (WorldDensity and OpenTerrain):
 ## the noise roll draws every number in its range and the same seed the same numbers; regions
 ## make the lowlands lower than the highlands and leave plain ground alone when off; the
 ## height curve's floor fills the valleys flat and its cliff band steepens the climb, both
@@ -13,14 +13,14 @@ const AMPLITUDE: float = 20.0
 const HALF := Vector3(256.0, 48.0, 256.0)
 
 
-func _surface(solid: bool = false) -> DensitySampler.WorldDensity:
+func _surface(solid: bool = false) -> WorldDensity:
 	return DensitySampler.create_open_terrain_world_density(
 		SEED, 0.008, AMPLITUDE, 3, 2.0, 0.5, Vector3.ZERO, HALF, 0.5, false, null, 0.0, solid
 	)
 
 
 ## Heights over a 40 by 40 grid of the ground, 12 m apart.
-func _heights(surface: DensitySampler.WorldDensity) -> PackedFloat32Array:
+func _heights(surface: WorldDensity) -> PackedFloat32Array:
 	var out := PackedFloat32Array()
 	for step_x: int in 40:
 		for step_z: int in 40:
@@ -39,15 +39,15 @@ func _mean(values: PackedFloat32Array) -> float:
 	return total / float(values.size())
 
 
-func _settings(roll: bool) -> ChunkedTerrainWorld.SettingsSnapshot:
-	var settings := ChunkedTerrainWorld.SettingsSnapshot.new()
+func _settings(roll: bool) -> TerrainSettings:
+	var settings := TerrainSettings.new()
 	settings.noise_seed = SEED
 	settings.noise_frequency = 0.008
 	settings.noise_amplitude = 12.0
 	settings.noise_octaves = 3
 	settings.noise_lacunarity = 2.0
 	settings.noise_gain = 0.5
-	settings.open_terrain_noise_roll = OpenTerrain.NoiseRoll.SEEDED if roll else 0
+	settings.open_terrain_noise_roll = OpenTerrain.NOISE_ROLL_SEEDED if roll else 0
 	return settings
 
 
@@ -57,14 +57,14 @@ func test_surface_layer_puts_the_surface_in_that_layer_from_the_top() -> void:
 	world.chunk_size = 32.0
 	world.chunks_y = 16
 	add_child_autofree(world)
-	var centred: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	var centred: TerrainSettings = world._make_settings_snapshot()
 	assert_almost_eq(centred.open_terrain_surface_offset, 0.0, 0.001, "layer 0 is the centre")
 	world.surface_layer = 2
-	var raised: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	var raised: TerrainSettings = world._make_settings_snapshot()
 	# 16 layers of 32 m: the top is 256 m up; the middle of the second layer is 48 m under it.
 	assert_almost_eq(raised.open_terrain_surface_offset, 256.0 - 48.0, 0.001)
 	world.surface_height_offset = -4.0
-	var nudged: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	var nudged: TerrainSettings = world._make_settings_snapshot()
 	assert_almost_eq(
 		nudged.open_terrain_surface_offset, 256.0 - 52.0, 0.001, "the offset still applies"
 	)
@@ -76,12 +76,12 @@ func test_the_cave_roll_sliders_travel_in_the_snapshot() -> void:
 	world.rebuild_on_ready = false
 	add_child_autofree(world)
 	world.cave_tunnel_depth = 9.0
-	world.cave_roll = OpenTerrain.CaveRoll.FIXED
-	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
-	assert_eq(settings.open_terrain_cave_roll, OpenTerrain.CaveRoll.FIXED)
-	assert_eq(settings.open_terrain_cave_values.size(), OpenTerrain.CAVE_FIELDS.size())
+	world.cave_roll = OpenTerrain.CAVE_ROLL_FIXED
+	var settings: TerrainSettings = world._make_settings_snapshot()
+	assert_eq(settings.open_terrain_cave_roll, OpenTerrain.CAVE_ROLL_FIXED)
+	assert_eq(settings.open_terrain_cave_values.size(), OpenTerrain.cave_fields().size())
 	assert_almost_eq(settings.open_terrain_cave_values["tunnel_depth"], 9.0, 0.0001)
-	for field: String in OpenTerrain.CAVE_FIELDS:
+	for field: String in OpenTerrain.cave_fields():
 		assert_not_null(CaveCarver.new().get(field), "%s is a CaveCarver field" % field)
 
 
@@ -100,10 +100,10 @@ func test_the_biome_lists_and_their_weights_say_what_lies_where() -> void:
 	var crystal: Biome = load("res://biomes/cave_crystal.tres")
 	world.land_biomes = [marsh]
 	world.cave_biomes = [crystal]
-	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	var settings: TerrainSettings = world._make_settings_snapshot()
 	assert_eq(settings.open_terrain_land_biomes.size(), 1, "the land list travels as data")
 	assert_eq(settings.open_terrain_cave_biomes[0]["name"], "crystal")
-	var forced: DensitySampler.WorldDensity = world._build_world_density(settings)
+	var forced: WorldDensity = world._build_world_density(settings)
 	for spot: Vector2 in [Vector2.ZERO, Vector2(200.0, -150.0), Vector2(-240.0, 240.0)]:
 		assert_eq(forced.land_biome(spot.x, spot.y)["name"], "marsh", "marsh alone, everywhere")
 		assert_eq(
@@ -124,9 +124,7 @@ func test_the_biome_lists_and_their_weights_say_what_lies_where() -> void:
 	never.weight = 0.0
 	world.land_biomes = [meadow, even_marsh, never]
 	world.land_patch_size = 100.0
-	var halves: DensitySampler.WorldDensity = world._build_world_density(
-		world._make_settings_snapshot()
-	)
+	var halves: WorldDensity = world._build_world_density(world._make_settings_snapshot())
 	var counts: Dictionary = {}
 	for step_x: int in 50:
 		for step_z: int in 50:
@@ -256,7 +254,7 @@ func test_the_build_puts_the_focused_ground_first_and_keeps_an_early_edit() -> v
 
 ## The triangles of the chunk holding a point, as the mesh has them.
 func _faces_at(world: OpenTerrain, point: Vector3) -> PackedVector3Array:
-	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	var settings: TerrainSettings = world._make_settings_snapshot()
 	for chunk_coordinate: Vector3i in world._chunks:
 		if world._get_chunk_world_aabb(chunk_coordinate, settings).has_point(point):
 			var chunk: TerrainChunk = world._chunks[chunk_coordinate]
@@ -270,7 +268,7 @@ func test_the_cave_ranges_and_shape_travel_and_steer_the_roll() -> void:
 	add_child_autofree(world)
 	world.cave_range_tunnel_ramp = Vector2(55.0, 55.0)
 	world.cave_fade = 5.0
-	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	var settings: TerrainSettings = world._make_settings_snapshot()
 	var plain: CaveCarver = CaveCarver.from_seed(settings.noise_seed, -100.0)
 	var steered: CaveCarver = CaveCarver.for_settings(settings)
 	assert_almost_eq(steered.tunnel_ramp, 55.0, 0.0001, "the ramp comes from its range")
@@ -289,7 +287,7 @@ func test_the_noise_roll_draws_in_range_and_the_same_seed_the_same() -> void:
 	assert_eq(OpenTerrain.noise_summary(first), OpenTerrain.noise_summary(second))
 	var summaries: Dictionary = {}
 	for value: int in range(1, 40):
-		var settings: ChunkedTerrainWorld.SettingsSnapshot = _settings(true)
+		var settings: TerrainSettings = _settings(true)
 		settings.noise_seed = value
 		var noise: Dictionary = OpenTerrain.rolled_noise(settings)
 		assert_between(float(noise["frequency"]), 0.004, 0.01, "frequency, seed %d" % value)
@@ -303,13 +301,13 @@ func test_the_noise_roll_draws_in_range_and_the_same_seed_the_same() -> void:
 
 func test_regions_lower_the_lowlands_and_leave_plain_ground_alone_when_off() -> void:
 	var plain: PackedFloat32Array = _heights(_surface())
-	var off: DensitySampler.WorldDensity = _surface()
+	var off: WorldDensity = _surface()
 	off.roll_regions(SEED, 0.0, Vector2(500.0, 900.0), Vector2(0.2, 0.2), Vector2.ONE, Vector2.ONE)
 	assert_eq(off.region_summary(), "no regions")
 	var heights: PackedFloat32Array = _heights(off)
 	for index: int in plain.size():
 		assert_almost_eq(heights[index], plain[index], 0.0001)
-	var on: DensitySampler.WorldDensity = _surface()
+	var on: WorldDensity = _surface()
 	on.roll_regions(
 		SEED, 1.0, Vector2(500.0, 900.0), Vector2(0.1, 0.1), Vector2(0.5, 0.5), Vector2.ZERO
 	)
@@ -322,7 +320,7 @@ func test_regions_lower_the_lowlands_and_leave_plain_ground_alone_when_off() -> 
 		for step_z: int in 40:
 			var world_x: float = float(step_x) * 12.0 - 240.0
 			var world_z: float = float(step_z) * 12.0 - 240.0
-			var mask: float = on._region_noise.get_noise_2d(world_x, world_z)
+			var mask: float = on.region_mask_noise(world_x, world_z)
 			var deviation: float = absf(on.sample_open_terrain_height(world_x, world_z))
 			if mask < -0.45:
 				lowland_spread += deviation
@@ -340,7 +338,7 @@ func test_regions_lower_the_lowlands_and_leave_plain_ground_alone_when_off() -> 
 
 
 func test_the_floor_fills_the_valleys_and_the_cliff_band_steepens_the_climb() -> void:
-	var curve: DensitySampler.WorldDensity = _surface()
+	var curve: WorldDensity = _surface()
 	curve.curve_floor = 0.4
 	var lowest: float = INF
 	var previous: float = -INF
@@ -367,7 +365,7 @@ func test_the_floor_fills_the_valleys_and_the_cliff_band_steepens_the_climb() ->
 		previous = shaped
 	assert_true("cliffs 0.5 at 0.50" in curve.curve_summary(), curve.curve_summary())
 	var plain: PackedFloat32Array = _heights(_surface())
-	var floored: DensitySampler.WorldDensity = _surface()
+	var floored: WorldDensity = _surface()
 	floored.curve_floor = 0.4
 	var heights: PackedFloat32Array = _heights(floored)
 	assert_gt(_mean(heights), _mean(plain) + 1.0, "filled valleys raise the ground")
@@ -379,7 +377,7 @@ func test_the_curve_rolls_from_the_seed_at_its_chances() -> void:
 	var floors: int = 0
 	var cliffs: int = 0
 	for value: int in range(1, 60):
-		var surface: DensitySampler.WorldDensity = _surface()
+		var surface: WorldDensity = _surface()
 		surface.roll_curve(
 			value,
 			0.6,
@@ -402,7 +400,7 @@ func test_the_curve_rolls_from_the_seed_at_its_chances() -> void:
 
 
 func test_relief_shows_on_steep_faces_within_its_band_only() -> void:
-	var ground: DensitySampler.WorldDensity = _surface(true)
+	var ground: WorldDensity = _surface(true)
 	ground.set_relief(3.0, SEED)
 	assert_eq(ground.relief_summary(), "relief 3.0 m")
 	assert_almost_eq(ground.relief_reach(), 6.0, 0.0001, "the band is twice the amplitude")
@@ -443,8 +441,8 @@ func test_relief_shows_on_steep_faces_within_its_band_only() -> void:
 
 
 func test_flat_spots_are_level_inside_the_bounds_and_apart() -> void:
-	var plain: DensitySampler.WorldDensity = _surface()
-	var landed: DensitySampler.WorldDensity = _surface()
+	var plain: WorldDensity = _surface()
+	var landed: WorldDensity = _surface()
 	landed.roll_flat_spots(SEED, Vector2i(3, 3), Vector2(10.0, 10.0))
 	assert_eq(landed.flat_spot_summary(), "3 flat spots")
 	var points: Array[Vector3] = landed.flat_spot_points()
@@ -491,7 +489,7 @@ func test_flat_spots_are_level_inside_the_bounds_and_apart() -> void:
 			0.0001,
 			"past the fade the ground is its own"
 		)
-	var none: DensitySampler.WorldDensity = _surface()
+	var none: WorldDensity = _surface()
 	none.roll_flat_spots(SEED, Vector2i.ZERO, Vector2(10.0, 10.0))
 	assert_eq(none.flat_spot_summary(), "no flat spots")
 
@@ -507,7 +505,7 @@ func test_the_chunks_a_box_touches_come_from_its_span_of_the_grid() -> void:
 	world.voxel_size = 4.0
 	add_child_autofree(world)
 	world.rebuild_all()
-	var settings: ChunkedTerrainWorld.SettingsSnapshot = world._make_settings_snapshot()
+	var settings: TerrainSettings = world._make_settings_snapshot()
 	var origin: Vector3 = world.global_position + world._chunk_corner_local(Vector3i.ZERO, settings)
 	var boxes: Array[AABB] = [
 		AABB(origin + Vector3(1.0, 1.0, 1.0), Vector3(2.0, 2.0, 2.0)),
@@ -621,8 +619,8 @@ func test_the_build_lays_the_surface_of_the_whole_map_before_the_caves() -> void
 		assert_lt(chunk_coordinate.y, 2, "the deep chunks are the bottom two layers")
 	# The chunks under way before the focus came are wherever the earlier order put them.
 	var early: Dictionary = {}
-	for job: ChunkMeshBuilder.AsyncRebuildJob in world._world_build_tasks.values():
-		for chunk_coordinate: Vector3i in job.chunk_coordinates:
+	for coordinates: Array in world._world_build_tasks.values():
+		for chunk_coordinate: Vector3i in coordinates:
 			early[chunk_coordinate] = true
 	for chunk_coordinate: Vector3i in world._placed:
 		early[chunk_coordinate] = true

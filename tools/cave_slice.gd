@@ -25,7 +25,7 @@ func _init() -> void:
 	var depth: int = int(options.get("depth", 480))
 	var slice_z: float = float(options.get("z", 0.0))
 	var carver: CaveCarver = CaveCarver.from_seed(
-		seed_value, -float(depth) - CaveCarver.FLOOR_MARGIN
+		seed_value, -float(depth) - CaveCarver.floor_margin()
 	)
 	# The carved systems too, under the flat surface, so their mouths and passages show.
 	carver.systems = CaveSystems.roll(

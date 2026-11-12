@@ -13,8 +13,8 @@ const SEED: int = 7
 const BEDROCK_Y: float = -45.5
 
 
-func _ground() -> DensitySampler.WorldDensity:
-	var density: DensitySampler.WorldDensity = DensitySampler.create_open_terrain_world_density(
+func _ground() -> WorldDensity:
+	var density: WorldDensity = DensitySampler.create_open_terrain_world_density(
 		SEED,
 		0.01,
 		3.0,
@@ -124,7 +124,7 @@ func test_the_warp_bends_the_caves_and_reads_them_in_place_at_zero() -> void:
 
 
 func test_air_above_the_surface_and_ground_just_under_it() -> void:
-	var ground: DensitySampler.WorldDensity = _ground()
+	var ground: WorldDensity = _ground()
 	var checked: int = 0
 	for step: int in 60:
 		var x: float = float(step) * 6.0 - 180.0
@@ -143,7 +143,7 @@ func test_air_above_the_surface_and_ground_just_under_it() -> void:
 ## below the surface wherever no cave is near, not a constant: held at -1 it terraced every
 ## slope. Within a cave's reach the density is the cave's own distance instead.
 func test_ground_away_from_caves_is_metres_below_the_surface() -> void:
-	var ground: DensitySampler.WorldDensity = _ground()
+	var ground: WorldDensity = _ground()
 	ground.caves.ravine_width = 0.0  # a ravine's distance reaches the whole top; tested on its own
 	var checked: int = 0
 	for step: int in 80:
@@ -202,7 +202,7 @@ func test_deep_ground_is_still_mostly_ground() -> void:
 
 
 func test_bedrock_is_solid_everywhere() -> void:
-	var ground: DensitySampler.WorldDensity = _ground()
+	var ground: WorldDensity = _ground()
 	for step: int in 60:
 		var x: float = float(step) * 5.0 - 150.0
 		var z: float = float(step) * 7.0 - 210.0
@@ -210,7 +210,7 @@ func test_bedrock_is_solid_everywhere() -> void:
 
 
 func test_tunnels_and_caverns_exist_but_the_ground_is_mostly_ground() -> void:
-	var ground: DensitySampler.WorldDensity = _ground()
+	var ground: WorldDensity = _ground()
 	ground.caves.ravine_width = 0.0  # the ravines have their own test
 	var shallow_air: int = 0
 	var tunnel_air: int = 0
@@ -596,31 +596,31 @@ func test_halls_open_only_in_the_deep_band() -> void:
 
 
 func test_a_carver_for_settings_puts_bedrock_above_the_grid_floor() -> void:
-	var settings := ChunkedTerrainWorld.SettingsSnapshot.new()
+	var settings := TerrainSettings.new()
 	settings.noise_seed = SEED
 	settings.chunks_y = 3
 	settings.chunk_world_size = 32.0
 	settings.world_origin = Vector3(0.0, 4.0, 0.0)
 	var carver: CaveCarver = CaveCarver.for_settings(settings)
-	assert_almost_eq(carver.floor_y, 4.0 - 48.0 + CaveCarver.FLOOR_MARGIN, 0.001)
+	assert_almost_eq(carver.floor_y, 4.0 - 48.0 + CaveCarver.floor_margin(), 0.001)
 
 
 ## Cave Roll: Seeded ignores the sliders' values, Fixed sets them over the roll and remakes
 ## the noises so a new frequency takes, and the same seed with the same values carves the
 ## same caves.
 func test_fixed_cave_values_override_the_roll() -> void:
-	var settings := ChunkedTerrainWorld.SettingsSnapshot.new()
+	var settings := TerrainSettings.new()
 	settings.noise_seed = SEED
 	settings.chunks_y = 3
 	settings.chunk_world_size = 32.0
 	settings.open_terrain_cave_values = {"tunnel_frequency": 0.05, "tunnel_depth": 9.0}
 	var rolled: CaveCarver = CaveCarver.for_settings(settings)
 	assert_ne(rolled.tunnel_frequency, 0.05, "seeded: the roll's own frequency")
-	settings.open_terrain_cave_roll = OpenTerrain.CaveRoll.FIXED
+	settings.open_terrain_cave_roll = OpenTerrain.CAVE_ROLL_FIXED
 	var fixed: CaveCarver = CaveCarver.for_settings(settings)
 	assert_almost_eq(fixed.tunnel_frequency, 0.05, 0.0001)
 	assert_almost_eq(fixed.tunnel_depth, 9.0, 0.0001)
-	assert_almost_eq(fixed._tunnel_noise.frequency, 0.05, 0.0001, "the noise was remade")
+	assert_almost_eq(fixed.tunnel_noise_frequency(), 0.05, 0.0001, "the noise was remade")
 	assert_almost_eq(fixed.cavern_cutoff, rolled.cavern_cutoff, 0.0001, "the rest still rolls")
 	var spot := Vector3(31.0, -30.0, -7.0)
 	assert_almost_eq(

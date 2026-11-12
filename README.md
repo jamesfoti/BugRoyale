@@ -2,8 +2,9 @@ BugRoyale
 =========
 
 Battle of the bugs: a third-person shooter where you are an inch tall. Every map is a slice
-of the human world at bug scale, built procedurally in GDScript on a voxel terrain you can dig
-and climb. Made with Godot 4.7.
+of the human world at bug scale, built procedurally on a voxel terrain you can dig and climb:
+the game in GDScript, the terrain's generation, meshing and build in a C++ extension
+(`native/`). Made with Godot 4.7.
 
 - [Play](#play)
 - [Run](#run)
@@ -107,7 +108,9 @@ To play without Godot, grab the Windows exe or the macOS zip from the
 To run from source:
 
 1. Install [Godot 4.7](https://godotengine.org/download) (the standard build, not .NET).
-2. Clone this repository.
+2. Clone this repository. The terrain extension's Windows libraries are committed in `bin/`,
+   so nothing needs compiling to run on Windows; on macOS or Linux, build the extension first
+   (see [Terrain extension](#terrain-extension)).
 3. Open Godot, click **Import**, choose the `project.godot` file in the clone, then
    **Import & Edit**. The first open takes a minute while Godot imports the models and
    textures.
@@ -122,10 +125,50 @@ Build
 powershell -ExecutionPolicy Bypass -File tools/export_desktop.ps1
 ```
 
-Exports `builds/windows/BugRoyale.exe` and `builds/macos/BugRoyale.zip` (the .app),
-downloading the Godot export templates on first run. Pass `-WindowsOnly` or `-MacOSOnly` for
-one platform. Windows and macOS are the only supported platforms; the builds folder is not
-committed.
+Exports `builds/windows/BugRoyale.exe` with the terrain extension's DLL beside it, and
+`builds/macos/BugRoyale.zip` (the .app), downloading the Godot export templates on first run.
+Pass `-WindowsOnly` or `-MacOSOnly` for one platform. Windows and macOS are the only supported
+platforms; the builds folder is not committed. The export stops if the platform's terrain
+library is missing from `bin/` (a game without it starts with no ground), which on macOS means
+building the extension on a Mac first.
+
+### Terrain extension
+
+The terrain is a GDExtension, one library holding every class of it: the density
+(`WorldDensity`, `DensitySampler`, `CaveCarver`, `CaveSystems`, the biome patches), the edits
+(`TerrainEdits`), the loose rock pass, the mesher and its blocks and pools
+(`FlyingEdgesMesher`, `ChunkMeshBlocks`, `CaveWaterMesher`), the chunk builder, and the nodes
+(`ChunkedTerrainWorld`, `OpenTerrain`, `BoxedInTerrain`, `TerrariumTerrain`, `TerrainChunk`).
+The scenes use them as node types, scripts call them as before, and the editor builds with
+them (the terrain lab, the inspector's Build Terrain). What stays in GDScript is the data a
+designer edits: `Biome` resources, `TerrainMaterials` (read once by the extension for its
+colours and ore depths), the terrarium's room, and `OpenTerrainPreset`. The sources are in
+`native/src`, one pair of files per class; `native/godot-cpp` is the C++ binding (a git
+submodule at 10.0.0); FastNoiseLite comes from the engine's own copy, so every seed builds
+the same ground it did in GDScript.
+
+To build, on Windows with Visual Studio 2022's C++ tools, Python 3 and SCons
+(`python -m pip install scons`):
+
+```powershell
+git submodule update --init
+cd native
+python -m SCons target=template_debug     # the editor and debug runs
+python -m SCons target=template_release   # exported games
+```
+
+The libraries land in `bin/` (`terrain.gdextension` lists them) and are committed for
+Windows. The editor picks up a rebuilt library on its next focus (the extension is
+reloadable); restart it if a class changed shape. On a Mac, with the Xcode command line tools
+and the same Python and SCons, `python3 -m SCons platform=macos arch=universal` with each
+target builds `bin/libterrain.macos.<target>.framework`, which is what a macOS export needs;
+Linux is `platform=linux`. The C++ was checked against the GDScript it replaced by building
+the same chunks from six worlds (the garden, the crawlspace and the terrarium at their real
+settings, a sponge underside, a boxed-in world and a plain one), on the surface, in caves,
+in the sky and through a pool, with digs, a built block and the brush's partial rebuilds:
+every density sample, vertex, normal, colour, collision face and dug tally matched exactly,
+and the rebuild log's summary of each seed word for word. A chunk builds in about 2 ms
+against 58 in GDScript.
 
 Tests
 -----
@@ -414,8 +457,8 @@ sees the caves sliced through.
 
 The layers cost little per column, but a tall seed spreads the surface through every
 chunk layer, so none are sky and the cave pass runs everywhere: a 512 m seed with
-everything on builds in about 2.5 s at 4 m voxels, 16 s at 2 m and 80 s at 1 m,
-headless on four threads.
+everything on builds in about 0.3 s at 4 m voxels, 1.3 s at 2 m and 9 s at 1 m,
+headless.
 
 The inspector sliders under **Noise** stop at the ranges a map may be randomised over,
 the values that still make good ground: frequency 0.004 to 0.01 (hills 250 m to 100 m
@@ -447,9 +490,12 @@ are dropped before the scene is saved and rebuilt after, so the file stays small
 In the game a map's terrain builds behind the loading screen without holding up a frame,
 and every chunk is built once, at full detail: nothing is laid rough first and replaced, so
 no seam opens where two kinds of chunk meet and nothing set on the ground has to follow a
-surface that moved. The chunks go to the worker pool in tasks of a few at a time
-(`BUILD_TASK_SAMPLES`, since the pool is refilled once a frame and a task shorter than a
-frame leaves its thread idle), four tasks at a time plus one queued (`REBUILD_THREADS`).
+surface that moved. The chunks go to the engine's worker pool as native tasks of several
+chunks each (`BUILD_TASK_SAMPLES`, since the pool is refilled once a frame and a task shorter
+than a frame leaves its thread idle), as many at a time as the processor has cores less four,
+between four and twelve (`WORLD_BUILD_IN_FLIGHT`). The ground round the spawn stands about
+0.6 s in and the whole map about 2 s in headless, 3 to 5 s with a window, where the main
+thread's mesh uploads and collision shapes are the rest of the cost.
 They come in by groups (`_sort_world_build_queue`): the surface 96 m each way round the
 player's spawn (`play_ring`), the caves under that, the surface of the rest of the map
 nearest the player, and the rest of the caves last; once play has begun the order follows
@@ -534,7 +580,8 @@ powershell -ExecutionPolicy Bypass -File tools/release.ps1
 ```
 
 This builds both platforms, tags the commit `v<version>` and creates a GitHub release
-(via the `gh` CLI) with the Windows exe and the macOS zip attached.
+(via the `gh` CLI) with the Windows build (the exe and its terrain DLL, zipped) and the macOS
+zip attached.
 
 Tools
 -----

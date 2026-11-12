@@ -11,8 +11,8 @@ const AT := Vector3(20.0, 0.0, -10.0)
 const REACH: float = 12.0
 
 
-func _ground(solid_fill: bool) -> DensitySampler.WorldDensity:
-	var density: DensitySampler.WorldDensity = DensitySampler.create_open_terrain_world_density(
+func _ground(solid_fill: bool) -> WorldDensity:
+	var density: WorldDensity = DensitySampler.create_open_terrain_world_density(
 		SEED,
 		0.01,
 		3.0,
@@ -33,7 +33,7 @@ func _ground(solid_fill: bool) -> DensitySampler.WorldDensity:
 
 
 ## A round footing of REACH about AT from bedrock up to a metre under the surface there.
-func _footing(density: DensitySampler.WorldDensity, ground: bool = true) -> Dictionary:
+func _footing(density: WorldDensity, ground: bool = true) -> Dictionary:
 	var top: float = density.sample_open_terrain_height(AT.x, AT.z) - 1.0
 	return {
 		"center": Vector3(AT.x, BEDROCK_Y, AT.z),
@@ -60,7 +60,7 @@ func _column(footing: Dictionary) -> Array[Vector3]:
 
 
 ## Samples of the ground away from the footing, from 6 m under the surface down to bedrock.
-func _elsewhere(density: DensitySampler.WorldDensity) -> Array[Vector3]:
+func _elsewhere(density: WorldDensity) -> Array[Vector3]:
 	var points: Array[Vector3] = []
 	for step: int in 50:
 		var x: float = float(step) * 8.0 - 200.0
@@ -73,7 +73,7 @@ func _elsewhere(density: DensitySampler.WorldDensity) -> Array[Vector3]:
 	return points
 
 
-func _air_count(density: DensitySampler.WorldDensity, points: Array[Vector3]) -> int:
+func _air_count(density: WorldDensity, points: Array[Vector3]) -> int:
 	var air: int = 0
 	for point: Vector3 in points:
 		if density.evaluate(point) > 0.0:
@@ -82,7 +82,7 @@ func _air_count(density: DensitySampler.WorldDensity, points: Array[Vector3]) ->
 
 
 func test_a_footing_is_solid_where_a_noise_underside_is_a_sponge() -> void:
-	var density: DensitySampler.WorldDensity = _ground(false)
+	var density: WorldDensity = _ground(false)
 	var footing: Dictionary = _footing(density)
 	var column: Array[Vector3] = _column(footing)
 	assert_gt(_air_count(density, column), 0, "without the footing the column has air in it")
@@ -94,7 +94,7 @@ func test_a_footing_is_solid_where_a_noise_underside_is_a_sponge() -> void:
 
 
 func test_a_footing_keeps_the_caves_out() -> void:
-	var density: DensitySampler.WorldDensity = _ground(true)
+	var density: WorldDensity = _ground(true)
 	var footing: Dictionary = _footing(density)
 	density.solids = [footing]
 	assert_eq(_air_count(density, _column(footing)), 0, "no cave inside the footing")
@@ -102,7 +102,7 @@ func test_a_footing_keeps_the_caves_out() -> void:
 
 
 func test_a_footing_digs_as_the_ground_around_it_and_soil_as_dirt() -> void:
-	var density: DensitySampler.WorldDensity = _ground(true)
+	var density: WorldDensity = _ground(true)
 	var points: Array[Vector3] = []
 	for depth: int in range(8, 40, 2):
 		for across: float in [-6.0, 0.0, 6.0]:
@@ -134,7 +134,7 @@ func test_the_terrain_sizes_a_footing_from_bedrock_to_cover_the_corners() -> voi
 	terrain.voxel_size = 2.0
 	terrain.position = Vector3(0.0, 4.0, 0.0)
 	add_child_autofree(terrain)
-	var bedrock: float = 4.0 - 48.0 + CaveCarver.FLOOR_MARGIN
+	var bedrock: float = 4.0 - 48.0 + CaveCarver.floor_margin()
 	assert_almost_eq(terrain.get_bedrock_y(), bedrock, 0.001, "bedrock is the caves' floor")
 
 	var square: Dictionary = terrain.footing(Vector3(10.0, 0.0, -5.0), 20.0, 20.0, 7.0)
@@ -153,18 +153,10 @@ func test_the_terrain_sizes_a_footing_from_bedrock_to_cover_the_corners() -> voi
 	for corner: Vector3 in [
 		Vector3(32, 6, 22), Vector3(-32, 6, -22), Vector3(32, bedrock + 0.5, -22)
 	]:
-		assert_lte(
-			DensitySampler.WorldDensity.stadium_sdf(corner, long),
-			0.0,
-			"covers the corner %s" % corner
-		)
-	assert_gt(DensitySampler.WorldDensity.stadium_sdf(Vector3(0, 6, 40), long), 0.0, "not far out")
+		assert_lte(WorldDensity.stadium_sdf(corner, long), 0.0, "covers the corner %s" % corner)
+	assert_gt(WorldDensity.stadium_sdf(Vector3(0, 6, 40), long), 0.0, "not far out")
+	assert_gt(WorldDensity.stadium_sdf(Vector3(0, 8, 0), long), 0.0, "not above the dirt")
 	assert_gt(
-		DensitySampler.WorldDensity.stadium_sdf(Vector3(0, 8, 0), long), 0.0, "not above the dirt"
-	)
-	assert_gt(
-		DensitySampler.WorldDensity.stadium_sdf(Vector3(0, bedrock - 1.0, 0), long),
-		0.0,
-		"not below bedrock"
+		WorldDensity.stadium_sdf(Vector3(0, bedrock - 1.0, 0), long), 0.0, "not below bedrock"
 	)
 	assert_true(bool(terrain.footing(Vector3.ZERO, 20.0, 30.0, 7.0)["along_z"]), "or along z")

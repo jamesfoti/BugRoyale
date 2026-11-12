@@ -12,8 +12,8 @@ const CHUNK: Vector3i = Vector3i(32, 16, 32)
 const EXTENT: float = 32.0
 
 
-func _ground() -> DensitySampler.WorldDensity:
-	var density: DensitySampler.WorldDensity = DensitySampler.create_open_terrain_world_density(
+func _ground() -> WorldDensity:
+	var density: WorldDensity = DensitySampler.create_open_terrain_world_density(
 		SEED,
 		0.01,
 		3.0,
@@ -37,22 +37,18 @@ func _centre() -> Vector3:
 
 
 func _blocks(
-	field: SignedDensityField,
-	density: DensitySampler.WorldDensity,
-	previous: ChunkMeshBlocks = null
+	field: SignedDensityField, density: WorldDensity, previous: ChunkMeshBlocks = null
 ) -> ChunkMeshBlocks:
 	return ChunkMeshBlocks.build(field, EXTENT, 0.0, CHUNK, ORIGIN, _centre(), density, previous)
 
 
-func _sorted_vertices(mesh: FlyingEdgesMesher.MeshResult) -> Array:
+func _sorted_vertices(mesh: TerrainMeshResult) -> Array:
 	var out: Array = Array(mesh.vertices)
 	out.sort()
 	return out
 
 
-func _assert_same_surface(
-	a: FlyingEdgesMesher.MeshResult, b: FlyingEdgesMesher.MeshResult, what: String
-) -> void:
+func _assert_same_surface(a: TerrainMeshResult, b: TerrainMeshResult, what: String) -> void:
 	assert_eq(a.indices.size(), b.indices.size(), what + ": the same triangle count")
 	assert_eq(a.vertices.size(), b.vertices.size(), what + ": the same vertex count")
 	var sorted_a: Array = _sorted_vertices(a)
@@ -65,16 +61,16 @@ func _assert_same_surface(
 
 
 func test_blocks_merge_into_the_surface_the_whole_mesher_makes() -> void:
-	var density: DensitySampler.WorldDensity = _ground()
+	var density: WorldDensity = _ground()
 	var field: SignedDensityField = DensitySampler.build_chunk_field(
 		density, SAMPLES, ORIGIN, CHUNK, STEP
 	)
-	var whole: FlyingEdgesMesher.MeshResult = FlyingEdgesMesher.build_mesh(
+	var whole: TerrainMeshResult = FlyingEdgesMesher.build_mesh(
 		field, EXTENT, 0.0, CHUNK, ORIGIN, _centre(), density
 	)
 	var blocks: ChunkMeshBlocks = _blocks(field, density)
 	assert_eq(blocks.blocks.size(), 8, "sixteen cells a side: two blocks of eight a side")
-	var merged: FlyingEdgesMesher.MeshResult = blocks.merge()
+	var merged: TerrainMeshResult = blocks.merge()
 	assert_gt(whole.indices.size(), 0, "the surface crosses this chunk")
 	assert_eq(merged.indices.size(), whole.indices.size(), "every triangle of the whole mesh")
 	# A vertex on a block face is made by both blocks, so the merge holds a few more.
@@ -87,7 +83,7 @@ func test_blocks_merge_into_the_surface_the_whole_mesher_makes() -> void:
 
 
 func test_a_stroke_meshes_only_the_blocks_it_touched_and_the_surface_is_the_same() -> void:
-	var density: DensitySampler.WorldDensity = _ground()
+	var density: WorldDensity = _ground()
 	var before: SignedDensityField = DensitySampler.build_chunk_field(
 		density, SAMPLES, ORIGIN, CHUNK, STEP
 	)

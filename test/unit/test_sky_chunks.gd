@@ -16,8 +16,8 @@ const SKY_CHUNK: Vector3i = Vector3i(32, 32, 32)
 const SURFACE_CHUNK: Vector3i = Vector3i(32, 16, 32)
 
 
-func _ground() -> DensitySampler.WorldDensity:
-	var density: DensitySampler.WorldDensity = DensitySampler.create_open_terrain_world_density(
+func _ground() -> WorldDensity:
+	var density: WorldDensity = DensitySampler.create_open_terrain_world_density(
 		SEED,
 		0.01,
 		3.0,
@@ -36,11 +36,11 @@ func _ground() -> DensitySampler.WorldDensity:
 	return density
 
 
-func _field(density: DensitySampler.WorldDensity, chunk: Vector3i) -> SignedDensityField:
+func _field(density: WorldDensity, chunk: Vector3i) -> SignedDensityField:
 	return DensitySampler.build_chunk_field(density, SAMPLES, ORIGIN, chunk, STEP)
 
 
-func _edits(density: DensitySampler.WorldDensity, at: Vector3) -> TerrainEdits:
+func _edits(density: WorldDensity, at: Vector3) -> TerrainEdits:
 	var edits := TerrainEdits.new()
 	edits.set_voxel_size(STEP)
 	edits.set_grid_origin(ORIGIN)
@@ -65,7 +65,7 @@ func test_a_chunk_the_surface_crosses_is_sampled() -> void:
 
 
 func test_a_placed_solid_in_the_sky_brings_the_voxel_pass_back() -> void:
-	var density: DensitySampler.WorldDensity = _ground()
+	var density: WorldDensity = _ground()
 	density.solids = [
 		{
 			"center": Vector3(-48.0, 22.0, -48.0),
@@ -81,18 +81,18 @@ func test_a_placed_solid_in_the_sky_brings_the_voxel_pass_back() -> void:
 
 
 func test_a_built_edit_in_the_sky_brings_the_voxel_pass_back_but_one_elsewhere_does_not() -> void:
-	var density: DensitySampler.WorldDensity = _ground()
+	var density: WorldDensity = _ground()
 	density.terrain_edits = _edits(density, Vector3(-48.0, 30.0, -48.0))
 	var field: SignedDensityField = _field(density, SKY_CHUNK)
 	assert_false(field.sky, "something was built up here")
 	assert_lt(field.min_value, 0.0, "and it is solid")
-	var elsewhere: DensitySampler.WorldDensity = _ground()
+	var elsewhere: WorldDensity = _ground()
 	elsewhere.terrain_edits = _edits(elsewhere, Vector3(100.0, 30.0, 100.0))
 	assert_true(_field(elsewhere, SKY_CHUNK).sky, "a build in another chunk changes nothing here")
 
 
 func test_a_resampled_field_matches_one_built_whole() -> void:
-	var density: DensitySampler.WorldDensity = _ground()
+	var density: WorldDensity = _ground()
 	var before: SignedDensityField = _field(density, SURFACE_CHUNK)
 	# A hole dug a few metres into the ground of that chunk, then the field with it, both ways.
 	var at := Vector3(-48.0, density.sample_open_terrain_height(-48.0, -48.0) - 2.0, -48.0)
@@ -116,7 +116,7 @@ func test_a_resampled_field_matches_one_built_whole() -> void:
 	assert_false(resampled.sky)
 	# A block built in the sky: the sky chunk's constant field gets the block's samples back.
 	var sky_before: SignedDensityField = _field(_ground(), SKY_CHUNK)
-	var sky_density: DensitySampler.WorldDensity = _ground()
+	var sky_density: WorldDensity = _ground()
 	var block := Vector3(-48.0, 22.0, -48.0)
 	var sky_edits := TerrainEdits.new()
 	sky_edits.set_voxel_size(STEP)

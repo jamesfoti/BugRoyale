@@ -10,3 +10,14 @@ builds/macos/*.import
 # Blender auto-backups
 *.blend1
 builds/macos/*.zip
+
+# Terrain extension build outputs (the DLLs in bin/ are committed; the rest is rebuilt)
+bin/*.exp
+bin/*.lib
+bin/*.pdb
+native/src/*.obj
+native/src/*.os
+native/.sconsign*.dblite
+# Copies Godot makes of the library to reload it, and the exported DLL
+bin/~*
+builds/windows/*.dll

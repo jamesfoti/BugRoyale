@@ -1,0 +1,14 @@
+[configuration]
+
+entry_symbol = "bugroyale_terrain_init"
+compatibility_minimum = "4.7"
+reloadable = true
+
+[libraries]
+
+windows.debug.x86_64 = "res://bin/libterrain.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://bin/libterrain.windows.template_release.x86_64.dll"
+linux.debug.x86_64 = "res://bin/libterrain.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://bin/libterrain.linux.template_release.x86_64.so"
+macos.debug = "res://bin/libterrain.macos.template_debug.framework"
+macos.release = "res://bin/libterrain.macos.template_release.framework"

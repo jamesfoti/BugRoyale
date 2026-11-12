@@ -1,8 +1,8 @@
 # Build both platforms and publish them as a GitHub release.
 #
 # The version comes from config/version in project.godot. The release is tagged v<version> on
-# the current commit, and the Windows exe and the macOS app zip are attached as assets, so the
-# game can be downloaded straight from the Releases page.
+# the current commit, and the Windows build (the exe and its terrain DLL, zipped) and the macOS
+# app zip are attached as assets, so the game can be downloaded straight from the Releases page.
 #
 # Needs the GitHub CLI (gh) signed in, and a clean, pushed working tree.
 param(
@@ -62,8 +62,10 @@ try {
 		& (Join-Path $PSScriptRoot "export_desktop.ps1")
 	}
 
+	$windowsDir = Join-Path $ProjectRoot "builds\windows"
 	$assets = @(
-		(Join-Path $ProjectRoot "builds\windows\BugRoyale.exe"),
+		(Join-Path $windowsDir "BugRoyale.exe"),
+		(Join-Path $windowsDir "libterrain.windows.template_release.x86_64.dll"),
 		(Join-Path $ProjectRoot "builds\macos\BugRoyale.zip")
 	)
 	foreach ($asset in $assets) {
@@ -71,19 +73,19 @@ try {
 			throw "Missing build output: $asset"
 		}
 	}
-	# Assets are staged under versioned, platform-specific filenames.
+	# Assets are staged under versioned, platform-specific filenames. The Windows exe needs the
+	# terrain extension's DLL beside it, so the two go out as one zip.
 	$staging = Join-Path $env:TEMP "BugRoyale-release-$version"
 	if (Test-Path $staging) {
 		Remove-Item -Path $staging -Recurse -Force
 	}
 	New-Item -ItemType Directory -Force -Path $staging | Out-Null
 	$labelled = @(
-		(Join-Path $staging "BugRoyale-$version-windows.exe"),
+		(Join-Path $staging "BugRoyale-$version-windows.zip"),
 		(Join-Path $staging "BugRoyale-$version-macos.zip")
 	)
-	for ($index = 0; $index -lt $assets.Count; $index++) {
-		Copy-Item -Path $assets[$index] -Destination $labelled[$index] -Force
-	}
+	Compress-Archive -Path $assets[0], $assets[1] -DestinationPath $labelled[0] -Force
+	Copy-Item -Path $assets[2] -Destination $labelled[1] -Force
 
 	if (-not $Notes) {
 		$Notes = git log -1 --pretty=%s

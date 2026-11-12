@@ -69,7 +69,7 @@ func test_a_wall_stands_between_cells_of_different_levels_and_nowhere_with_the_w
 
 
 func test_a_chunks_water_sheet_lies_at_its_levels_in_cave_air_only() -> void:
-	var density: DensitySampler.WorldDensity = DensitySampler.create_open_terrain_world_density(
+	var density: WorldDensity = DensitySampler.create_open_terrain_world_density(
 		SEED, 0.01, 3.0, 3, 2.0, 0.5, Vector3.ZERO, HALF, 0.5, false, null, 0.0, true
 	)
 	density.caves = _carver(1.0)
@@ -84,7 +84,7 @@ func test_a_chunks_water_sheet_lies_at_its_levels_in_cave_air_only() -> void:
 			)
 			var corner: Vector3 = ORIGIN + Vector3(chunk * 16) * step
 			var centre: Vector3 = corner + Vector3.ONE * 16.0
-			var sheet: FlyingEdgesMesher.MeshResult = CaveWaterMesher.build(
+			var sheet: TerrainMeshResult = CaveWaterMesher.build(
 				field, density, ORIGIN, chunk * 16, step, 32.0, centre
 			)
 			if sheet.indices.is_empty():
@@ -98,7 +98,7 @@ func test_a_chunks_water_sheet_lies_at_its_levels_in_cave_air_only() -> void:
 				assert_gt(field.sample_world(world, corner, step), -0.001, "in the cave's air")
 				assert_gt(
 					density.sample_open_terrain_height(world.x, world.z) - world.y,
-					CaveWaterMesher.SURFACE_MARGIN - 0.01,
+					CaveWaterMesher.surface_margin() - 0.01,
 					"well under the surface"
 				)
 	assert_gt(sheets, 0, "some chunk holds a pool")

@@ -19,8 +19,8 @@ const FLAT_SURFACE: float = 1.0
 
 ## A solid-filled open terrain with caves carved under it, as the garden has: rolling with
 ## the amplitude, flat at FLAT_SURFACE without.
-func _ground(amplitude: float = 3.0) -> DensitySampler.WorldDensity:
-	var density: DensitySampler.WorldDensity = DensitySampler.create_open_terrain_world_density(
+func _ground(amplitude: float = 3.0) -> WorldDensity:
+	var density: WorldDensity = DensitySampler.create_open_terrain_world_density(
 		SEED,
 		0.01,
 		amplitude,
@@ -41,9 +41,7 @@ func _ground(amplitude: float = 3.0) -> DensitySampler.WorldDensity:
 
 
 ## The chunk's mesh, with the edits on the ground (null: none).
-func _mesh(
-	ground: DensitySampler.WorldDensity, edits: TerrainEdits
-) -> FlyingEdgesMesher.MeshResult:
+func _mesh(ground: WorldDensity, edits: TerrainEdits) -> TerrainMeshResult:
 	ground.terrain_edits = edits
 	var field: SignedDensityField = DensitySampler.build_chunk_field(
 		ground, Vector3i.ONE * (CELLS + 1), ORIGIN, Vector3i.ZERO, VOXEL
@@ -55,7 +53,7 @@ func _mesh(
 
 
 ## Carves a sphere, as the pickaxe does; last_removed on the result is what came loose.
-func _dig(ground: DensitySampler.WorldDensity, center: Vector3, radius: float) -> TerrainEdits:
+func _dig(ground: WorldDensity, center: Vector3, radius: float) -> TerrainEdits:
 	var edits := TerrainEdits.new()
 	edits.set_voxel_size(VOXEL)
 	edits.set_grid_origin(ORIGIN)
@@ -70,7 +68,7 @@ func _dig(ground: DensitySampler.WorldDensity, center: Vector3, radius: float) -
 	return edits
 
 
-func _color_counts(mesh: FlyingEdgesMesher.MeshResult) -> Dictionary:
+func _color_counts(mesh: TerrainMeshResult) -> Dictionary:
 	var counts: Dictionary = {}
 	for color: Color in mesh.colors:
 		counts[color] = int(counts.get(color, 0)) + 1
@@ -78,7 +76,7 @@ func _color_counts(mesh: FlyingEdgesMesher.MeshResult) -> Dictionary:
 
 
 func test_the_depth_is_read_from_the_surface_not_the_density() -> void:
-	var ground: DensitySampler.WorldDensity = _ground()
+	var ground: WorldDensity = _ground()
 	var deep: int = 0
 	var topsoil: int = 0
 	for step: int in 40:
@@ -109,7 +107,7 @@ func test_an_undug_lawn_carries_no_colour_of_its_own() -> void:
 
 
 func test_a_shallow_dig_shows_dirt_and_pays_dirt() -> void:
-	var ground: DensitySampler.WorldDensity = _ground(0.0)
+	var ground: WorldDensity = _ground(0.0)
 	# From the surface, 1.3 m down: the sample a metre under it comes out, the floor is topsoil.
 	var edits: TerrainEdits = _dig(ground, Vector3(0.0, FLAT_SURFACE, 0.0), 1.3)
 	assert_eq(edits.last_removed, {TerrainMaterials.Kind.DIRT: 1}, "one voxel of dirt dug")
@@ -131,7 +129,7 @@ func test_a_shallow_dig_shows_dirt_and_pays_dirt() -> void:
 
 
 func test_a_deep_dig_reaches_the_stone() -> void:
-	var ground: DensitySampler.WorldDensity = _ground(0.0)
+	var ground: WorldDensity = _ground(0.0)
 	var edits: TerrainEdits = _dig(ground, Vector3(0.0, FLAT_SURFACE - 4.0, 0.0), 5.0)
 	var removed: Dictionary = edits.last_removed
 	assert_true(removed.has(TerrainMaterials.Kind.DIRT), "the topsoil came out as dirt")

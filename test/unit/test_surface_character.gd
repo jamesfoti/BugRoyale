@@ -11,7 +11,7 @@ const WARP_RANGE := Vector2(10.0, 40.0)
 const RIDGE_RANGE := Vector2(0.2, 0.5)
 
 
-func _surface() -> DensitySampler.WorldDensity:
+func _surface() -> WorldDensity:
 	return DensitySampler.create_open_terrain_world_density(
 		SEED,
 		0.008,
@@ -30,7 +30,7 @@ func _surface() -> DensitySampler.WorldDensity:
 
 
 ## Heights over a 40 by 40 grid of the ground, 9 m apart.
-func _heights(surface: DensitySampler.WorldDensity) -> PackedFloat32Array:
+func _heights(surface: WorldDensity) -> PackedFloat32Array:
 	var out := PackedFloat32Array()
 	for step_x: int in 40:
 		for step_z: int in 40:
@@ -55,8 +55,8 @@ func _assert_within_amplitude(values: PackedFloat32Array, label: String) -> void
 
 
 func test_the_same_seed_rolls_the_same_character() -> void:
-	var first: DensitySampler.WorldDensity = _surface()
-	var second: DensitySampler.WorldDensity = _surface()
+	var first: WorldDensity = _surface()
+	var second: WorldDensity = _surface()
 	first.roll_surface(SEED, POWER_RANGE, 1.0, WARP_RANGE, 1.0, RIDGE_RANGE)
 	second.roll_surface(SEED, POWER_RANGE, 1.0, WARP_RANGE, 1.0, RIDGE_RANGE)
 	assert_eq(first.surface_summary(), second.surface_summary())
@@ -73,7 +73,7 @@ func test_every_number_lands_in_its_range_and_the_chances_are_chances() -> void:
 	var warped: int = 0
 	var ridged: int = 0
 	for value: int in range(1, 60):
-		var surface: DensitySampler.WorldDensity = _surface()
+		var surface: WorldDensity = _surface()
 		surface.roll_surface(value, POWER_RANGE, 0.5, WARP_RANGE, 0.35, RIDGE_RANGE)
 		assert_between(
 			surface.surface_power, POWER_RANGE.x, POWER_RANGE.y, "power, seed %d" % value
@@ -90,14 +90,14 @@ func test_every_number_lands_in_its_range_and_the_chances_are_chances() -> void:
 			)
 	assert_between(warped, 15, 45, "about half the seeds warp")
 	assert_between(ridged, 8, 34, "about a third ridge")
-	var never: DensitySampler.WorldDensity = _surface()
+	var never: WorldDensity = _surface()
 	never.roll_surface(SEED, Vector2.ONE, 0.0, WARP_RANGE, 0.0, RIDGE_RANGE)
 	assert_eq(never.surface_summary(), "plain surface")
 
 
 func test_neutral_values_are_the_plain_noise_exactly() -> void:
 	var plain: PackedFloat32Array = _heights(_surface())
-	var neutral: DensitySampler.WorldDensity = _surface()
+	var neutral: WorldDensity = _surface()
 	neutral.roll_surface(SEED, Vector2.ONE, 0.0, WARP_RANGE, 0.0, RIDGE_RANGE)
 	var heights: PackedFloat32Array = _heights(neutral)
 	for index: int in plain.size():
@@ -111,7 +111,7 @@ func test_neutral_values_are_the_plain_noise_exactly() -> void:
 
 func test_a_power_above_one_lowers_the_ground_within_the_amplitude() -> void:
 	var plain: PackedFloat32Array = _heights(_surface())
-	var shaped: DensitySampler.WorldDensity = _surface()
+	var shaped: WorldDensity = _surface()
 	shaped.surface_power = 2.0
 	var heights: PackedFloat32Array = _heights(shaped)
 	assert_lt(_mean(heights), _mean(plain) - 0.5, "the valleys flatten into low plains")
@@ -126,7 +126,7 @@ func test_a_power_above_one_lowers_the_ground_within_the_amplitude() -> void:
 
 func test_a_warp_moves_the_hills_within_the_amplitude() -> void:
 	var plain: PackedFloat32Array = _heights(_surface())
-	var warped: DensitySampler.WorldDensity = _surface()
+	var warped: WorldDensity = _surface()
 	warped.surface_warp = 30.0
 	warped.init_warp_noise(SEED)
 	var heights: PackedFloat32Array = _heights(warped)
@@ -142,7 +142,7 @@ func test_a_warp_moves_the_hills_within_the_amplitude() -> void:
 
 func test_a_ridged_mix_lifts_the_crests() -> void:
 	var plain: PackedFloat32Array = _heights(_surface())
-	var ridged: DensitySampler.WorldDensity = _surface()
+	var ridged: WorldDensity = _surface()
 	ridged.surface_ridge = 1.0
 	var heights: PackedFloat32Array = _heights(ridged)
 	_assert_within_amplitude(heights, "ridges keep the amplitude")

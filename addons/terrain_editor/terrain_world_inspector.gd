@@ -1,8 +1,6 @@
 @tool
 extends EditorInspectorPlugin
 
-const _BOXED_IN_TERRAIN_SCRIPT_PATH: String = "res://terrain/boxed_in_terrain.gd"
-const _OPEN_TERRAIN_SCRIPT_PATH: String = "res://terrain/open_terrain.gd"
 const _TERRARIUM_ROOM_SCRIPT_PATH: String = "res://terrain/terrarium_room.gd"
 const _LEGACY_INTERIOR_ROOM_SCRIPT_PATH: String = "res://terrain/interior_room.gd"
 
@@ -12,6 +10,10 @@ func _can_handle(object: Object) -> bool:
 		return false
 	var node: Node3D = object as Node3D
 	if _is_terrarium_room_node(node):
+		return true
+	# The open and boxed-in terrains are the terrain extension's own nodes; a terrarium's
+	# terrain is built by its room.
+	if node is ChunkedTerrainWorld and not node is TerrariumTerrain:
 		return true
 	return _get_script_path(node.get_script()) in _terrain_script_paths()
 
@@ -91,8 +93,6 @@ func _parse_begin(object: Object) -> void:
 
 func _terrain_script_paths() -> Array[String]:
 	return [
-		_BOXED_IN_TERRAIN_SCRIPT_PATH,
-		_OPEN_TERRAIN_SCRIPT_PATH,
 		_TERRARIUM_ROOM_SCRIPT_PATH,
 		_LEGACY_INTERIOR_ROOM_SCRIPT_PATH,
 	]
@@ -201,7 +201,7 @@ func _on_randomize_pressed(node_path: NodePath) -> void:
 			values["noise_seed"], node.get_bedrock_y(), node.call("cave_ranges")
 		)
 		carver.apply(node.call("cave_shape"))
-		var steps: Dictionary = OpenTerrain.CAVE_FIELDS
+		var steps: Dictionary = OpenTerrain.cave_fields()
 		for field: String in steps:
 			values["cave_" + field] = snappedf(carver.get(field), steps[field])
 		# The roll stays Seeded: the sliders show the roll, the seed still carves the caves.
