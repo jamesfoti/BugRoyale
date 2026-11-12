@@ -38,8 +38,8 @@ const MODES: Dictionary = {
 		"name": "Burrow",
 		"description":
 		(
-			"Survival. Your workers carry the queen: lead them to good ground and found the "
-			+ "colony. Dig by day, hold the burrow after dark. The map keeps it, saved as you go."
+			"Survival. Carry the queen's egg and set it down where the colony starts. Dig by "
+			+ "day, hold the burrow after dark. The map keeps it, saved as you go."
 		),
 		"scene": "res://modes/burrow.tscn",
 		"maps": ALL_MAPS,

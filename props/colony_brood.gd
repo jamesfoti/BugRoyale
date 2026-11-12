@@ -5,7 +5,9 @@ extends RefCounted
 ## for them under the ground, and the workers the eggs become. An egg laid by day hatches at
 ## the next dawn if it is still there; the colony's size (workers up plus eggs waiting) never
 ## exceeds what the room allows: the founding four, plus one per ROOM_PER_WORKER_M3 dug below
-## the surface once the nest itself is done. Pure numbers: Burrow owns one, the tests another.
+## the surface once the colony is founded. The founding four come as eggs the queen lays the
+## moment she is out of her own egg (found), free of food. Pure numbers: Burrow owns one, the
+## tests another.
 
 ## The numbers changed (a delivery, an egg, a hatching, a loss, new room).
 signal changed
@@ -28,7 +30,7 @@ var food: int = 0
 var eggs: int = 0
 ## Eggs laid since the last dawn.
 var laid_today: int = 0
-## Cubic metres dug below the surface after the nest was finished.
+## Cubic metres dug below the surface since the colony was founded.
 var room_m3: float = 0.0
 
 
@@ -51,6 +53,14 @@ func lay(workers_alive: int) -> bool:
 	laid_today += 1
 	changed.emit()
 	return true
+
+
+## The queen's first eggs, laid as she hatches: no food, no day's limit.
+func found(count: int) -> void:
+	if count <= 0:
+		return
+	eggs += count
+	changed.emit()
 
 
 ## Food carried to the entrance.

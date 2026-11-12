@@ -142,10 +142,10 @@ func test_status_text_reads_from_state_alone() -> void:
 	assert_string_contains(burrow._status_text(), "Food 4  ·  Eggs 1")
 	assert_string_contains(burrow._status_text(), "Workers 3/5", "room for one more than four")
 	burrow.apply_state({"founded": false, "queen_carry": 1, "queen_health": 80.0})
-	assert_string_contains(burrow._status_text(), "The workers carry the queen")
-	assert_string_contains(burrow._status_text(), "Queen 50%")
-	burrow.apply_state({"queen_carry": 2})
-	assert_string_contains(burrow._status_text(), "You carry the queen")
+	assert_string_contains(burrow._status_text(), "You carry the queen's egg")
+	assert_string_contains(burrow._status_text(), "Egg 50%")
+	burrow.apply_state({"queen_carry": 0})
+	assert_string_contains(burrow._status_text(), "The queen's egg is down")
 
 
 func test_catalog_formats_and_maps_agree() -> void:

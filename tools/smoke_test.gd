@@ -166,8 +166,8 @@ class Runner:
 
 	## Plays the local bug from the second second on: runs forward with the trigger held, and
 	## jumps now and then. Every ten seconds it stands still for three and gives the found order
-	## (Burrow's workers, slower than a running soldier, catch up and set the queen down if the
-	## ground there will do; other modes ignore the key). Actions go through the Input singleton,
+	## (Burrow sets the queen's egg down where the bug stands if it carries it; other modes
+	## ignore the key). Actions go through the Input singleton,
 	## so the local controller and the weapon read them exactly as they would a keyboard and mouse.
 	func _drive_local_player() -> void:
 		if _frames_run == 60 or _frames_run % 600 == 520:

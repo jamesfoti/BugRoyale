@@ -26,7 +26,7 @@ var secondary_target_group: StringName = &""
 var objective: Vector3 = Vector3.INF
 var objective_radius: float = 2.5
 var objective_focus: float = 14.0
-## Optional squad leader to stay near when nothing is in range (Hold Out, Burrow's march).
+## Optional squad leader to stay near when nothing is in range (Hold Out).
 var leader: Node3D
 ## Runs when the leader gets far ahead (Burrow's workers), instead of trailing at a walk.
 var runs_to_keep_up: bool = false

@@ -136,6 +136,21 @@ func ground_hit(position: Vector3) -> Dictionary:
 	return _cast(Vector3(position.x, top, position.z), Vector3(position.x, bottom, position.z))
 
 
+## Whether earth stands over a point within reach (the terrain's own ground as dug, not a
+## floor, a joist or a leaf): what lies under it is out of the hornets' reach.
+func is_under_ground(position: Vector3, reach: float = 30.0) -> bool:
+	var terrain: ChunkedTerrainWorld = editable_terrain()
+	if terrain == null:
+		return false
+	var up: Vector3 = up_at(position)
+	var rise: float = 1.5
+	while rise <= reach:
+		if terrain.is_solid_at(position + up * rise):
+			return true
+		rise += 1.0
+	return false
+
+
 ## The ground directly under a point (a short cast down from just above it), empty if there is
 ## none within reach. Unlike ground_hit this starts at the point, so a tree canopy or a joist
 ## overhead is not mistaken for the ground.

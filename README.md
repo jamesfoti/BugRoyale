@@ -29,10 +29,11 @@ Play
   and furnace, the garden's beds) has a footing of solid ground from bedrock up, so it
   stands firm whether the underside is solid with caves or, with the terrain's **Solid
   Underside** off, a sponge of 3D noise.
-- **Three modes on the menu.** Burrow (survival as the colony's soldier: four workers carry
-  the queen and follow you, you pick the ground and give the word, they dig her chamber;
-  then dig by day and build with what you carve while the workers forage crumbs, seeds and
-  sugar to the entrance, every six food is an egg that hatches a worker at dawn, the room
+- **Three modes on the menu.** Burrow (survival as the colony's soldier: you carry the
+  queen's egg, a crowned egg on your back, and set it down wherever you choose; she hatches
+  there and lays the four eggs of the colony's first workers, out at dawn; in the open she is
+  hornet prey, under earth you dug she is safe and mends; then dig by day and build with what
+  you carve while the workers forage crumbs, seeds and sugar to the entrance, every six food is an egg that hatches a worker at dawn, the room
   you dig below ground caps how many the colony can be, a fallen worker is gone for good,
   hornets hunt by day and by night, trapdoor spiders lurk among the food, hold the burrow
   after dark against husks and raiding ants, and keep the queen alive, because the colony
@@ -224,7 +225,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_material_stock.gd` | The pickaxe stock: a carve pays out by material, a build spends it (the map's ground is dirt), never negative, and a build needs half its voxels in hand |
 | `test_day_cycle.gd` | The day cycle's clock: daylight by the hour, twilight, dusk and dawn crossings, the time to the next change, where the sun stands |
 | `test_world_save.gd` | Worlds on disk: a save round-trips with its voxel keys, seed and summary; delete removes it; nothing is written while saving is off |
-| `test_queen_ant.gd` | The queen's nest plan: a shaft of carves stepping down and away from the entrance, the chamber below it, every carve the pickaxe's; the way she goes down ends on the chamber floor |
+| `test_queen_ant.gd` | The queen in her egg: a crowned egg with her body hidden, set down for good it hatches once after its time on the spot it was put, a dropped egg lies where it was put, and the queen mends only under earth |
 | `test_elements.gd` | The elements in the ground: the table lists each once with its symbol, number, depth and colour; under the topsoil the stone has ore pockets, each element only from its own depth down and the pockets a share of the stone; a seed always draws the same ore; a dug element lands in the stock and builds |
 | `test_cave_carver.gd` | The seeded underworld: a seed always carves the same caves and every number lands in range; under a solid open terrain the surface is still the surface, the ground is metres below it wherever no cave is near, there is air in the tunnels but the ground is mostly ground, and bedrock is solid; lean regions stay solid, seams part the bands, floors cut the caverns but not the tunnels, shafts run vertical and halls open only in the deep band |
 | `test_terraces.gd` | The seeded terraces: a seed always rolls the same ones and every number lands in range, never means the plain surface, always means the heights sit on the treads, and the sponge underside is scaled to metres |

@@ -28,7 +28,7 @@ const _CONTROLS_LINES: Array[String] = [
 	"Shift — Run",
 	"E — Inventory (torch, pickaxe, empty hands)",
 	"P — Pause menu",
-	"G — Found the colony where the queen is (Burrow, while the workers carry her)",
+	"G — Set the queen's egg down and start the colony there (Burrow, while you carry it)",
 	"Esc — Free / capture mouse (or stow item / exit terrain edit)",
 	"F3 — Debug overlay",
 	"Ctrl — Toggle terrain focus while editing (stay put, aim with mouse)",
