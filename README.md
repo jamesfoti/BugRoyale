@@ -546,7 +546,9 @@ scene is in the "player" group. Above ground a haze in the map's colour fades th
 ground (100 to 600 m); under a roof of rock the air blends to a black fog that is total by
 40 m, inside the 48 m the underground stands round the player, and the ambient light drops
 (`Atmosphere`, attached with the player, on a copy of the scene's environment, so the
-editor's view is untouched). Edits live apart from the chunks, so a dug tunnel comes back as
+editor's view is untouched). A scene with a fog of its own keeps it above ground instead of
+the haze (the crawlspace's dim air under the house), and underground that fog thickens to
+the same dark. Edits live apart from the chunks, so a dug tunnel comes back as
 it was left. Until play can begin a streamed chunk gets a pool place only when it lies
 within 8 m of a body; after, they go before the map's own chunks. Dropped down a 150 m
 shaft, the player is held under a second in all and lands alive at the bottom. The

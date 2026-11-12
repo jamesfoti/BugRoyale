@@ -8,8 +8,10 @@ extends Node
 ## (ChunkedTerrainWorld.STREAM_VIEW), so no cavern shows an end that is not built, and the
 ## ambient light drops. The camera is underground when the terrain stands over it and it is
 ## below the surface's height there (an open ravine is daylit); the look blends between the
-## two over a second or so. Runs on a copy of the scene's environment, in the game only: the
-## editor's view of a map is untouched.
+## two over a second or so. A scene whose environment has a fog of its own (the crawlspace's
+## dim air under the house) keeps it above ground as designed, with no haze over it; the
+## dark underground thickens that fog instead (DARK_DENSITY). Runs on a copy of the scene's
+## environment, in the game only: the editor's view of a map is untouched.
 
 ## Metres from the camera where the haze above ground begins and where it is thickest, and
 ## how thick that is (1 hides the ground there).
@@ -22,7 +24,7 @@ const SKY_HAZE := Color(0.74, 0.83, 0.94)
 ## nearest it closes to, and how fast it follows the edge (metres a second).
 const EDGE_MARGIN: float = 8.0
 const EDGE_NEAREST: float = 60.0
-const EDGE_RATE: float = 40.0
+const EDGE_RATE: float = 400.0
 ## Physics-free frames between looks at how far the built ground reaches.
 const EDGE_EVERY: int = 10
 ## Underground: where the dark begins and where it is total, its colour, and how much of the
@@ -32,6 +34,9 @@ const DARK_BEGIN: float = 4.0
 const DARK_END: float = 40.0
 const DARK_COLOR := Color(0.008, 0.008, 0.01)
 const DARK_AMBIENT: float = 0.3
+## Underground in a scene with a fog of its own: the exponential fog's density there, all but
+## total by DARK_END metres.
+const DARK_DENSITY: float = 0.1
 ## Metres below the surface's height the camera must be, and the most terrain over it a ray
 ## up looks for, to count as underground.
 const UNDER_DEPTH: float = 4.0
@@ -43,6 +48,12 @@ var _environment: Environment
 var _haze_color: Color
 var _ambient_energy: float = 1.0
 var _blend: float = 0.0
+## The scene's own fog (exponential, as the scene set it): kept above ground instead of the
+## haze. Its density, colour and sky share as the scene had them.
+var _own_fog: bool = false
+var _own_density: float = 0.0
+var _own_color: Color = Color.BLACK
+var _own_sky_affect: float = 0.0
 ## How far the haze reaches above ground (HAZE_END once the map is built), and the frames
 ## since the edge was last looked at.
 var _edge: float = HAZE_END
@@ -69,6 +80,15 @@ func _ready() -> void:
 	_environment = world_environment.environment.duplicate() as Environment
 	world_environment.environment = _environment
 	_ambient_energy = _environment.ambient_light_energy
+	_own_fog = (
+		_environment.fog_enabled and _environment.fog_mode == Environment.FOG_MODE_EXPONENTIAL
+	)
+	if _own_fog:
+		_own_density = _environment.fog_density
+		_own_color = _environment.fog_light_color
+		_own_sky_affect = _environment.fog_sky_affect
+		_apply()
+		return
 	# Under a sky the haze is the sky's own; in a room or under a house, its dark.
 	_haze_color = (
 		SKY_HAZE
@@ -85,7 +105,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_edge_tick += 1
-	if _edge_tick % EDGE_EVERY == 1:
+	if not _own_fog and _edge_tick % EDGE_EVERY == 1:
 		_edge_target = _built_edge()
 	var target: float = 1.0 if _underground() else 0.0
 	if is_equal_approx(target, _blend) and is_equal_approx(_edge, _edge_target):
@@ -137,6 +157,12 @@ func _underground() -> bool:
 ## when that is near.
 func _apply() -> void:
 	var t: float = smoothstep(0.0, 1.0, _blend)
+	_environment.ambient_light_energy = _ambient_energy * lerpf(1.0, DARK_AMBIENT, t)
+	if _own_fog:
+		_environment.fog_light_color = _own_color.lerp(DARK_COLOR, t)
+		_environment.fog_density = lerpf(_own_density, DARK_DENSITY, t)
+		_environment.fog_sky_affect = lerpf(_own_sky_affect, 1.0, t)
+		return
 	var haze_end: float = minf(HAZE_END, _edge)
 	var haze_begin: float = minf(HAZE_BEGIN, haze_end * 0.4)
 	var closed: float = clampf(2.0 - 2.0 * haze_end / HAZE_END, 0.0, 1.0)
@@ -146,4 +172,3 @@ func _apply() -> void:
 	_environment.fog_depth_end = lerpf(haze_end, DARK_END, t)
 	_environment.fog_density = lerpf(haze_density, 1.0, t)
 	_environment.fog_sky_affect = t
-	_environment.ambient_light_energy = _ambient_energy * lerpf(1.0, DARK_AMBIENT, t)
