@@ -2,7 +2,7 @@ class_name QueenAnt
 extends Node3D
 ## The queen: the colony's one life. Burrow opens with her still in her egg, a big pale egg
 ## wearing a little gold crown, riding on the player's back; the player fights as usual with it
-## there. Wherever the player sets it down for good (found_colony, G), anywhere at all, it
+## there. Wherever the player sets it down for good (found_colony, G), on level ground, it
 ## waits to be fed; the mode hatches it at a dawn once it has had its food (it rocks on the
 ## ground when it has), and the queen comes out on that spot to lay. Dropped when its bearer
 ## falls, the egg lies on the ground until a bug picks it up again. Out in the

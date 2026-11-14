@@ -171,6 +171,35 @@ func test_burrow_hatches_the_queens_egg_at_dawn_only_once_it_is_fed() -> void:
 	assert_eq(burrow.brood.eggs, 0, "no free eggs: she lays from food, one a day")
 
 
+func test_burrow_wants_level_ground_for_the_queens_egg() -> void:
+	_ground_block(Vector3(0.0, 0.0, 0.0), 0.0)
+	_ground_block(Vector3(30.0, 0.0, 0.0), 40.0)
+	await wait_physics_frames(2)
+	var burrow: GameMode = _new_mode("burrow")
+	burrow.map = MapInfo.new()
+	burrow.map._space = get_viewport().world_3d.direct_space_state
+	assert_true(burrow.level_for_egg(Vector3(0.0, 0.0, 0.0)), "level ground takes the egg")
+	assert_false(burrow.level_for_egg(Vector3(30.0, 0.0, 0.0)), "a 40 degree slope does not")
+	assert_false(burrow.level_for_egg(Vector3(5.0, 0.0, 0.0)), "nor the very edge of a drop")
+	burrow.egg_max_slope_degrees = 45.0
+	assert_true(burrow.level_for_egg(Vector3(30.0, 0.0, 0.0)), "the limit is the editor's")
+
+
+## A 10 m block of ground on the terrain layer, its top through a point, tilted about z.
+func _ground_block(top: Vector3, tilt_degrees: float) -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = MapInfo.TERRAIN_LAYER
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(10.0, 1.0, 10.0)
+	shape.shape = box
+	body.add_child(shape)
+	add_child_autofree(body)
+	body.global_transform = Transform3D(
+		Basis(Vector3.BACK, deg_to_rad(tilt_degrees)), top - Vector3.UP * 0.5
+	)
+
+
 func test_catalog_formats_and_maps_agree() -> void:
 	for mode_id: String in ModeCatalog.MODES.keys():
 		var formats: Array = ModeCatalog.formats_for(mode_id)

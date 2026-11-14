@@ -1,28 +1,28 @@
 extends GameMode
 ## Burrow: survival on a map that keeps what is dug into it, played from the ground as the colony's
 ## soldier. It opens with you alone, the queen still in her egg (a big egg with a crown) riding on
-## your back while you fight as usual. Wherever you choose, anywhere at all, you set it down for
-## good (found_colony, G). Then it wants feeding: bring six food to it and it hatches at the next
-## dawn (or the first dawn after it has them), and from then on the queen lays, an egg a day from
-## the food. There are no workers until her first egg hatches. Nothing is dug for her: in the open
-## she is the hornets' prey, egg or queen, and under earth (a burrow you dug first, or one you dig
-## over her) she is out of their reach and mends. Fall with the egg and it lies where you fell until
-## a bug picks it up again. Days are for digging (a carve pays out what it removed, building with
-## the pickaxe spends it) and for food: crumbs, seeds and sugar lie about the surface, you carry
-## them to where the egg was set down, and once there are workers they do too, one at a time. Every
-## six food the hatched queen lays an egg, one a day, which lies by her and hatches a worker at the
-## next dawn if it is still there. The colony can only be as big as the room dug for it: four to
-## start with, plus one more for every forty cubic metres dug below the surface once it is founded.
-## Hornets hunt by day and by night: a few now and then through the day, more when the colony is
-## loud, and more often after dark. They drift about the colony's patch and only dive at a bug that
-## comes close; a forager carrying food is what they want most. Nights belong to the map besides:
-## husks (bugs the fungus took) shambling for the burrow, and from the second night a raiding party
-## of black ants from a rival colony, all gone at dawn. Days have their own danger once the colony
-## is founded: trapdoor spiders lurk where the food lies, more of them as the days pass, and strike
-## at whatever comes near, gone to ground at dusk. A worker that falls is gone for good, and its
-## food lies where it fell; you are back at the burrow after a few seconds. The burrow is saved to
-## disk with the ground it stands in (WorldSave) and is there, as left, next time. If the queen dies
-## the colony is over.
+## your back while you fight as usual. Wherever you choose, on fairly level ground, you set it down
+## for good (found_colony, G). Then it wants feeding: bring six food to it and it hatches at the
+## next dawn (or the first dawn after it has them), and from then on the queen lays, an egg a day
+## from the food. There are no workers until her first egg hatches. Nothing is dug for her: in the
+## open she is the hornets' prey, egg or queen, and under earth (a burrow you dug first, or one you
+## dig over her) she is out of their reach and mends. Fall with the egg and it lies where you fell
+## until a bug picks it up again. Days are for digging (a carve pays out what it removed, building
+## with the pickaxe spends it) and for food: crumbs, seeds and sugar lie about the surface, you
+## carry them to where the egg was set down, and once there are workers they do too, one at a time.
+## Every six food the hatched queen lays an egg, one a day, which lies by her and hatches a worker
+## at the next dawn if it is still there. The colony can only be as big as the room dug for it: four
+## to start with, plus one more for every forty cubic metres dug below the surface once it is
+## founded. Hornets hunt by day and by night: a few now and then through the day, more when the
+## colony is loud, and more often after dark. They drift about the colony's patch and only dive at a
+## bug that comes close; a forager carrying food is what they want most. Nights belong to the map
+## besides: husks (bugs the fungus took) shambling for the burrow, and from the second night a
+## raiding party of black ants from a rival colony, all gone at dawn. Days have their own danger
+## once the colony is founded: trapdoor spiders lurk where the food lies, more of them as the days
+## pass, and strike at whatever comes near, gone to ground at dusk. A worker that falls is gone for
+## good, and its food lies where it fell; you are back at the burrow after a few seconds. The burrow
+## is saved to disk with the ground it stands in (WorldSave) and is there, as left, next time. If
+## the queen dies the colony is over.
 
 enum Carry { NOBODY, YOU }
 
@@ -34,6 +34,8 @@ const PREY_GROUP: StringName = &"burrow_dwellers"
 const LADEN_GROUP: StringName = &"burrow_laden"
 ## The word to set the queen's egg down for good.
 const FOUND_ACTION: StringName = &"found_colony"
+## How far round the spot the ground is looked at for being level enough for the egg.
+const EGG_FOOTING: float = 0.5
 
 ## Everything from here down is tuned from the editor: open modes/burrow.tscn, select the
 ## root and change what you like. These are the defaults; the scene saves only what differs.
@@ -106,6 +108,9 @@ const FOUND_ACTION: StringName = &"found_colony"
 ## whether earth stands over her.
 @export var pickup_radius: float = 1.6
 @export var shelter_check_seconds: float = 0.5
+## The steepest ground the egg may be set down on, in degrees from level: the ground under it
+## and EGG_FOOTING metres round it must all be at most this steep.
+@export_range(5.0, 60.0) var egg_max_slope_degrees: float = 25.0
 @export_group("Food")
 ## Food: how many pieces lie on the surface at most (topped up at founding and every dawn),
 ## how near the entrance they start, how far out the workers forage on the first day and how
@@ -278,8 +283,8 @@ func _start_match() -> void:
 	else:
 		announce(
 			(
-				"Burrow\nThe queen's egg is on your back. Choose where the colony starts, anywhere "
-				+ "you like, and press G to set it down there.\nIn the open, hornets go for her; "
+				"Burrow\nThe queen's egg is on your back. Choose where the colony starts, on "
+				+ "level ground, and press G to set it down there.\nIn the open, hornets go for her; "
 				+ "under earth she is safe. The husks come after dark."
 			),
 			8.0
@@ -467,8 +472,8 @@ func _poll_found() -> void:
 	request_found(local_fighter)
 
 
-## The bug carrying the queen's egg sets it down for good where it stands, anywhere it likes:
-## the colony is founded there. True when it was.
+## The bug carrying the queen's egg sets it down for good where it stands, anywhere it likes
+## that is level enough (level_for_egg): the colony is founded there. True when it was.
 func request_found(fighter: Fighter) -> bool:
 	if founded or match_over or queen == null or fighter == null or not fighter.is_alive():
 		return false
@@ -479,7 +484,30 @@ func request_found(fighter: Fighter) -> bool:
 	if ground.is_empty():
 		announce_to(fighter, "There is no ground to set the egg on here.", 3.0)
 		return false
+	if not level_for_egg(ground.position):
+		announce_to(fighter, "Too steep for the egg here. Find flatter ground.", 3.0)
+		return false
 	_found(ground.position)
+	return true
+
+
+## Whether the ground at a spot is level enough for the queen's egg: there is ground under it
+## and at EGG_FOOTING metres round it, within a step that slope allows, and none of it is
+## steeper than egg_max_slope_degrees.
+func level_for_egg(spot: Vector3) -> bool:
+	var up: Vector3 = map.up_at(spot)
+	var steepest: float = deg_to_rad(egg_max_slope_degrees)
+	var side: Vector3 = up.cross(Vector3.FORWARD if absf(up.z) < 0.9 else Vector3.RIGHT)
+	side = side.normalized()
+	var across: Vector3 = up.cross(side)
+	var step: float = EGG_FOOTING * tan(steepest) + 0.1
+	for offset: Vector3 in [Vector3.ZERO, side, -side, across, -across]:
+		var foot: Vector3 = spot + offset * EGG_FOOTING
+		var ground: Dictionary = map.ground_below(foot + up * step, step * 2.0)
+		if ground.is_empty():
+			return false
+		if (ground.normal as Vector3).angle_to(up) > steepest:
+			return false
 	return true
 
 

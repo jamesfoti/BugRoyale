@@ -1,21 +1,21 @@
 class_name Atmosphere
 extends Node
-## The air the player sees through. Above ground the air is clear once the map is built (the
-## whole surface stands, so there is nothing to hide); while it still builds, a haze in the
-## map's own colour closes in to hide where the built ground ends
-## (ChunkedTerrainWorld.get_built_reach), opening as the build spreads and gone once it is
-## done. Underground, under a roof of rock, it is dark: a black fog that closes in by
-## DARK_END metres, short of the chunks streamed round the player
-## (ChunkedTerrainWorld.STREAM_VIEW), so no cavern shows an end that is not built, and the
-## ambient light drops. The camera is underground when the terrain stands over it and it is
-## below the surface's height there (an open ravine is daylit); the look blends between the
-## two over a second or so. A scene whose environment has a fog of its own (the crawlspace's
-## dim air under the house) keeps it above ground as designed, with no haze over it; the
-## dark underground thickens that fog instead (DARK_DENSITY). Runs on a copy of the scene's
-## environment, in the game only: the editor's view of a map is untouched. Something else may
-## put its own copy in (Burrow's DayCycle does, after this one): the atmosphere follows
-## whichever environment the scene shows, and runs after everything else each frame
-## (process_priority), dimming the ambient light the day cycle set rather than overwriting it.
+## The air the player sees through. Above ground the air is clear once the map is built (the whole
+## surface stands, so there is nothing to hide); while it still builds, a haze in the map's own
+## colour closes in to hide where the built ground ends (ChunkedTerrainWorld.get_built_reach),
+## opening as the build spreads and gone once it is done. Underground, under a roof of rock, it is
+## dark: a black fog that closes in by DARK_END metres, short of the chunks streamed round the
+## player (ChunkedTerrainWorld.STREAM_VIEW), so no cavern shows an end that is not built, and the
+## ambient light drops. The camera is underground when it is below the surface's height there and no
+## short ray from it, straight up or slanting up any way round, reaches open sky: an open ravine is
+## daylit, and so is a cave's mouth, the sky showing through it. The look blends between the two
+## over a second or so. A scene whose environment has a fog of its own (the crawlspace's dim air
+## under the house) keeps it above ground as designed, with no haze over it; the dark underground
+## thickens that fog instead (DARK_DENSITY). Runs on a copy of the scene's environment, in the game
+## only: the editor's view of a map is untouched. Something else may put its own copy in (Burrow's
+## DayCycle does, after this one): the atmosphere follows whichever environment the scene shows, and
+## runs after everything else each frame (process_priority), dimming the ambient light the day cycle
+## set rather than overwriting it.
 
 ## While the map builds: the haze's farthest reach (where it has thinned to nothing once the
 ## built edge is past it), and where it begins at most.
@@ -40,10 +40,19 @@ const DARK_AMBIENT: float = 0.3
 ## Underground in a scene with a fog of its own: the exponential fog's density there, all but
 ## total by DARK_END metres.
 const DARK_DENSITY: float = 0.1
-## Metres below the surface's height the camera must be, and the most terrain over it a ray
-## up looks for, to count as underground.
+## Metres below the surface's height the camera must be to count as underground, and the rays
+## it looks for open sky along: straight up, and SKY_WAYS ways round at each of SKY_ELEVATIONS
+## degrees above level, SKY_REACH metres long (inside the ground streamed round the player, so
+## no ray slips out through rock that is not built). A ray has found the sky when no ground
+## stops it and it ends above the surface's height there; a prop, a glass wall or a lid in its
+## way is looked past (SKY_LOOK_PAST of them at most).
 const UNDER_DEPTH: float = 4.0
-const ROOF_REACH: float = 300.0
+const SKY_WAYS: int = 12
+const SKY_ELEVATIONS: Array[float] = [12.0, 35.0]
+const SKY_REACH: float = 40.0
+const SKY_LOOK_PAST: int = 4
+## Frames between looks for the sky.
+const SKY_EVERY: int = 5
 ## How fast the look follows the camera in or out of the ground, in full blends a second.
 const BLEND_RATE: float = 1.2
 
@@ -55,6 +64,8 @@ var _haze_color: Color
 var _ambient_energy: float = 1.0
 var _ambient_written: float = -1.0
 var _blend: float = 0.0
+## Where the blend is heading: 1 underground, 0 above (looked at every SKY_EVERY frames).
+var _blend_target: float = 0.0
 ## The scene's own fog (exponential, as the scene set it): kept above ground instead of the
 ## haze. Its density, colour and sky share as the scene had them.
 var _own_fog: bool = false
@@ -114,10 +125,13 @@ func _process(delta: float) -> void:
 	_edge_tick += 1
 	if not _own_fog and _edge_tick % EDGE_EVERY == 1:
 		_edge_target = _built_edge()
-	var target: float = 1.0 if _underground() else 0.0
-	var settled: bool = is_equal_approx(target, _blend) and is_equal_approx(_edge, _edge_target)
+	if _edge_tick % SKY_EVERY == 1:
+		_blend_target = 1.0 if _underground() else 0.0
+	var settled: bool = (
+		is_equal_approx(_blend_target, _blend) and is_equal_approx(_edge, _edge_target)
+	)
 	if not settled:
-		_blend = move_toward(_blend, target, delta * BLEND_RATE)
+		_blend = move_toward(_blend, _blend_target, delta * BLEND_RATE)
 		# Closing in is at once (no unbuilt edge shows); opening is gradual.
 		if _edge_target < _edge:
 			_edge = _edge_target
@@ -149,25 +163,64 @@ func _built_edge() -> float:
 	return clampf(reach - EDGE_MARGIN, EDGE_NEAREST, HAZE_END)
 
 
-## Whether the camera is in the ground: below the surface's height by UNDER_DEPTH and under
-## terrain.
+## Whether the camera is in the ground (is_underground_at).
 func _underground() -> bool:
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera == null:
 		return false
-	var at: Vector3 = camera.global_position
 	var worlds: Array[ChunkedTerrainWorld] = MapInfo.terrain_worlds(get_tree())
 	if worlds.is_empty():
 		return false
-	var terrain: ChunkedTerrainWorld = worlds[0]
+	var space: PhysicsDirectSpaceState3D = camera.get_world_3d().direct_space_state
+	return is_underground_at(worlds[0], space, camera.global_position)
+
+
+## Whether a point is in the ground: below the surface's height there by UNDER_DEPTH, with no
+## way to the open sky from it (sky_ways).
+static func is_underground_at(
+	terrain: ChunkedTerrainWorld, space: PhysicsDirectSpaceState3D, at: Vector3
+) -> bool:
 	if not terrain.has_method("get_surface_height_at"):
 		return false
 	if at.y > float(terrain.call("get_surface_height_at", at)) - UNDER_DEPTH:
 		return false
-	var query := PhysicsRayQueryParameters3D.create(
-		at, at + Vector3.UP * ROOF_REACH, MapInfo.TERRAIN_LAYER
-	)
-	return not camera.get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+	for way: Vector3 in sky_ways():
+		if _reaches_sky(terrain, space, at, at + way * SKY_REACH):
+			return false
+	return true
+
+
+## The ways the sky is looked for: straight up first, then SKY_WAYS ways round at each of
+## SKY_ELEVATIONS degrees above level, all of unit length.
+static func sky_ways() -> Array[Vector3]:
+	var ways: Array[Vector3] = [Vector3.UP]
+	for elevation: float in SKY_ELEVATIONS:
+		var rise: float = deg_to_rad(elevation)
+		for index: int in SKY_WAYS:
+			var turn: float = TAU * float(index) / float(SKY_WAYS)
+			ways.append(Vector3(cos(rise) * sin(turn), sin(rise), cos(rise) * cos(turn)))
+	return ways
+
+
+## Whether a ray from a point to an end in the air above the surface meets no ground on the
+## way (the terrain's own; anything else in its way is looked past).
+static func _reaches_sky(
+	terrain: ChunkedTerrainWorld, space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3
+) -> bool:
+	if to.y < float(terrain.call("get_surface_height_at", to)):
+		return false
+	var query := PhysicsRayQueryParameters3D.create(from, to, MapInfo.TERRAIN_LAYER)
+	for _look: int in SKY_LOOK_PAST + 1:
+		var hit: Dictionary = space.intersect_ray(query)
+		if hit.is_empty():
+			return true
+		var collider: Object = hit.get("collider")
+		if collider is Node and terrain.is_ancestor_of(collider as Node):
+			return false
+		var past: Array[RID] = query.exclude
+		past.append(hit.get("rid"))
+		query.exclude = past
+	return false
 
 
 ## Sets the environment to the blend between the air above ground and the dark under it.
