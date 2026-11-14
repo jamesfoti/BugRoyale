@@ -336,8 +336,8 @@ Noise sliders from the Noise Roll ranges, writing the values into the inspector 
 Noise Roll set to Fixed, so the sliders show exactly what built and can be nudged from
 there; the grid, chunk and voxel sizes stay. The caves' numbers come the same way:
 **Biomes** on the node is two lists of `Biome` resources, **Land Biomes** and **Cave
-Biomes**, the kinds in `biomes/` (meadow, dryland, marsh and barrens on top; plain, mossy,
-dripstone, fungal and crystal below). The land is cut into patches of a jittered grid,
+Biomes**, the kinds in `biomes/` (meadow, dryland, marsh and barrens on top, and termite,
+so far in the terrain lab only; plain, mossy, dripstone, fungal and crystal below). The land is cut into patches of a jittered grid,
 **Land Patch Size** metres across with borders bent by a slow noise, and each patch draws
 its kind from the list by the kinds' weights: a weight is how likely a patch is that kind
 against the others (3 against 1 is three patches in four), 0 is never, one kind alone is
@@ -345,8 +345,15 @@ everywhere. A resource holds the kind's name, weight, tint (white at alpha 1 is 
 as the shader draws it; a colour at alpha 0.5 is blended half over it), and for the caves
 the depths it holds between (mossy 0 to 40 m, the deep kinds 40 m down, the first kind in
 the list that holds standing in elsewhere), whether its rooms stand on pillars, and how
-much of the seed's ceiling jag and floor rubble they get. A new kind is a new resource,
-no code; add it to a list, or remove and reorder the kinds, in the inspector. The rebuild
+much of the seed's ceiling jag and floor rubble they get. A land kind's **Mounds** share
+raises termite mounds in its patches (`TermiteMounds`): one site in every 64 m square,
+grown into a mound when its hash falls under the share and the ground there is not too
+steep, inside the map. A mound is ground like any other (dug the same way): a leaning
+spire 20 to 34 m tall or a lumpy dome 10 to 18 m, flared into the ground, with holes round
+its foot into a chimney up the spire or a dome's hollow heart, and a shaft down to a nest
+8 to 12 m under the ground whose honeycomb rooms open into each other through round
+doorways. Its tunnels are about 3 m across, so the interior only shows at 1 or 2 m voxels.
+The rebuild line counts the mounds. A new kind is a new resource, no code; add it to a list, or remove and reorder the kinds, in the inspector. The rebuild
 line gives both lists as shares.
 **Cave Roll** on the node is Seeded (rolled from the seed, as the maps do, with the
 near-surface numbers drawn from the **Cave Range** pairs beside it: the tunnels' start

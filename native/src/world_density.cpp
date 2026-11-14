@@ -7,21 +7,21 @@ namespace godot {
 
 // --- Solids -----------------------------------------------------------------------------------
 
-SolidShape SolidShape::from(const Dictionary &d) {
-	SolidShape s;
-	s.source = d;
-	s.center = d.get("center", Vector3());
-	s.half_length = (double)d.get("half_length", 0.0);
-	s.radius = (double)d.get("radius", 0.0);
-	s.height = (double)d.get("height", 0.0);
-	s.along_z = (bool)d.get("along_z", false);
-	s.ground = (bool)d.get("ground", false);
-	s.has_tint = d.has("tint");
-	if (s.has_tint) {
-		s.tint = d["tint"];
+SolidShape SolidShape::from(const Dictionary &data) {
+	SolidShape shape;
+	shape.source = data;
+	shape.center = data.get("center", Vector3());
+	shape.half_length = (double)data.get("half_length", 0.0);
+	shape.radius = (double)data.get("radius", 0.0);
+	shape.height = (double)data.get("height", 0.0);
+	shape.along_z = (bool)data.get("along_z", false);
+	shape.ground = (bool)data.get("ground", false);
+	shape.has_tint = data.has("tint");
+	if (shape.has_tint) {
+		shape.tint = data["tint"];
 	}
-	s.bounds = WorldDensity::solid_bounds(d);
-	return s;
+	shape.bounds = WorldDensity::solid_bounds(data);
+	return shape;
 }
 
 double SolidShape::sdf(const Vector3 &world_pos) const {
@@ -50,22 +50,26 @@ void WorldDensity::set_solids(const Array &value) {
 	solids_source = value;
 	solids.clear();
 	region_solids.clear();
-	for (int i = 0; i < value.size(); i++) {
-		solids.push_back(SolidShape::from(value[i]));
-		region_solids.push_back(i);
+	for (int index = 0; index < value.size(); index++) {
+		solids.push_back(SolidShape::from(value[index]));
+		region_solids.push_back(index);
 	}
 }
 
 TypedArray<Dictionary> WorldDensity::get_solids() const {
 	TypedArray<Dictionary> out;
-	for (int i = 0; i < solids_source.size(); i++) {
-		out.push_back(solids_source[i]);
+	for (int index = 0; index < solids_source.size(); index++) {
+		out.push_back(solids_source[index]);
 	}
 	return out;
 }
 
 bool WorldDensity::is_sky(double highest_surface, double bottom_y, const AABB &region) const {
 	if (!open_terrain_enabled || highest_surface >= bottom_y || !region_solids.empty()) {
+		return false;
+	}
+	// A mound standing up into the region (prepare_for_region found it) is ground up there.
+	if (mounds_enabled && (!termites.region_ready || !termites.region.is_empty())) {
 		return false;
 	}
 	if (terrain_edits.is_valid() && terrain_edits->get_override_count() > 0) {
@@ -76,13 +80,16 @@ bool WorldDensity::is_sky(double highest_surface, double bottom_y, const AABB &r
 
 void WorldDensity::prepare_for_region(const AABB &region) {
 	region_solids.clear();
-	for (int i = 0; i < (int)solids.size(); i++) {
-		if (region.intersects(solids[i].bounds)) {
-			region_solids.push_back(i);
+	for (int index = 0; index < (int)solids.size(); index++) {
+		if (region.intersects(solids[index].bounds)) {
+			region_solids.push_back(index);
 		}
 	}
 	if (caves.is_valid() && caves->systems.is_valid()) {
 		caves->systems->prepare_region(region);
+	}
+	if (mounds_enabled) {
+		termites.prepare(region, *this, land_seed);
 	}
 }
 
@@ -185,70 +192,72 @@ Ref<WorldDensity> WorldDensity::create_boxed_in_terrain(int noise_seed, double n
 Ref<WorldDensity> WorldDensity::clone_for_build() const {
 	Ref<WorldDensity> copy;
 	copy.instantiate();
-	WorldDensity *c = copy.ptr();
-	c->noise_enabled = noise_enabled;
-	c->noise_amplitude = noise_amplitude;
-	c->noise_octaves = noise_octaves;
-	c->noise_lacunarity = noise_lacunarity;
-	c->noise_gain = noise_gain;
-	c->bounds_center = bounds_center;
-	c->bounds_half = bounds_half;
-	c->bounds_clip_inset = bounds_clip_inset;
-	c->boxed_in_terrain_enabled = boxed_in_terrain_enabled;
-	c->boxed_in_edges_enabled = boxed_in_edges_enabled;
-	c->open_terrain_enabled = open_terrain_enabled;
-	c->open_terrain_edges_enabled = open_terrain_edges_enabled;
-	c->open_terrain_solid_fill = open_terrain_solid_fill;
-	c->surface_height_offset = surface_height_offset;
-	c->terrace_enabled = terrace_enabled;
-	c->terrace_step = terrace_step;
-	c->terrace_strength = terrace_strength;
-	c->terrace_phase = terrace_phase;
-	c->terrace_coverage = terrace_coverage;
-	c->surface_warp = surface_warp;
-	c->surface_ridge = surface_ridge;
-	c->surface_power = surface_power;
-	c->region_strength = region_strength;
-	c->region_lowland = region_lowland;
-	c->region_ridge = region_ridge;
-	c->region_detail = region_detail;
-	c->curve_floor = curve_floor;
-	c->curve_cliff = curve_cliff;
-	c->curve_cliff_at = curve_cliff_at;
-	c->curve_cliff_width = curve_cliff_width;
-	c->relief_amplitude = relief_amplitude;
-	c->relief_band = relief_band;
-	c->flat_spots = flat_spots;
+	WorldDensity *clone = copy.ptr();
+	clone->noise_enabled = noise_enabled;
+	clone->noise_amplitude = noise_amplitude;
+	clone->noise_octaves = noise_octaves;
+	clone->noise_lacunarity = noise_lacunarity;
+	clone->noise_gain = noise_gain;
+	clone->bounds_center = bounds_center;
+	clone->bounds_half = bounds_half;
+	clone->bounds_clip_inset = bounds_clip_inset;
+	clone->boxed_in_terrain_enabled = boxed_in_terrain_enabled;
+	clone->boxed_in_edges_enabled = boxed_in_edges_enabled;
+	clone->open_terrain_enabled = open_terrain_enabled;
+	clone->open_terrain_edges_enabled = open_terrain_edges_enabled;
+	clone->open_terrain_solid_fill = open_terrain_solid_fill;
+	clone->surface_height_offset = surface_height_offset;
+	clone->terrace_enabled = terrace_enabled;
+	clone->terrace_step = terrace_step;
+	clone->terrace_strength = terrace_strength;
+	clone->terrace_phase = terrace_phase;
+	clone->terrace_coverage = terrace_coverage;
+	clone->surface_warp = surface_warp;
+	clone->surface_ridge = surface_ridge;
+	clone->surface_power = surface_power;
+	clone->region_strength = region_strength;
+	clone->region_lowland = region_lowland;
+	clone->region_ridge = region_ridge;
+	clone->region_detail = region_detail;
+	clone->curve_floor = curve_floor;
+	clone->curve_cliff = curve_cliff;
+	clone->curve_cliff_at = curve_cliff_at;
+	clone->curve_cliff_width = curve_cliff_width;
+	clone->relief_amplitude = relief_amplitude;
+	clone->relief_band = relief_band;
+	clone->flat_spots = flat_spots;
 	if (caves.is_valid()) {
-		c->caves = caves->clone();
+		clone->caves = caves->clone();
 	}
-	c->land_biomes = land_biomes;
-	c->land_patch_size = land_patch_size;
-	c->solids = solids;
-	c->solids_source = solids_source;
-	c->region_solids.clear();
-	for (int i = 0; i < (int)solids.size(); i++) {
-		c->region_solids.push_back(i);
+	clone->land_biomes = land_biomes;
+	clone->land_patch_size = land_patch_size;
+	clone->mounds_enabled = mounds_enabled;
+	clone->mound_noise = mound_noise;
+	clone->solids = solids;
+	clone->solids_source = solids_source;
+	clone->region_solids.clear();
+	for (int index = 0; index < (int)solids.size(); index++) {
+		clone->region_solids.push_back(index);
 	}
-	c->terrain_edits = terrain_edits;
-	c->ore_seed = ore_seed;
-	c->flat_spot_heights = flat_spot_heights;
-	c->flat_spot_count = flat_spot_count;
-	c->region_noise = region_noise;
-	c->detail_noise = detail_noise;
-	c->relief_noise = relief_noise;
-	c->land_warp = land_warp;
-	c->land_seed = land_seed;
-	c->vein_noise = vein_noise;
-	c->ore_noise = ore_noise;
-	c->macro_noise = macro_noise;
-	c->height_noise = height_noise;
-	c->terrace_noise = terrace_noise;
-	c->warp_noise_x = warp_noise_x;
-	c->warp_noise_z = warp_noise_z;
-	c->base_noise = base_noise;
-	c->heightmap = heightmap;
-	c->heightmap_size = heightmap_size;
+	clone->terrain_edits = terrain_edits;
+	clone->ore_seed = ore_seed;
+	clone->flat_spot_heights = flat_spot_heights;
+	clone->flat_spot_count = flat_spot_count;
+	clone->region_noise = region_noise;
+	clone->detail_noise = detail_noise;
+	clone->relief_noise = relief_noise;
+	clone->land_warp = land_warp;
+	clone->land_seed = land_seed;
+	clone->vein_noise = vein_noise;
+	clone->ore_noise = ore_noise;
+	clone->macro_noise = macro_noise;
+	clone->height_noise = height_noise;
+	clone->terrace_noise = terrace_noise;
+	clone->warp_noise_x = warp_noise_x;
+	clone->warp_noise_z = warp_noise_z;
+	clone->base_noise = base_noise;
+	clone->heightmap = heightmap;
+	clone->heightmap_size = heightmap_size;
 	return copy;
 }
 
@@ -324,6 +333,13 @@ Color WorldDensity::natural_tint(const Vector3 &world_position, double density_v
 			return solid->has_tint ? solid->tint : mat::natural_vertex_color();
 		}
 	}
+	if (mounds_enabled && open_terrain_enabled) {
+		// A mound and its hollows wear the clay of the kind it stands in, down to its nest.
+		TermiteMound mound;
+		if (termites.near(world_position, *this, land_seed, mound_noise, 1.5, mound)) {
+			return tint_of(land_biome_of(mound.base.x, mound.base.z));
+		}
+	}
 	if (open_terrain_enabled) {
 		double depth = depth_below_surface(world_position, density_value);
 		if (depth > 1.5) {
@@ -369,6 +385,7 @@ void WorldDensity::init_ground_noises(int noise_seed) {
 	vein_noise = TNoise::make(noise_seed + 77, TNoise::SIMPLEX, 0.09, -1);
 	ore_noise = TNoise::make(noise_seed + 88, TNoise::SIMPLEX, 0.14, -1);
 	land_seed = noise_seed + 1313;
+	mound_noise = TNoise::make(noise_seed + 2909, TNoise::SIMPLEX_SMOOTH, 0.11, 2);
 	refresh_land_warp();
 }
 
@@ -386,18 +403,39 @@ const BiomeData &WorldDensity::land_biome_of(double world_x, double world_z) con
 }
 
 String WorldDensity::land_summary() const {
-	return "land " + patches::shares(land_biomes.names(), land_biomes.weights_packed());
+	String summary = "land " + patches::shares(land_biomes.names(), land_biomes.weights_packed());
+	if (mounds_enabled) {
+		AABB map(bounds_center - bounds_half, bounds_half * 2.0f);
+		int64_t count = (int64_t)TermiteMounds::in(map, *this, land_seed).size();
+		summary += ", " + itos(count) + (count == 1 ? " termite mound" : " termite mounds");
+	}
+	return summary;
+}
+
+TypedArray<Dictionary> WorldDensity::termite_mounds_in(const AABB &p_area) const {
+	TypedArray<Dictionary> out;
+	if (!mounds_enabled) {
+		return out;
+	}
+	for (const TermiteMound &mound : TermiteMounds::in(p_area, *this, land_seed)) {
+		out.push_back(mound.to_dictionary());
+	}
+	return out;
 }
 
 void WorldDensity::set_land_biomes(const Array &value) {
 	land_biomes.set(value);
+	mounds_enabled = false;
+	for (const BiomeData &kind : land_biomes.kinds) {
+		mounds_enabled = mounds_enabled || kind.mounds > 0.0;
+	}
 	refresh_land_warp();
 }
 
 TypedArray<Dictionary> WorldDensity::get_land_biomes() const {
 	TypedArray<Dictionary> out;
-	for (int i = 0; i < land_biomes.source.size(); i++) {
-		out.push_back(land_biomes.source[i]);
+	for (int index = 0; index < land_biomes.source.size(); index++) {
+		out.push_back(land_biomes.source[index]);
 	}
 	return out;
 }
@@ -569,8 +607,8 @@ TypedArray<Vector3> WorldDensity::flat_spot_points() const {
 
 void WorldDensity::set_flat_spots(const Array &value) {
 	flat_spots.clear();
-	for (int i = 0; i < value.size(); i++) {
-		flat_spots.push_back(value[i]);
+	for (int index = 0; index < value.size(); index++) {
+		flat_spots.push_back(value[index]);
 	}
 }
 
@@ -600,10 +638,10 @@ double WorldDensity::terrace_height(double height, double world_x, double world_
 	return tmath::lerpd(height, shelved, share);
 }
 
-Ref<RandomNumberGenerator> WorldDensity::seeded_rng(int a, int b) {
+Ref<RandomNumberGenerator> WorldDensity::seeded_rng(int first, int second) {
 	Ref<RandomNumberGenerator> rng;
 	rng.instantiate();
-	rng->set_seed((uint64_t)thash::of(a, b));
+	rng->set_seed((uint64_t)thash::of(first, second));
 	return rng;
 }
 
@@ -839,6 +877,9 @@ double WorldDensity::evaluate_open_terrain_with_surface(const Vector3 &world_pos
 	} else {
 		value = tmath::maxd(sample_boxed_in_terrain_noise(world_pos) * SPONGE_NOISE_METRES, above_surface);
 	}
+	if (mounds_enabled) {
+		value = termites.apply(value, world_pos, *this, land_seed, mound_noise);
+	}
 	if (open_terrain_edges_enabled) {
 		value = tmath::maxd(value,
 				DensitySampler::open_terrain_box_sdf(world_pos, bounds_center, bounds_half, bounds_clip_inset));
@@ -874,10 +915,10 @@ double WorldDensity::evaluate(const Vector3 &world_pos, bool with_edits) {
 }
 
 Vector3 WorldDensity::gradient(const Vector3 &world_pos, double epsilon) {
-	real_t e = (real_t)epsilon;
-	double dx = (evaluate(world_pos + Vector3(e, 0, 0)) - evaluate(world_pos - Vector3(e, 0, 0))) / (2.0 * epsilon);
-	double dy = (evaluate(world_pos + Vector3(0, e, 0)) - evaluate(world_pos - Vector3(0, e, 0))) / (2.0 * epsilon);
-	double dz = (evaluate(world_pos + Vector3(0, 0, e)) - evaluate(world_pos - Vector3(0, 0, e))) / (2.0 * epsilon);
+	real_t offset = (real_t)epsilon;
+	double dx = (evaluate(world_pos + Vector3(offset, 0, 0)) - evaluate(world_pos - Vector3(offset, 0, 0))) / (2.0 * epsilon);
+	double dy = (evaluate(world_pos + Vector3(0, offset, 0)) - evaluate(world_pos - Vector3(0, offset, 0))) / (2.0 * epsilon);
+	double dz = (evaluate(world_pos + Vector3(0, 0, offset)) - evaluate(world_pos - Vector3(0, 0, offset))) / (2.0 * epsilon);
 	return v3(dx, dy, dz);
 }
 
@@ -901,6 +942,7 @@ void WorldDensity::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("ore_at", "world_position", "depth"), &WorldDensity::ore_at);
 	ClassDB::bind_method(D_METHOD("land_biome", "world_x", "world_z"), &WorldDensity::land_biome);
 	ClassDB::bind_method(D_METHOD("land_summary"), &WorldDensity::land_summary);
+	ClassDB::bind_method(D_METHOD("termite_mounds_in", "area"), &WorldDensity::termite_mounds_in);
 	ClassDB::bind_method(D_METHOD("sample_open_terrain_height", "world_x", "world_z"), &WorldDensity::sample_open_terrain_height);
 	ClassDB::bind_method(D_METHOD("curve_height", "unit"), &WorldDensity::curve_height);
 	ClassDB::bind_method(D_METHOD("surface_slope", "world_x", "world_z", "height"), &WorldDensity::surface_slope);

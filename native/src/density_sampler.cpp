@@ -25,7 +25,7 @@ double DensitySampler::fbm(const TNoise &noise, const Vector3 &world_pos, int oc
 	double frequency = 1.0;
 	double total = 0.0;
 	double normalizer = 0.0;
-	for (int i = 0; i < octaves; i++) {
+	for (int octave = 0; octave < octaves; octave++) {
 		total += noise.get_3d((double)world_pos.x * frequency, (double)world_pos.y * frequency,
 						 (double)world_pos.z * frequency) *
 				amplitude;
@@ -45,7 +45,7 @@ double DensitySampler::fbm_noise_3d(const Ref<FastNoiseLite> &noise, const Vecto
 	double frequency = 1.0;
 	double total = 0.0;
 	double normalizer = 0.0;
-	for (int i = 0; i < octaves; i++) {
+	for (int octave = 0; octave < octaves; octave++) {
 		total += (double)noise->get_noise_3d((double)world_pos.x * frequency, (double)world_pos.y * frequency,
 						 (double)world_pos.z * frequency) *
 				amplitude;
@@ -110,7 +110,8 @@ Ref<SignedDensityField> DensitySampler::build_chunk_field(const Ref<WorldDensity
 	int size_x = sample_size.x;
 	int size_y = sample_size.y;
 	int size_z = sample_size.z;
-	if (!density->solids.empty() || (density->caves.is_valid() && density->caves->systems.is_valid())) {
+	if (!density->solids.empty() || (density->caves.is_valid() && density->caves->systems.is_valid()) ||
+			density->mounds_enabled) {
 		Vector3 halo = Vector3(1, 1, 1) * (real_t)(step * 2.0);
 		Vector3 region_start = grid_world_origin + Vector3(grid_offset) * (real_t)step - halo;
 		density->prepare_for_region(AABB(region_start, Vector3(sample_size) * (real_t)step + halo * 2.0f));
@@ -198,7 +199,8 @@ Ref<SignedDensityField> DensitySampler::resample_chunk_field(const Ref<SignedDen
 	field->changed_first = first;
 	field->changed_last = last.max(first);
 	if (first.x <= last.x && first.y <= last.y && first.z <= last.z) {
-		if (!density->solids.empty() || (density->caves.is_valid() && density->caves->systems.is_valid())) {
+		if (!density->solids.empty() || (density->caves.is_valid() && density->caves->systems.is_valid()) ||
+				density->mounds_enabled) {
 			Vector3 halo = Vector3(1, 1, 1) * (real_t)(step * 2.0);
 			density->prepare_for_region(AABB(corner - halo, Vector3(size) * (real_t)step + halo * 2.0f));
 		}
@@ -237,9 +239,9 @@ Ref<SignedDensityField> DensitySampler::resample_chunk_field(const Ref<SignedDen
 	double max_value = -tmath::INF_D;
 	const float *read = field->values.ptr();
 	int64_t count = field->values.size();
-	for (int64_t i = 0; i < count; i++) {
-		min_value = tmath::mind(min_value, read[i]);
-		max_value = tmath::maxd(max_value, read[i]);
+	for (int64_t index = 0; index < count; index++) {
+		min_value = tmath::mind(min_value, read[index]);
+		max_value = tmath::maxd(max_value, read[index]);
 	}
 	field->min_value = min_value;
 	field->max_value = max_value;

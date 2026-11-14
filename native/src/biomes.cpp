@@ -4,63 +4,65 @@
 
 namespace godot {
 
-BiomeData BiomeData::from(const Dictionary &d) {
-	BiomeData b;
-	if (d.is_empty()) {
-		return b;
+BiomeData BiomeData::from(const Dictionary &data) {
+	BiomeData biome_data;
+	if (data.is_empty()) {
+		return biome_data;
 	}
-	b.empty = false;
-	b.name = d.get("name", "");
-	b.weight = (double)d.get("weight", 0.0);
-	b.tint = d.get("tint", mat::natural_vertex_color());
-	b.depth_min = (double)d.get("depth_min", 0.0);
-	b.depth_max = (double)d.get("depth_max", tmath::INF_D);
-	b.pillars = (bool)d.get("pillars", false);
-	b.ceiling_jag = (double)d.get("ceiling_jag", 1.0);
-	b.rubble = (double)d.get("rubble", 1.0);
-	return b;
+	biome_data.empty = false;
+	biome_data.name = data.get("name", "");
+	biome_data.weight = (double)data.get("weight", 0.0);
+	biome_data.tint = data.get("tint", mat::natural_vertex_color());
+	biome_data.depth_min = (double)data.get("depth_min", 0.0);
+	biome_data.depth_max = (double)data.get("depth_max", tmath::INF_D);
+	biome_data.pillars = (bool)data.get("pillars", false);
+	biome_data.ceiling_jag = (double)data.get("ceiling_jag", 1.0);
+	biome_data.rubble = (double)data.get("rubble", 1.0);
+	biome_data.mounds = (double)data.get("mounds", 0.0);
+	return biome_data;
 }
 
 Dictionary BiomeData::to_dictionary() const {
-	Dictionary d;
+	Dictionary data;
 	if (empty) {
-		return d;
+		return data;
 	}
-	d["name"] = name;
-	d["weight"] = weight;
-	d["tint"] = tint;
-	d["depth_min"] = depth_min;
-	d["depth_max"] = depth_max;
-	d["pillars"] = pillars;
-	d["ceiling_jag"] = ceiling_jag;
-	d["rubble"] = rubble;
-	return d;
+	data["name"] = name;
+	data["weight"] = weight;
+	data["tint"] = tint;
+	data["depth_min"] = depth_min;
+	data["depth_max"] = depth_max;
+	data["pillars"] = pillars;
+	data["ceiling_jag"] = ceiling_jag;
+	data["rubble"] = rubble;
+	data["mounds"] = mounds;
+	return data;
 }
 
 void BiomeList::set(const Array &data) {
 	source = data;
 	kinds.clear();
 	weights.clear();
-	for (int i = 0; i < data.size(); i++) {
-		Dictionary d = data[i];
-		BiomeData b = BiomeData::from(d);
-		kinds.push_back(b);
-		weights.push_back((float)(double)d.get("weight", 0.0));
+	for (int index = 0; index < data.size(); index++) {
+		Dictionary entry = data[index];
+		BiomeData biome_data = BiomeData::from(entry);
+		kinds.push_back(biome_data);
+		weights.push_back((float)(double)entry.get("weight", 0.0));
 	}
 }
 
 PackedStringArray BiomeList::names() const {
 	PackedStringArray out;
-	for (const BiomeData &b : kinds) {
-		out.push_back(b.name);
+	for (const BiomeData &biome_data : kinds) {
+		out.push_back(biome_data.name);
 	}
 	return out;
 }
 
 PackedFloat32Array BiomeList::weights_packed() const {
 	PackedFloat32Array out;
-	for (float w : weights) {
-		out.push_back(w);
+	for (float weight : weights) {
+		out.push_back(weight);
 	}
 	return out;
 }
@@ -119,8 +121,8 @@ int pick(double world_x, double world_z, int seed_value, double patch_size, cons
 
 String shares(const PackedStringArray &names, const PackedFloat32Array &weights) {
 	double total = 0.0;
-	for (int i = 0; i < weights.size(); i++) {
-		total += tmath::maxd(weights[i], 0.0);
+	for (int index = 0; index < weights.size(); index++) {
+		total += tmath::maxd(weights[index], 0.0);
 	}
 	if (total <= 0.0) {
 		return "none";

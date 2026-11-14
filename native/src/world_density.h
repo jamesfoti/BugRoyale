@@ -8,6 +8,7 @@
 #include "cave_carver.h"
 #include "common.h"
 #include "terrain_edits.h"
+#include "termite_mounds.h"
 
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/random_number_generator.hpp>
@@ -28,7 +29,7 @@ struct SolidShape {
 	AABB bounds;
 	Dictionary source;
 
-	static SolidShape from(const Dictionary &d);
+	static SolidShape from(const Dictionary &data);
 	double sdf(const Vector3 &world_pos) const;
 };
 
@@ -87,6 +88,10 @@ public:
 	Ref<CaveCarver> caves;
 	BiomeList land_biomes;
 	double land_patch_size = 400.0;
+	// Whether any land kind raises termite mounds, and the mounds near the region a chunk
+	// build samples.
+	bool mounds_enabled = false;
+	TermiteMounds termites;
 	std::vector<SolidShape> solids;
 	Array solids_source;
 	Ref<TerrainEdits> terrain_edits;
@@ -127,6 +132,10 @@ public:
 	const BiomeData &land_biome_of(double world_x, double world_z) const;
 	Dictionary land_biome(double world_x, double world_z) const { return land_biome_of(world_x, world_z).to_dictionary(); }
 	String land_summary() const;
+	// The termite mounds whose bounds meet an area, as data (base, height, radius, spire,
+	// lean, nest, nest_radius, holes, hole_turn).
+	TypedArray<Dictionary> termite_mounds_in(const AABB &p_area) const;
+	int get_land_seed() const { return land_seed; }
 	void set_land_biomes(const Array &value);
 	TypedArray<Dictionary> get_land_biomes() const;
 	void set_land_patch_size(double value);
@@ -228,6 +237,8 @@ private:
 	TNoise relief_noise;
 	TNoise land_warp;
 	int land_seed = 0;
+	// The lumps on a termite mound's skin.
+	TNoise mound_noise;
 	TNoise vein_noise;
 	TNoise ore_noise;
 	TNoise macro_noise;
@@ -251,7 +262,7 @@ private:
 	double evaluate_boxed_in_terrain(const Vector3 &world_pos, bool with_edits) const;
 	double sample_heightmap(double world_x, double world_z) const;
 	static double draw(const Ref<RandomNumberGenerator> &rng, const Vector2 &value_range);
-	static Ref<RandomNumberGenerator> seeded_rng(int a, int b);
+	static Ref<RandomNumberGenerator> seeded_rng(int first, int second);
 
 	friend class DensitySampler;
 };

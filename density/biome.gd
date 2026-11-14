@@ -22,6 +22,9 @@ extends Resource
 ## Caves only: the seed's ceiling jag and floor rubble, scaled (0 smooth).
 @export_range(0.0, 3.0, 0.1) var ceiling_jag: float = 1.0
 @export_range(0.0, 3.0, 0.1) var rubble: float = 1.0
+## Land only: the share of termite mound sites (one in every 64 m square) in its patches where
+## a mound stands, a spire or a dome, hollow inside and over a nest (0 none).
+@export_range(0.0, 1.0, 0.05) var mounds: float = 0.0
 
 
 ## The kind as plain values, which the chunks' worker threads read instead of the resource.
@@ -35,6 +38,7 @@ func to_data() -> Dictionary:
 		"pillars": pillars,
 		"ceiling_jag": ceiling_jag,
 		"rubble": rubble,
+		"mounds": mounds,
 	}
 
 
