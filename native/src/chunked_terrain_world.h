@@ -356,7 +356,6 @@ protected:
 	void apply_async_job(BuildJob *job);
 	void rebuild_chunk_coordinates(const std::vector<Vector3i> &chunk_coordinates, Ref<TerrainSettings> settings);
 	bool edit_overlaps_body(const Dictionary &edit, Node3D *body);
-	void register_editor_scene_node(Node *node);
 	void submit(std::vector<std::unique_ptr<BuildJob>> &tasks, std::unique_ptr<BuildJob> job, const String &description);
 	bool job_done(BuildJob *job);
 	int column_index(int x, int z) const { return x + z * world_build_grid.x; }

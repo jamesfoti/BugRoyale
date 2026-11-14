@@ -8,8 +8,8 @@ extends Node3D
 ## rebuild line in the Output panel says what the seed rolled; New Seed beside Build rolls a
 ## new one, and Randomize draws the Noise sliders and the Cave Roll sliders too and writes
 ## them into the inspector.
-## This root keeps a New Seed button of its own and keeps the built chunks out of
-## the saved scene: they are destroyed before a save and rebuilt after it.
+## This root keeps a New Seed button of its own. The built chunks are never saved with the
+## scene (the terrain gives them no owner), so saving leaves them standing.
 ##
 ## The grid is the maps' extent, 16 by 16 chunks of 32 m and three deep (the maps dig in
 ## 16 m chunks, which at the lab's 4 m voxels would be four cells across), so a seed
@@ -25,25 +25,6 @@ extends Node3D
 ## builds on ready and the camera looks down on it.
 
 @export_tool_button("New seed", "RandomNumberGenerator") var new_seed_action: Callable = new_seed
-
-var _built_before_save: bool = false
-
-
-func _notification(what: int) -> void:
-	if not Engine.is_editor_hint():
-		return
-	match what:
-		NOTIFICATION_EDITOR_PRE_SAVE:
-			var terrain: ChunkedTerrainWorld = _terrain()
-			_built_before_save = terrain != null and terrain.get_chunk_count() > 0
-			if _built_before_save:
-				terrain.destroy_all()
-		NOTIFICATION_EDITOR_POST_SAVE:
-			if _built_before_save:
-				_built_before_save = false
-				var terrain: ChunkedTerrainWorld = _terrain()
-				if terrain != null:
-					terrain.rebuild_all_editor()
 
 
 ## Rerolls the terrain's seed. With auto rebuild on the terrain rebuilds itself; otherwise

@@ -965,7 +965,9 @@ void ChunkedTerrainWorld::build_chunk_at(const Vector3i &chunk_coordinate, const
 	if (settings->material.is_valid()) {
 		chunk->set_material_override(settings->material);
 	}
-	register_editor_scene_node(chunk);
+	// Built chunks are never part of the edited scene (no owner): the editor's Scene dock does
+	// not list hundreds of them (its rows broke on a rebuild of them all) and a save leaves them
+	// out.
 	auto found = chunks.find(chunk_coordinate);
 	if (found != chunks.end() && found->second != nullptr && found->second != chunk &&
 			found->second->get_parent() == this) {
@@ -1672,28 +1674,6 @@ Vector3 ChunkedTerrainWorld::_chunk_corner_local(const Vector3i &chunk_coordinat
 	}
 	Vector3 grid_origin = -grid * extent * 0.5f;
 	return grid_origin + Vector3(chunk_coordinate) * extent;
-}
-
-void ChunkedTerrainWorld::register_editor_scene_node(Node *node) {
-	if (!editor_hint() || !is_inside_tree()) {
-		return;
-	}
-	Node *edited_scene_root = get_tree()->get_edited_scene_root();
-	if (edited_scene_root == nullptr) {
-		return;
-	}
-	std::vector<Node *> stack = { node };
-	while (!stack.empty()) {
-		Node *current = stack.back();
-		stack.pop_back();
-		if (current != edited_scene_root) {
-			current->set_owner(edited_scene_root);
-		}
-		TypedArray<Node> children = current->get_children();
-		for (int i = 0; i < children.size(); i++) {
-			stack.push_back(Object::cast_to<Node>(children[i]));
-		}
-	}
 }
 
 // --- Script views of the internals ----------------------------------------------------------------

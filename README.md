@@ -161,11 +161,11 @@ python -m SCons target=template_release   # exported games
 ```
 
 The libraries land in `bin/` (`terrain.gdextension` lists them) and are committed for
-Windows. Close the editor before building: it holds the library open while it runs, and
-picks up the new one when it starts again. The extension is not reloadable on purpose: in
-the editor Godot tracks every object of a reloadable extension in a set without a lock, and
-the terrain's threaded build makes those objects on many threads at once, which crashed the
-editor on Build Terrain. On a Mac, with the Xcode command line tools
+Windows. The editor runs a copy of the library, so building with it open is fine; restart it
+to pick up the new one. The extension is not reloadable on purpose: in the editor Godot
+tracks every object of a reloadable extension in a set without a lock, and the terrain's
+threaded build makes those objects on many threads at once, which crashed the editor on
+Build Terrain. On a Mac, with the Xcode command line tools
 and the same Python and SCons, `python3 -m SCons platform=macos arch=universal` with each
 target builds `bin/libterrain.macos.<target>.framework`, which is what a macOS export needs;
 Linux is `platform=linux`. The C++ was checked against the GDScript it replaced by building
