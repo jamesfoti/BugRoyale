@@ -275,7 +275,7 @@ func test_the_cave_ranges_and_shape_travel_and_steer_the_roll() -> void:
 	assert_almost_eq(steered.fade, 5.0, 0.0001, "the fade is the node's")
 	assert_almost_eq(steered.tunnel_depth, plain.tunnel_depth, 0.0001, "the other numbers stay")
 	assert_almost_eq(steered.cavern_cutoff, plain.cavern_cutoff, 0.0001)
-	assert_almost_eq(plain.fade, CaveCarver.FADE, 0.0001, "the plain roll keeps the default")
+	assert_almost_eq(plain.fade, float(CaveCarver.FADE), 0.0001, "the plain roll keeps the default")
 
 
 func test_the_noise_roll_draws_in_range_and_the_same_seed_the_same() -> void:
