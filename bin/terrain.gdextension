@@ -2,7 +2,7 @@
 
 entry_symbol = "bugroyale_terrain_init"
 compatibility_minimum = "4.7"
-reloadable = true
+reloadable = false
 
 [libraries]
 

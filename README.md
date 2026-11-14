@@ -30,7 +30,8 @@ Play
   stands firm whether the underside is solid with caves or, with the terrain's **Solid
   Underside** off, a sponge of 3D noise.
 - **Three modes on the menu.** Burrow (survival as the colony's soldier: you carry the
-  queen's egg, a crowned egg on your back, and set it down wherever you choose; bring it six
+  queen's egg, a crowned egg on your back, and set it down on level ground wherever you
+  choose; bring it six
   food and the queen hatches there at the next dawn, and from then on lays an egg a day for
   every six food, each hatching a worker at the following dawn; in the open she is hornet
   prey, under earth you dug she is safe and mends; dig by day and build with what you carve
@@ -160,8 +161,11 @@ python -m SCons target=template_release   # exported games
 ```
 
 The libraries land in `bin/` (`terrain.gdextension` lists them) and are committed for
-Windows. The editor picks up a rebuilt library on its next focus (the extension is
-reloadable); restart it if a class changed shape. On a Mac, with the Xcode command line tools
+Windows. Close the editor before building: it holds the library open while it runs, and
+picks up the new one when it starts again. The extension is not reloadable on purpose: in
+the editor Godot tracks every object of a reloadable extension in a set without a lock, and
+the terrain's threaded build makes those objects on many threads at once, which crashed the
+editor on Build Terrain. On a Mac, with the Xcode command line tools
 and the same Python and SCons, `python3 -m SCons platform=macos arch=universal` with each
 target builds `bin/libterrain.macos.<target>.framework`, which is what a macOS export needs;
 Linux is `platform=linux`. The C++ was checked against the GDScript it replaced by building
