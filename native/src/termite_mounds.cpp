@@ -163,7 +163,7 @@ bool TermiteMounds::site(int p_cell_x, int p_cell_z, const WorldDensity &p_densi
 	double x = ((double)p_cell_x + 0.15 + 0.7 * unit(hash, 1)) * CELL;
 	double z = ((double)p_cell_z + 0.15 + 0.7 * unit(hash, 2)) * CELL;
 	const BiomeData &kind = p_density.land_biome_of(x, z);
-	if (kind.empty || kind.mounds <= 0.0 || unit(hash, 3) >= kind.mounds) {
+	if (kind.empty || kind.termite_mounds <= 0.0 || unit(hash, 3) >= kind.termite_mounds) {
 		return false;
 	}
 	TermiteMound mound;

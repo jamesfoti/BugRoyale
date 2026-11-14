@@ -1,11 +1,11 @@
-// Termite mounds: earth towers a land biome raises (its `mounds` share), each hollow inside.
-// The map is cut into `CELL` squares with one jittered site each; a site in a patch of a kind
-// with mounds grows one when its hash falls under that kind's share (and the ground under it
-// is not too steep). A mound is a tall leaning spire or a low lumpy dome flared into the
-// ground, with holes round its foot into it, a chimney up its middle (a spire) or a hollow
-// heart (a dome), and a shaft down to a nest chamber under it whose honeycomb cells open
-// into each other through round doorways. Pure numbers from the seed, read on the worker
-// threads; `WorldDensity` unions the mounds into the ground and carves their hollows.
+// Termite mounds: earth towers a land biome raises (its `termite_mounds` share), each hollow
+// inside. The map is cut into `CELL` squares with one jittered site each; a site in a patch of a
+// kind with termite mounds grows one when its hash falls under that kind's share (and the ground
+// under it is not too steep). A mound is a tall leaning spire or a low lumpy dome flared into the
+// ground, with holes round its foot into it, a chimney up its middle (a spire) or a hollow heart (a
+// dome), and a shaft down to a nest chamber under it whose honeycomb cells open into each other
+// through round doorways. Pure numbers from the seed, read on the worker threads; `WorldDensity`
+// unions the mounds into the ground and carves their hollows.
 #pragma once
 
 #include "common.h"

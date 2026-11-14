@@ -111,7 +111,7 @@ Ref<SignedDensityField> DensitySampler::build_chunk_field(const Ref<WorldDensity
 	int size_y = sample_size.y;
 	int size_z = sample_size.z;
 	if (!density->solids.empty() || (density->caves.is_valid() && density->caves->systems.is_valid()) ||
-			density->mounds_enabled) {
+			density->termite_mounds_enabled) {
 		Vector3 halo = Vector3(1, 1, 1) * (real_t)(step * 2.0);
 		Vector3 region_start = grid_world_origin + Vector3(grid_offset) * (real_t)step - halo;
 		density->prepare_for_region(AABB(region_start, Vector3(sample_size) * (real_t)step + halo * 2.0f));
@@ -200,7 +200,7 @@ Ref<SignedDensityField> DensitySampler::resample_chunk_field(const Ref<SignedDen
 	field->changed_last = last.max(first);
 	if (first.x <= last.x && first.y <= last.y && first.z <= last.z) {
 		if (!density->solids.empty() || (density->caves.is_valid() && density->caves->systems.is_valid()) ||
-				density->mounds_enabled) {
+				density->termite_mounds_enabled) {
 			Vector3 halo = Vector3(1, 1, 1) * (real_t)(step * 2.0);
 			density->prepare_for_region(AABB(corner - halo, Vector3(size) * (real_t)step + halo * 2.0f));
 		}

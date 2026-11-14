@@ -90,7 +90,7 @@ public:
 	double land_patch_size = 400.0;
 	// Whether any land kind raises termite mounds, and the mounds near the region a chunk
 	// build samples.
-	bool mounds_enabled = false;
+	bool termite_mounds_enabled = false;
 	TermiteMounds termites;
 	std::vector<SolidShape> solids;
 	Array solids_source;
@@ -238,7 +238,7 @@ private:
 	TNoise land_warp;
 	int land_seed = 0;
 	// The lumps on a termite mound's skin.
-	TNoise mound_noise;
+	TNoise termite_mound_noise;
 	TNoise vein_noise;
 	TNoise ore_noise;
 	TNoise macro_noise;

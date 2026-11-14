@@ -7,4 +7,4 @@ script = ExtResource("1")
 biome_name = "termite"
 weight = 2.0
 tint = Color(0.7, 0.38, 0.2, 0.3)
-mounds = 0.7
+termite_mounds = 0.7

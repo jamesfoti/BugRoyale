@@ -69,7 +69,7 @@ bool WorldDensity::is_sky(double highest_surface, double bottom_y, const AABB &r
 		return false;
 	}
 	// A mound standing up into the region (prepare_for_region found it) is ground up there.
-	if (mounds_enabled && (!termites.region_ready || !termites.region.is_empty())) {
+	if (termite_mounds_enabled && (!termites.region_ready || !termites.region.is_empty())) {
 		return false;
 	}
 	if (terrain_edits.is_valid() && terrain_edits->get_override_count() > 0) {
@@ -88,7 +88,7 @@ void WorldDensity::prepare_for_region(const AABB &region) {
 	if (caves.is_valid() && caves->systems.is_valid()) {
 		caves->systems->prepare_region(region);
 	}
-	if (mounds_enabled) {
+	if (termite_mounds_enabled) {
 		termites.prepare(region, *this, land_seed);
 	}
 }
@@ -231,8 +231,8 @@ Ref<WorldDensity> WorldDensity::clone_for_build() const {
 	}
 	clone->land_biomes = land_biomes;
 	clone->land_patch_size = land_patch_size;
-	clone->mounds_enabled = mounds_enabled;
-	clone->mound_noise = mound_noise;
+	clone->termite_mounds_enabled = termite_mounds_enabled;
+	clone->termite_mound_noise = termite_mound_noise;
 	clone->solids = solids;
 	clone->solids_source = solids_source;
 	clone->region_solids.clear();
@@ -333,10 +333,10 @@ Color WorldDensity::natural_tint(const Vector3 &world_position, double density_v
 			return solid->has_tint ? solid->tint : mat::natural_vertex_color();
 		}
 	}
-	if (mounds_enabled && open_terrain_enabled) {
+	if (termite_mounds_enabled && open_terrain_enabled) {
 		// A mound and its hollows wear the clay of the kind it stands in, down to its nest.
 		TermiteMound mound;
-		if (termites.near(world_position, *this, land_seed, mound_noise, 1.5, mound)) {
+		if (termites.near(world_position, *this, land_seed, termite_mound_noise, 1.5, mound)) {
 			return tint_of(land_biome_of(mound.base.x, mound.base.z));
 		}
 	}
@@ -385,7 +385,7 @@ void WorldDensity::init_ground_noises(int noise_seed) {
 	vein_noise = TNoise::make(noise_seed + 77, TNoise::SIMPLEX, 0.09, -1);
 	ore_noise = TNoise::make(noise_seed + 88, TNoise::SIMPLEX, 0.14, -1);
 	land_seed = noise_seed + 1313;
-	mound_noise = TNoise::make(noise_seed + 2909, TNoise::SIMPLEX_SMOOTH, 0.11, 2);
+	termite_mound_noise = TNoise::make(noise_seed + 2909, TNoise::SIMPLEX_SMOOTH, 0.11, 2);
 	refresh_land_warp();
 }
 
@@ -404,7 +404,7 @@ const BiomeData &WorldDensity::land_biome_of(double world_x, double world_z) con
 
 String WorldDensity::land_summary() const {
 	String summary = "land " + patches::shares(land_biomes.names(), land_biomes.weights_packed());
-	if (mounds_enabled) {
+	if (termite_mounds_enabled) {
 		AABB map(bounds_center - bounds_half, bounds_half * 2.0f);
 		int64_t count = (int64_t)TermiteMounds::in(map, *this, land_seed).size();
 		summary += ", " + itos(count) + (count == 1 ? " termite mound" : " termite mounds");
@@ -414,7 +414,7 @@ String WorldDensity::land_summary() const {
 
 TypedArray<Dictionary> WorldDensity::termite_mounds_in(const AABB &p_area) const {
 	TypedArray<Dictionary> out;
-	if (!mounds_enabled) {
+	if (!termite_mounds_enabled) {
 		return out;
 	}
 	for (const TermiteMound &mound : TermiteMounds::in(p_area, *this, land_seed)) {
@@ -425,9 +425,9 @@ TypedArray<Dictionary> WorldDensity::termite_mounds_in(const AABB &p_area) const
 
 void WorldDensity::set_land_biomes(const Array &value) {
 	land_biomes.set(value);
-	mounds_enabled = false;
+	termite_mounds_enabled = false;
 	for (const BiomeData &kind : land_biomes.kinds) {
-		mounds_enabled = mounds_enabled || kind.mounds > 0.0;
+		termite_mounds_enabled = termite_mounds_enabled || kind.termite_mounds > 0.0;
 	}
 	refresh_land_warp();
 }
@@ -877,8 +877,8 @@ double WorldDensity::evaluate_open_terrain_with_surface(const Vector3 &world_pos
 	} else {
 		value = tmath::maxd(sample_boxed_in_terrain_noise(world_pos) * SPONGE_NOISE_METRES, above_surface);
 	}
-	if (mounds_enabled) {
-		value = termites.apply(value, world_pos, *this, land_seed, mound_noise);
+	if (termite_mounds_enabled) {
+		value = termites.apply(value, world_pos, *this, land_seed, termite_mound_noise);
 	}
 	if (open_terrain_edges_enabled) {
 		value = tmath::maxd(value,

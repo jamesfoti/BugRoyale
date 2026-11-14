@@ -1,8 +1,8 @@
 extends GutTest
-## Termite mounds: a land kind with a mounds share raises them in its patches and no other kind
-## does; they stand inside the map, the same for the same seed; each is earth round a hollow
-## middle (a spire's chimney, a dome's heart) over an open nest under the ground; and the
-## build lays them down above the ground (the chunks up there are not skipped as sky).
+## Termite mounds: a land kind with a Termite Mounds share raises them in its patches and no other
+## kind does; they stand inside the map, the same for the same seed; each is earth round a hollow
+## middle (a spire's chimney, a dome's heart) over an open nest under the ground; and the build lays
+## them down above the ground (the chunks up there are not skipped as sky).
 
 const SEED: int = 42
 

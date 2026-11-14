@@ -18,7 +18,7 @@ BiomeData BiomeData::from(const Dictionary &data) {
 	biome_data.pillars = (bool)data.get("pillars", false);
 	biome_data.ceiling_jag = (double)data.get("ceiling_jag", 1.0);
 	biome_data.rubble = (double)data.get("rubble", 1.0);
-	biome_data.mounds = (double)data.get("mounds", 0.0);
+	biome_data.termite_mounds = (double)data.get("termite_mounds", 0.0);
 	return biome_data;
 }
 
@@ -35,7 +35,7 @@ Dictionary BiomeData::to_dictionary() const {
 	data["pillars"] = pillars;
 	data["ceiling_jag"] = ceiling_jag;
 	data["rubble"] = rubble;
-	data["mounds"] = mounds;
+	data["termite_mounds"] = termite_mounds;
 	return data;
 }
 

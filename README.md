@@ -345,7 +345,7 @@ everywhere. A resource holds the kind's name, weight, tint (white at alpha 1 is 
 as the shader draws it; a colour at alpha 0.5 is blended half over it), and for the caves
 the depths it holds between (mossy 0 to 40 m, the deep kinds 40 m down, the first kind in
 the list that holds standing in elsewhere), whether its rooms stand on pillars, and how
-much of the seed's ceiling jag and floor rubble they get. A land kind's **Mounds** share
+much of the seed's ceiling jag and floor rubble they get. A land kind's **Termite Mounds** share
 raises termite mounds in its patches (`TermiteMounds`): one site in every 64 m square,
 grown into a mound when its hash falls under the share and the ground there is not too
 steep, inside the map. A mound is ground like any other (dug the same way): a leaning
@@ -353,7 +353,7 @@ spire 20 to 34 m tall or a lumpy dome 10 to 18 m, flared into the ground, with h
 its foot into a chimney up the spire or a dome's hollow heart, and a shaft down to a nest
 8 to 12 m under the ground whose honeycomb rooms open into each other through round
 doorways. Its tunnels are about 3 m across, so the interior only shows at 1 or 2 m voxels.
-The rebuild line counts the mounds. A new kind is a new resource, no code; add it to a list, or remove and reorder the kinds, in the inspector. The rebuild
+The rebuild line counts the termite mounds. A new kind is a new resource, no code; add it to a list, or remove and reorder the kinds, in the inspector. The rebuild
 line gives both lists as shares.
 **Cave Roll** on the node is Seeded (rolled from the seed, as the maps do, with the
 near-surface numbers drawn from the **Cave Range** pairs beside it: the tunnels' start

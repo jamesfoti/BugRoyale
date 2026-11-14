@@ -23,7 +23,7 @@ struct BiomeData {
 	double ceiling_jag = 1.0;
 	double rubble = 1.0;
 	// Land only: the share of mound sites in its patches where a termite mound stands.
-	double mounds = 0.0;
+	double termite_mounds = 0.0;
 	bool empty = true;
 
 	static BiomeData from(const Dictionary &data);
