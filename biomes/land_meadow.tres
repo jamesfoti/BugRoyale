@@ -7,3 +7,4 @@ script = ExtResource("1")
 biome_name = "meadow"
 weight = 6.0
 tint = Color(1, 1, 1, 1)
+termite_mounds = 0.15

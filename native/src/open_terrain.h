@@ -107,6 +107,8 @@ public:
 	Vector2 flat_spot_radius = Vector2(8.0, 14.0);
 	double land_patch_size = 400.0;
 	Array land_biomes;
+	// Whether this map raises termite mounds; each land kind's share says where and how often.
+	bool termite_mounds_enabled = false;
 	double cave_patch_size = 250.0;
 	Array cave_biomes;
 	int cave_roll = CAVE_ROLL_SEEDED;
@@ -180,6 +182,7 @@ public:
 	OT_ACCESSORS(Vector2i, flat_spot_count)
 	OT_ACCESSORS(Vector2, flat_spot_radius)
 	OT_ACCESSORS(double, land_patch_size)
+	OT_ACCESSORS(bool, termite_mounds_enabled)
 	OT_ACCESSORS(double, cave_patch_size)
 	OT_ACCESSORS(int, cave_roll)
 	OT_ACCESSORS(Vector2, cave_range_tunnel_depth)

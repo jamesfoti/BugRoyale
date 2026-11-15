@@ -117,6 +117,7 @@ void OpenTerrain::_apply_world_specific_settings(const Ref<TerrainSettings> &set
 	settings->open_terrain_cave_shape = cave_shape();
 	settings->open_terrain_land_biomes = biome_data(land_biomes);
 	settings->open_terrain_land_patch = land_patch_size;
+	settings->open_terrain_termite_mounds = termite_mounds_enabled;
 	settings->open_terrain_cave_biomes = biome_data(cave_biomes);
 	settings->open_terrain_cave_patch = cave_patch_size;
 	Dictionary values;
@@ -225,6 +226,7 @@ Ref<WorldDensity> OpenTerrain::_build_world_density(const Ref<TerrainSettings> &
 				settings->open_terrain_flat_spot_radius);
 	}
 	density->set_land_biomes(settings->open_terrain_land_biomes);
+	density->set_termite_mounds_on(settings->open_terrain_termite_mounds);
 	density->set_land_patch_size(settings->open_terrain_land_patch);
 	// After every layer of the surface, so the cave mouths sit on the ground as built.
 	if (density->caves.is_valid()) {
@@ -385,6 +387,7 @@ void OpenTerrain::_bind_methods() {
 	ADD_GROUP("Biomes", "");
 	OT_RANGE(land_patch_size, "50,2000,10")
 	OT_BIND(land_biomes, ARRAY, PROPERTY_HINT_TYPE_STRING, "24/17:Biome")
+	OT_PLAIN(termite_mounds_enabled, BOOL)
 	OT_RANGE(cave_patch_size, "50,2000,10")
 	OT_BIND(cave_biomes, ARRAY, PROPERTY_HINT_TYPE_STRING, "24/17:Biome")
 	ADD_GROUP("Cave Roll", "");

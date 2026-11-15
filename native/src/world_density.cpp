@@ -231,6 +231,7 @@ Ref<WorldDensity> WorldDensity::clone_for_build() const {
 	}
 	clone->land_biomes = land_biomes;
 	clone->land_patch_size = land_patch_size;
+	clone->termite_mounds_on = termite_mounds_on;
 	clone->termite_mounds_enabled = termite_mounds_enabled;
 	clone->termite_mound_noise = termite_mound_noise;
 	clone->solids = solids;
@@ -334,10 +335,10 @@ Color WorldDensity::natural_tint(const Vector3 &world_position, double density_v
 		}
 	}
 	if (termite_mounds_enabled && open_terrain_enabled) {
-		// A mound and its hollows wear the clay of the kind it stands in, down to its nest.
+		// A mound and its hollows are clay, whatever kind it stands in, down to its nest.
 		TermiteMound mound;
 		if (termites.near(world_position, *this, land_seed, termite_mound_noise, 1.5, mound)) {
-			return tint_of(land_biome_of(mound.base.x, mound.base.z));
+			return TermiteMounds::TINT;
 		}
 	}
 	if (open_terrain_enabled) {
@@ -425,11 +426,23 @@ TypedArray<Dictionary> WorldDensity::termite_mounds_in(const AABB &p_area) const
 
 void WorldDensity::set_land_biomes(const Array &value) {
 	land_biomes.set(value);
+	refresh_termite_mounds();
+	refresh_land_warp();
+}
+
+void WorldDensity::set_termite_mounds_on(bool p_on) {
+	termite_mounds_on = p_on;
+	refresh_termite_mounds();
+}
+
+void WorldDensity::refresh_termite_mounds() {
 	termite_mounds_enabled = false;
+	if (!termite_mounds_on) {
+		return;
+	}
 	for (const BiomeData &kind : land_biomes.kinds) {
 		termite_mounds_enabled = termite_mounds_enabled || kind.termite_mounds > 0.0;
 	}
-	refresh_land_warp();
 }
 
 TypedArray<Dictionary> WorldDensity::get_land_biomes() const {

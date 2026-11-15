@@ -1,7 +1,7 @@
-// Termite mounds: earth towers a land biome raises (its `termite_mounds` share), each hollow
-// inside. The map is cut into `CELL` squares with one jittered site each; a site in a patch of a
-// kind with termite mounds grows one when its hash falls under that kind's share (and the ground
-// under it is not too steep). A mound is a tall leaning spire or a low lumpy dome flared into the
+// Termite mounds: clay towers on the land of a map whose terrain has them switched on, each
+// hollow inside. The map is cut into `CELL` squares with one jittered site each; a site grows one
+// when its hash falls under the `termite_mounds` share of the land kind it stands in (and the
+// ground under it is not too steep), so any kind can have them, often or seldom. A mound is a tall leaning spire or a low lumpy dome flared into the
 // ground, with holes round its foot into it, a chimney up its middle (a spire) or a hollow heart (a
 // dome), and a shaft down to a nest chamber under it whose honeycomb cells open into each other
 // through round doorways. Pure numbers from the seed, read on the worker threads; `WorldDensity`
@@ -58,6 +58,8 @@ public:
 	static constexpr double HOLE_RADIUS = 1.4;
 	static constexpr double CHIMNEY_RADIUS = 1.5;
 	static constexpr double SHAFT_RADIUS = 1.5;
+	// The clay of a mound and its hollows, whatever kind it stands in.
+	static inline const Color TINT = Color(0.7, 0.38, 0.2, 0.3);
 
 	// The mounds whose bounds meet an area.
 	static LocalVector<TermiteMound> in(const AABB &p_area, const WorldDensity &p_density, int p_seed);

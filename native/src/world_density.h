@@ -88,8 +88,8 @@ public:
 	Ref<CaveCarver> caves;
 	BiomeList land_biomes;
 	double land_patch_size = 400.0;
-	// Whether any land kind raises termite mounds, and the mounds near the region a chunk
-	// build samples.
+	// Whether the map raises termite mounds (its switch is on and some land kind has a share),
+	// and the mounds near the region a chunk build samples.
 	bool termite_mounds_enabled = false;
 	TermiteMounds termites;
 	std::vector<SolidShape> solids;
@@ -138,6 +138,9 @@ public:
 	int get_land_seed() const { return land_seed; }
 	void set_land_biomes(const Array &value);
 	TypedArray<Dictionary> get_land_biomes() const;
+	// The map's switch for termite mounds: off, no kind raises any whatever its share.
+	void set_termite_mounds_on(bool p_on);
+	bool get_termite_mounds_on() const { return termite_mounds_on; }
 	void set_land_patch_size(double value);
 	double get_land_patch_size() const { return land_patch_size; }
 
@@ -239,6 +242,7 @@ private:
 	int land_seed = 0;
 	// The lumps on a termite mound's skin.
 	TNoise termite_mound_noise;
+	bool termite_mounds_on = false;
 	TNoise vein_noise;
 	TNoise ore_noise;
 	TNoise macro_noise;
@@ -258,6 +262,7 @@ private:
 	void init_open_terrain_height_noise(int terrain_seed, double surface_frequency, int octaves, double lacunarity,
 			double gain);
 	void refresh_land_warp();
+	void refresh_termite_mounds();
 	double sample_boxed_in_terrain_noise(const Vector3 &world_position) const;
 	double evaluate_boxed_in_terrain(const Vector3 &world_pos, bool with_edits) const;
 	double sample_heightmap(double world_x, double world_z) const;

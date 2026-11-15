@@ -7,3 +7,4 @@ script = ExtResource("1")
 biome_name = "dryland"
 weight = 2.0
 tint = Color(0.74, 0.64, 0.38, 0.5)
+termite_mounds = 0.4

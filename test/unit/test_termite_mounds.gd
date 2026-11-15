@@ -1,13 +1,14 @@
 extends GutTest
-## Termite mounds: a land kind with a Termite Mounds share raises them in its patches and no other
-## kind does; they stand inside the map, the same for the same seed; each is earth round a hollow
-## middle (a spire's chimney, a dome's heart) over an open nest under the ground; and the build lays
-## them down above the ground (the chunks up there are not skipped as sky).
+## Termite mounds: a map with Termite Mounds Enabled raises them in the patches of each land kind
+## with a Termite Mounds share, and nowhere when the switch is off or no kind has a share; they
+## stand inside the map, the same for the same seed; each is earth round a hollow middle (a spire's
+## chimney, a dome's heart) over an open nest under the ground; and the build lays them down above
+## the ground (the chunks up there are not skipped as sky).
 
 const SEED: int = 42
 
 
-func _world(kind_path: String) -> OpenTerrain:
+func _world(share: float, switched_on: bool = true) -> OpenTerrain:
 	var world := OpenTerrain.new()
 	world.rebuild_on_ready = false
 	world.chunks_x = 6
@@ -20,7 +21,10 @@ func _world(kind_path: String) -> OpenTerrain:
 	world.caves_enabled = false
 	world.solid_underside = true
 	world.boxed_edges_enabled = false
-	world.land_biomes = [load(kind_path)]
+	var kind := Biome.new()
+	kind.termite_mounds = share
+	world.land_biomes = [kind]
+	world.termite_mounds_enabled = switched_on
 	add_child_autofree(world)
 	return world
 
@@ -31,21 +35,22 @@ func _mounds(world: OpenTerrain) -> Array:
 	return density.termite_mounds_in(AABB(world.global_position - extents * 0.5, extents))
 
 
-func test_mounds_stand_only_where_a_kind_raises_them_inside_the_map() -> void:
-	assert_eq(_mounds(_world("res://biomes/land_meadow.tres")).size(), 0, "meadow raises none")
-	var world: OpenTerrain = _world("res://biomes/land_termite.tres")
+func test_mounds_stand_only_where_switched_on_and_a_kind_raises_them_inside_the_map() -> void:
+	assert_eq(_mounds(_world(0.0)).size(), 0, "a kind without a share raises none")
+	assert_eq(_mounds(_world(0.7, false)).size(), 0, "a map switched off raises none")
+	var world: OpenTerrain = _world(0.7)
 	var mounds: Array = _mounds(world)
-	assert_gt(mounds.size(), 0, "termite ground raises mounds")
+	assert_gt(mounds.size(), 0, "a kind with a share raises them")
 	var half: Vector3 = world.get_world_extents() * 0.5
 	for mound: Dictionary in mounds:
 		var base: Vector3 = mound.base
 		assert_lt(absf(base.x), half.x - mound.radius, "inside the map across")
 		assert_lt(absf(base.z), half.z - mound.radius, "and along")
-	assert_eq(_mounds(_world("res://biomes/land_termite.tres")), mounds, "the same seed, the same")
+	assert_eq(_mounds(_world(0.7)), mounds, "the same seed, the same")
 
 
 func test_a_mound_is_earth_round_a_hollow_middle_over_an_open_nest() -> void:
-	var world: OpenTerrain = _world("res://biomes/land_termite.tres")
+	var world: OpenTerrain = _world(0.7)
 	var mounds: Array = _mounds(world)
 	assert_gt(mounds.size(), 0)
 	for mound: Dictionary in mounds:
@@ -69,7 +74,7 @@ func test_a_mound_is_earth_round_a_hollow_middle_over_an_open_nest() -> void:
 
 
 func test_the_build_lays_a_mound_down_above_the_ground() -> void:
-	var world: OpenTerrain = _world("res://biomes/land_termite.tres")
+	var world: OpenTerrain = _world(0.7)
 	world.rebuild_all()
 	await wait_physics_frames(3)
 	var tallest: Dictionary = {}

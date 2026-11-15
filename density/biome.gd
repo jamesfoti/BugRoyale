@@ -23,7 +23,8 @@ extends Resource
 @export_range(0.0, 3.0, 0.1) var ceiling_jag: float = 1.0
 @export_range(0.0, 3.0, 0.1) var rubble: float = 1.0
 ## Land only: the share of termite mound sites (one in every 64 m square) in its patches where
-## a mound stands, a spire or a dome, hollow inside and over a nest (0 none).
+## a termite mound stands, a spire or a dome, hollow inside and over a nest (0 none). Only on a
+## map whose terrain has Termite Mounds Enabled.
 @export_range(0.0, 1.0, 0.05) var termite_mounds: float = 0.0
 
 
