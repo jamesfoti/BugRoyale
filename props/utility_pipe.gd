@@ -2,10 +2,12 @@ class_name UtilityPipe
 extends StaticBody3D
 ## One section of a utility line in the crawlspace: a black ABS sewage drain, red PEX hot water
 ## or blue PEX cold water. Shots and explosions damage it through its Damageable: at half health
-## it cracks and drips into a puddle below; at zero it bursts, sprays, and floods the dirt with a
-## pool until the line drains. Sewage and scalding water hurt bugs standing in the pool; cold
-## water is harmless. The pipe runs along its local Y axis; the builder rotates it into place.
-## Collides on the structure layer, so bugs bump into it but ground probes ignore it.
+## it cracks and drips; at zero it bursts, sprays, and pours until the line drains. The liquid
+## goes into the terrain's liquids (TerrainLiquids), so it runs over the dirt, down any hole dug
+## in it and pools in the hollows; sewage and scalding water hurt bugs standing in it
+## (LiquidHazards), cold water is harmless. On ground without liquids it floods a FluidPool.
+## The pipe runs along its local Y axis; the builder rotates it into place. Collides on the
+## structure layer, so bugs bump into it but ground probes ignore it.
 
 signal cracked(pipe: UtilityPipe)
 signal burst(pipe: UtilityPipe)
@@ -21,6 +23,15 @@ const GAS_JET_LENGTH: float = 2.2
 const GAS_JET_RADIUS: float = 0.28
 const GAS_JET_DAMAGE_PER_SECOND: float = 12.0
 const GAS_BURN_SECONDS: float = 20.0
+
+## The terrain liquid each fluid pours as (gas burns instead).
+const LIQUIDS: Dictionary = {
+	Fluid.SEWAGE: TerrainLiquids.KIND_SEWAGE,
+	Fluid.HOT_WATER: TerrainLiquids.KIND_HOT_WATER,
+	Fluid.COLD_WATER: TerrainLiquids.KIND_WATER,
+}
+## How deep the liquid a leak pours would lie over a pool of its radius.
+const POUR_DEPTH: float = 0.25
 
 ## Per fluid: how the pipe and its fluid look, and how much the pool hurts.
 const FLUIDS: Dictionary = {
@@ -248,7 +259,11 @@ func _stop_dripping() -> void:
 		_drip.emitting = false
 
 
+## Lets the line's fluid out: into the terrain's liquids when it has them, else a pool that floods
+## outward over the dirt. Gas never pours; its pool is the burning patch.
 func _ensure_pool(pool_radius: float, damage: float, seconds: float) -> void:
+	if LIQUIDS.has(fluid) and _pour(pool_radius, seconds):
+		return
 	if _pool != null and is_instance_valid(_pool):
 		_pool.spread(pool_radius, damage, seconds)
 		return
@@ -257,6 +272,17 @@ func _ensure_pool(pool_radius: float, damage: float, seconds: float) -> void:
 	)
 	get_parent().add_child(_pool)
 	_pool.global_position = Vector3(global_position.x, dirt_y, global_position.z)
+
+
+## Pours what a pool of this radius would hold, from just under the pipe over the seconds; false
+## when the terrain has no liquids.
+func _pour(pool_radius: float, seconds: float) -> bool:
+	var world: ChunkedTerrainWorld = (
+		get_tree().get_first_node_in_group(&"terrain_world") as ChunkedTerrainWorld
+	)
+	var volume: float = PI * pool_radius * pool_radius * POUR_DEPTH
+	var spout: Vector3 = global_position - Vector3.UP * radius * 1.5
+	return LiquidSource.pour(get_parent(), world, spout, LIQUIDS[fluid], volume, seconds) != null
 
 
 static func _tube(tube_radius: float, tube_length: float) -> CylinderMesh:

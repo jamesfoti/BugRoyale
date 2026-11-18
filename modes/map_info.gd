@@ -219,6 +219,9 @@ func random_surface_point(
 		if hit.is_empty():
 			continue
 		var point: Vector3 = hit.position + up_at(hit.position) * clearance
+		# Nobody is put down (or sent wandering) under a lake or a flooded floor.
+		if is_underwater(hit.position + up_at(hit.position) * 0.5):
+			continue
 		if point.y < min_height:
 			best = point
 			continue
@@ -287,9 +290,12 @@ func water_surface_y() -> float:
 	return water.get_water_surface_y() if water != null else -INF
 
 
-## True when a point is below the water surface (always false off the terrarium).
+## True when a point is below the water surface: the terrarium's, or any of the terrain's liquids.
 func is_underwater(position: Vector3) -> bool:
-	return water != null and water.covers_height(position.y)
+	if water != null and water.covers_height(position.y):
+		return true
+	var liquid_world: ChunkedTerrainWorld = world as ChunkedTerrainWorld
+	return liquid_world != null and liquid_world.liquid_depth_at(position) > 0.0
 
 
 ## Keeps a flying point inside the playable box (terrarium glass, battlefield edges).

@@ -1,13 +1,15 @@
 class_name Breath
 extends Node
-## Air supply for a bug whose head goes under the terrarium water. Breath drains while the head
-## is submerged; at zero the bug takes drowning damage until it surfaces. Breath refills quickly
-## in air. Attached to the player by PlayerSpawner, next to its Damageable.
+## Air supply for a bug whose head goes under the terrarium water or the terrain's liquids (a
+## lake, a flooded cave, a crawlspace awash with sewage). Breath drains while the head is
+## submerged; at zero the bug takes drowning damage until it surfaces. Breath refills quickly in
+## air. Attached to the player by PlayerSpawner, next to its Damageable.
 
 signal breath_changed(current: float, maximum: float)
 signal submerged_changed(submerged: bool)
 
 const WATER_GROUP: StringName = &"terrarium_water"
+const TERRAIN_GROUP: StringName = &"terrain_world"
 const DAMAGE_PULSE_SECONDS: float = 0.5
 
 ## Seconds the bug can stay under before it starts drowning.
@@ -25,6 +27,7 @@ var submerged: bool = false
 var _body: Node3D
 var _damageable: Damageable
 var _water: TerrariumWater
+var _terrain: ChunkedTerrainWorld
 var _damage_accumulated: float = 0.0
 var _was_alive: bool = true
 
@@ -76,11 +79,16 @@ func _drown(delta: float) -> void:
 
 
 func _is_head_underwater() -> bool:
+	var head: Vector3 = _body.global_position + Vector3.UP * head_height
+	if _terrain == null or not is_instance_valid(_terrain):
+		_terrain = get_tree().get_first_node_in_group(TERRAIN_GROUP) as ChunkedTerrainWorld
+	if _terrain != null and _terrain.liquid_depth_at(head) > 0.0:
+		return true
 	if _water == null or not is_instance_valid(_water):
 		_water = get_tree().get_first_node_in_group(WATER_GROUP) as TerrariumWater
 		if _water == null:
 			return false
-	return _water.covers_height(_body.global_position.y + head_height)
+	return _water.covers_height(head.y)
 
 
 func _reset() -> void:

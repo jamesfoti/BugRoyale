@@ -68,6 +68,8 @@ func _begin() -> void:
 	if Authority.is_host():
 		# The creatures of the map's biomes (none unless its terrain lists some).
 		BiomeCreatures.attach(get_parent(), map.world as OpenTerrain)
+		# Sewage and hot water hurt whoever stands in them.
+		LiquidHazards.attach(get_parent(), map.world as ChunkedTerrainWorld)
 		_start_match()
 	_started = true
 

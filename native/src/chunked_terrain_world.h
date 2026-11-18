@@ -154,6 +154,8 @@ public:
 	// --- Liquids ---
 	TerrainLiquids *get_liquids() const { return liquids; }
 	Dictionary liquid_at(const Vector3 &p_world_position) const;
+	double liquid_depth_at(const Vector3 &p_world_position) const;
+	int liquid_kind_at(const Vector3 &p_world_position) const;
 	double add_liquid(const Vector3 &p_world_position, double p_volume, int p_kind);
 	static double fighter_clearance() { return FIGHTER_CLEARANCE; }
 

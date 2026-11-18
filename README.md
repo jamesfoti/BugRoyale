@@ -242,6 +242,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_cave_water.gd` | The aquifers: a column's level is steady and in range or dry, about the rolled share of the map is wet, a wall of rock stands on the border between two cells of different levels and nowhere with the water off, and a chunk's water sheet lies at its columns' levels in cave air only |
 | `test_terrain_liquids.gd` | The liquids on chunks seeded by hand: liquid falls to the floor and spreads level without losing volume, a wall holds a pool until a door is dug in it and the sides even out, a cell filled in pushes its liquid up, `liquid_at` gives the depth and the liquid, liquid waits at a chunk not built yet and runs in once it is, a dry chunk far from liquid is not kept, and the mesh is coloured by liquid |
 | `test_lakes.gd` | The lakes: a bowl in a wet climate holds one lake just under its rim, half full at half the amount, none in a dry climate or at nothing, and a chunk's seed fills the open cells under the lake's level and leaves those over it dry |
+| `test_liquid_gameplay.gd` | The liquids in play on a small wet map: a `LiquidSource` pours its volume into the lake, `LiquidHazards` hurts in sewage and not in water, a head under the lake runs out of breath, and `MapInfo` counts a point under it as under water |
 | `test_loose_rock.gd` | The loose rock pass on a chunk's field: a lone solid sample with air all round it is cleared and a lump over the limit kept, a lump on a chunk seam is judged the same from both sides, rock built with the brush stays while rock a dig thinned goes, a row of cave chunks loses only rock and agrees on every shared face, and the limit travels in the settings |
 
 GUT and `test/` are excluded from both export presets, so nothing test-related ships.
@@ -571,6 +572,18 @@ The map's own water, lakes and aquifers alike, stays as it was made until someth
 it, as a Minecraft lake does: a dig beside a lake lets it run into the hole, and a lake whose
 rim the dig breaks drains down to the gap. The rebuild line counts the lakes and their area.
 Plants keep out of water deeper than their **Max Water Depth** (reeds stand in 1.5 m).
+
+**In play.** A bug whose feet are 0.55 m deep swims (`GroundPlayer`, Swimming group): it floats
+with its feet 0.7 m under, swims at 0.55 of its pace, rises with Jump (a jump at the surface
+climbs out) and dives with Descend; shallower than that it wades at 0.75. `Breath` counts a head
+under any of the terrain's liquids as under water, so a player drowns in a lake as in the
+terrarium's pool, and `MapInfo.is_underwater` sees them too, so nobody spawns or wanders into
+a lake. A burst pipe in the crawlspace pours its sewage, hot or cold water into the terrain
+(`LiquidSource`: what a pool of its old radius would hold a quarter metre deep, over the same
+seconds), so the spill runs over the dirt, down any hole dug and pools in the hollows; gas
+still burns as a `FluidPool`. `LiquidHazards`, added by the mode on the host, hurts fighters
+standing in sewage (6 a second) or hot water (8) in half-second pulses. The flow runs on each
+machine by itself: peers see the same digs and spills but their water may differ a little.
 
 ### Loading a map
 

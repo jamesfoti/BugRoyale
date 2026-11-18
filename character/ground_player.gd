@@ -51,6 +51,19 @@ const _STUCK_SECONDS: float = 0.75
 ## Spread of the rays that average the ground normal.
 @export var surface_sample_radius: float = 0.3
 
+@export_group("Swimming")
+## The bug swims once its feet are this deep in the terrain's water (or sewage, or hot water),
+## and floats with them this deep; it wades, slowed, from the shallower depth.
+@export var swim_depth: float = 0.55
+@export var float_depth: float = 0.7
+@export var wade_depth: float = 0.15
+## Shares of its walking speed in the water, and how fast it swims up (Jump) or dives (Descend).
+@export_range(0.1, 1.0, 0.05) var swim_speed_share: float = 0.55
+@export_range(0.1, 1.0, 0.05) var wade_speed_share: float = 0.75
+@export var swim_vertical_speed: float = 2.5
+## How quickly the water takes the bug's speed toward what it is swimming at.
+@export var swim_drag: float = 4.0
+
 @export_group("Flight")
 ## Set by the class stats (CharacterSkin.apply_class_stats) for flying bugs.
 @export var can_fly: bool = false
@@ -69,6 +82,8 @@ var _climbing: bool = false
 var _detached_time: float = 0.0
 var _last_move_direction: Vector3 = Vector3.ZERO
 var _flying: bool = false
+## How deep the feet are in the terrain's liquid this frame (below 0 out of it).
+var _water_depth: float = -INF
 var _wall_push_time: float = 0.0
 var _stuck_time: float = 0.0
 var _last_position: Vector3 = Vector3.INF
@@ -124,8 +139,11 @@ func _physics_process(delta: float) -> void:
 		if _climbing:
 			# Grabbing a wall mid-flight ends the flight.
 			_flying = false
+	_water_depth = _measure_water_depth()
 	if _flying:
 		_apply_flight(delta, movement_direction)
+	elif _water_depth > swim_depth:
+		_apply_swim(delta, movement_direction)
 	else:
 		_update_surface(delta, movement_direction)
 		_apply_movement(delta, movement_direction)
@@ -382,6 +400,8 @@ func _apply_movement(delta: float, movement_direction: Vector3) -> void:
 	var move_speed: float = run_speed if running else speed
 	if _climbing:
 		move_speed = climb_run_speed if running else climb_speed
+	elif _water_depth > wade_depth:
+		move_speed *= wade_speed_share
 	var up: Vector3 = _surface_up
 	var vertical_speed: float = velocity.dot(up)
 	var planar: Vector3 = Vector3.ZERO
@@ -429,6 +449,51 @@ func _apply_idle_physics(delta: float) -> void:
 		velocity -= _surface_up * _gravity * climb_stick_strength * delta
 	else:
 		velocity += Vector3.DOWN * _gravity * delta
+
+
+# --- Swimming ---------------------------------------------------------------------------------
+
+
+## How far under the terrain's liquid the feet are (-INF out of it). Asked half a metre up, so the
+## cell asked is the water over the bed, not the bed.
+func _measure_water_depth() -> float:
+	var world: ChunkedTerrainWorld = terrain as ChunkedTerrainWorld
+	if world == null:
+		return -INF
+	return world.liquid_depth_at(global_position + Vector3.UP * 0.5) + 0.5
+
+
+## Floats with the feet `float_depth` under the surface, swims along it slowed, up with Jump (and
+## out over the edge with a jump at the surface) and down with Descend.
+func _apply_swim(delta: float, movement_direction: Vector3) -> void:
+	if _climbing:
+		_detach()
+	_surface_up = Vector3.UP
+	var move_speed: float = (run_speed if _intent.run else speed) * swim_speed_share
+	var planar: Vector3 = movement_direction.slide(Vector3.UP)
+	if planar.length_squared() > _MIN_DIR_LEN_SQ:
+		planar = planar.normalized() * move_speed
+	else:
+		planar = Vector3.ZERO
+	var rise: float = clampf(
+		(_water_depth - float_depth) * 3.0, -swim_vertical_speed, swim_vertical_speed
+	)
+	if _intent.jump_held:
+		rise = swim_vertical_speed
+	if _intent.descend_held:
+		rise = -swim_vertical_speed
+	var weight: float = 1.0 - exp(-swim_drag * delta)
+	velocity.x = lerpf(velocity.x, planar.x, weight)
+	velocity.z = lerpf(velocity.z, planar.z, weight)
+	velocity.y = lerpf(velocity.y, rise, weight)
+	if _intent.jump_pressed and _water_depth < float_depth + 0.25:
+		velocity.y = jump_velocity
+	floor_snap_length = 0.0
+
+
+## True while the bug is swimming in the terrain's liquid.
+func is_swimming() -> bool:
+	return not _flying and _water_depth > swim_depth
 
 
 # --- Flight -----------------------------------------------------------------------------------

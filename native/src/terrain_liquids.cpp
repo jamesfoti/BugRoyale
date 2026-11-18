@@ -719,6 +719,50 @@ double TerrainLiquids::add_liquid(const Vector3 &p_world_position, double p_volu
 	return (double)(wanted_mass - remaining) * cell_volume;
 }
 
+bool TerrainLiquids::find_surface(const Vector3 &p_world_position, Vector3i &r_top) const {
+	if (cells <= 0) {
+		return false;
+	}
+	Vector3i cell = cell_of(p_world_position);
+	r_top = cell;
+	if (mass_at_cell(cell) < SHOWN_MASS) {
+		LiquidChunk *chunk = nullptr;
+		int index = 0;
+		if (resolve(cell, chunk, index) == CELL_SOLID && mass_at_cell(cell + UP) >= SHOWN_MASS) {
+			// A point in the ground's own cell under the liquid (feet on a lake's bed).
+			r_top = cell + UP;
+		} else {
+			// A point just over the surface, in the cell over the top one.
+			r_top = cell - UP;
+			return mass_at_cell(r_top) >= SHOWN_MASS;
+		}
+	}
+	for (int climb = 0; climb < MAX_COLUMN; climb++) {
+		if (mass_at_cell(r_top + UP) < SHOWN_MASS) {
+			break;
+		}
+		r_top += UP;
+	}
+	return true;
+}
+
+double TerrainLiquids::liquid_depth_at(const Vector3 &p_world_position) const {
+	Vector3i top;
+	if (!find_surface(p_world_position, top)) {
+		return -tmath::INF_D;
+	}
+	double top_mass = tmath::mind(mass_at_cell(top), 1.0);
+	return (double)grid_world_origin.y + ((double)top.y - 0.5 + top_mass) * step_size - (double)p_world_position.y;
+}
+
+int TerrainLiquids::liquid_kind_at(const Vector3 &p_world_position) const {
+	Vector3i top;
+	if (!find_surface(p_world_position, top)) {
+		return KIND_NONE;
+	}
+	return kind_at_cell(top);
+}
+
 Dictionary TerrainLiquids::liquid_at(const Vector3 &p_world_position) const {
 	Dictionary result;
 	result["kind"] = KIND_NONE;
@@ -727,20 +771,9 @@ Dictionary TerrainLiquids::liquid_at(const Vector3 &p_world_position) const {
 	if (cells <= 0) {
 		return result;
 	}
-	Vector3i cell = cell_of(p_world_position);
-	Vector3i top = cell;
-	if (mass_at_cell(cell) < SHOWN_MASS) {
-		top = cell - UP;
-		if (mass_at_cell(top) < SHOWN_MASS) {
-			return result;
-		}
-	} else {
-		for (int climb = 0; climb < MAX_COLUMN; climb++) {
-			if (mass_at_cell(top + UP) < SHOWN_MASS) {
-				break;
-			}
-			top += UP;
-		}
+	Vector3i top;
+	if (!find_surface(p_world_position, top)) {
+		return result;
 	}
 	double top_mass = tmath::mind(mass_at_cell(top), 1.0);
 	double surface = (double)grid_world_origin.y + ((double)top.y - 0.5 + top_mass) * step_size;
@@ -1109,6 +1142,8 @@ void TerrainLiquids::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("request_chunk", "chunk_coordinate"), &TerrainLiquids::request_chunk);
 	ClassDB::bind_method(D_METHOD("add_liquid", "world_position", "volume", "kind"), &TerrainLiquids::add_liquid);
 	ClassDB::bind_method(D_METHOD("liquid_at", "world_position"), &TerrainLiquids::liquid_at);
+	ClassDB::bind_method(D_METHOD("liquid_depth_at", "world_position"), &TerrainLiquids::liquid_depth_at);
+	ClassDB::bind_method(D_METHOD("liquid_kind_at", "world_position"), &TerrainLiquids::liquid_kind_at);
 	ClassDB::bind_method(D_METHOD("remesh_all"), &TerrainLiquids::remesh_all);
 	ClassDB::bind_method(D_METHOD("build_mesh", "chunk_coordinate"), &TerrainLiquids::build_mesh);
 	ClassDB::bind_static_method("TerrainLiquids", D_METHOD("kind_color", "kind"), &TerrainLiquids::kind_color);

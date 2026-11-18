@@ -117,6 +117,10 @@ public:
 	// The liquid at a point: {kind, depth (how far under the surface, below 0 over it),
 	// surface (its height)}; kind is KIND_NONE when there is none in reach.
 	Dictionary liquid_at(const Vector3 &p_world_position) const;
+	// The same without a dictionary, for every body every frame: how far under the surface the
+	// point is (-INF without liquid in reach), and its liquid (`KIND_NONE` without).
+	double liquid_depth_at(const Vector3 &p_world_position) const;
+	int liquid_kind_at(const Vector3 &p_world_position) const;
 	// Meshes every chunk waiting to be meshed now.
 	void remesh_all();
 	Ref<TerrainMeshResult> build_mesh(const Vector3i &p_chunk_coordinate) const;
@@ -141,6 +145,9 @@ public:
 	Ref<Material> get_material() const { return material; }
 
 private:
+	// The top cell of the liquid at a point into `r_top`; false without liquid in reach.
+	bool find_surface(const Vector3 &p_world_position, Vector3i &r_top) const;
+
 	enum CellState {
 		CELL_OPEN,
 		CELL_SOLID,

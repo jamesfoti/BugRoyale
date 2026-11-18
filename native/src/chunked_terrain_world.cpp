@@ -1853,6 +1853,14 @@ Dictionary ChunkedTerrainWorld::liquid_at(const Vector3 &p_world_position) const
 	return liquids->liquid_at(p_world_position);
 }
 
+double ChunkedTerrainWorld::liquid_depth_at(const Vector3 &p_world_position) const {
+	return liquids == nullptr ? -tmath::INF_D : liquids->liquid_depth_at(p_world_position);
+}
+
+int ChunkedTerrainWorld::liquid_kind_at(const Vector3 &p_world_position) const {
+	return liquids == nullptr ? (int)TerrainLiquids::KIND_NONE : liquids->liquid_kind_at(p_world_position);
+}
+
 double ChunkedTerrainWorld::add_liquid(const Vector3 &p_world_position, double p_volume, int p_kind) {
 	if (liquids == nullptr) {
 		return 0.0;
@@ -2003,6 +2011,8 @@ void ChunkedTerrainWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("buries_fighter", "edit"), &ChunkedTerrainWorld::buries_fighter);
 	ClassDB::bind_method(D_METHOD("get_liquids"), &ChunkedTerrainWorld::get_liquids);
 	ClassDB::bind_method(D_METHOD("liquid_at", "world_position"), &ChunkedTerrainWorld::liquid_at);
+	ClassDB::bind_method(D_METHOD("liquid_depth_at", "world_position"), &ChunkedTerrainWorld::liquid_depth_at);
+	ClassDB::bind_method(D_METHOD("liquid_kind_at", "world_position"), &ChunkedTerrainWorld::liquid_kind_at);
 	ClassDB::bind_method(D_METHOD("add_liquid", "world_position", "volume", "kind"), &ChunkedTerrainWorld::add_liquid);
 
 	ClassDB::bind_method(D_METHOD("_make_settings_snapshot"), &ChunkedTerrainWorld::_make_settings_snapshot);
