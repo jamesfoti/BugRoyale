@@ -146,6 +146,7 @@ void ChunkedTerrainWorld::rebuild_all() {
 	// The deep marks are only the build's order; what is streamed stays measured.
 	mark_deep_chunks(settings, grid_dimensions);
 	deep.clear();
+	configure_liquids(settings, grid_dimensions);
 	rebuild_all_sync(settings, grid_dimensions);
 }
 
@@ -295,6 +296,7 @@ void ChunkedTerrainWorld::begin_build() {
 	world_build_settings = _make_settings_snapshot();
 	world_build_grid = _get_grid_dimensions();
 	mark_deep_chunks(world_build_settings, world_build_grid);
+	configure_liquids(world_build_settings, world_build_grid);
 	queue_every_chunk();
 	world_build_total = (int)world_build_queue.size();
 	world_build_placed = 0;
@@ -743,6 +745,9 @@ void ChunkedTerrainWorld::free_streamed_chunk(const Vector3i &chunk_coordinate) 
 	}
 	chunks.erase(chunk_coordinate);
 	stream_loaded.erase(chunk_coordinate);
+	if (liquids != nullptr) {
+		liquids->unload(chunk_coordinate);
+	}
 	field_cache.erase(chunk_coordinate);
 	pending_rebuilds.erase(chunk_coordinate);
 }
@@ -962,6 +967,9 @@ void ChunkedTerrainWorld::build_chunk_at(const Vector3i &chunk_coordinate, const
 	}
 	add_child(chunk);
 	chunk->apply_build_result(result, settings->rebuild_collision);
+	if (liquids != nullptr && result->liquid_seed.is_valid()) {
+		liquids->take_seed(result->liquid_seed);
+	}
 	if (settings->material.is_valid()) {
 		chunk->set_material_override(settings->material);
 	}
@@ -1389,6 +1397,7 @@ Ref<TerrainSettings> ChunkedTerrainWorld::_make_settings_snapshot() {
 	settings->terrain_edits = edits;
 	settings->solids = solids;
 	settings->rebuild_collision = settings->generate_collision;
+	settings->liquids_enabled = liquids_enabled;
 	_apply_world_specific_settings(settings);
 	// The density every chunk copies, built once (its rolls and cave systems are a few
 	// milliseconds) and remade when a setting or the node's place changes.
@@ -1464,6 +1473,9 @@ void ChunkedTerrainWorld::clear_chunks() {
 	}
 	reset_stream();
 	chunks.clear();
+	if (liquids != nullptr) {
+		liquids->clear();
+	}
 	field_cache.clear();
 	field_cache_order.clear();
 	pending_rebuilds.clear();
@@ -1602,6 +1614,9 @@ void ChunkedTerrainWorld::apply_async_job(BuildJob *job) {
 		}
 		if (!job->prepare_only) {
 			chunk->apply_build_result(result, generate_collision);
+			if (liquids != nullptr && result->liquid_seed.is_valid()) {
+				liquids->take_seed(result->liquid_seed);
+			}
 			emit_signal("chunk_rebuilt", _get_chunk_world_aabb(chunk_coordinate, job->settings));
 			if (_effective_material().is_valid()) {
 				chunk->set_material_override(_effective_material());
@@ -1805,6 +1820,54 @@ TypedArray<Vector3i> ChunkedTerrainWorld::_get_chunk_coordinates_intersecting_sp
 
 // --- Setters --------------------------------------------------------------------------------------
 
+// --- Liquids ---------------------------------------------------------------------------------------
+
+void ChunkedTerrainWorld::configure_liquids(const Ref<TerrainSettings> &p_settings, const Vector3i &p_grid) {
+	if (!liquids_enabled) {
+		if (liquids != nullptr) {
+			liquids->clear();
+		}
+		return;
+	}
+	if (liquids == nullptr) {
+		liquids = memnew(TerrainLiquids);
+		liquids->set_name("Liquids");
+		liquids->world = this;
+		add_child(liquids, false, INTERNAL_MODE_BACK);
+	}
+	double step = p_settings->chunk_world_size / (double)p_settings->cells_per_axis;
+	Vector3 local_origin = _chunk_corner_local(Vector3i(), p_settings);
+	liquids->configure(p_settings->cells_per_axis, step, get_global_position() + local_origin, local_origin, p_grid);
+	// A new build starts from the map's own water.
+	liquids->clear();
+}
+
+Dictionary ChunkedTerrainWorld::liquid_at(const Vector3 &p_world_position) const {
+	if (liquids == nullptr) {
+		Dictionary none;
+		none["kind"] = TerrainLiquids::KIND_NONE;
+		none["depth"] = -1000000.0;
+		none["surface"] = -1000000.0;
+		return none;
+	}
+	return liquids->liquid_at(p_world_position);
+}
+
+double ChunkedTerrainWorld::add_liquid(const Vector3 &p_world_position, double p_volume, int p_kind) {
+	if (liquids == nullptr) {
+		return 0.0;
+	}
+	return liquids->add_liquid(p_world_position, p_volume, p_kind);
+}
+
+void ChunkedTerrainWorld::set_liquids_enabled(bool p_value) {
+	if (liquids_enabled == p_value) {
+		return;
+	}
+	liquids_enabled = p_value;
+	settings_changed();
+}
+
 void ChunkedTerrainWorld::set_chunk_size(double v) {
 	chunk_size = tmath::maxd(v, 1.0);
 	settings_changed();
@@ -1938,6 +2001,9 @@ void ChunkedTerrainWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("export_edit_state"), &ChunkedTerrainWorld::export_edit_state);
 	ClassDB::bind_method(D_METHOD("import_edit_state", "state"), &ChunkedTerrainWorld::import_edit_state);
 	ClassDB::bind_method(D_METHOD("buries_fighter", "edit"), &ChunkedTerrainWorld::buries_fighter);
+	ClassDB::bind_method(D_METHOD("get_liquids"), &ChunkedTerrainWorld::get_liquids);
+	ClassDB::bind_method(D_METHOD("liquid_at", "world_position"), &ChunkedTerrainWorld::liquid_at);
+	ClassDB::bind_method(D_METHOD("add_liquid", "world_position", "volume", "kind"), &ChunkedTerrainWorld::add_liquid);
 
 	ClassDB::bind_method(D_METHOD("_make_settings_snapshot"), &ChunkedTerrainWorld::_make_settings_snapshot);
 	ClassDB::bind_method(D_METHOD("_make_thread_settings_snapshot"), &ChunkedTerrainWorld::_make_thread_settings_snapshot);
@@ -2023,6 +2089,8 @@ void ChunkedTerrainWorld::_bind_methods() {
 	CTW_BIND(noise_gain, FLOAT, PROPERTY_HINT_RANGE, "0.3,0.65,0.01")
 	ADD_GROUP("Caves", "");
 	CTW_BIND(caves_enabled, BOOL, PROPERTY_HINT_NONE, "")
+	ADD_GROUP("Liquids", "");
+	CTW_BIND(liquids_enabled, BOOL, PROPERTY_HINT_NONE, "")
 	ADD_GROUP("Meshing", "");
 	CTW_BIND(iso_level, FLOAT, PROPERTY_HINT_NONE, "")
 	CTW_BIND(generate_collision, BOOL, PROPERTY_HINT_NONE, "")

@@ -240,6 +240,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_footings.gd` | The footings under structures: solid from bedrock to the dirt where a 3D-noise underside is a sponge, kept clear of the caves under a solid one, dug as the map's own ground where a bed's soil digs as dirt, and sized by the terrain from its own bedrock to cover a footprint's corners |
 | `test_cave_systems.gd` | The carved cave systems: a seed always rolls the same ones and as many as the map's area says, every mouth sits on the surface inside the bounds and opens the ground, the passages go down and are air along their centre lines, a prepared region sees only the segments in reach, and far from every passage there is nothing |
 | `test_cave_water.gd` | The aquifers: a column's level is steady and in range or dry, about the rolled share of the map is wet, a wall of rock stands on the border between two cells of different levels and nowhere with the water off, and a chunk's water sheet lies at its columns' levels in cave air only |
+| `test_terrain_liquids.gd` | The liquids on chunks seeded by hand: liquid falls to the floor and spreads level without losing volume, a wall holds a pool until a door is dug in it and the sides even out, a cell filled in pushes its liquid up, `liquid_at` gives the depth and the liquid, liquid waits at a chunk not built yet and runs in once it is, a dry chunk far from liquid is not kept, and the mesh is coloured by liquid |
 | `test_loose_rock.gd` | The loose rock pass on a chunk's field: a lone solid sample with air all round it is cleared and a lump over the limit kept, a lump on a chunk seam is judged the same from both sides, rock built with the brush stays while rock a dig thinned goes, a row of cave chunks loses only rock and agrees on every shared face, and the limit travels in the settings |
 
 GUT and `test/` are excluded from both export presets, so nothing test-related ships.
@@ -477,9 +478,9 @@ switch, a chance and ranges, and each named in the rebuild line:
   crystal cave, or all fungal. **Aquifers**, Minecraft's: the
   map is cut into cells 120 to 220 m across, four to eight in ten holding water to a level
   of their own between bedrock and 15 m under the surface, and any cave air below the
-  level is a pool, drawn as a flat sheet with the terrarium's water; between two cells of
+  level starts as a pool; between two cells of
   different levels a wall of rock 3 m thick keeps the pools apart, as Minecraft's aquifer
-  barriers do. The pools are a sight for now, not a swim. On faces steeper than about 30
+  barriers do. The pools are real water: see **Liquids** below. On faces steeper than about 30
   degrees the tunnels run right up to the surface and open on it, so cliffs and steep
   hillsides have **cave mouths** where you expect them, while flat ground keeps its burrow
   depth. Where two features meet, their air blends over 2 m, so a tunnel joins a room
@@ -536,6 +537,27 @@ faces only draw from the air side, so rock is see-through from inside. At 4 m vo
 tunnels (4 to 8 m across) resolve coarsely and their thin ends drop out; 2 m is
 the honest cross-section, or `tools/cave_slice.gd` for the raw field in a second. The built chunks
 are dropped before the scene is saved and rebuilt after, so the file stays small.
+
+### Liquids
+
+Water, sewage and hot water live in the terrain's own voxel grid (`TerrainLiquids`, a node
+inside every `ChunkedTerrainWorld` with **Liquids Enabled**, on by default): one cell a
+sample, each holding how full it is (0 to 1) and which liquid. A chunk's build hands its
+cells over (`LiquidSeed`): which are solid, and the aquifers' water it starts with. Thirty
+times a second liquid falls into the open cell under it and spreads to lower neighbours a
+quarter of the difference at a time, but only in the cells that are awake (that moved, or
+whose neighbour did), so a still lake costs nothing; the flow gets 1.5 ms of a frame and a
+big flood carries on next frame instead of holding the game up. A dig rebuilds its chunks,
+their new seeds say which cells opened or filled in, and the cells round them wake: the
+water runs into the hole and the level it left drops, and liquid in a cell that is filled
+in is pushed up out of the ground. Liquid reaching a chunk the terrain has not built (deep
+underground, streamed) asks for that chunk's cells, built on a worker, and waits at its
+face until they come. There is no pressure: water finds its level through an open side, but
+never climbs a U-bend. Each chunk with liquid is meshed as the zero crossing of a field
+made from how full its cells are (a thin falling stream drawn as a column), coloured by
+liquid with the terrarium's water shader. `liquid_at(point)` on the terrain gives the liquid
+there and how far under its surface the point is; `add_liquid(point, cubic metres, kind)`
+pours some in.
 
 ### Loading a map
 

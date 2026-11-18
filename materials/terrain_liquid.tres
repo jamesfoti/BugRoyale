@@ -1,0 +1,19 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" uid="uid://uvyrypjlgnod" path="res://shaders/terrarium_water.gdshader" id="1"]
+
+[resource]
+render_priority = 1
+shader = ExtResource("1")
+shader_parameter/base_color = Color(0.04, 0.38, 0.68, 1)
+shader_parameter/shine_color = Color(0.75, 0.95, 1, 1)
+shader_parameter/surface_alpha = 0.62
+shader_parameter/shine_strength = 0.42
+shader_parameter/pattern_scale = 0.035
+shader_parameter/animation_speed = 0.2
+shader_parameter/scroll_speed = 0.01
+shader_parameter/cell_separation = Vector2(10, 10)
+shader_parameter/noise_separation = Vector2(10, 10)
+shader_parameter/distortion_amount = 0.25
+shader_parameter/vertex_displacement = 0.08
+shader_parameter/tint_from_vertex = true

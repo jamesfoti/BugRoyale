@@ -89,7 +89,8 @@ class WorldDensity;
 	X(Vector2, open_terrain_flat_spot_radius, Vector2(8.0, 14.0), VECTOR2)       \
 	X(AABB, resample_bounds, AABB(), AABB)                                       \
 	X(bool, keep_field, false, BOOL)                                             \
-	X(bool, rebuild_collision, true, BOOL)
+	X(bool, rebuild_collision, true, BOOL)                                       \
+	X(bool, liquids_enabled, false, BOOL)
 
 class TerrainSettings : public RefCounted {
 	GDCLASS(TerrainSettings, RefCounted)

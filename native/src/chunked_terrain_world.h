@@ -7,6 +7,7 @@
 #include "chunk_mesh_builder.h"
 #include "terrain_chunk.h"
 #include "terrain_edits.h"
+#include "terrain_liquids.h"
 #include "world_density.h"
 
 #include <godot_cpp/classes/material.hpp>
@@ -78,6 +79,8 @@ public:
 	int max_concurrent_rebuild_tasks = 4;
 	double play_ring = 96.0;
 	bool stream_underground = false;
+	// Water in the caves, and liquid that flows when the ground is dug (`TerrainLiquids`).
+	bool liquids_enabled = true;
 
 	AABB edit_bounds;
 	Array solids;
@@ -147,6 +150,11 @@ public:
 	Dictionary export_edit_state() const;
 	void import_edit_state(const Dictionary &state);
 	bool buries_fighter(const Dictionary &edit);
+
+	// --- Liquids ---
+	TerrainLiquids *get_liquids() const { return liquids; }
+	Dictionary liquid_at(const Vector3 &p_world_position) const;
+	double add_liquid(const Vector3 &p_world_position, double p_volume, int p_kind);
 	static double fighter_clearance() { return FIGHTER_CLEARANCE; }
 
 	// --- Internals the scripts and tests reach ---
@@ -237,6 +245,8 @@ public:
 	double get_play_ring() const { return play_ring; }
 	void set_stream_underground(bool v) { stream_underground = v; }
 	bool get_stream_underground() const { return stream_underground; }
+	void set_liquids_enabled(bool p_value);
+	bool get_liquids_enabled() const { return liquids_enabled; }
 	void set_edit_bounds(const AABB &v) { edit_bounds = v; }
 	AABB get_edit_bounds() const { return edit_bounds; }
 	void set_solids(const Array &v);
@@ -254,6 +264,7 @@ protected:
 	std::vector<Vector3i> _get_chunk_coordinates_intersecting_aabb(const AABB &bounds);
 
 	CoordMap<TerrainChunk *> chunks;
+	TerrainLiquids *liquids = nullptr;
 	bool rebuild_queued = false;
 	Ref<TerrainEdits> edits;
 	std::vector<Dictionary> edit_log;
@@ -310,6 +321,7 @@ protected:
 	bool play_waiting = true;
 
 	void process_frame();
+	void configure_liquids(const Ref<TerrainSettings> &p_settings, const Vector3i &p_grid);
 	void physics_frame();
 	void abandon_world_build();
 	void reset_stream();

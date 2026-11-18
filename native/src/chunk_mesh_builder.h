@@ -5,6 +5,7 @@
 #include "chunk_mesh_blocks.h"
 #include "common.h"
 #include "flying_edges_mesher.h"
+#include "liquid_seed.h"
 #include "terrain_settings.h"
 
 #include <atomic>
@@ -27,6 +28,8 @@ public:
 	Ref<ChunkMeshBlocks> blocks;
 	// The pools' water sheet in this chunk, empty when there is none.
 	Ref<TerrainMeshResult> water_mesh_result;
+	// The chunk's cells for the liquids (`TerrainLiquids`), when the world has them.
+	Ref<LiquidSeed> liquid_seed;
 	Vector3 local_position;
 	// The mesh's triangles for its collision shape, made on the worker.
 	PackedVector3Array collision_faces;
@@ -37,6 +40,7 @@ public:
 	Ref<SignedDensityField> get_field() const { return field; }
 	Ref<ChunkMeshBlocks> get_blocks() const { return blocks; }
 	Ref<TerrainMeshResult> get_water_mesh_result() const { return water_mesh_result; }
+	Ref<LiquidSeed> get_liquid_seed() const { return liquid_seed; }
 	Vector3 get_local_position() const { return local_position; }
 	PackedVector3Array get_collision_faces() const { return collision_faces; }
 };

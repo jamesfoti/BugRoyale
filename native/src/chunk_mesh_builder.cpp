@@ -94,7 +94,10 @@ void ChunkMeshBuilder::build_chunk_into(const Ref<ChunkBuildResult> &result, con
 				world_center, density.ptr(), Vector3i(), Vector3i(-1, -1, -1), nullptr);
 	}
 	result->collision_faces = collision_faces(result->mesh_result);
-	if (density->caves.is_valid() && density->caves->water_top > -tmath::INF_D && !field->sky) {
+	if (settings->liquids_enabled) {
+		result->liquid_seed = LiquidSeed::from_field(field, density.ptr(), chunk_coordinate, cells_per_axis,
+				grid_world_origin, world_step, settings->iso_level);
+	} else if (density->caves.is_valid() && density->caves->water_top > -tmath::INF_D && !field->sky) {
 		result->water_mesh_result = CaveWaterMesher::build_native(field, density.ptr(), grid_world_origin, grid_offset,
 				world_step, extent, world_center);
 	}
@@ -126,6 +129,7 @@ void ChunkBuildResult::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_field"), &ChunkBuildResult::get_field);
 	ClassDB::bind_method(D_METHOD("get_blocks"), &ChunkBuildResult::get_blocks);
 	ClassDB::bind_method(D_METHOD("get_water_mesh_result"), &ChunkBuildResult::get_water_mesh_result);
+	ClassDB::bind_method(D_METHOD("get_liquid_seed"), &ChunkBuildResult::get_liquid_seed);
 	ClassDB::bind_method(D_METHOD("get_local_position"), &ChunkBuildResult::get_local_position);
 	ClassDB::bind_method(D_METHOD("get_collision_faces"), &ChunkBuildResult::get_collision_faces);
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "mesh_result"), "", "get_mesh_result");

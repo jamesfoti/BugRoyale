@@ -13,6 +13,8 @@ uniform vec2 cell_separation = vec2(10.0, 10.0);
 uniform vec2 noise_separation = vec2(10.0, 10.0);
 uniform float distortion_amount = 0.25;
 uniform float vertex_displacement = 0.08;
+// The terrain's liquids colour each vertex by liquid (alpha too) instead of base_color.
+uniform bool tint_from_vertex = false;
 
 // Set by the GraphicsSettings autoload; Low uses a 3×3 cell search and fewer noise octaves.
 global uniform bool graphics_low_quality;
@@ -164,14 +166,14 @@ float compute_fractal_noise(vec2 uv) {
 	return noise;
 }
 
-vec3 sample_water_color(vec2 uv) {
+vec3 sample_water_color(vec2 uv, vec3 base) {
 	float x_distortion = distortion_amount * compute_fractal_noise(0.5 * uv + vec2(100.0, 0.0));
 	float y_distortion = distortion_amount * compute_fractal_noise(0.5 * uv + vec2(0.0, 100.0));
 	vec2 distorted_pos = vec2(uv.x + x_distortion, uv.y + y_distortion);
 
 	float white = 0.25 + 0.75 * get_close_to_border(distorted_pos);
 	float highlight = white * shine_strength;
-	vec3 water = mix(base_color, shine_color.rgb, highlight);
+	vec3 water = mix(base, shine_color.rgb, highlight);
 	return water;
 }
 
@@ -187,7 +189,7 @@ void vertex() {
 }
 
 void fragment() {
-	vec3 water = sample_water_color(v_pattern_uv);
-	ALBEDO = water;
-	ALPHA = surface_alpha;
+	vec3 base = tint_from_vertex ? COLOR.rgb : base_color;
+	ALBEDO = sample_water_color(v_pattern_uv, base);
+	ALPHA = tint_from_vertex ? COLOR.a : surface_alpha;
 }
