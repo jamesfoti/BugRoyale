@@ -2,9 +2,10 @@ class_name FighterRegistry
 extends RefCounted
 ## One list of everyone a bot might hunt, built once per physics frame and shared by every brain,
 ## instead of each bot walking the scene groups and asking every node for its health. Entries are
-## the bodies in the "fighter" group that are in play and alive, and the live birds, with their
-## team and position. It also answers how far a point is from the nearest human, which the
-## physics, rendering and ghost tiers use to decide how much a bot deserves.
+## the bodies in the "fighter" group that are in play and alive (less a biome's neutral creatures),
+## and the live birds, with their team and position. It also answers how far a point is from the
+## nearest human, which the physics, rendering and ghost tiers use to decide how much a bot
+## deserves.
 
 const FIGHTER_GROUP: StringName = &"fighter"
 const BIRD_GROUP: StringName = &"bird"
@@ -65,6 +66,9 @@ static func _refresh(tree: SceneTree) -> void:
 	for node: Node in tree.get_nodes_in_group(FIGHTER_GROUP):
 		var body: FighterBody = node as FighterBody
 		if body == null or not body.is_inside_tree() or not body.is_in_play():
+			continue
+		# A biome's creatures are neutral: no bot hunts them (they hunt their own attackers).
+		if body.is_in_group(CreatureFeature.GROUP):
 			continue
 		var health: Damageable = body.get_node_or_null("Damageable") as Damageable
 		if health == null or not health.is_alive():

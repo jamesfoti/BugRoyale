@@ -31,9 +31,9 @@ var _space: PhysicsDirectSpaceState3D
 
 static func from_scene(scene_root: Node) -> MapInfo:
 	var info := MapInfo.new()
-	var spawner: PlayerSpawner = (
-		scene_root.find_children("*", "PlayerSpawner", true, false).front() as PlayerSpawner
-	)
+	# A scene without one (the terrain lab) looks for its terrain by group.
+	var spawners: Array[Node] = scene_root.find_children("*", "PlayerSpawner", true, false)
+	var spawner: PlayerSpawner = null if spawners.is_empty() else spawners[0] as PlayerSpawner
 	if spawner != null:
 		info.world = spawner.get_node_or_null(spawner.terrain_path) as Node3D
 	if info.world == null:

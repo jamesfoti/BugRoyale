@@ -362,6 +362,15 @@ its foot into a chimney up the spire or a dome's hollow heart, and a shaft down 
 8 to 12 m under the ground whose honeycomb rooms open into each other through round
 doorways. It is clay red whatever kind it stands in. Its tunnels are about 3 m across, so
 the interior only shows at 1 or 2 m voxels.
+Creatures are features too (`CreatureFeature`): `features/termites.tres` is termite
+soldiers whose **Home** is the termite mounds, listed at density 1 in the same kinds, so a
+group of two to four comes out round every mound's foot once the ground is built
+(`BiomeCreatures`, which a mode attaches on the host and the terrain lab when run as a
+scene; it prints how many came out). They wander near home, neutral: bots leave them out
+of their hunt (`FighterRegistry` skips the `neutral_creature` group), they draw amber on
+the minimap, and they are no mode's fighters (no team, score or respawn). A hit turns the
+one hurt and its kin within the **Call Radius** on the attacker for **Anger Seconds**, with
+a bite (`CreatureBrain`); kin never hurt each other.
 The rebuild line counts the termite mounds. A new kind is a new resource, no code; add it to a list, or remove and reorder the kinds, in the inspector. The rebuild
 line gives both lists as shares.
 **Cave Roll** on the node is Seeded (rolled from the seed, as the maps do, with the

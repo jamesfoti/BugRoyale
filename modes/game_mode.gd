@@ -66,6 +66,8 @@ func _begin() -> void:
 		func() -> void: get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
 	)
 	if Authority.is_host():
+		# The creatures of the map's biomes (none unless its terrain lists some).
+		BiomeCreatures.attach(get_parent(), map.world as OpenTerrain)
 		_start_match()
 	_started = true
 

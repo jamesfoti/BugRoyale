@@ -11,6 +11,7 @@ extends Resource
 
 
 ## The feature as plain values, which the chunks' worker threads read instead of the resource.
-## `type` says which builder raises it; `path` lets a script load the resource back.
+## `type` says which builder raises it; `id` (the resource's instance id) lets a script match
+## a biome's entry to the feature resource it holds.
 func to_data() -> Dictionary:
-	return {"type": "", "name": feature_name, "path": resource_path}
+	return {"type": "", "name": feature_name, "path": resource_path, "id": get_instance_id()}

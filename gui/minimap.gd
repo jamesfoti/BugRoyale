@@ -21,6 +21,7 @@ const COLOR_FRIEND := Color(0.35, 0.9, 0.4)
 const COLOR_ENEMY := Color(1.0, 0.3, 0.25)
 const COLOR_HUSK := Color(0.75, 0.45, 0.95)
 const COLOR_HORNET := Color(1.0, 0.85, 0.2)
+const COLOR_CREATURE := Color(0.95, 0.6, 0.25)
 const COLOR_OUTLINE := Color(0.0, 0.0, 0.0, 0.8)
 
 const MASK_SHADER_CODE: String = """
@@ -207,6 +208,8 @@ func _draw_markers() -> void:
 func _fighter_color(node: Node) -> Color:
 	if node.is_in_group("husk"):
 		return COLOR_HUSK
+	if node.is_in_group(CreatureFeature.GROUP):
+		return COLOR_CREATURE
 	var team: int = Damageable.team_of(node)
 	if team != Damageable.NO_TEAM and team == _player_team:
 		return COLOR_FRIEND

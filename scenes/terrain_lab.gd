@@ -27,6 +27,13 @@ extends Node3D
 @export_tool_button("New seed", "RandomNumberGenerator") var new_seed_action: Callable = new_seed
 
 
+func _ready() -> void:
+	# Run as a scene, the biomes' creatures (termites at the termite mounds) come out once the
+	# ground is built; never in the editor.
+	if not Engine.is_editor_hint():
+		BiomeCreatures.attach(self, get_node_or_null("TerrainWorld") as OpenTerrain)
+
+
 ## Rerolls the terrain's seed. With auto rebuild on the terrain rebuilds itself; otherwise
 ## this builds it.
 func new_seed() -> void:

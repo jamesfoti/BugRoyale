@@ -94,9 +94,12 @@ func _on_node_added(node: Node) -> void:
 		_apply_to_node.call_deferred(node)
 
 
-func _apply_to_node(node: Node) -> void:
-	if not is_instance_valid(node):
+## Untyped: a deferred call can find the node already freed (a body spawned and cleared in
+## one frame), and a typed parameter would fail before the check below.
+func _apply_to_node(target: Variant) -> void:
+	if not is_instance_valid(target):
 		return
+	var node: Node = target as Node
 	if node is WorldEnvironment:
 		_apply_environment((node as WorldEnvironment).environment)
 	elif node is Camera3D:
