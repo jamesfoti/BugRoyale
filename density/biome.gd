@@ -2,15 +2,23 @@
 class_name Biome
 extends Resource
 ## One kind of ground on top or of cave below, as data: its weight against the other kinds in
-## its list (BiomePatches draws each patch by weight), the tint its surfaces carry, the depths
-## it holds at, and what the carver does in it. A new kind is a new resource in biomes/, no
-## code; the lists on the terrain node say which kinds a map draws from.
+## its list (each patch draws its kind by weight), the climate a land kind grows in, the tint
+## its surfaces carry, the depths a cave kind holds at, what the carver does in it, and what
+## stands, grows and lives in it. A new kind is a new resource in biomes/, no code; the lists
+## on the terrain node say which kinds a map draws from.
 
 ## Shown in the rebuild line's shares.
 @export var biome_name: String = "biome"
 ## How likely a patch is this kind against the others in its list: 3 against 1 is three
-## patches in four, 0 is never, and one kind alone is everywhere.
+## patches in four, 0 is never, and one kind alone is everywhere. Land kinds with a climate draw
+## only against the kinds whose climate also fits the patch.
 @export_range(0.0, 10.0, 0.5) var weight: float = 1.0
+## Land only: the warmth (0 cold, 1 hot) and wetness (0 dry, 1 wet) the kind grows in, lowest
+## to highest. The map's climate is two slow noises a few patches across; a patch is drawn among
+## the kinds whose ranges hold the climate at its middle (the nearest kind when none does). The
+## whole of both scales, 0 to 1, is a kind that fits anywhere.
+@export var warmth: Vector2 = Vector2(0.0, 1.0)
+@export var wetness: Vector2 = Vector2(0.0, 1.0)
 ## The vertex tint of its surfaces: white at alpha 1 is the ground as the shader draws it,
 ## any colour at alpha 0.5 is blended half over that, and alpha 0 replaces it.
 @export var tint: Color = Color(1.0, 1.0, 1.0, 1.0)
@@ -38,6 +46,8 @@ func to_data() -> Dictionary:
 		"pillars": pillars,
 		"ceiling_jag": ceiling_jag,
 		"rubble": rubble,
+		"warmth": warmth,
+		"wetness": wetness,
 		"features": features_data(),
 	}
 

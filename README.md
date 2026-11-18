@@ -336,12 +336,20 @@ Noise sliders from the Noise Roll ranges, writing the values into the inspector 
 Noise Roll set to Fixed, so the sliders show exactly what built and can be nudged from
 there; the grid, chunk and voxel sizes stay. The caves' numbers come the same way:
 **Biomes** on the node is two lists of `Biome` resources, **Land Biomes** and **Cave
-Biomes**, the kinds in `biomes/` (meadow, dryland, marsh and barrens on top; plain, mossy,
-dripstone, fungal and crystal below). The land is cut into patches of a jittered grid,
-**Land Patch Size** metres across with borders bent by a slow noise, and each patch draws
-its kind from the list by the kinds' weights: a weight is how likely a patch is that kind
-against the others (3 against 1 is three patches in four), 0 is never, one kind alone is
-everywhere. A resource holds the kind's name, weight, tint (white at alpha 1 is the ground
+Biomes**, the kinds in `biomes/` (grassland, savanna, desert, wetland, forest and tundra
+on top; plain, mossy, dripstone, fungal and crystal below). The land is cut into patches of
+a jittered grid, **Land Patch Size** metres across with borders bent by a slow noise, and
+each patch draws its kind from the list by the kinds' weights: a weight is how likely a
+patch is that kind against the others (3 against 1 is three patches in four), 0 is never,
+one kind alone is everywhere. Land kinds also have a climate, as real biomes do: a
+**Warmth** and a **Wetness** range, each from 0 to 1. The map's climate is two slow noises a
+few patches across (`WorldDensity.climate_at`), and a patch draws only among the kinds
+whose ranges hold the climate at its middle (the nearest kind when none does; a kind whose
+ranges are the whole 0 to 1 fits anywhere). The six kinds tile the climate: tundra where it
+is cold (warmth under 0.3); grassland, forest and wetland where it is mild, dry to wet;
+desert, savanna and wetland where it is warm. **Warmth Shift** and **Wetness Shift** on the
+node push a whole map's climate (a desert map, a marsh map). With climates the rebuild line
+counts the kinds over the map instead of quoting their weights. A resource holds the kind's name, weight, tint (white at alpha 1 is the ground
 as the shader draws it; a colour at alpha 0.5 is blended half over it), and for the caves
 the depths it holds between (mossy 0 to 40 m, the deep kinds 40 m down, the first kind in
 the list that holds standing in elsewhere), whether its rooms stand on pillars, and how
@@ -352,7 +360,8 @@ kind's **Features** list says how often it shows there (a `BiomeFeatureEntry`: t
 and a density from 0 to 1), so one feature can be in many kinds at different densities, and
 the node's **Biome Features** lists the features the map raises at all (a feature a kind
 lists but the map does not is left out). Termite mounds (`features/termite_mounds.tres`, a
-`TermiteMoundFeature`) are in dryland at 0.4, meadow 0.15 and barrens 0.1, and so far only
+`TermiteMoundFeature`) are in savanna at 0.45, grassland 0.15, desert 0.12 and forest 0.06
+(termites need warmth: none in tundra or wetland), and so far only
 the terrain lab lists them. `TermiteMounds` puts one site in every 64 m square, grown into a
 mound when its hash falls under the density of the kind it stands in and the ground there
 is not too steep, inside the
@@ -371,6 +380,18 @@ of their hunt (`FighterRegistry` skips the `neutral_creature` group), they draw 
 the minimap, and they are no mode's fighters (no team, score or respawn). A hit turns the
 one hurt and its kin within the **Call Radius** on the attacker for **Anger Seconds**, with
 a bite (`CreatureBrain`); kin never hurt each other.
+Plants are features too (`PlantFeature`, in `features/plants/`): grass, dry grass, flowers,
+ferns, shrubs, boulders, reeds, cacti, trees, savanna trees and mushrooms, each a built-in
+shape (`PlantMeshes`, built in code with the colours in the vertices) or a mesh of its own,
+with a colour, a height range, a spacing, the steepest ground it grows on and a draw
+distance. `BiomePlants` grows them over the built ground in 32 m tiles, one MultiMesh per
+plant and tile: each plant's cell of its spacing has one jittered spot, grown when its hash
+falls under the density the biome there gives the plant, on open ground (not up a termite
+mound or a ledge) not too steep; a tile grows again when its ground is dug. Each biome lists
+its own (grassland grass and flowers, savanna dry grass and wide trees, desert cacti and
+boulders, wetland reeds, forest trees, ferns and mushrooms, tundra boulders and sparse
+grass). Only the terrain lab lists them so far; there they grow in the editor as well.
+Plants are looks only: nothing collides with them.
 The rebuild line counts the termite mounds. A new kind is a new resource, no code; add it to a list, or remove and reorder the kinds, in the inspector. The rebuild
 line gives both lists as shares.
 **Cave Roll** on the node is Seeded (rolled from the seed, as the maps do, with the

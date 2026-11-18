@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PlantFeature" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://density/plant_feature.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+feature_name = "mushroom"
+shape = 9
+color = Color(1, 1, 1, 1)
+height = Vector2(1, 2.5)
+girth = 1
+spacing = 6
+max_slope_degrees = 30
+follow_slope = 0.2
+cast_shadows = false
+draw_distance = 80

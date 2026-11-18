@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PlantFeature" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://density/plant_feature.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+feature_name = "shrub"
+shape = 4
+color = Color(0.36, 0.5, 0.24, 1)
+height = Vector2(2.5, 5)
+girth = 1.1
+spacing = 9
+max_slope_degrees = 35
+follow_slope = 0.2
+cast_shadows = true
+draw_distance = 250

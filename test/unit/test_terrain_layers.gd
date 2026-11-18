@@ -96,7 +96,7 @@ func test_the_biome_lists_and_their_weights_say_what_lies_where() -> void:
 	world.caves_enabled = true
 	world.solid_underside = true
 	add_child_autofree(world)
-	var marsh: Biome = load("res://biomes/land_marsh.tres")
+	var marsh: Biome = _anywhere(load("res://biomes/land_wetland.tres"))
 	var crystal: Biome = load("res://biomes/cave_crystal.tres")
 	world.land_biomes = [marsh]
 	world.cave_biomes = [crystal]
@@ -105,7 +105,9 @@ func test_the_biome_lists_and_their_weights_say_what_lies_where() -> void:
 	assert_eq(settings.open_terrain_cave_biomes[0]["name"], "crystal")
 	var forced: WorldDensity = world._build_world_density(settings)
 	for spot: Vector2 in [Vector2.ZERO, Vector2(200.0, -150.0), Vector2(-240.0, 240.0)]:
-		assert_eq(forced.land_biome(spot.x, spot.y)["name"], "marsh", "marsh alone, everywhere")
+		assert_eq(
+			forced.land_biome(spot.x, spot.y)["name"], "wetland", "one kind alone, everywhere"
+		)
 		assert_eq(
 			forced.caves.biome(Vector3(spot.x, -60.0, spot.y), 60.0)["name"],
 			"crystal",
@@ -116,11 +118,11 @@ func test_the_biome_lists_and_their_weights_say_what_lies_where() -> void:
 			{},
 			"a deep kind holds nowhere near the surface"
 		)
-	assert_true(forced.land_summary().contains("marsh 100%"), "the rebuild line says so")
-	var meadow: Biome = load("res://biomes/land_meadow.tres")
+	assert_true(forced.land_summary().contains("wetland 100%"), "the rebuild line says so")
+	var meadow: Biome = _anywhere(load("res://biomes/land_grassland.tres"))
 	var even_marsh: Biome = marsh.duplicate()
 	even_marsh.weight = meadow.weight
-	var never: Biome = load("res://biomes/land_barrens.tres").duplicate()
+	var never: Biome = _anywhere(load("res://biomes/land_tundra.tres"))
 	never.weight = 0.0
 	world.land_biomes = [meadow, even_marsh, never]
 	world.land_patch_size = 100.0
@@ -133,13 +135,61 @@ func test_the_biome_lists_and_their_weights_say_what_lies_where() -> void:
 				. land_biome(float(step_x) * 40.0 - 1000.0, float(step_z) * 40.0 - 1000.0)["name"]
 			)
 			counts[name] = int(counts.get(name, 0)) + 1
-	assert_false(counts.has("barrens"), "0 is never")
-	assert_between(float(counts.get("meadow", 0)) / 2500.0, 0.3, 0.7, "1 against 1 is near half")
+	assert_false(counts.has("tundra"), "0 is never")
+	assert_between(float(counts.get("grassland", 0)) / 2500.0, 0.3, 0.7, "1 against 1 is near half")
 	assert_eq(Biome.tint_of(meadow.to_data()), TerrainMaterials.NATURAL_VERTEX_COLOR)
 	assert_almost_eq(Biome.tint_of(marsh.to_data()).a, 0.5, 0.001, "the others blend half-way")
 	assert_eq(Biome.tint_of({}), TerrainMaterials.NATURAL_VERTEX_COLOR, "no kind, no tint")
 	assert_eq(Biome.data_of(null).size(), 0, "no list is no kinds")
 	assert_eq(Biome.data_of([null, meadow]).size(), 1, "an empty slot is skipped")
+
+
+## A copy of a kind with no climate (it fits anywhere), so it draws by weight alone.
+func _anywhere(kind: Biome) -> Biome:
+	var copy: Biome = kind.duplicate()
+	copy.warmth = Vector2(0.0, 1.0)
+	copy.wetness = Vector2(0.0, 1.0)
+	return copy
+
+
+## Land kinds with climates hold only where the climate fits: the six default kinds over a map
+## pushed hot and dry are desert, cold is tundra, hot and wet is wetland; the climate stays on
+## its 0 to 1 scales and varies over an unpushed map, and the rebuild line counts the kinds.
+func test_land_kinds_hold_where_their_climate_fits() -> void:
+	var world: OpenTerrain = OpenTerrain.new()
+	world.rebuild_on_ready = false
+	add_child_autofree(world)
+	assert_eq(world.land_biomes.size(), 6, "the six climate kinds by default")
+	var pushes: Array[Array] = [
+		[1.0, -1.0, "desert"], [-1.0, 0.0, "tundra"], [1.0, 1.0, "wetland"], [-1.0, 1.0, "tundra"]
+	]
+	for push: Array in pushes:
+		world.warmth_shift = push[0]
+		world.wetness_shift = push[1]
+		var density: WorldDensity = world._build_world_density(world._make_settings_snapshot())
+		for step: int in 12:
+			var spot := Vector2(step * 83.0 - 500.0, 400.0 - step * 71.0)
+			assert_eq(
+				density.land_biome(spot.x, spot.y)["name"],
+				push[2],
+				"warmth %+.0f, wetness %+.0f" % [push[0], push[1]]
+			)
+	world.warmth_shift = 0.0
+	world.wetness_shift = 0.0
+	var plain: WorldDensity = world._build_world_density(world._make_settings_snapshot())
+	var lowest := Vector2(1.0, 1.0)
+	var highest := Vector2(0.0, 0.0)
+	for step_x: int in 30:
+		for step_z: int in 30:
+			var climate: Vector2 = plain.climate_at(
+				step_x * 120.0 - 1800.0, step_z * 120.0 - 1800.0
+			)
+			lowest = Vector2(minf(lowest.x, climate.x), minf(lowest.y, climate.y))
+			highest = Vector2(maxf(highest.x, climate.x), maxf(highest.y, climate.y))
+	assert_true(lowest.x >= 0.0 and highest.x <= 1.0 and lowest.y >= 0.0 and highest.y <= 1.0)
+	assert_gt(highest.x - lowest.x, 0.4, "warmth varies over the land")
+	assert_gt(highest.y - lowest.y, 0.4, "and wetness")
+	assert_string_contains(plain.land_summary(), "%")
 
 
 ## The game's build on ready runs in the background: frames come while it builds, the

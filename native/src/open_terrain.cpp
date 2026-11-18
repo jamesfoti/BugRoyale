@@ -9,10 +9,12 @@
 namespace godot {
 
 static const char *LAND_BIOMES[] = {
-	"res://biomes/land_meadow.tres",
-	"res://biomes/land_dryland.tres",
-	"res://biomes/land_marsh.tres",
-	"res://biomes/land_barrens.tres",
+	"res://biomes/land_grassland.tres",
+	"res://biomes/land_savanna.tres",
+	"res://biomes/land_desert.tres",
+	"res://biomes/land_wetland.tres",
+	"res://biomes/land_forest.tres",
+	"res://biomes/land_tundra.tres",
 };
 static const char *CAVE_BIOMES[] = {
 	"res://biomes/cave_plain.tres",
@@ -135,6 +137,8 @@ void OpenTerrain::_apply_world_specific_settings(const Ref<TerrainSettings> &set
 	settings->open_terrain_cave_shape = cave_shape();
 	settings->open_terrain_land_biomes = biome_data(land_biomes, biome_features);
 	settings->open_terrain_land_patch = land_patch_size;
+	settings->open_terrain_warmth_shift = warmth_shift;
+	settings->open_terrain_wetness_shift = wetness_shift;
 	settings->open_terrain_cave_biomes = biome_data(cave_biomes, biome_features);
 	settings->open_terrain_cave_patch = cave_patch_size;
 	Dictionary values;
@@ -244,6 +248,7 @@ Ref<WorldDensity> OpenTerrain::_build_world_density(const Ref<TerrainSettings> &
 	}
 	density->set_land_biomes(settings->open_terrain_land_biomes);
 	density->set_land_patch_size(settings->open_terrain_land_patch);
+	density->set_climate_shift(settings->open_terrain_warmth_shift, settings->open_terrain_wetness_shift);
 	// After every layer of the surface, so the cave mouths sit on the ground as built.
 	if (density->caves.is_valid()) {
 		WorldDensity *d = density.ptr();
@@ -402,6 +407,8 @@ void OpenTerrain::_bind_methods() {
 	OT_PLAIN(flat_spot_radius, VECTOR2)
 	ADD_GROUP("Biomes", "");
 	OT_RANGE(land_patch_size, "50,2000,10")
+	OT_RANGE(warmth_shift, "-1,1,0.05")
+	OT_RANGE(wetness_shift, "-1,1,0.05")
 	OT_BIND(land_biomes, ARRAY, PROPERTY_HINT_TYPE_STRING, "24/17:Biome")
 	OT_BIND(biome_features, ARRAY, PROPERTY_HINT_TYPE_STRING, "24/17:BiomeFeature")
 	OT_RANGE(cave_patch_size, "50,2000,10")

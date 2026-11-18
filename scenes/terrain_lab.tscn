@@ -5,6 +5,17 @@
 [ext_resource type="Environment" uid="uid://brcqpo8f7y5it" path="res://materials/battlefield_env.tres" id="4"]
 [ext_resource type="Resource" path="res://features/termite_mounds.tres" id="termite_mounds"]
 [ext_resource type="Resource" path="res://features/termites.tres" id="termites"]
+[ext_resource type="Resource" path="res://features/plants/grass.tres" id="plant_grass"]
+[ext_resource type="Resource" path="res://features/plants/dry_grass.tres" id="plant_dry_grass"]
+[ext_resource type="Resource" path="res://features/plants/flowers.tres" id="plant_flowers"]
+[ext_resource type="Resource" path="res://features/plants/fern.tres" id="plant_fern"]
+[ext_resource type="Resource" path="res://features/plants/shrub.tres" id="plant_shrub"]
+[ext_resource type="Resource" path="res://features/plants/boulder.tres" id="plant_boulder"]
+[ext_resource type="Resource" path="res://features/plants/reeds.tres" id="plant_reeds"]
+[ext_resource type="Resource" path="res://features/plants/cactus.tres" id="plant_cactus"]
+[ext_resource type="Resource" path="res://features/plants/tree.tres" id="plant_tree"]
+[ext_resource type="Resource" path="res://features/plants/savanna_tree.tres" id="plant_savanna_tree"]
+[ext_resource type="Resource" path="res://features/plants/mushroom.tres" id="plant_mushroom"]
 
 [node name="TerrainLab" type="Node3D" unique_id=1270558407]
 script = ExtResource("1")
@@ -19,7 +30,7 @@ light_energy = 1.35
 shadow_enabled = true
 
 [node name="TerrainWorld" type="OpenTerrain" parent="." unique_id=521404953]
-biome_features = [ExtResource("termite_mounds"), ExtResource("termites")]
+biome_features = [ExtResource("termite_mounds"), ExtResource("termites"), ExtResource("plant_grass"), ExtResource("plant_dry_grass"), ExtResource("plant_flowers"), ExtResource("plant_fern"), ExtResource("plant_shrub"), ExtResource("plant_boulder"), ExtResource("plant_reeds"), ExtResource("plant_cactus"), ExtResource("plant_tree"), ExtResource("plant_savanna_tree"), ExtResource("plant_mushroom")]
 chunks_x = 16
 chunks_y = 16
 chunks_z = 3

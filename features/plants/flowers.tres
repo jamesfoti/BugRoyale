@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PlantFeature" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://density/plant_feature.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+feature_name = "flowers"
+shape = 2
+color = Color(0.92, 0.42, 0.62, 1)
+height = Vector2(1.5, 2.6)
+girth = 1
+spacing = 5
+max_slope_degrees = 35
+follow_slope = 0.2
+cast_shadows = false
+draw_distance = 90

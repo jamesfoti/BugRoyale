@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PlantFeature" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://density/plant_feature.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+feature_name = "savanna tree"
+shape = 8
+color = Color(0.5, 0.56, 0.26, 1)
+height = Vector2(10, 18)
+girth = 1.5
+spacing = 20
+max_slope_degrees = 25
+follow_slope = 0
+cast_shadows = true
+draw_distance = 900

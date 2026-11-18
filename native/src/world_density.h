@@ -130,6 +130,11 @@ public:
 	Color natural_tint(const Vector3 &world_position, double density_value);
 	int ore_at(const Vector3 &world_position, double depth) const;
 	const BiomeData &land_biome_of(double world_x, double world_z) const;
+	// The climate at a column, (warmth, wetness) each from 0 to 1: two slow noises a few
+	// patches across, pushed by the map's shifts. A land kind with a climate holds a patch whose
+	// middle's climate is in its ranges.
+	Vector2 climate_at(double p_world_x, double p_world_z) const;
+	void set_climate_shift(double p_warmth_shift, double p_wetness_shift);
 	Dictionary land_biome(double world_x, double world_z) const { return land_biome_of(world_x, world_z).to_dictionary(); }
 	String land_summary() const;
 	// The termite mounds whose bounds meet an area, as data (base, height, radius, spire,
@@ -237,6 +242,10 @@ private:
 	TNoise relief_noise;
 	TNoise land_warp;
 	int land_seed = 0;
+	TNoise warmth_noise;
+	TNoise wetness_noise;
+	double warmth_shift = 0.0;
+	double wetness_shift = 0.0;
 	// The lumps on a termite mound's skin.
 	TNoise termite_mound_noise;
 	TNoise vein_noise;

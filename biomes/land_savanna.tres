@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=15 format=3]
+
+[ext_resource type="Script" path="res://density/biome.gd" id="1"]
+[ext_resource type="Script" path="res://density/biome_feature_entry.gd" id="2"]
+[ext_resource type="Resource" path="res://features/plants/dry_grass.tres" id="feature_0"]
+[ext_resource type="Resource" path="res://features/plants/shrub.tres" id="feature_1"]
+[ext_resource type="Resource" path="res://features/plants/savanna_tree.tres" id="feature_2"]
+[ext_resource type="Resource" path="res://features/plants/boulder.tres" id="feature_3"]
+[ext_resource type="Resource" path="res://features/termite_mounds.tres" id="feature_4"]
+[ext_resource type="Resource" path="res://features/termites.tres" id="feature_5"]
+
+[sub_resource type="Resource" id="entry_0"]
+script = ExtResource("2")
+feature = ExtResource("feature_0")
+density = 0.75
+
+[sub_resource type="Resource" id="entry_1"]
+script = ExtResource("2")
+feature = ExtResource("feature_1")
+density = 0.1
+
+[sub_resource type="Resource" id="entry_2"]
+script = ExtResource("2")
+feature = ExtResource("feature_2")
+density = 0.12
+
+[sub_resource type="Resource" id="entry_3"]
+script = ExtResource("2")
+feature = ExtResource("feature_3")
+density = 0.03
+
+[sub_resource type="Resource" id="entry_4"]
+script = ExtResource("2")
+feature = ExtResource("feature_4")
+density = 0.45
+
+[sub_resource type="Resource" id="entry_5"]
+script = ExtResource("2")
+feature = ExtResource("feature_5")
+density = 1
+
+[resource]
+script = ExtResource("1")
+biome_name = "savanna"
+weight = 1.0
+tint = Color(0.8, 0.68, 0.36, 0.5)
+warmth = Vector2(0.6, 1)
+wetness = Vector2(0.3, 0.75)
+features = Array[ExtResource("2")]([SubResource("entry_0"), SubResource("entry_1"), SubResource("entry_2"), SubResource("entry_3"), SubResource("entry_4"), SubResource("entry_5")])

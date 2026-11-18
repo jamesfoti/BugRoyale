@@ -28,10 +28,13 @@ extends Node3D
 
 
 func _ready() -> void:
-	# Run as a scene, the biomes' creatures (termites at the termite mounds) come out once the
-	# ground is built; never in the editor.
+	var terrain: OpenTerrain = get_node_or_null("TerrainWorld") as OpenTerrain
+	# The biomes' plants grow over the ground once it is built, in the editor too.
+	BiomePlants.attach(self, terrain)
+	# Run as a scene, the biomes' creatures (termites at the termite mounds) come out as well;
+	# never in the editor.
 	if not Engine.is_editor_hint():
-		BiomeCreatures.attach(self, get_node_or_null("TerrainWorld") as OpenTerrain)
+		BiomeCreatures.attach(self, terrain)
 
 
 ## Rerolls the terrain's seed. With auto rebuild on the terrain rebuilds itself; otherwise

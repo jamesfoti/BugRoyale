@@ -106,6 +106,9 @@ public:
 	Vector2i flat_spot_count = Vector2i(2, 4);
 	Vector2 flat_spot_radius = Vector2(8.0, 14.0);
 	double land_patch_size = 400.0;
+	// Pushes the whole map's climate warmer or colder, wetter or drier (a desert map, a marsh).
+	double warmth_shift = 0.0;
+	double wetness_shift = 0.0;
 	Array land_biomes;
 	// The features (`BiomeFeature`) this map raises; a feature a biome lists stands only on a map
 	// that lists it too.
@@ -183,6 +186,8 @@ public:
 	OT_ACCESSORS(Vector2i, flat_spot_count)
 	OT_ACCESSORS(Vector2, flat_spot_radius)
 	OT_ACCESSORS(double, land_patch_size)
+	OT_ACCESSORS(double, warmth_shift)
+	OT_ACCESSORS(double, wetness_shift)
 	OT_ACCESSORS(double, cave_patch_size)
 	OT_ACCESSORS(int, cave_roll)
 	OT_ACCESSORS(Vector2, cave_range_tunnel_depth)

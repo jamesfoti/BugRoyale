@@ -247,6 +247,10 @@ Ref<WorldDensity> WorldDensity::clone_for_build() const {
 	clone->detail_noise = detail_noise;
 	clone->relief_noise = relief_noise;
 	clone->land_warp = land_warp;
+	clone->warmth_noise = warmth_noise;
+	clone->wetness_noise = wetness_noise;
+	clone->warmth_shift = warmth_shift;
+	clone->wetness_shift = wetness_shift;
 	clone->land_seed = land_seed;
 	clone->vein_noise = vein_noise;
 	clone->ore_noise = ore_noise;
@@ -389,8 +393,27 @@ void WorldDensity::init_ground_noises(int noise_seed) {
 	refresh_land_warp();
 }
 
+// How many patches across one swing of the climate noises spans, and how far the noises
+// (mostly within -0.6 to 0.6) are spread over the 0 to 1 scales.
+static const double CLIMATE_PATCHES = 2.5;
+static const double CLIMATE_SPREAD = 1.4;
+
 void WorldDensity::refresh_land_warp() {
 	land_warp = patches::make_warp(land_seed, land_patch_size);
+	double frequency = 1.0 / (land_patch_size * CLIMATE_PATCHES);
+	warmth_noise = TNoise::make(land_seed + 71, TNoise::SIMPLEX, frequency, 0);
+	wetness_noise = TNoise::make(land_seed + 72, TNoise::SIMPLEX, frequency, 0);
+}
+
+Vector2 WorldDensity::climate_at(double p_world_x, double p_world_z) const {
+	double warmth = 0.5 + 0.5 * CLIMATE_SPREAD * warmth_noise.get_2d(p_world_x, p_world_z) + warmth_shift;
+	double wetness = 0.5 + 0.5 * CLIMATE_SPREAD * wetness_noise.get_2d(p_world_x, p_world_z) + wetness_shift;
+	return Vector2((real_t)tmath::clampd(warmth, 0.0, 1.0), (real_t)tmath::clampd(wetness, 0.0, 1.0));
+}
+
+void WorldDensity::set_climate_shift(double p_warmth_shift, double p_wetness_shift) {
+	warmth_shift = p_warmth_shift;
+	wetness_shift = p_wetness_shift;
 }
 
 const BiomeData &WorldDensity::land_biome_of(double world_x, double world_z) const {
@@ -398,12 +421,74 @@ const BiomeData &WorldDensity::land_biome_of(double world_x, double world_z) con
 	if (land_biomes.is_empty()) {
 		return empty;
 	}
-	int pick = patches::pick(world_x, world_z, land_seed, land_patch_size, &land_warp, land_biomes.weights);
-	return pick < 0 ? empty : land_biomes.kinds[pick];
+	if (!land_biomes.by_climate) {
+		int pick = patches::pick(world_x, world_z, land_seed, land_patch_size, &land_warp, land_biomes.weights);
+		return pick < 0 ? empty : land_biomes.kinds[pick];
+	}
+	// By climate: the patch draws by weight among the kinds whose ranges hold the climate at its
+	// middle, or takes the kind whose ranges come nearest when none does.
+	patches::Patch patch = patches::patch_at(world_x, world_z, land_seed, land_patch_size, &land_warp);
+	Vector2 climate = climate_at((double)patch.middle.x, (double)patch.middle.y);
+	double total = 0.0;
+	int nearest = -1;
+	double nearest_distance = tmath::INF_D;
+	for (int index = 0; index < (int)land_biomes.kinds.size(); index++) {
+		double weight = (double)land_biomes.weights[index];
+		if (weight <= 0.0) {
+			continue;
+		}
+		const BiomeData &kind = land_biomes.kinds[index];
+		if (kind.fits(climate)) {
+			total += weight;
+		}
+		double distance = kind.climate_distance(climate);
+		if (distance < nearest_distance) {
+			nearest_distance = distance;
+			nearest = index;
+		}
+	}
+	if (total <= 0.0) {
+		return nearest < 0 ? empty : land_biomes.kinds[nearest];
+	}
+	double left = total * patches::draw_share(patch.bits);
+	int last_fit = nearest;
+	for (int index = 0; index < (int)land_biomes.kinds.size(); index++) {
+		double weight = (double)land_biomes.weights[index];
+		if (weight <= 0.0 || !land_biomes.kinds[index].fits(climate)) {
+			continue;
+		}
+		last_fit = index;
+		left -= weight;
+		if (left < 0.0) {
+			return land_biomes.kinds[index];
+		}
+	}
+	return land_biomes.kinds[last_fit];
 }
 
 String WorldDensity::land_summary() const {
-	String summary = "land " + patches::shares(land_biomes.names(), land_biomes.weights_packed());
+	PackedFloat32Array shares = land_biomes.weights_packed();
+	if (land_biomes.by_climate && !land_biomes.is_empty()) {
+		// By climate the weights say little: count the kinds over a grid of the map instead.
+		const int across = 48;
+		shares.fill(0.0f);
+		for (int step_z = 0; step_z < across; step_z++) {
+			for (int step_x = 0; step_x < across; step_x++) {
+				double world_x = (double)bounds_center.x - (double)bounds_half.x +
+						(double)bounds_half.x * 2.0 * ((double)step_x + 0.5) / (double)across;
+				double world_z = (double)bounds_center.z - (double)bounds_half.z +
+						(double)bounds_half.z * 2.0 * ((double)step_z + 0.5) / (double)across;
+				const BiomeData *kind = &land_biome_of(world_x, world_z);
+				for (int index = 0; index < (int)land_biomes.kinds.size(); index++) {
+					if (&land_biomes.kinds[index] == kind) {
+						shares.set(index, shares[index] + 1.0f);
+						break;
+					}
+				}
+			}
+		}
+	}
+	String summary = "land " + patches::shares(land_biomes.names(), shares);
 	if (termite_mounds_enabled) {
 		AABB map(bounds_center - bounds_half, bounds_half * 2.0f);
 		int64_t count = (int64_t)TermiteMounds::in(map, *this, land_seed).size();
@@ -946,6 +1031,7 @@ void WorldDensity::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("ore_at", "world_position", "depth"), &WorldDensity::ore_at);
 	ClassDB::bind_method(D_METHOD("land_biome", "world_x", "world_z"), &WorldDensity::land_biome);
 	ClassDB::bind_method(D_METHOD("land_summary"), &WorldDensity::land_summary);
+	ClassDB::bind_method(D_METHOD("climate_at", "world_x", "world_z"), &WorldDensity::climate_at);
 	ClassDB::bind_method(D_METHOD("termite_mounds_in", "area"), &WorldDensity::termite_mounds_in);
 	ClassDB::bind_method(D_METHOD("sample_open_terrain_height", "world_x", "world_z"), &WorldDensity::sample_open_terrain_height);
 	ClassDB::bind_method(D_METHOD("curve_height", "unit"), &WorldDensity::curve_height);
