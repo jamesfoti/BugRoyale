@@ -139,6 +139,7 @@ void OpenTerrain::_apply_world_specific_settings(const Ref<TerrainSettings> &set
 	settings->open_terrain_land_patch = land_patch_size;
 	settings->open_terrain_warmth_shift = warmth_shift;
 	settings->open_terrain_wetness_shift = wetness_shift;
+	settings->open_terrain_lakes = lakes;
 	settings->open_terrain_cave_biomes = biome_data(cave_biomes, biome_features);
 	settings->open_terrain_cave_patch = cave_patch_size;
 	Dictionary values;
@@ -256,6 +257,9 @@ Ref<WorldDensity> OpenTerrain::_build_world_density(const Ref<TerrainSettings> &
 				AABB(settings->bounds_center - settings->bounds_half, settings->bounds_half * 2.0f),
 				[d](double x, double z) -> double { return d->sample_open_terrain_height(x, z); }, density->caves->floor_y);
 	}
+	if (settings->liquids_enabled && settings->open_terrain_lakes > 0.0) {
+		density->lakes = LakeMap::build(**density, settings->open_terrain_lakes);
+	}
 	return density;
 }
 
@@ -282,6 +286,9 @@ String OpenTerrain::_world_summary(const Ref<TerrainSettings> &settings) {
 	parts.push_back(density->flat_spot_summary());
 	parts.push_back(density->terrace_summary());
 	summary += String(", ").join(parts);
+	if (density->lakes.is_valid()) {
+		summary += ", " + density->lakes->summary();
+	}
 	if (density->caves.is_valid()) {
 		summary += ", " + density->caves->summary();
 	}
@@ -409,6 +416,7 @@ void OpenTerrain::_bind_methods() {
 	OT_RANGE(land_patch_size, "50,2000,10")
 	OT_RANGE(warmth_shift, "-1,1,0.05")
 	OT_RANGE(wetness_shift, "-1,1,0.05")
+	OT_RANGE(lakes, "0,1,0.05")
 	OT_BIND(land_biomes, ARRAY, PROPERTY_HINT_TYPE_STRING, "24/17:Biome")
 	OT_BIND(biome_features, ARRAY, PROPERTY_HINT_TYPE_STRING, "24/17:BiomeFeature")
 	OT_RANGE(cave_patch_size, "50,2000,10")

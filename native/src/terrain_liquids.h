@@ -1,13 +1,14 @@
 // The liquids in a terrain's caves and on its ground: water, sewage and hot water held in the
 // terrain's own voxel grid, one cell a sample, each cell with how full it is (0 to 1) and which
 // liquid it holds. A chunk's cells come from its build (`LiquidSeed`): which are solid ground, and
-// the water the map starts with. Thirty times a second liquid falls into the open cell under it
-// and spreads sideways into lower neighbours, but only in the cells that are awake (that changed,
-// or whose neighbour did), so a still lake costs nothing. A dig rebuilds its chunks, their new
-// seeds say which cells opened or filled in, and the cells round them wake: the water runs into
-// the hole and the level it left drops. Liquid reaching a chunk the terrain has not built asks for
-// that chunk's cells and waits at its face until they come. Each chunk with liquid is meshed as
-// the zero crossing of a field made from how full its cells are, coloured by liquid.
+// the water the map starts with, which stays as it was made until something disturbs it. Thirty
+// times a second liquid falls into the open cell under it and spreads sideways into lower
+// neighbours, but only in the cells that are awake (that changed, or whose neighbour did), so a
+// still lake costs nothing. A dig rebuilds its chunks, their new seeds say which cells opened or
+// filled in, and the cells round them wake: the water runs into the hole and the level it left
+// drops. Liquid reaching a chunk the terrain has not built asks for that chunk's cells and waits
+// at its face until they come. Each chunk with liquid is meshed as the zero crossing of a field
+// made from how full its cells are, coloured by liquid.
 #pragma once
 
 #include "common.h"
@@ -127,6 +128,8 @@ public:
 	double get_total_volume() const;
 	// Where liquid meets open air over it (a pool's surface), up to a limit of points.
 	PackedVector3Array surface_points(int p_limit) const;
+	// The cells waiting to move, as points (debugging: where the liquid is still settling).
+	PackedVector3Array awake_points(int p_limit) const;
 	int get_awake_count() const { return (int)(awake_next.size() + awake_now.size() - awake_cursor); }
 	int get_chunk_count() const { return (int)chunks.size(); }
 	int get_wet_chunk_count() const;
@@ -190,7 +193,7 @@ private:
 	void mark_chunk_stale(const Vector3i &p_chunk_coordinate);
 	void want(const Vector3i &p_cell);
 	bool borders_wet(const Vector3i &p_chunk_coordinate) const;
-	void wake_seams(const Vector3i &p_chunk_coordinate);
+	void wake_seams(const Vector3i &p_chunk_coordinate, bool p_asked);
 	void update_solids(LiquidChunk *p_chunk, const Vector3i &p_chunk_coordinate, const Ref<LiquidSeed> &p_seed);
 	void push_up(const Vector3i &p_cell, float p_amount, uint8_t p_kind);
 	void free_chunk(LiquidChunk *p_chunk);

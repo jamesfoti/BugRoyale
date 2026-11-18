@@ -6,10 +6,10 @@ extends Node3D
 ## MultiMeshInstance3D per plant and tile, so the far tiles drop out past the plant's draw
 ## distance. Each of the plant's cells (`spacing` metres) has one jittered spot that grows one
 ## when its hash falls under the density the biome there gives the plant, the ground there is
-## built, not too steep and open (not up a termite mound's side or on a ledge over the
-## surface). The same seed grows the same plants. A tile grows again when its ground is
-## rebuilt (a dig), so nothing floats over a hole. It works in the editor as well as in play:
-## the terrain lab shows its plants as it builds.
+## built, not too steep, open (not up a termite mound's side or on a ledge over the surface) and
+## not under deeper water than the plant takes. The same seed grows the same plants. A tile
+## grows again when its ground is rebuilt (a dig), so nothing floats over a hole. It works in
+## the editor as well as in play: the terrain lab shows its plants as it builds.
 
 ## The side of a tile in metres.
 const TILE: float = 32.0
@@ -172,6 +172,8 @@ func _grow_tile(tile: Vector2i, density: WorldDensity, densities: Dictionary) ->
 				var surface: float = terrain.get_surface_height_at(hit.position)
 				if absf(hit.position.y - surface) > OPEN_GROUND:
 					continue
+				if _under_water(hit.position) > plant.max_water_depth:
+					continue
 				transforms.append(_placed(plant, roll, hit.position, normal))
 				colors.append(_shade(plant, roll))
 		if transforms.is_empty():
@@ -179,6 +181,16 @@ func _grow_tile(tile: Vector2i, density: WorldDensity, densities: Dictionary) ->
 		fields.append(_field(plant, transforms, colors))
 	if not fields.is_empty():
 		_tiles[tile] = fields
+
+
+## How deep the water over a spot of ground is (0 on dry land), read half a cell up so the cell
+## asked is open.
+func _under_water(at: Vector3) -> float:
+	var reach: float = terrain.get_voxel_size() * 0.5
+	var water: Dictionary = terrain.liquid_at(at + Vector3.UP * reach)
+	if int(water.get("kind", 0)) == TerrainLiquids.KIND_NONE:
+		return 0.0
+	return maxf(float(water.get("depth", 0.0)) + reach, 0.0)
 
 
 ## The biome's name at a spot, from the nearest of an 8 m grid's spots (asked once each).

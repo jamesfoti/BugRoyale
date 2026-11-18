@@ -24,6 +24,7 @@ voxel_size = 1.0
 noise_seed = 37
 noise_frequency = 0.01
 noise_amplitude = 4.0
+lakes = 0.0
 terrain_material = ExtResource("2")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]

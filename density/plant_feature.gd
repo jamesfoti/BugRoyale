@@ -23,6 +23,8 @@ enum Shape { GRASS, TALL_GRASS, FLOWERS, FERN, SHRUB, BOULDER, REEDS, CACTUS, TR
 @export_range(0.5, 64.0, 0.5) var spacing: float = 3.0
 ## The steepest ground it grows on.
 @export_range(0.0, 90.0, 1.0) var max_slope_degrees: float = 35.0
+## The deepest water it grows under (reeds stand in the shallows; most plants keep to dry land).
+@export_range(0.0, 10.0, 0.1) var max_water_depth: float = 0.0
 ## How much each plant's colour strays from the next.
 @export_range(0.0, 0.5, 0.01) var color_variation: float = 0.1
 ## How far it leans with the ground (0 upright, 1 square to the slope).

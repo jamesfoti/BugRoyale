@@ -270,7 +270,7 @@ void TerrainLiquids::take_seed(const Ref<LiquidSeed> &p_seed) {
 		}
 	}
 	insert_chunk(chunk_coordinate, chunk);
-	wake_seams(chunk_coordinate);
+	wake_seams(chunk_coordinate, asked);
 	if (chunk->is_wet()) {
 		for (int offset_z = -1; offset_z < 2; offset_z++) {
 			for (int offset_y = -1; offset_y < 2; offset_y++) {
@@ -293,10 +293,14 @@ bool TerrainLiquids::borders_wet(const Vector3i &p_chunk_coordinate) const {
 }
 
 // Wakes the cells on each face the new chunk shares with one already here whose liquid can now
-// cross it: a fuller cell beside an emptier one, or liquid over a cell with room.
-void TerrainLiquids::wake_seams(const Vector3i &p_chunk_coordinate) {
+// cross it: a fuller cell beside an emptier one, or liquid over a cell with room. The map's own
+// water stays as it was made until something disturbs it (as a Minecraft lake does): a face is
+// woken only when the chunk was asked for (liquid waits at it) or its neighbour's liquid has
+// moved.
+void TerrainLiquids::wake_seams(const Vector3i &p_chunk_coordinate, bool p_asked) {
 	for (const Vector3i &face : FACES) {
-		if (find_chunk(p_chunk_coordinate + face) == nullptr) {
+		LiquidChunk *neighbour = find_chunk(p_chunk_coordinate + face);
+		if (neighbour == nullptr || (!p_asked && !neighbour->touched)) {
 			continue;
 		}
 		int axis = face.x != 0 ? 0 : (face.y != 0 ? 1 : 2);
@@ -796,6 +800,14 @@ PackedVector3Array TerrainLiquids::surface_points(int p_limit) const {
 	return points;
 }
 
+PackedVector3Array TerrainLiquids::awake_points(int p_limit) const {
+	PackedVector3Array points;
+	for (uint32_t position = 0; position < awake_next.size() && (int)points.size() < p_limit; position++) {
+		points.push_back(grid_world_origin + Vector3(awake_next[position]) * (real_t)step_size);
+	}
+	return points;
+}
+
 int TerrainLiquids::get_wet_chunk_count() const {
 	int count = 0;
 	for (const KeyValue<Vector3i, LiquidChunk *> &entry : chunks) {
@@ -1105,6 +1117,7 @@ void TerrainLiquids::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("kind_at_cell", "cell"), &TerrainLiquids::kind_at_cell);
 	ClassDB::bind_method(D_METHOD("get_total_volume"), &TerrainLiquids::get_total_volume);
 	ClassDB::bind_method(D_METHOD("surface_points", "limit"), &TerrainLiquids::surface_points);
+	ClassDB::bind_method(D_METHOD("awake_points", "limit"), &TerrainLiquids::awake_points);
 	ClassDB::bind_method(D_METHOD("get_awake_count"), &TerrainLiquids::get_awake_count);
 	ClassDB::bind_method(D_METHOD("get_chunk_count"), &TerrainLiquids::get_chunk_count);
 	ClassDB::bind_method(D_METHOD("get_wet_chunk_count"), &TerrainLiquids::get_wet_chunk_count);

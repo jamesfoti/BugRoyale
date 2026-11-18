@@ -7,6 +7,7 @@
 #include "biomes.h"
 #include "cave_carver.h"
 #include "common.h"
+#include "lake_map.h"
 #include "terrain_edits.h"
 #include "termite_mounds.h"
 
@@ -86,6 +87,8 @@ public:
 	double relief_band = 0.0;
 	std::vector<Vector4> flat_spots;
 	Ref<CaveCarver> caves;
+	// The lakes on the ground (`LakeMap`), built once a map; none on most kinds of world.
+	Ref<LakeMap> lakes;
 	BiomeList land_biomes;
 	double land_patch_size = 400.0;
 	// Whether the map raises termite mounds (some land kind lists them, and the map lets it),
@@ -192,6 +195,8 @@ public:
 	TypedArray<Vector4> get_flat_spots() const;
 	void set_caves(const Ref<CaveCarver> &value) { caves = value; }
 	Ref<CaveCarver> get_caves() const { return caves; }
+	void set_lakes(const Ref<LakeMap> &value) { lakes = value; }
+	Ref<LakeMap> get_lakes() const { return lakes; }
 	void set_terrain_edits(const Ref<TerrainEdits> &value) { terrain_edits = value; }
 	Ref<TerrainEdits> get_terrain_edits() const { return terrain_edits; }
 	void set_heightmap_image(const Ref<Image> &image);

@@ -109,6 +109,8 @@ public:
 	// Pushes the whole map's climate warmer or colder, wetter or drier (a desert map, a marsh).
 	double warmth_shift = 0.0;
 	double wetness_shift = 0.0;
+	// How full the hollows of the ground fill with lakes, where the climate is wet (0: none).
+	double lakes = 1.0;
 	Array land_biomes;
 	// The features (`BiomeFeature`) this map raises; a feature a biome lists stands only on a map
 	// that lists it too.
@@ -188,6 +190,7 @@ public:
 	OT_ACCESSORS(double, land_patch_size)
 	OT_ACCESSORS(double, warmth_shift)
 	OT_ACCESSORS(double, wetness_shift)
+	OT_ACCESSORS(double, lakes)
 	OT_ACCESSORS(double, cave_patch_size)
 	OT_ACCESSORS(int, cave_roll)
 	OT_ACCESSORS(Vector2, cave_range_tunnel_depth)

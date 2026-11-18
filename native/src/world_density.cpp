@@ -229,6 +229,7 @@ Ref<WorldDensity> WorldDensity::clone_for_build() const {
 	if (caves.is_valid()) {
 		clone->caves = caves->clone();
 	}
+	clone->lakes = lakes;
 	clone->land_biomes = land_biomes;
 	clone->land_patch_size = land_patch_size;
 	clone->termite_mounds_enabled = termite_mounds_enabled;
@@ -1032,6 +1033,7 @@ void WorldDensity::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("land_biome", "world_x", "world_z"), &WorldDensity::land_biome);
 	ClassDB::bind_method(D_METHOD("land_summary"), &WorldDensity::land_summary);
 	ClassDB::bind_method(D_METHOD("climate_at", "world_x", "world_z"), &WorldDensity::climate_at);
+	ClassDB::bind_method(D_METHOD("set_climate_shift", "warmth_shift", "wetness_shift"), &WorldDensity::set_climate_shift);
 	ClassDB::bind_method(D_METHOD("termite_mounds_in", "area"), &WorldDensity::termite_mounds_in);
 	ClassDB::bind_method(D_METHOD("sample_open_terrain_height", "world_x", "world_z"), &WorldDensity::sample_open_terrain_height);
 	ClassDB::bind_method(D_METHOD("curve_height", "unit"), &WorldDensity::curve_height);
@@ -1103,6 +1105,7 @@ void WorldDensity::_bind_methods() {
 	WD_PROP(FLOAT, land_patch_size)
 	WD_PROP(ARRAY, solids)
 	WD_PROP(OBJECT, caves)
+	WD_PROP(OBJECT, lakes)
 	WD_PROP(OBJECT, terrain_edits)
 #undef WD_PROP
 }

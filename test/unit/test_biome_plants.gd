@@ -1,8 +1,9 @@
 extends GutTest
 ## A biome's plants (BiomePlants, PlantFeature): a kind that lists a plant grows it over the
 ## built ground of a map whose terrain lists it too, and nowhere else; each stands on open
-## ground at the surface, within the plant's heights, the same for the same seed; and the
-## built-in shapes all build a mesh a metre tall.
+## ground at the surface, within the plant's heights, the same for the same seed; none stands
+## under a lake unless it takes water that deep; and the built-in shapes all build a mesh a
+## metre tall.
 
 const SEED: int = 42
 
@@ -67,6 +68,29 @@ func test_plants_grow_on_open_ground_only_where_listed() -> void:
 	var count: int = plants.count()
 	plants.grow()
 	assert_eq(plants.count(), count, "the same seed grows the same plants")
+
+
+func test_no_plant_stands_under_a_lake_unless_it_takes_the_water() -> void:
+	var plant: PlantFeature = _plant()
+	var world: OpenTerrain = _world(plant, true)
+	# A seed with a hollow, in a climate that brims it.
+	world.noise_seed = 43
+	world.wetness_shift = 1.0
+	var plants: BiomePlants = await _grown(world)
+	var lakes: LakeMap = world._get_bake_density().lakes
+	assert_gt(lakes.get_lake_count(), 0, "the wet map has lakes")
+	var dry: int = plants.count()
+	var under: int = 0
+	for field: Node in plants.get_children():
+		var multimesh: MultiMesh = (field as MultiMeshInstance3D).multimesh
+		for index: int in multimesh.instance_count:
+			var placed: Vector3 = multimesh.get_instance_transform(index).origin
+			if lakes.level_at(placed.x, placed.z) > placed.y + 1.0:
+				under += 1
+	assert_eq(under, 0, "none a metre under a lake")
+	plant.max_water_depth = 10.0
+	plants.grow()
+	assert_gt(plants.count(), dry, "more grow once the plant takes deep water")
 
 
 func test_every_shape_builds_a_mesh_a_metre_tall() -> void:

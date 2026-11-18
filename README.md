@@ -241,6 +241,7 @@ as an editor plugin. Suites live in `test/unit`:
 | `test_cave_systems.gd` | The carved cave systems: a seed always rolls the same ones and as many as the map's area says, every mouth sits on the surface inside the bounds and opens the ground, the passages go down and are air along their centre lines, a prepared region sees only the segments in reach, and far from every passage there is nothing |
 | `test_cave_water.gd` | The aquifers: a column's level is steady and in range or dry, about the rolled share of the map is wet, a wall of rock stands on the border between two cells of different levels and nowhere with the water off, and a chunk's water sheet lies at its columns' levels in cave air only |
 | `test_terrain_liquids.gd` | The liquids on chunks seeded by hand: liquid falls to the floor and spreads level without losing volume, a wall holds a pool until a door is dug in it and the sides even out, a cell filled in pushes its liquid up, `liquid_at` gives the depth and the liquid, liquid waits at a chunk not built yet and runs in once it is, a dry chunk far from liquid is not kept, and the mesh is coloured by liquid |
+| `test_lakes.gd` | The lakes: a bowl in a wet climate holds one lake just under its rim, half full at half the amount, none in a dry climate or at nothing, and a chunk's seed fills the open cells under the lake's level and leaves those over it dry |
 | `test_loose_rock.gd` | The loose rock pass on a chunk's field: a lone solid sample with air all round it is cleared and a lump over the limit kept, a lump on a chunk seam is judged the same from both sides, rock built with the brush stays while rock a dig thinned goes, a row of cave chunks loses only rock and agrees on every shared face, and the limit travels in the settings |
 
 GUT and `test/` are excluded from both export presets, so nothing test-related ships.
@@ -558,6 +559,18 @@ made from how full its cells are (a thin falling stream drawn as a column), colo
 liquid with the terrarium's water shader. `liquid_at(point)` on the terrain gives the liquid
 there and how far under its surface the point is; `add_liquid(point, cubic metres, kind)`
 pours some in.
+
+**Lakes.** On an open terrain every hollow of the ground fills with a lake (`LakeMap`): a
+priority flood over the surface's heights on a 2 m grid, from the map's edges inwards, raises
+each point to the level its water would spill out at, and each hollow fills part way to that
+by the climate's wetness at its deepest point (none under 0.35, brimming from 0.75), 0.3 m
+under the rim it found so a notch between its points does not let it out. The terrain's
+**Lakes** amount (Biomes group, 0 to 1) scales every hollow's share; the crawlspace sets it to
+0. A chunk's seed fills the open cells of a lake's columns from its level down to the ground.
+The map's own water, lakes and aquifers alike, stays as it was made until something disturbs
+it, as a Minecraft lake does: a dig beside a lake lets it run into the hole, and a lake whose
+rim the dig breaks drains down to the gap. The rebuild line counts the lakes and their area.
+Plants keep out of water deeper than their **Max Water Depth** (reeds stand in 1.5 m).
 
 ### Loading a map
 

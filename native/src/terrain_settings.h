@@ -63,6 +63,7 @@ class WorldDensity;
 	X(double, open_terrain_land_patch, 400.0, FLOAT)                             \
 	X(double, open_terrain_warmth_shift, 0.0, FLOAT)                             \
 	X(double, open_terrain_wetness_shift, 0.0, FLOAT)                            \
+	X(double, open_terrain_lakes, 1.0, FLOAT)                                    \
 	X(double, open_terrain_cave_patch, 250.0, FLOAT)                             \
 	X(int, open_terrain_noise_roll, 0, INT)                                      \
 	X(Vector2, open_terrain_roll_frequency, Vector2(0.004, 0.01), VECTOR2)       \

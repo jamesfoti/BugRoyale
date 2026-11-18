@@ -12,6 +12,7 @@
 #include "chunked_terrain_world.h"
 #include "density_sampler.h"
 #include "flying_edges_mesher.h"
+#include "lake_map.h"
 #include "liquid_seed.h"
 #include "loose_rock.h"
 #include "open_terrain.h"
@@ -39,6 +40,7 @@ static void initialize_terrain_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(FlyingEdgesMesher);
 	GDREGISTER_CLASS(ChunkMeshBlocks);
 	GDREGISTER_CLASS(CaveWaterMesher);
+	GDREGISTER_CLASS(LakeMap);
 	GDREGISTER_CLASS(LiquidSeed);
 	GDREGISTER_CLASS(TerrainLiquids);
 	GDREGISTER_CLASS(TerrainSettings);
