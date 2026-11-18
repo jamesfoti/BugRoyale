@@ -1,7 +1,8 @@
-// Termite mounds: clay towers on the land of a map whose terrain has them switched on, each
-// hollow inside. The map is cut into `CELL` squares with one jittered site each; a site grows one
-// when its hash falls under the `termite_mounds` share of the land kind it stands in (and the
-// ground under it is not too steep), so any kind can have them, often or seldom. A mound is a tall leaning spire or a low lumpy dome flared into the
+// Termite mounds: clay towers on the land of a map whose terrain lists the feature (a
+// `TermiteMoundFeature` under Biome Features), each hollow inside. The map is cut into `CELL`
+// squares with one jittered site each; a site grows one when its hash falls under the density
+// the land kind it stands in gives the feature (and the ground under it is not too steep), so
+// any kind can have them, often or seldom, at the sizes that kind's feature sets. A mound is a tall leaning spire or a low lumpy dome flared into the
 // ground, with holes round its foot into it, a chimney up its middle (a spire) or a hollow heart (a
 // dome), and a shaft down to a nest chamber under it whose honeycomb cells open into each other
 // through round doorways. Pure numbers from the seed, read on the worker threads; `WorldDensity`

@@ -107,8 +107,9 @@ public:
 	Vector2 flat_spot_radius = Vector2(8.0, 14.0);
 	double land_patch_size = 400.0;
 	Array land_biomes;
-	// Whether this map raises termite mounds; each land kind's share says where and how often.
-	bool termite_mounds_enabled = false;
+	// The features (`BiomeFeature`) this map raises; a feature a biome lists stands only on a map
+	// that lists it too.
+	Array biome_features;
 	double cave_patch_size = 250.0;
 	Array cave_biomes;
 	int cave_roll = CAVE_ROLL_SEEDED;
@@ -182,7 +183,6 @@ public:
 	OT_ACCESSORS(Vector2i, flat_spot_count)
 	OT_ACCESSORS(Vector2, flat_spot_radius)
 	OT_ACCESSORS(double, land_patch_size)
-	OT_ACCESSORS(bool, termite_mounds_enabled)
 	OT_ACCESSORS(double, cave_patch_size)
 	OT_ACCESSORS(int, cave_roll)
 	OT_ACCESSORS(Vector2, cave_range_tunnel_depth)
@@ -207,11 +207,14 @@ public:
 	Array get_land_biomes() const { return land_biomes; }
 	void set_cave_biomes(const Array &v);
 	Array get_cave_biomes() const { return cave_biomes; }
+	void set_biome_features(const Array &p_features);
+	Array get_biome_features() const { return biome_features; }
 
 protected:
 	Ref<Image> heightmap_image_cache;
 	Ref<Image> duplicate_heightmap_image();
-	static Array biome_data(const Array &biomes);
+	// The kinds as data, each keeping only the features in `p_allowed_features`.
+	static Array biome_data(const Array &p_biomes, const Array &p_allowed_features);
 };
 
 class TerrariumTerrain : public OpenTerrain {

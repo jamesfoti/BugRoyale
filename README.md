@@ -345,14 +345,19 @@ everywhere. A resource holds the kind's name, weight, tint (white at alpha 1 is 
 as the shader draws it; a colour at alpha 0.5 is blended half over it), and for the caves
 the depths it holds between (mossy 0 to 40 m, the deep kinds 40 m down, the first kind in
 the list that holds standing in elsewhere), whether its rooms stand on pillars, and how
-much of the seed's ceiling jag and floor rubble they get. Termite mounds are no biome of
-their own, since termites live in many: **Termite Mounds Enabled** on the node switches them
-on for the map (so far only the terrain lab), and each land kind's **Termite Mounds** share
-says how often they stand in its patches (dryland 0.4, meadow 0.15, barrens 0.1, marsh none).
-`TermiteMounds` puts one site in every 64 m square, grown into a mound when its hash falls
-under the share of the kind it stands in and the ground there is not too steep, inside the
+much of the seed's ceiling jag and floor rubble they get.
+**Features** are what stands, grows or lives in a biome: one `BiomeFeature` resource in
+`features/` says what the thing is (termite mounds' spire and dome sizes, say), a land
+kind's **Features** list says how often it shows there (a `BiomeFeatureEntry`: the feature
+and a density from 0 to 1), so one feature can be in many kinds at different densities, and
+the node's **Biome Features** lists the features the map raises at all (a feature a kind
+lists but the map does not is left out). Termite mounds (`features/termite_mounds.tres`, a
+`TermiteMoundFeature`) are in dryland at 0.4, meadow 0.15 and barrens 0.1, and so far only
+the terrain lab lists them. `TermiteMounds` puts one site in every 64 m square, grown into a
+mound when its hash falls under the density of the kind it stands in and the ground there
+is not too steep, inside the
 map. A mound is ground like any other (dug the same way): a leaning
-spire 20 to 34 m tall or a lumpy dome 10 to 18 m, flared into the ground, with holes round
+spire (20 to 34 m tall by default) or a lumpy dome (10 to 18 m), flared into the ground, with holes round
 its foot into a chimney up the spire or a dome's hollow heart, and a shaft down to a nest
 8 to 12 m under the ground whose honeycomb rooms open into each other through round
 doorways. It is clay red whatever kind it stands in. Its tunnels are about 3 m across, so

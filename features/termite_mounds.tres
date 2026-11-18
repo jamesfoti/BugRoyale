@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="TermiteMoundFeature" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://density/termite_mound_feature.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+feature_name = "termite mounds"

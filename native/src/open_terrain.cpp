@@ -61,6 +61,10 @@ void OpenTerrain::set_cave_biomes(const Array &v) {
 	cave_biomes = v;
 	settings_changed();
 }
+void OpenTerrain::set_biome_features(const Array &p_features) {
+	biome_features = p_features;
+	settings_changed();
+}
 
 double OpenTerrain::get_surface_datum_y() const {
 	return (double)get_global_position().y + surface_height_offset +
@@ -82,13 +86,27 @@ double OpenTerrain::get_surface_height_at(const Vector3 &world_position) {
 	return get_global_position().y;
 }
 
-Array OpenTerrain::biome_data(const Array &biomes) {
+Array OpenTerrain::biome_data(const Array &p_biomes, const Array &p_allowed_features) {
 	Array out;
-	for (int i = 0; i < biomes.size(); i++) {
-		Object *biome = biomes[i];
-		if (biome != nullptr && biome->has_method("to_data")) {
-			out.push_back(biome->call("to_data"));
+	for (int biome_index = 0; biome_index < p_biomes.size(); biome_index++) {
+		Object *biome = p_biomes[biome_index];
+		if (biome == nullptr || !biome->has_method("to_data")) {
+			continue;
 		}
+		Dictionary data = biome->call("to_data");
+		Array features = data.get("features", Array());
+		Array kept;
+		for (int feature_index = 0; feature_index < features.size(); feature_index++) {
+			Dictionary feature = features[feature_index];
+			if (p_allowed_features.has(feature.get("source", Variant()))) {
+				// The worker threads read plain values only.
+				Dictionary plain = feature.duplicate();
+				plain.erase("source");
+				kept.push_back(plain);
+			}
+		}
+		data["features"] = kept;
+		out.push_back(data);
 	}
 	return out;
 }
@@ -115,10 +133,9 @@ void OpenTerrain::_apply_world_specific_settings(const Ref<TerrainSettings> &set
 	settings->open_terrain_cave_roll = cave_roll;
 	settings->open_terrain_cave_ranges = cave_ranges();
 	settings->open_terrain_cave_shape = cave_shape();
-	settings->open_terrain_land_biomes = biome_data(land_biomes);
+	settings->open_terrain_land_biomes = biome_data(land_biomes, biome_features);
 	settings->open_terrain_land_patch = land_patch_size;
-	settings->open_terrain_termite_mounds = termite_mounds_enabled;
-	settings->open_terrain_cave_biomes = biome_data(cave_biomes);
+	settings->open_terrain_cave_biomes = biome_data(cave_biomes, biome_features);
 	settings->open_terrain_cave_patch = cave_patch_size;
 	Dictionary values;
 #define OT_CAVE_VALUE(name, def, step, range) values[#name] = cave_##name;
@@ -226,7 +243,6 @@ Ref<WorldDensity> OpenTerrain::_build_world_density(const Ref<TerrainSettings> &
 				settings->open_terrain_flat_spot_radius);
 	}
 	density->set_land_biomes(settings->open_terrain_land_biomes);
-	density->set_termite_mounds_on(settings->open_terrain_termite_mounds);
 	density->set_land_patch_size(settings->open_terrain_land_patch);
 	// After every layer of the surface, so the cave mouths sit on the ground as built.
 	if (density->caves.is_valid()) {
@@ -387,7 +403,7 @@ void OpenTerrain::_bind_methods() {
 	ADD_GROUP("Biomes", "");
 	OT_RANGE(land_patch_size, "50,2000,10")
 	OT_BIND(land_biomes, ARRAY, PROPERTY_HINT_TYPE_STRING, "24/17:Biome")
-	OT_PLAIN(termite_mounds_enabled, BOOL)
+	OT_BIND(biome_features, ARRAY, PROPERTY_HINT_TYPE_STRING, "24/17:BiomeFeature")
 	OT_RANGE(cave_patch_size, "50,2000,10")
 	OT_BIND(cave_biomes, ARRAY, PROPERTY_HINT_TYPE_STRING, "24/17:Biome")
 	ADD_GROUP("Cave Roll", "");

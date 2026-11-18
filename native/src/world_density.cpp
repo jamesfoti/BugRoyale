@@ -231,7 +231,6 @@ Ref<WorldDensity> WorldDensity::clone_for_build() const {
 	}
 	clone->land_biomes = land_biomes;
 	clone->land_patch_size = land_patch_size;
-	clone->termite_mounds_on = termite_mounds_on;
 	clone->termite_mounds_enabled = termite_mounds_enabled;
 	clone->termite_mound_noise = termite_mound_noise;
 	clone->solids = solids;
@@ -430,16 +429,8 @@ void WorldDensity::set_land_biomes(const Array &value) {
 	refresh_land_warp();
 }
 
-void WorldDensity::set_termite_mounds_on(bool p_on) {
-	termite_mounds_on = p_on;
-	refresh_termite_mounds();
-}
-
 void WorldDensity::refresh_termite_mounds() {
 	termite_mounds_enabled = false;
-	if (!termite_mounds_on) {
-		return;
-	}
 	for (const BiomeData &kind : land_biomes.kinds) {
 		termite_mounds_enabled = termite_mounds_enabled || kind.termite_mounds > 0.0;
 	}

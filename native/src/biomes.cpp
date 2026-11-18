@@ -4,21 +4,41 @@
 
 namespace godot {
 
-BiomeData BiomeData::from(const Dictionary &data) {
+TermiteMoundShape TermiteMoundShape::from(const Dictionary &p_data) {
+	TermiteMoundShape shape;
+	shape.spire_share = (double)p_data.get("spire_share", shape.spire_share);
+	shape.spire_height = p_data.get("spire_height", shape.spire_height);
+	shape.spire_radius = p_data.get("spire_radius", shape.spire_radius);
+	shape.dome_height = p_data.get("dome_height", shape.dome_height);
+	shape.dome_radius = p_data.get("dome_radius", shape.dome_radius);
+	shape.nest_depth = p_data.get("nest_depth", shape.nest_depth);
+	shape.nest_radius = p_data.get("nest_radius", shape.nest_radius);
+	return shape;
+}
+
+BiomeData BiomeData::from(const Dictionary &p_data) {
 	BiomeData biome_data;
-	if (data.is_empty()) {
+	if (p_data.is_empty()) {
 		return biome_data;
 	}
 	biome_data.empty = false;
-	biome_data.name = data.get("name", "");
-	biome_data.weight = (double)data.get("weight", 0.0);
-	biome_data.tint = data.get("tint", mat::natural_vertex_color());
-	biome_data.depth_min = (double)data.get("depth_min", 0.0);
-	biome_data.depth_max = (double)data.get("depth_max", tmath::INF_D);
-	biome_data.pillars = (bool)data.get("pillars", false);
-	biome_data.ceiling_jag = (double)data.get("ceiling_jag", 1.0);
-	biome_data.rubble = (double)data.get("rubble", 1.0);
-	biome_data.termite_mounds = (double)data.get("termite_mounds", 0.0);
+	biome_data.name = p_data.get("name", "");
+	biome_data.weight = (double)p_data.get("weight", 0.0);
+	biome_data.tint = p_data.get("tint", mat::natural_vertex_color());
+	biome_data.depth_min = (double)p_data.get("depth_min", 0.0);
+	biome_data.depth_max = (double)p_data.get("depth_max", tmath::INF_D);
+	biome_data.pillars = (bool)p_data.get("pillars", false);
+	biome_data.ceiling_jag = (double)p_data.get("ceiling_jag", 1.0);
+	biome_data.rubble = (double)p_data.get("rubble", 1.0);
+	biome_data.features = p_data.get("features", Array());
+	for (int index = 0; index < biome_data.features.size(); index++) {
+		Dictionary feature = biome_data.features[index];
+		// The first termite mounds a kind lists are its own; a second is passed by.
+		if (String(feature.get("type", "")) == "termite_mounds" && biome_data.termite_mounds <= 0.0) {
+			biome_data.termite_mounds = (double)feature.get("density", 0.0);
+			biome_data.termite_mound_shape = TermiteMoundShape::from(feature);
+		}
+	}
 	return biome_data;
 }
 
@@ -35,7 +55,7 @@ Dictionary BiomeData::to_dictionary() const {
 	data["pillars"] = pillars;
 	data["ceiling_jag"] = ceiling_jag;
 	data["rubble"] = rubble;
-	data["termite_mounds"] = termite_mounds;
+	data["features"] = features;
 	return data;
 }
 

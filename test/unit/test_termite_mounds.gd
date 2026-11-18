@@ -1,14 +1,16 @@
 extends GutTest
-## Termite mounds: a map with Termite Mounds Enabled raises them in the patches of each land kind
-## with a Termite Mounds share, and nowhere when the switch is off or no kind has a share; they
-## stand inside the map, the same for the same seed; each is earth round a hollow middle (a spire's
-## chimney, a dome's heart) over an open nest under the ground; and the build lays them down above
-## the ground (the chunks up there are not skipped as sky).
+## Termite mounds: a land kind whose Features list them raises them in its patches on a map whose
+## Biome Features list them too, and nowhere else; they stand inside the map, the same for the same
+## seed, at the sizes the feature sets; each is earth round a hollow middle (a spire's chimney, a
+## dome's heart) over an open nest under the ground; and the build lays them down above the ground
+## (the chunks up there are not skipped as sky).
 
 const SEED: int = 42
 
 
-func _world(share: float, switched_on: bool = true) -> OpenTerrain:
+func _world(
+	share: float, listed_on_map: bool = true, feature: TermiteMoundFeature = null
+) -> OpenTerrain:
 	var world := OpenTerrain.new()
 	world.rebuild_on_ready = false
 	world.chunks_x = 6
@@ -21,10 +23,15 @@ func _world(share: float, switched_on: bool = true) -> OpenTerrain:
 	world.caves_enabled = false
 	world.solid_underside = true
 	world.boxed_edges_enabled = false
+	if feature == null:
+		feature = TermiteMoundFeature.new()
+	var entry := BiomeFeatureEntry.new()
+	entry.feature = feature
+	entry.density = share
 	var kind := Biome.new()
-	kind.termite_mounds = share
+	kind.features = [entry]
 	world.land_biomes = [kind]
-	world.termite_mounds_enabled = switched_on
+	world.biome_features = [feature] if listed_on_map else []
 	add_child_autofree(world)
 	return world
 
@@ -35,18 +42,35 @@ func _mounds(world: OpenTerrain) -> Array:
 	return density.termite_mounds_in(AABB(world.global_position - extents * 0.5, extents))
 
 
-func test_mounds_stand_only_where_switched_on_and_a_kind_raises_them_inside_the_map() -> void:
-	assert_eq(_mounds(_world(0.0)).size(), 0, "a kind without a share raises none")
-	assert_eq(_mounds(_world(0.7, false)).size(), 0, "a map switched off raises none")
+func test_mounds_stand_only_where_listed_and_a_kind_raises_them_inside_the_map() -> void:
+	assert_eq(_mounds(_world(0.0)).size(), 0, "a kind at density 0 raises none")
+	assert_eq(_mounds(_world(0.7, false)).size(), 0, "a map that does not list them raises none")
 	var world: OpenTerrain = _world(0.7)
 	var mounds: Array = _mounds(world)
-	assert_gt(mounds.size(), 0, "a kind with a share raises them")
+	assert_gt(mounds.size(), 0, "a kind that lists them raises them")
 	var half: Vector3 = world.get_world_extents() * 0.5
 	for mound: Dictionary in mounds:
 		var base: Vector3 = mound.base
 		assert_lt(absf(base.x), half.x - mound.radius, "inside the map across")
 		assert_lt(absf(base.z), half.z - mound.radius, "and along")
 	assert_eq(_mounds(_world(0.7)), mounds, "the same seed, the same")
+
+
+func test_a_mound_takes_its_sizes_from_the_feature() -> void:
+	var feature := TermiteMoundFeature.new()
+	feature.spire_share = 1.0
+	feature.spire_height = Vector2(26.0, 26.0)
+	feature.spire_radius = Vector2(7.0, 7.0)
+	feature.nest_depth = Vector2(9.0, 9.0)
+	var mounds: Array = _mounds(_world(0.7, true, feature))
+	assert_gt(mounds.size(), 0)
+	for mound: Dictionary in mounds:
+		assert_true(mound.spire, "every mound a spire")
+		assert_almost_eq(float(mound.height), 26.0, 0.001, "at the feature's height")
+		assert_almost_eq(float(mound.radius), 7.0, 0.001, "and radius")
+		var base: Vector3 = mound.base
+		var nest: Vector3 = mound.nest
+		assert_almost_eq(base.y - nest.y, 9.0, 0.01, "the nest at the feature's depth")
 
 
 func test_a_mound_is_earth_round_a_hollow_middle_over_an_open_nest() -> void:

@@ -13,6 +13,20 @@
 
 namespace godot {
 
+// How a kind's termite mounds come out (a `TermiteMoundFeature`): each range is smallest to
+// largest, in metres, and each mound draws from it with its own hash.
+struct TermiteMoundShape {
+	double spire_share = 0.5;
+	Vector2 spire_height = Vector2(20.0, 34.0);
+	Vector2 spire_radius = Vector2(6.0, 9.0);
+	Vector2 dome_height = Vector2(10.0, 18.0);
+	Vector2 dome_radius = Vector2(9.0, 13.0);
+	Vector2 nest_depth = Vector2(8.0, 12.0);
+	Vector2 nest_radius = Vector2(5.5, 8.0);
+
+	static TermiteMoundShape from(const Dictionary &p_data);
+};
+
 struct BiomeData {
 	String name;
 	double weight = 0.0;
@@ -22,11 +36,14 @@ struct BiomeData {
 	bool pillars = false;
 	double ceiling_jag = 1.0;
 	double rubble = 1.0;
-	// Land only: the share of mound sites in its patches where a termite mound stands.
+	// Land only: its features as data (`Biome.features`, less those the map does not list), and
+	// from them the share of termite mound sites in its patches where a mound stands, and how.
+	Array features;
 	double termite_mounds = 0.0;
+	TermiteMoundShape termite_mound_shape;
 	bool empty = true;
 
-	static BiomeData from(const Dictionary &data);
+	static BiomeData from(const Dictionary &p_data);
 	Dictionary to_dictionary() const;
 	bool holds(double depth) const { return depth >= depth_min && depth < depth_max; }
 };

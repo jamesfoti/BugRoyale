@@ -166,11 +166,14 @@ bool TermiteMounds::site(int p_cell_x, int p_cell_z, const WorldDensity &p_densi
 	if (kind.empty || kind.termite_mounds <= 0.0 || unit(hash, 3) >= kind.termite_mounds) {
 		return false;
 	}
+	const TermiteMoundShape &shape = kind.termite_mound_shape;
 	TermiteMound mound;
 	mound.hash = hash;
-	mound.spire = unit(hash, 4) < 0.5;
-	mound.height = mound.spire ? tmath::lerpd(20.0, 34.0, unit(hash, 5)) : tmath::lerpd(10.0, 18.0, unit(hash, 5));
-	mound.radius = mound.spire ? tmath::lerpd(6.0, 9.0, unit(hash, 6)) : tmath::lerpd(9.0, 13.0, unit(hash, 6));
+	mound.spire = unit(hash, 4) < shape.spire_share;
+	Vector2 heights = mound.spire ? shape.spire_height : shape.dome_height;
+	Vector2 radii = mound.spire ? shape.spire_radius : shape.dome_radius;
+	mound.height = tmath::lerpd((double)heights.x, (double)heights.y, unit(hash, 5));
+	mound.radius = tmath::lerpd((double)radii.x, (double)radii.y, unit(hash, 6));
 	// Inside the map, with room for its foot, whether or not the map has edge walls.
 	double margin = mound.radius * 1.6 + 4.0;
 	if (Math::abs(x - (double)p_density.bounds_center.x) > (double)p_density.bounds_half.x - margin ||
@@ -198,8 +201,8 @@ bool TermiteMounds::site(int p_cell_x, int p_cell_z, const WorldDensity &p_densi
 		mound.lean_x = Math::cos(turn) * amount;
 		mound.lean_z = Math::sin(turn) * amount;
 	}
-	mound.nest_depth = tmath::lerpd(8.0, 12.0, unit(hash, 9));
-	mound.nest_radius = tmath::lerpd(5.5, 8.0, unit(hash, 10));
+	mound.nest_depth = tmath::lerpd((double)shape.nest_depth.x, (double)shape.nest_depth.y, unit(hash, 9));
+	mound.nest_radius = tmath::lerpd((double)shape.nest_radius.x, (double)shape.nest_radius.y, unit(hash, 10));
 	mound.holes = mound.spire ? 2 + (int)(unit(hash, 11) * 2.0) : 3 + (int)(unit(hash, 11) * 3.0);
 	mound.hole_turn = Math::TAU * unit(hash, 12);
 	double lean = Math::sqrt(mound.lean_x * mound.lean_x + mound.lean_z * mound.lean_z);
